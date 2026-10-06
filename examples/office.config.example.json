@@ -1,0 +1,518 @@
+{
+  "$schema": "../schema/office.config.schema.json",
+  "version": 1,
+  "project": {
+    "name": "demo-shop",
+    "description": "Nuxt SSR shop: catalog, cart, Stripe checkout, i18n, Redis cache, log qua Graylog",
+    "repo_path": "../demo-shop",
+    "knowledge_file": "knowledge.md",
+    "timezone": "Asia/Ho_Chi_Minh",
+    "language": "vi",
+    "tags": [
+      "nuxt",
+      "ecommerce",
+      "stripe",
+      "redis",
+      "graylog"
+    ]
+  },
+  "budget": {
+    "currency": "USD",
+    "daily_usd": 5,
+    "per_incident_usd": 1,
+    "per_ask_usd": 0.5,
+    "warn_at_ratio": 0.8,
+    "on_exceed": "downgrade_model"
+  },
+  "runtimes": {
+    "claude": {
+      "type": "claude-code",
+      "bin": "claude",
+      "timeout": "10m",
+      "max_concurrency": 2
+    },
+    "anthropic-api": {
+      "type": "api",
+      "provider": "anthropic",
+      "api_key_env": "ANTHROPIC_API_KEY",
+      "timeout": "5m",
+      "enabled": false
+    }
+  },
+  "model_policy": {
+    "director": {
+      "runtime": "claude",
+      "model": "claude-opus-5-5",
+      "fallback": [
+        {
+          "runtime": "claude",
+          "model": "claude-sonnet-5"
+        },
+        {
+          "runtime": "anthropic-api",
+          "model": "claude-opus-5-5"
+        }
+      ]
+    },
+    "manager": {
+      "runtime": "claude",
+      "model": "claude-sonnet-5",
+      "fallback": [
+        {
+          "runtime": "anthropic-api",
+          "model": "claude-sonnet-5"
+        }
+      ]
+    },
+    "worker": {
+      "runtime": "claude",
+      "model": "claude-haiku-4-5",
+      "fallback": [
+        {
+          "runtime": "anthropic-api",
+          "model": "claude-haiku-4-5"
+        }
+      ]
+    }
+  },
+  "director": {
+    "id": "director",
+    "name": "Director",
+    "role_template": "director",
+    "memory": {
+      "long_term_max_chars": 20000
+    },
+    "reports": [
+      {
+        "id": "morning-report",
+        "cron": "0 8 * * 1-6",
+        "window": "24h",
+        "notify_channel": "discord-ops"
+      }
+    ],
+    "escalate_to_human_at": "high",
+    "reason": "Bắt buộc: điều phối và chốt kết luận cho người",
+    "rules": {
+      "daily_cost_limit_usd": 1.5,
+      "max_runs_per_hour": 20,
+      "instructions": "Báo cáo ngắn gọn, mở đầu bằng kết luận. Chỉ gắn @mention khi severity ≥ high.",
+      "strict_mode": true,
+      "permission_mode": "plan",
+      "blocked_builtin_tools": [
+        "Bash",
+        "Write",
+        "Edit",
+        "WebFetch"
+      ],
+      "timeout_seconds": 600,
+      "max_attempts": 2,
+      "disable_after_failures": 5,
+      "output_format": "json",
+      "notify_on": "failure",
+      "notify_channel": "discord-ops"
+    }
+  },
+  "managers": [
+    {
+      "id": "tech-lead",
+      "name": "Tech Lead",
+      "role_template": "tech-lead",
+      "perspective": "Độ ổn định và hiệu năng của storefront: lỗi SSR, API proxy, Redis cache, thời gian phản hồi",
+      "focus": [
+        "5xx rate",
+        "SSR render error",
+        "proxy API timeout",
+        "redis reconnect",
+        "deploy regression"
+      ],
+      "workers": [
+        "code-worker",
+        "graylog-worker"
+      ],
+      "heartbeat": {
+        "normal": {
+          "min_minutes": 30,
+          "max_minutes": 120
+        },
+        "suspicious": {
+          "min_minutes": 5,
+          "max_minutes": 15
+        },
+        "incident": {
+          "min_minutes": 2,
+          "max_minutes": 5
+        },
+        "cooldown_checks": 3,
+        "active_hours": "07:00-23:30"
+      },
+      "memory": {
+        "working_max_chars": 8000,
+        "long_term_max_chars": 20000,
+        "compact_at_ratio": 0.85
+      },
+      "escalate_at": "medium",
+      "reason": "Luôn có Tech Lead. Repo có SSR Nuxt, Redis, log Graylog qua winston-graylog2",
+      "rules": {
+        "daily_cost_limit_usd": 1.5,
+        "max_runs_per_hour": 12,
+        "instructions": "Bỏ qua lỗi 404 từ bot crawler. Mỗi finding về lỗi phải kèm route và khoảng thời gian.",
+        "strict_mode": true,
+        "permission_mode": "plan",
+        "blocked_builtin_tools": [
+          "Bash",
+          "Write",
+          "Edit",
+          "WebFetch"
+        ],
+        "timeout_seconds": 300,
+        "max_attempts": 2,
+        "retry_delay_seconds": 60,
+        "disable_after_failures": 5,
+        "resume_last_session": false,
+        "output_format": "json",
+        "notify_on": "failure",
+        "notify_channel": "discord-ops"
+      }
+    },
+    {
+      "id": "data-analyst",
+      "name": "Data Analyst",
+      "role_template": "data-analyst",
+      "perspective": "Chỉ số kinh doanh: traffic, conversion, add-to-cart, checkout success theo thị trường",
+      "focus": [
+        "conversion rate",
+        "checkout success rate",
+        "orders per hour",
+        "revenue by country"
+      ],
+      "workers": [
+        "metabase-worker"
+      ],
+      "heartbeat": {
+        "normal": {
+          "min_minutes": 60,
+          "max_minutes": 240
+        },
+        "suspicious": {
+          "min_minutes": 15,
+          "max_minutes": 30
+        },
+        "incident": {
+          "min_minutes": 5,
+          "max_minutes": 10
+        }
+      },
+      "escalate_at": "medium",
+      "reason": "Storefront sinh dữ liệu đơn hàng và funnel, có Metabase qua MCP",
+      "rules": {
+        "daily_cost_limit_usd": 0.8,
+        "max_runs_per_hour": 6,
+        "instructions": "So sánh theo cùng khung giờ tuần trước. Nêu sample_size trong mọi finding.",
+        "strict_mode": true,
+        "permission_mode": "plan",
+        "blocked_builtin_tools": [
+          "Bash",
+          "Write",
+          "Edit",
+          "WebFetch"
+        ],
+        "timeout_seconds": 300,
+        "max_attempts": 2,
+        "retry_delay_seconds": 60,
+        "disable_after_failures": 5,
+        "resume_last_session": false,
+        "output_format": "json",
+        "notify_on": "failure",
+        "notify_channel": "discord-ops"
+      }
+    },
+    {
+      "id": "risk-security",
+      "name": "Risk & Security",
+      "role_template": "risk-security",
+      "perspective": "Rủi ro thanh toán và bảo mật: lỗi Stripe, gian lận, bot, lộ PII trong log",
+      "focus": [
+        "stripe payment errors",
+        "card decline spikes",
+        "bot traffic",
+        "PII in logs",
+        "recaptcha failures"
+      ],
+      "workers": [
+        "graylog-worker",
+        "code-worker"
+      ],
+      "heartbeat": {
+        "normal": {
+          "min_minutes": 60,
+          "max_minutes": 240
+        },
+        "suspicious": {
+          "min_minutes": 10,
+          "max_minutes": 30
+        },
+        "incident": {
+          "min_minutes": 3,
+          "max_minutes": 10
+        }
+      },
+      "escalate_at": "medium",
+      "reason": "Có @stripe/stripe-js checkout và dữ liệu khách hàng (PII)",
+      "rules": {
+        "daily_cost_limit_usd": 0.7,
+        "max_runs_per_hour": 6,
+        "instructions": "Không bao giờ trích nguyên văn PII. Card decline tăng > 3x baseline là severity high.",
+        "strict_mode": true,
+        "permission_mode": "plan",
+        "blocked_builtin_tools": [
+          "Bash",
+          "Write",
+          "Edit",
+          "WebFetch"
+        ],
+        "timeout_seconds": 300,
+        "max_attempts": 2,
+        "retry_delay_seconds": 60,
+        "disable_after_failures": 5,
+        "resume_last_session": false,
+        "output_format": "json",
+        "notify_on": "failure",
+        "notify_channel": "discord-ops"
+      }
+    }
+  ],
+  "workers": [
+    {
+      "id": "code-worker",
+      "role_template": "worker",
+      "source": {
+        "kind": "code",
+        "path": "../demo-shop"
+      },
+      "read_only": true,
+      "max_output_bytes": 262144,
+      "reason": "Luôn có code-worker để đọc code, git log, cấu hình",
+      "rules": {
+        "strict_mode": true,
+        "permission_mode": "plan",
+        "timeout_seconds": 180,
+        "max_attempts": 2,
+        "max_runs_per_hour": 60,
+        "disable_after_failures": 5,
+        "output_format": "json",
+        "notify_on": "never",
+        "allowed_tools": [
+          "Read",
+          "Grep",
+          "Glob",
+          "Bash(git log:*)",
+          "Bash(git diff:*)",
+          "Bash(git show:*)"
+        ],
+        "blocked_builtin_tools": [
+          "Write",
+          "Edit",
+          "WebFetch",
+          "WebSearch"
+        ]
+      }
+    },
+    {
+      "id": "graylog-worker",
+      "role_template": "worker",
+      "source": {
+        "kind": "mcp",
+        "mcp_servers": [
+          "mcp-hub"
+        ],
+        "tools_allow": [
+          "graylog-search_logs_relative",
+          "graylog-search_logs_absolute",
+          "graylog-aggregate_logs",
+          "graylog-get_surrounding_logs",
+          "graylog-trace_request",
+          "graylog-list_streams"
+        ]
+      },
+      "read_only": true,
+      "reason": "demo-shop ghi log qua winston-graylog2; MCP graylog-* có sẵn",
+      "rules": {
+        "strict_mode": true,
+        "permission_mode": "plan",
+        "timeout_seconds": 180,
+        "max_attempts": 2,
+        "max_runs_per_hour": 60,
+        "disable_after_failures": 5,
+        "output_format": "json",
+        "notify_on": "never",
+        "blocked_builtin_tools": [
+          "Bash",
+          "Read",
+          "Write",
+          "Edit",
+          "Glob",
+          "Grep",
+          "WebFetch",
+          "WebSearch"
+        ]
+      }
+    },
+    {
+      "id": "metabase-worker",
+      "role_template": "worker",
+      "source": {
+        "kind": "mcp",
+        "mcp_servers": [
+          "mcp-hub"
+        ],
+        "tools_allow": [
+          "metabase-execute_card",
+          "metabase-get_card",
+          "metabase-get_dashboard_cards",
+          "metabase-search_content",
+          "metabase-list_cards"
+        ]
+      },
+      "read_only": true,
+      "reason": "Dữ liệu đơn hàng/conversion có trong Metabase; MCP metabase-* có sẵn",
+      "rules": {
+        "strict_mode": true,
+        "permission_mode": "plan",
+        "timeout_seconds": 180,
+        "max_attempts": 2,
+        "max_runs_per_hour": 60,
+        "disable_after_failures": 5,
+        "output_format": "json",
+        "notify_on": "never",
+        "blocked_builtin_tools": [
+          "Bash",
+          "Read",
+          "Write",
+          "Edit",
+          "Glob",
+          "Grep",
+          "WebFetch",
+          "WebSearch"
+        ]
+      }
+    }
+  ],
+  "mcp_servers": {
+    "mcp-hub": {
+      "transport": "claude-connector",
+      "connector_name": "Internal MCP Hub"
+    }
+  },
+  "debate": {
+    "max_rounds": 2,
+    "token_budget": 200000,
+    "independent_timeout": "15m",
+    "consensus_min_confidence": 0.5,
+    "require_evidence": true
+  },
+  "triggers": {
+    "webhooks": [
+      {
+        "id": "graylog-alert",
+        "source": "graylog",
+        "secret_env": "OFFICE_GRAYLOG_WEBHOOK_SECRET",
+        "dedupe_ttl": "30m",
+        "debounce": "60s",
+        "min_severity": "medium",
+        "auth_type": "bearer"
+      }
+    ],
+    "chat_inbound": [
+      {
+        "channel": "discord-ops",
+        "allowed_users": []
+      }
+    ],
+    "routes": [
+      {
+        "source": "graylog-alert",
+        "event": "*",
+        "agent": "director",
+        "task": "Alert Graylog: {{payload.event_definition_title}}. Triage và quyết định có mở incident.",
+        "min_severity": "medium",
+        "debounce_seconds": 60,
+        "debounce_key": "{{payload.event_definition_id}}"
+      },
+      {
+        "source": "discord-ops",
+        "event": "ask",
+        "agent": "director"
+      }
+    ]
+  },
+  "notify": {
+    "channels": {
+      "discord-ops": {
+        "type": "discord",
+        "webhook_url_env": "OFFICE_DISCORD_WEBHOOK_URL"
+      }
+    },
+    "routes": [
+      {
+        "events": [
+          "approval_request",
+          "agent_disabled",
+          "budget"
+        ],
+        "channel": "discord-ops"
+      },
+      {
+        "events": [
+          "incident",
+          "conclusion"
+        ],
+        "min_severity": "medium",
+        "channel": "discord-ops"
+      },
+      {
+        "events": [
+          "report",
+          "ask_answer"
+        ],
+        "channel": "discord-ops"
+      }
+    ],
+    "quiet_hours": "23:30-07:00",
+    "dashboard_base_url": "http://127.0.0.1:2704"
+  },
+  "storage": {
+    "driver": "sqlite",
+    "path": ".office/office.db",
+    "blob_dir": ".office/blobs",
+    "retention": {
+      "run_events_days": 14,
+      "unreferenced_blobs_days": 30
+    }
+  },
+  "server": {
+    "api_addr": "127.0.0.1:8787",
+    "ui_token_env": "OFFICE_UI_TOKEN",
+    "workers": 2
+  },
+  "suggested_connections": [
+    {
+      "source": "stripe",
+      "reason": "@stripe/stripe-js trong package.json; cần xem tỉ lệ payment fail",
+      "suggested_mcp": "Stripe connector (read-only)"
+    },
+    {
+      "source": "redis",
+      "reason": "ioredis + NUXT_REDIS_URL; theo dõi hit rate, memory",
+      "suggested_mcp": "redis MCP read-only"
+    },
+    {
+      "source": "tracking",
+      "reason": "NUXT_PUBLIC_TRACKING_URL; funnel phía client"
+    },
+    {
+      "source": "sentry",
+      "reason": "Chưa thấy SDK Sentry; nên cài để có error tracking frontend",
+      "suggested_mcp": "Sentry connector"
+    }
+  ]
+}

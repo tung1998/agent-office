@@ -1,0 +1,44 @@
+# Server mode, SQLite in a volume. Postgres arrives with its storage driver.
+#
+#   cp .env.example .env        # set OFFICE_PUBLIC_URL
+#   docker compose up -d --build
+#   docker compose exec office office user create --email you@company.com
+#   (optional: the first admin, replacing admin / admin, which must set its own
+#    email and password on the first login anyway)
+#
+# Only the dashboard is published. Put a TLS terminator in front for real use
+# and set OFFICE_PUBLIC_URL to the https origin.
+services:
+  office:
+    build: .
+    restart: unless-stopped
+    command:
+      - run
+      - --api=0.0.0.0:8787
+      - --allowed-origin=${OFFICE_PUBLIC_URL:-http://localhost:2704}
+      # the dashboard container reaches the API from the compose network
+      - --trusted-proxy=10.0.0.0/8,172.16.0.0/12,192.168.0.0/16
+      # installing CLIs inside the container is pointless; mount credentials instead
+      - --cli-setup=false
+    volumes:
+      - office-data:/data
+    environment:
+      TZ: ${TZ:-Asia/Ho_Chi_Minh}
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8787/healthz"]
+      interval: 30s
+      timeout: 3s
+
+  dashboard:
+    build: ./dashboard
+    restart: unless-stopped
+    depends_on:
+      office:
+        condition: service_healthy
+    environment:
+      NUXT_OFFICE_API_BASE: http://office:8787
+    ports:
+      - "${DASHBOARD_PORT:-2704}:2704"
+
+volumes:
+  office-data:

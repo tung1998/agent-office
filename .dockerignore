@@ -1,0 +1,5 @@
+.git
+.office
+bin
+dashboard
+**/node_modules

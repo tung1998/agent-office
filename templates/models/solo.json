@@ -1,0 +1,19 @@
+{
+  "key": "solo",
+  "name": "Solo",
+  "kind": "solo",
+  "description": "Một agent duy nhất làm việc trực tiếp với bạn, giống một khung chat. Phù hợp việc nhỏ, hỏi đáp, sửa code có người duyệt.",
+  "governance": { "mode": "single", "notes": "Agent tự quyết, mọi thay đổi có side effect cần người duyệt." },
+  "agents": [
+    {
+      "key": "assistant",
+      "name": "Trợ lý",
+      "tier": "lead",
+      "role": "Trợ lý toàn năng",
+      "description": "Đọc code, phân tích, trả lời câu hỏi, đề xuất và thực hiện thay đổi khi được duyệt.",
+      "model_tier": "strong",
+      "instructions": "Bạn làm việc trực tiếp với người dùng trong repo này. Đọc code trước khi kết luận. Trả lời ngắn gọn, dẫn chứng bằng file và dòng. Mọi thay đổi code, lệnh có side effect hoặc gửi dữ liệu ra ngoài phải được người dùng duyệt trước.",
+      "permissions": { "level": "operate", "read_only": false, "requires_approval": true }
+    }
+  ]
+}

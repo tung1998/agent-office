@@ -1,0 +1,26 @@
+{
+  "name": "agent-office-dashboard",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "nuxt dev",
+    "build": "nuxt build",
+    "preview": "nuxt preview",
+    "postinstall": "nuxt prepare",
+    "typecheck": "nuxt typecheck",
+    "check:i18n": "node scripts/check-i18n.mjs",
+    "test:unit": "node --experimental-strip-types --no-warnings scripts/test-merge-draft.ts && node --experimental-strip-types --no-warnings scripts/test-audit-diff.ts && node --experimental-strip-types --no-warnings scripts/test-skill-md.ts"
+  },
+  "dependencies": {
+    "@iconify-json/lucide": "^1.2.0",
+    "@nuxt/ui": "^4.11.2",
+    "dompurify": "^3.4.16",
+    "marked": "^18.0.14",
+    "nuxt": "^4.5.2",
+    "tailwindcss": "^4.3.3"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.0",
+    "vue-tsc": "^3.3.11"
+  }
+}

@@ -1,0 +1,1284 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agent-office.dev/schema/office.config.schema.json",
+  "title": "agent-office config",
+  "description": "Single source of truth cho một phòng agent-office. Secret chỉ tham chiếu tên biến môi trường qua các trường *_env.",
+  "type": "object",
+  "required": [
+    "version",
+    "project",
+    "budget",
+    "runtimes",
+    "director",
+    "managers",
+    "workers",
+    "storage"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "version": {
+      "const": 1,
+      "description": "Phiên bản schema config"
+    },
+    "project": {
+      "$ref": "#/$defs/project"
+    },
+    "budget": {
+      "$ref": "#/$defs/budget"
+    },
+    "runtimes": {
+      "type": "object",
+      "description": "Khai báo runtime khả dụng. Key là tên runtime được agent tham chiếu.",
+      "minProperties": 1,
+      "propertyNames": {
+        "$ref": "#/$defs/id"
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/runtime"
+      }
+    },
+    "model_policy": {
+      "$ref": "#/$defs/modelPolicy"
+    },
+    "director": {
+      "$ref": "#/$defs/director"
+    },
+    "managers": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 5,
+      "items": {
+        "$ref": "#/$defs/manager"
+      }
+    },
+    "workers": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/worker"
+      }
+    },
+    "mcp_servers": {
+      "type": "object",
+      "description": "MCP server mà worker có thể dùng. Key là tên server.",
+      "propertyNames": {
+        "$ref": "#/$defs/id"
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/mcpServer"
+      }
+    },
+    "debate": {
+      "$ref": "#/$defs/debate"
+    },
+    "triggers": {
+      "$ref": "#/$defs/triggers"
+    },
+    "notify": {
+      "$ref": "#/$defs/notify"
+    },
+    "storage": {
+      "$ref": "#/$defs/storage"
+    },
+    "server": {
+      "$ref": "#/$defs/server"
+    },
+    "suggested_connections": {
+      "type": "array",
+      "description": "Nguồn dữ liệu phát hiện được nhưng chưa có MCP. Sinh bởi office init, chỉ để tham khảo.",
+      "items": {
+        "type": "object",
+        "required": [
+          "source",
+          "reason"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "source": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "suggested_mcp": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{1,40}$"
+    },
+    "envName": {
+      "type": "string",
+      "pattern": "^[A-Z][A-Z0-9_]*$",
+      "description": "Tên biến môi trường chứa secret. Không bao giờ ghi giá trị secret vào config."
+    },
+    "duration": {
+      "type": "string",
+      "pattern": "^[0-9]+(s|m|h|d)$"
+    },
+    "severity": {
+      "enum": [
+        "info",
+        "low",
+        "medium",
+        "high",
+        "critical"
+      ]
+    },
+    "reason": {
+      "type": "string",
+      "description": "Lý do tồn tại của agent, sinh bởi office init hoặc do người ghi."
+    },
+    "project": {
+      "type": "object",
+      "required": [
+        "name",
+        "repo_path"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "description": {
+          "type": "string"
+        },
+        "repo_path": {
+          "type": "string",
+          "description": "Đường dẫn repo được giám sát, tương đối với file config"
+        },
+        "knowledge_file": {
+          "type": "string",
+          "default": "knowledge.md"
+        },
+        "timezone": {
+          "type": "string",
+          "default": "UTC"
+        },
+        "language": {
+          "type": "string",
+          "default": "vi",
+          "description": "Ngôn ngữ báo cáo"
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "budget": {
+      "type": "object",
+      "required": [
+        "daily_usd"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "currency": {
+          "const": "USD",
+          "default": "USD"
+        },
+        "daily_usd": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "Trần chi phí toàn phòng mỗi ngày"
+        },
+        "per_incident_usd": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "per_ask_usd": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "warn_at_ratio": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "default": 0.8
+        },
+        "on_exceed": {
+          "enum": [
+            "skip",
+            "disable",
+            "downgrade_model"
+          ],
+          "default": "skip"
+        },
+        "price_overrides": {
+          "type": "object",
+          "description": "Giá USD mỗi triệu token theo model, dùng khi runtime không trả cost",
+          "additionalProperties": {
+            "type": "object",
+            "required": [
+              "input",
+              "output"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "input": {
+                "type": "number",
+                "minimum": 0
+              },
+              "output": {
+                "type": "number",
+                "minimum": 0
+              },
+              "cache_read": {
+                "type": "number",
+                "minimum": 0
+              },
+              "cache_write": {
+                "type": "number",
+                "minimum": 0
+              }
+            }
+          }
+        }
+      }
+    },
+    "runtime": {
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "enum": [
+            "claude-code",
+            "codex",
+            "gemini",
+            "api"
+          ],
+          "description": "Adapter. Plugin có thể đăng ký thêm tên khác"
+        },
+        "enabled": {
+          "type": "boolean",
+          "default": true
+        },
+        "bin": {
+          "type": "string",
+          "description": "Đường dẫn binary với runtime CLI"
+        },
+        "min_version": {
+          "type": "string"
+        },
+        "provider": {
+          "enum": [
+            "anthropic",
+            "openai",
+            "openai-compatible",
+            "google"
+          ],
+          "description": "Với type=api"
+        },
+        "base_url": {
+          "type": "string",
+          "format": "uri"
+        },
+        "api_key_env": {
+          "$ref": "#/$defs/envName"
+        },
+        "timeout": {
+          "$ref": "#/$defs/duration",
+          "default": "10m"
+        },
+        "max_concurrency": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 2
+        },
+        "extra_args": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "api"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "provider",
+              "api_key_env"
+            ]
+          }
+        }
+      ]
+    },
+    "modelRef": {
+      "type": "object",
+      "required": [
+        "runtime",
+        "model"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "runtime": {
+          "$ref": "#/$defs/id"
+        },
+        "model": {
+          "type": "string",
+          "minLength": 1
+        },
+        "effort": {
+          "type": "string"
+        }
+      }
+    },
+    "modelChoice": {
+      "type": "object",
+      "required": [
+        "runtime",
+        "model"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "runtime": {
+          "$ref": "#/$defs/id"
+        },
+        "model": {
+          "type": "string",
+          "minLength": 1
+        },
+        "effort": {
+          "type": "string"
+        },
+        "fallback": {
+          "type": "array",
+          "description": "Thử lần lượt khi runtime chính lỗi hạ tầng (unavailable, quota, rate_limit, timeout)",
+          "items": {
+            "$ref": "#/$defs/modelRef"
+          }
+        }
+      }
+    },
+    "modelPolicy": {
+      "type": "object",
+      "description": "Mặc định theo cấp. Agent không khai báo runtime/model thì dùng tier của cấp mình.",
+      "additionalProperties": false,
+      "properties": {
+        "director": {
+          "$ref": "#/$defs/modelChoice"
+        },
+        "manager": {
+          "$ref": "#/$defs/modelChoice"
+        },
+        "worker": {
+          "$ref": "#/$defs/modelChoice"
+        }
+      }
+    },
+    "memoryLimits": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "working_max_chars": {
+          "type": "integer",
+          "minimum": 1000,
+          "default": 8000
+        },
+        "long_term_max_chars": {
+          "type": "integer",
+          "minimum": 2000,
+          "default": 20000
+        },
+        "baseline_max_chars": {
+          "type": "integer",
+          "minimum": 1000,
+          "default": 6000
+        },
+        "compact_at_ratio": {
+          "type": "number",
+          "minimum": 0.5,
+          "maximum": 1,
+          "default": 0.85
+        },
+        "compaction_model": {
+          "$ref": "#/$defs/modelRef"
+        }
+      }
+    },
+    "heartbeatMode": {
+      "type": "object",
+      "required": [
+        "min_minutes",
+        "max_minutes"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "min_minutes": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "max_minutes": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "heartbeat": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "default": true
+        },
+        "normal": {
+          "$ref": "#/$defs/heartbeatMode"
+        },
+        "suspicious": {
+          "$ref": "#/$defs/heartbeatMode"
+        },
+        "incident": {
+          "$ref": "#/$defs/heartbeatMode"
+        },
+        "cooldown_checks": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 3
+        },
+        "active_hours": {
+          "type": "string",
+          "pattern": "^([01][0-9]|2[0-3]):[0-5][0-9]-([01][0-9]|2[0-3]):[0-5][0-9]$",
+          "description": "Ngoài khung giờ này chỉ chạy mode incident"
+        }
+      }
+    },
+    "agentBase": {
+      "type": "object",
+      "required": [
+        "id",
+        "role_template"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/id"
+        },
+        "name": {
+          "type": "string"
+        },
+        "enabled": {
+          "type": "boolean",
+          "default": true
+        },
+        "role_template": {
+          "type": "string",
+          "description": "Tên template trong templates/roles hoặc .office/roles"
+        },
+        "prompt_append": {
+          "type": "string",
+          "description": "Hướng dẫn bổ sung riêng cho project"
+        },
+        "runtime": {
+          "$ref": "#/$defs/id"
+        },
+        "model": {
+          "type": "string"
+        },
+        "effort": {
+          "type": "string"
+        },
+        "fallback": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/modelRef"
+          }
+        },
+        "reason": {
+          "$ref": "#/$defs/reason"
+        },
+        "rules": {
+          "$ref": "#/$defs/rules"
+        }
+      }
+    },
+    "director": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/agentBase"
+        }
+      ],
+      "type": "object",
+      "unevaluatedProperties": false,
+      "properties": {
+        "memory": {
+          "$ref": "#/$defs/memoryLimits"
+        },
+        "reports": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "id",
+              "cron"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "$ref": "#/$defs/id"
+              },
+              "cron": {
+                "type": "string",
+                "description": "5 trường, theo project.timezone"
+              },
+              "window": {
+                "$ref": "#/$defs/duration",
+                "default": "24h"
+              },
+              "notify_channel": {
+                "$ref": "#/$defs/id"
+              }
+            }
+          }
+        },
+        "escalate_to_human_at": {
+          "$ref": "#/$defs/severity",
+          "default": "high"
+        }
+      }
+    },
+    "manager": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/agentBase"
+        }
+      ],
+      "type": "object",
+      "required": [
+        "perspective",
+        "workers"
+      ],
+      "unevaluatedProperties": false,
+      "properties": {
+        "perspective": {
+          "type": "string",
+          "description": "Góc nhìn, VD 'Tech Lead: độ ổn định, hiệu năng, lỗi runtime'"
+        },
+        "focus": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Chủ đề/metric cần theo dõi"
+        },
+        "workers": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/id"
+          },
+          "description": "Worker mà manager được phép giao việc"
+        },
+        "heartbeat": {
+          "$ref": "#/$defs/heartbeat"
+        },
+        "memory": {
+          "$ref": "#/$defs/memoryLimits"
+        },
+        "escalate_at": {
+          "$ref": "#/$defs/severity",
+          "default": "medium"
+        },
+        "can_ask": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/id"
+          },
+          "description": "Manager khác được phép hỏi. Rỗng = tất cả"
+        }
+      }
+    },
+    "worker": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/agentBase"
+        },
+        {
+          "if": {
+            "properties": {
+              "side_effects": {
+                "const": true
+              }
+            },
+            "required": [
+              "side_effects"
+            ]
+          },
+          "then": {
+            "properties": {
+              "read_only": {
+                "const": false
+              }
+            },
+            "required": [
+              "read_only"
+            ]
+          }
+        }
+      ],
+      "type": "object",
+      "required": [
+        "source"
+      ],
+      "unevaluatedProperties": false,
+      "properties": {
+        "source": {
+          "type": "object",
+          "required": [
+            "kind"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "enum": [
+                "mcp",
+                "code",
+                "http",
+                "sql"
+              ]
+            },
+            "mcp_servers": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/id"
+              }
+            },
+            "tools_allow": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Allowlist tool tường minh. Hỗ trợ wildcard cuối, VD 'graylog-*'"
+            },
+            "path": {
+              "type": "string",
+              "description": "Với kind=code: thư mục gốc, mặc định project.repo_path"
+            }
+          },
+          "allOf": [
+            {
+              "if": {
+                "properties": {
+                  "kind": {
+                    "const": "mcp"
+                  }
+                }
+              },
+              "then": {
+                "required": [
+                  "mcp_servers",
+                  "tools_allow"
+                ]
+              }
+            }
+          ]
+        },
+        "read_only": {
+          "type": "boolean",
+          "default": true
+        },
+        "side_effects": {
+          "type": "boolean",
+          "default": false,
+          "description": "true chỉ cho worker thực thi hành động đã được người duyệt"
+        },
+        "max_output_bytes": {
+          "type": "integer",
+          "minimum": 1024,
+          "default": 1048576
+        }
+      }
+    },
+    "mcpServer": {
+      "type": "object",
+      "required": [
+        "transport"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "transport": {
+          "enum": [
+            "stdio",
+            "http",
+            "sse",
+            "claude-connector"
+          ]
+        },
+        "command": {
+          "type": "string"
+        },
+        "args": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "url": {
+          "type": "string",
+          "format": "uri"
+        },
+        "connector_name": {
+          "type": "string",
+          "description": "Tên connector claude.ai khi transport=claude-connector"
+        },
+        "headers_env": {
+          "type": "object",
+          "description": "Header → tên biến môi trường",
+          "additionalProperties": {
+            "$ref": "#/$defs/envName"
+          }
+        },
+        "env_passthrough": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/envName"
+          }
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "transport": {
+                "const": "stdio"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "command"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "transport": {
+                "enum": [
+                  "http",
+                  "sse"
+                ]
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "url"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "transport": {
+                "const": "claude-connector"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "connector_name"
+            ]
+          }
+        }
+      ]
+    },
+    "debate": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "max_rounds": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 5,
+          "default": 2
+        },
+        "token_budget": {
+          "type": "integer",
+          "minimum": 1000,
+          "default": 200000
+        },
+        "independent_timeout": {
+          "$ref": "#/$defs/duration",
+          "default": "15m"
+        },
+        "consensus_min_confidence": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "default": 0.5
+        },
+        "require_evidence": {
+          "const": true,
+          "default": true
+        }
+      }
+    },
+    "triggers": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "webhooks": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "id",
+              "source",
+              "secret_env"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "$ref": "#/$defs/id"
+              },
+              "source": {
+                "type": "string",
+                "description": "Tên TriggerSource: sentry, graylog, generic…"
+              },
+              "secret_env": {
+                "$ref": "#/$defs/envName"
+              },
+              "dedupe_ttl": {
+                "$ref": "#/$defs/duration",
+                "default": "30m"
+              },
+              "debounce": {
+                "$ref": "#/$defs/duration",
+                "default": "60s"
+              },
+              "min_severity": {
+                "$ref": "#/$defs/severity",
+                "default": "medium"
+              },
+              "route_to": {
+                "$ref": "#/$defs/id",
+                "description": "Agent nhận, mặc định director"
+              },
+              "auth_type": {
+                "enum": [
+                  "hmac-sha256",
+                  "bearer",
+                  "header",
+                  "query",
+                  "ed25519",
+                  "none"
+                ],
+                "default": "hmac-sha256",
+                "description": "Cách xác thực webhook gửi tới"
+              },
+              "auth_name": {
+                "type": "string",
+                "description": "Tên header hoặc query param khi auth_type=header|query"
+              }
+            }
+          }
+        },
+        "chat_inbound": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "channel"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "channel": {
+                "$ref": "#/$defs/id"
+              },
+              "allowed_users": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        },
+        "routes": {
+          "type": "array",
+          "description": "Map source + event sang agent. Event khớp đầu tiên thắng",
+          "items": {
+            "type": "object",
+            "required": [
+              "source",
+              "event",
+              "agent"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "source": {
+                "type": "string",
+                "description": "Trùng triggers.webhooks[].id hoặc tên kênh chat"
+              },
+              "event": {
+                "type": "string",
+                "description": "Tên event của provider, * cho mọi event"
+              },
+              "agent": {
+                "$ref": "#/$defs/id"
+              },
+              "task": {
+                "type": "string",
+                "description": "Hướng dẫn thêm cho run, hỗ trợ {{payload.x}}, {{trigger}}, {{today}}"
+              },
+              "min_severity": {
+                "$ref": "#/$defs/severity"
+              },
+              "debounce_seconds": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "debounce_key": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      }
+    },
+    "notify": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "channels": {
+          "type": "object",
+          "propertyNames": {
+            "$ref": "#/$defs/id"
+          },
+          "additionalProperties": {
+            "type": "object",
+            "required": [
+              "type"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "type": {
+                "enum": [
+                  "discord",
+                  "telegram",
+                  "slack",
+                  "email",
+                  "webhook"
+                ]
+              },
+              "webhook_url_env": {
+                "$ref": "#/$defs/envName"
+              },
+              "token_env": {
+                "$ref": "#/$defs/envName"
+              },
+              "chat_id": {
+                "type": "string"
+              },
+              "mention": {
+                "type": "string"
+              },
+              "to": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "format": "email"
+                }
+              }
+            }
+          }
+        },
+        "routes": {
+          "type": "array",
+          "description": "Quy tắc theo thứ tự; khớp đầu tiên thắng",
+          "items": {
+            "type": "object",
+            "required": [
+              "channel"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "min_severity": {
+                "$ref": "#/$defs/severity"
+              },
+              "events": {
+                "type": "array",
+                "items": {
+                  "enum": [
+                    "incident",
+                    "conclusion",
+                    "approval_request",
+                    "report",
+                    "budget",
+                    "agent_disabled",
+                    "ask_answer"
+                  ]
+                }
+              },
+              "channel": {
+                "$ref": "#/$defs/id"
+              }
+            }
+          }
+        },
+        "quiet_hours": {
+          "type": "string",
+          "pattern": "^([01][0-9]|2[0-3]):[0-5][0-9]-([01][0-9]|2[0-3]):[0-5][0-9]$"
+        },
+        "dashboard_base_url": {
+          "type": "string",
+          "format": "uri"
+        }
+      }
+    },
+    "storage": {
+      "type": "object",
+      "required": [
+        "driver"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "driver": {
+          "enum": [
+            "sqlite",
+            "postgres"
+          ]
+        },
+        "path": {
+          "type": "string",
+          "default": ".office/office.db"
+        },
+        "dsn_env": {
+          "$ref": "#/$defs/envName"
+        },
+        "blob_dir": {
+          "type": "string",
+          "default": ".office/blobs"
+        },
+        "retention": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "run_events_days": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 14
+            },
+            "unreferenced_blobs_days": {
+              "type": "integer",
+              "minimum": 1,
+              "default": 30
+            }
+          }
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "driver": {
+                "const": "postgres"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "dsn_env"
+            ]
+          }
+        }
+      ]
+    },
+    "server": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "api_addr": {
+          "type": "string",
+          "default": "127.0.0.1:8787"
+        },
+        "ui_token_env": {
+          "$ref": "#/$defs/envName"
+        },
+        "workers": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 2
+        },
+        "cors_origins": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "rules": {
+      "type": "object",
+      "description": "Rule cho từng agent. Field không áp dụng cho một cấp sẽ bị doctor cảnh báo.",
+      "additionalProperties": false,
+      "properties": {
+        "instructions": {
+          "type": "string",
+          "description": "Rule riêng của agent, nối sau role template"
+        },
+        "instructions_file": {
+          "type": "string",
+          "description": "Đường dẫn .md thay cho instructions dài"
+        },
+        "qa_examples": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "q",
+              "a"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "q": {
+                "type": "string"
+              },
+              "a": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "allowed_tools": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Allowlist tool, hỗ trợ wildcard cuối. Với worker MCP, hợp nhất với source.tools_allow"
+        },
+        "allowed_skills": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "strict_mode": {
+          "type": "boolean",
+          "default": true,
+          "description": "Chỉ cấp đúng MCP/tool/skill được liệt kê, verify tool surface, kill run nếu lệch"
+        },
+        "blocked_builtin_tools": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "VD Bash, Write, Edit. Chỉ áp dụng runtime có builtin_tools=granular"
+        },
+        "permission_mode": {
+          "type": "string",
+          "description": "Theo capability của runtime: claude-code (default|plan|acceptEdits|bypassPermissions), codex (read-only|workspace-write)",
+          "default": "plan"
+        },
+        "knowledge_search": {
+          "type": "boolean",
+          "default": false,
+          "description": "Cấp tool tìm trong knowledge.md"
+        },
+        "timeout_seconds": {
+          "type": "integer",
+          "minimum": 10
+        },
+        "max_attempts": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 5,
+          "default": 2
+        },
+        "retry_delay_seconds": {
+          "type": "integer",
+          "minimum": 0,
+          "default": 60
+        },
+        "daily_cost_limit_usd": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "Vượt thì auto-disable agent kèm mã daily_cost_limit"
+        },
+        "max_runs_per_hour": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Vượt thì bỏ qua run"
+        },
+        "disable_after_failures": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 5
+        },
+        "resume_last_session": {
+          "type": "boolean",
+          "default": false,
+          "description": "Resume session runtime gần nhất (tối đa 24h). Manager nên để false vì đã có memory ngoài"
+        },
+        "include_last_result": {
+          "type": "boolean",
+          "default": false,
+          "description": "Chèn output lần chạy trước (cắt 8 KB)"
+        },
+        "output_format": {
+          "enum": [
+            "json",
+            "text"
+          ],
+          "default": "json",
+          "description": "Director/manager/worker bắt buộc json"
+        },
+        "notify_on": {
+          "enum": [
+            "always",
+            "success",
+            "failure",
+            "never"
+          ],
+          "default": "never",
+          "description": "Thông báo kết quả run của riêng agent này, độc lập với notify.routes"
+        },
+        "notify_channel": {
+          "$ref": "#/$defs/id"
+        },
+        "debounce_seconds": {
+          "type": "integer",
+          "minimum": 0,
+          "default": 0
+        },
+        "debounce_key": {
+          "type": "string",
+          "description": "Template, VD {{payload.alert_id}}"
+        },
+        "on_success_agent_id": {
+          "$ref": "#/$defs/id",
+          "description": "Chain sang agent khác khi xong. Chỉ cho director hoặc agent ngoài hierarchy"
+        },
+        "chain_condition_path": {
+          "type": "string",
+          "description": "JSON path trong output phải là true để chain"
+        },
+        "chain_forward_payload": {
+          "type": "boolean",
+          "default": false
+        }
+      }
+    }
+  }
+}

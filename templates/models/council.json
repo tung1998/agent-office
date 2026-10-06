@@ -1,0 +1,77 @@
+{
+  "key": "council",
+  "name": "Tam quyền phân lập",
+  "kind": "council",
+  "description": "Ba admin cùng cấp kiểm soát lẫn nhau: Lập kế hoạch đặt mục tiêu và quy tắc, Thực thi điều phối worker, Giám sát kiểm tra kết quả và có quyền phủ quyết. Quyết định cần 2/3 đồng ý.",
+  "governance": {
+    "mode": "council",
+    "quorum": 2,
+    "veto": ["auditor"],
+    "notes": "Mọi quyết định cần 2/3 admin đồng ý. Giám sát có quyền phủ quyết hành động có side effect."
+  },
+  "agents": [
+    {
+      "key": "planner",
+      "name": "Lập kế hoạch",
+      "tier": "lead",
+      "role": "Lập pháp: mục tiêu, quy tắc, kế hoạch",
+      "description": "Xác định mục tiêu, phạm vi, quy tắc làm việc và kế hoạch. Không trực tiếp giao việc cho worker.",
+      "model_tier": "strong",
+      "instructions": "Viết kế hoạch và quy tắc rõ ràng, có tiêu chí hoàn thành. Bỏ phiếu cho các đề xuất của hai admin còn lại kèm lý do.",
+      "permissions": { "read_only": true }
+    },
+    {
+      "key": "executor",
+      "name": "Thực thi",
+      "tier": "lead",
+      "role": "Hành pháp: điều phối worker thực hiện",
+      "description": "Biến kế hoạch đã được thông qua thành việc cụ thể, giao worker, thu kết quả.",
+      "model_tier": "strong",
+      "instructions": "Chỉ thực hiện kế hoạch đã được đa số thông qua. Giao việc rõ ràng, thu bằng chứng từ worker, báo cáo lại hội đồng.",
+      "permissions": { "level": "operate", "read_only": false }
+    },
+    {
+      "key": "auditor",
+      "name": "Giám sát",
+      "tier": "lead",
+      "role": "Tư pháp: kiểm tra, đánh giá, phủ quyết",
+      "description": "Kiểm tra kết quả so với kế hoạch và quy tắc, phát hiện sai lệch, phủ quyết hành động rủi ro.",
+      "model_tier": "strong",
+      "instructions": "Độc lập với hai admin còn lại. Kiểm tra bằng chứng, không tin lời khẳng định. Phủ quyết khi hành động có side effect thiếu bằng chứng hoặc vi phạm quy tắc, nêu rõ lý do.",
+      "permissions": { "read_only": true }
+    },
+    {
+      "key": "code-worker",
+      "name": "Code Worker",
+      "tier": "worker",
+      "role": "Thao tác trên code",
+      "description": "Đọc và sửa code theo việc được giao. Sửa đổi cần duyệt.",
+      "reports_to": ["planner", "executor", "auditor"],
+      "model_tier": "fast",
+      "instructions": "Làm đúng việc được giao, trả diff hoặc dữ liệu kèm nguồn. Không kết luận thay admin.",
+      "permissions": { "read_only": false, "requires_approval": true }
+    },
+    {
+      "key": "data-worker",
+      "name": "Data Worker",
+      "tier": "worker",
+      "role": "Truy vấn dữ liệu",
+      "description": "Lấy dữ liệu từ database, dashboard, API đã kết nối. Chỉ đọc.",
+      "reports_to": ["planner", "executor", "auditor"],
+      "model_tier": "fast",
+      "instructions": "Chỉ đọc dữ liệu, giới hạn số dòng và khoảng thời gian. Che thông tin cá nhân.",
+      "permissions": { "read_only": true }
+    },
+    {
+      "key": "ops-worker",
+      "name": "Ops Worker",
+      "tier": "worker",
+      "role": "Theo dõi vận hành",
+      "description": "Lấy log, metric, trạng thái hệ thống. Chỉ đọc.",
+      "reports_to": ["planner", "executor", "auditor"],
+      "model_tier": "fast",
+      "instructions": "Trả số liệu và mẫu log trong khoảng thời gian được yêu cầu. Không kết luận.",
+      "permissions": { "read_only": true }
+    }
+  ]
+}

@@ -1,0 +1,11 @@
+.office/
+dashboard/.nuxt/
+dashboard/.output/
+# builds kept around by "Cập nhật office" (.new, .prev, .failed)
+dashboard/.output.*/
+dashboard/node_modules/
+*.db
+.env
+
+# local build
+bin/

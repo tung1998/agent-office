@@ -1,0 +1,629 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>agent-office · Hướng dẫn sử dụng</title>
+<meta name="description" content="Hướng dẫn đầy đủ, có ảnh, cho agent-office: văn phòng AI cá nhân với một đội agent chạy trên máy của bạn.">
+<link rel="alternate" hreflang="en" href="index.html">
+<style>
+  :root {
+    --bg: #ffffff; --bg-soft: #f6f7f9; --bg-card: #ffffff; --text: #1d2330; --muted: #5d6676;
+    --border: #e4e7ec; --accent: #4f46e5; --accent-soft: #eef0ff; --ok: #12805c; --warn: #b54708;
+    --code-bg: #f2f4f7; --shadow: 0 1px 2px rgba(16,24,40,.06), 0 8px 24px rgba(16,24,40,.08);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0d1117; --bg-soft: #131a23; --bg-card: #161d27; --text: #e6e9ef; --muted: #9aa4b2;
+      --border: #263040; --accent: #8b87ff; --accent-soft: #1f2140; --ok: #4ade80; --warn: #fbbf24;
+      --code-bg: #1b2330; --shadow: 0 1px 2px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.35);
+    }
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; scroll-padding-top: 24px; }
+  body { margin: 0; font: 16px/1.65 -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif; background: var(--bg); color: var(--text); }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  code, kbd, pre { font-family: "SF Mono", ui-monospace, Menlo, Consolas, monospace; font-size: .88em; }
+  code { background: var(--code-bg); padding: .12em .4em; border-radius: 5px; }
+  kbd { border: 1px solid var(--border); border-bottom-width: 2px; border-radius: 5px; padding: .05em .4em; background: var(--bg-card); }
+  pre { background: var(--code-bg); padding: 14px 16px; border-radius: 10px; overflow-x: auto; line-height: 1.5; }
+  pre code { background: none; padding: 0; }
+
+  .layout { display: grid; grid-template-columns: 270px minmax(0, 1fr); min-height: 100vh; }
+  nav.toc { position: sticky; top: 0; height: 100vh; overflow-y: auto; padding: 24px 18px 40px; border-right: 1px solid var(--border); background: var(--bg-soft); }
+  nav.toc .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 18px; margin-bottom: 4px; }
+  nav.toc .brand span.logo { width: 30px; height: 30px; border-radius: 8px; background: linear-gradient(135deg, #6366f1, #a855f7); display: grid; place-items: center; color: #fff; font-size: 16px; }
+  nav.toc .sub { color: var(--muted); font-size: 13px; margin: 0 0 12px; }
+  .lang { display: flex; gap: 6px; margin: 0 0 14px; }
+  .lang a, .lang b { font-size: 13px; padding: 3px 11px; border: 1px solid var(--border); border-radius: 999px; color: var(--text); }
+  .lang b { background: var(--accent-soft); color: var(--accent); border-color: transparent; }
+  .lang a:hover { text-decoration: none; border-color: var(--accent); }
+  nav.toc h4 { margin: 18px 0 6px; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+  nav.toc ol { list-style: none; margin: 0; padding: 0; }
+  nav.toc li a { display: block; padding: 4px 10px; border-radius: 6px; color: var(--text); font-size: 14px; }
+  nav.toc li a:hover { background: var(--accent-soft); text-decoration: none; }
+  nav.toc li a.active { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+  main { padding: 0 56px 120px; max-width: 1080px; }
+
+  .hero { padding: 48px 0 36px; border-bottom: 1px solid var(--border); margin-bottom: 8px; }
+  .hero h1 { font-size: 44px; line-height: 1.15; margin: 0 0 14px; letter-spacing: -.02em; }
+  .hero h1 em { font-style: normal; background: linear-gradient(90deg, #6366f1, #a855f7); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .hero p.lead { font-size: 19px; color: var(--muted); max-width: 760px; margin: 0 0 24px; }
+  .pills { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 28px; }
+  .pill { border: 1px solid var(--border); background: var(--bg-card); border-radius: 999px; padding: 4px 12px; font-size: 13px; color: var(--muted); }
+
+  section { padding: 40px 0 8px; border-bottom: 1px solid var(--border); }
+  section:last-of-type { border-bottom: 0; }
+  h2 { font-size: 28px; letter-spacing: -.01em; margin: 0 0 6px; }
+  h2 .num { color: var(--accent); font-weight: 600; margin-right: 10px; }
+  h3 { font-size: 19px; margin: 28px 0 8px; }
+  p.intro { color: var(--muted); font-size: 17px; margin: 0 0 18px; }
+  ul, ol { padding-left: 22px; }
+  li { margin: 4px 0; }
+
+  figure { margin: 22px 0 26px; }
+  figure img { width: 100%; height: auto; display: block; border-radius: 12px; border: 1px solid var(--border); box-shadow: var(--shadow); cursor: zoom-in; background: var(--bg-soft); }
+  figure figcaption { font-size: 13.5px; color: var(--muted); margin-top: 8px; text-align: center; }
+  figure.missing img { display: none; }
+  figure.missing::before { content: "Chưa có ảnh: chạy node docs/guide/capture.mjs --lang=vi"; display: block; padding: 48px 16px; text-align: center; color: var(--muted); border: 1px dashed var(--border); border-radius: 12px; }
+  .row { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+  .row figure { margin: 10px 0 18px; }
+  figure.phone { max-width: 320px; margin-inline: auto; }
+
+  .steps { counter-reset: s; list-style: none; padding: 0; }
+  .steps > li { counter-increment: s; position: relative; padding: 2px 0 10px 44px; }
+  .steps > li::before { content: counter(s); position: absolute; left: 0; top: 2px; width: 28px; height: 28px; border-radius: 50%; background: var(--accent-soft); color: var(--accent); font-weight: 700; font-size: 14px; display: grid; place-items: center; }
+
+  .callout { border: 1px solid var(--border); border-left: 4px solid var(--accent); background: var(--bg-soft); border-radius: 10px; padding: 12px 16px; margin: 18px 0; font-size: 15px; }
+  .callout.tip { border-left-color: var(--ok); }
+  .callout.warn { border-left-color: var(--warn); }
+  .callout strong:first-child { display: block; margin-bottom: 2px; }
+
+  table { width: 100%; border-collapse: collapse; margin: 14px 0 22px; font-size: 15px; }
+  th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  th { font-size: 12.5px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); background: var(--bg-soft); }
+
+  .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 14px; margin: 20px 0 8px; }
+  .card { border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; background: var(--bg-card); }
+  .card b { display: block; margin-bottom: 4px; }
+  .card span { color: var(--muted); font-size: 14px; }
+
+  #lightbox { position: fixed; inset: 0; background: rgba(5,8,15,.86); display: none; align-items: center; justify-content: center; padding: 28px; z-index: 50; cursor: zoom-out; }
+  #lightbox.open { display: flex; }
+  #lightbox img { max-width: 100%; max-height: 100%; border-radius: 10px; box-shadow: 0 20px 60px rgba(0,0,0,.5); }
+
+  footer { color: var(--muted); font-size: 13px; padding: 40px 0; }
+  .menu-btn { display: none; }
+  @media (max-width: 900px) {
+    .layout { grid-template-columns: 1fr; }
+    nav.toc { position: fixed; inset: 0 30% 0 0; z-index: 40; transform: translateX(-102%); transition: transform .2s; }
+    nav.toc.open { transform: none; }
+    main { padding: 0 20px 80px; }
+    .row { grid-template-columns: 1fr; }
+    .hero h1 { font-size: 34px; }
+    .menu-btn { display: block; position: fixed; right: 16px; bottom: 16px; z-index: 45; border: 0; border-radius: 999px; padding: 10px 16px; background: var(--accent); color: #fff; font-weight: 600; box-shadow: var(--shadow); }
+  }
+</style>
+</head>
+<body>
+<div class="layout">
+<nav class="toc" id="toc">
+  <div class="brand"><span class="logo">◆</span> agent-office</div>
+  <p class="sub">Hướng dẫn sử dụng · từng tính năng, từng bước</p>
+  <div class="lang"><a href="index.html" hreflang="en" lang="en">English</a><b>Tiếng Việt</b></div>
+  <h4>Bắt đầu</h4>
+  <ol>
+    <li><a href="#what">agent-office là gì</a></li>
+    <li><a href="#install">Cài đặt &amp; chạy lần đầu</a></li>
+    <li><a href="#overview">Tổng quan</a></li>
+    <li><a href="#providers">Kết nối AI</a></li>
+    <li><a href="#projects">Project</a></li>
+    <li><a href="#setup">Thiết lập bằng AI</a></li>
+  </ol>
+  <h4>Đội của bạn</h4>
+  <ol>
+    <li><a href="#models">Mô hình tổ chức</a></li>
+    <li><a href="#agents">Agent</a></li>
+    <li><a href="#chat">Chat</a></li>
+    <li><a href="#approvals">Duyệt đề xuất</a></li>
+    <li><a href="#permissions">Quyền</a></li>
+  </ol>
+  <h4>Làm việc khi bạn vắng mặt</h4>
+  <ol>
+    <li><a href="#ops">Vận hành &amp; giám sát</a></li>
+    <li><a href="#automations">Tự động hóa</a></li>
+    <li><a href="#bots">Bot Discord &amp; Telegram</a></li>
+    <li><a href="#burn">Burn</a></li>
+  </ol>
+  <h4>Công cụ</h4>
+  <ol>
+    <li><a href="#files">Files</a></li>
+    <li><a href="#skills">Skills, MCP &amp; thư viện</a></li>
+    <li><a href="#assistant">Trợ lý office</a></li>
+    <li><a href="#watch">Theo dõi</a></li>
+    <li><a href="#jobs">Job</a></li>
+    <li><a href="#log">Nhật ký thay đổi &amp; audit</a></li>
+    <li><a href="#budget">Thông tin project &amp; ngân sách</a></li>
+  </ol>
+  <h4>Quản trị</h4>
+  <ol>
+    <li><a href="#users">Tài khoản</a></li>
+    <li><a href="#data">Dữ liệu, sao lưu &amp; đồng bộ</a></li>
+    <li><a href="#update">Cập nhật office</a></li>
+    <li><a href="#cli">Lệnh CLI</a></li>
+    <li><a href="#faq">Mẹo &amp; hỏi đáp</a></li>
+  </ol>
+</nav>
+
+<main>
+<header class="hero">
+  <div class="lang"><a href="index.html" hreflang="en" lang="en">English</a><b>Tiếng Việt</b></div>
+  <h1><em>Văn phòng AI</em> của riêng bạn,<br>chạy ngay trên máy bạn.</h1>
+  <p class="lead">agent-office cho mỗi project một đội agent AI. Họ nhận việc qua chat (dashboard, Discord, Telegram), sửa code trong git worktree riêng, chạy dev server, giám sát dịch vụ, và chỉ hỏi bạn khi cần duyệt.</p>
+  <div class="pills">
+    <span class="pill">Backend Go + SQLite</span><span class="pill">Dashboard Nuxt</span><span class="pill">Claude Code · Codex · mọi API</span>
+    <span class="pill">Worktree cho từng chat</span><span class="pill">Quyền theo từng hành động</span><span class="pill">Tiếng Việt / English</span>
+  </div>
+  <figure><img src="images/vi/02-overview.png" alt="Trang Tổng quan của agent-office" loading="lazy"><figcaption>Trang Tổng quan: việc cần bạn xử lý, chat gần đây và checklist thiết lập.</figcaption></figure>
+</header>
+
+<!-- 1 -->
+<section id="what">
+  <h2><span class="num">1</span>agent-office là gì</h2>
+  <p class="intro">Hãy hình dung một văn phòng mà nhân viên là các agent AI, còn bạn là người quản lý.</p>
+  <div class="cards">
+    <div class="card"><b>👥 Mỗi project một đội</b><span>Trưởng nhóm, kỹ sư, QA, reviewer… xếp theo Solo, Team, Tam quyền hoặc mô hình bạn tự tạo.</span></div>
+    <div class="card"><b>🌳 Sửa trong bản sao riêng</b><span>Mỗi chat làm trong git worktree riêng. Bạn xem diff trước khi có gì vào repo.</span></div>
+    <div class="card"><b>🔐 Quyền theo từng hành động</b><span>Đọc, sửa, chạy lệnh, khởi động lại container, commit, push: mỗi thứ được phép, phải hỏi, hoặc bị chặn.</span></div>
+    <div class="card"><b>⏰ Luôn làm việc</b><span>Lịch chạy, webhook, bot chat, giám sát và Burn giữ công việc chạy cả khi bạn ngủ.</span></div>
+    <div class="card"><b>🔌 Một cổng ra ngoài</b><span>MCP, bot và đăng nhập đều nằm trong office, chung một mô hình quyền và một nhật ký.</span></div>
+    <div class="card"><b>💸 Kiểm soát chi phí</b><span>Mọi lượt gọi AI đều ghi lại chi phí. Ngân sách và kết nối dự phòng giúp bạn chủ động.</span></div>
+  </div>
+  <h3>Thuật ngữ</h3>
+  <table>
+    <tr><th>Từ</th><th>Nghĩa</th></tr>
+    <tr><td><b>Project</b></td><td>Một thư mục (thường là git repo), một link git để clone, hoặc trợ lý không thư mục cho việc ngoài code.</td></tr>
+    <tr><td><b>Mô hình tổ chức</b></td><td>Tập agent của một project và cách họ phối hợp.</td></tr>
+    <tr><td><b>Agent</b></td><td>Một nhân viên AI: vai trò, hướng dẫn, kết nối AI, hạng model, quyền, trí nhớ.</td></tr>
+    <tr><td><b>Chat</b></td><td>Cuộc trò chuyện với một hoặc nhiều agent. Mỗi chat có worktree riêng.</td></tr>
+    <tr><td><b>Đề xuất</b></td><td>Việc agent muốn làm nhưng cần người duyệt: một diff, một lệnh, khởi động lại, đổi cài đặt.</td></tr>
+    <tr><td><b>Job</b></td><td>Một lần chạy bất kỳ (lượt chat, tự động hóa, phân tích giám sát), kèm chi phí và kết quả.</td></tr>
+  </table>
+</section>
+
+<!-- 2 -->
+<section id="install">
+  <h2><span class="num">2</span>Cài đặt &amp; chạy lần đầu</h2>
+  <p class="intro">Cần Go ≥ 1.27, Node 22, pnpm và ít nhất một tài khoản AI.</p>
+  <div class="callout tip"><strong>Kiểu AI 🤖</strong>Văn phòng do AI vận hành thì để AI tự cài. Clone repo, chạy <code>claude</code> (hoặc <code>codex</code>) trong thư mục rồi nhắn <i>"chạy project này giúp mình"</i>. AI build mọi thứ, bật office và đưa bạn đường link. Nếu nó hỏi gì đó, đó là yêu cầu duyệt đầu tiên của văn phòng.</div>
+  <p>Hoặc làm thủ công:</p>
+<pre><code>make build                        # → bin/office
+make ui-install &amp;&amp; make ui-build  # → dashboard/.output
+./bin/office run                  # API ở :8787, dashboard ở http://localhost:2704</code></pre>
+  <ol class="steps">
+    <li>Mở <code>http://localhost:2704</code> (hoặc địa chỉ server) và đăng nhập bằng <b><code>admin</code> / <code>admin</code></b>.</li>
+    <li>Đặt email và mật khẩu của bạn. Trước khi đặt, tài khoản mặc định không làm được gì khác.</li>
+    <li>Làm theo checklist ở <b>Tổng quan → Máy</b>: kết nối AI → project → mô hình tổ chức.</li>
+    <li>Tùy chọn: <code>./bin/office service install --now</code> để office tự bật mỗi khi đăng nhập máy (LaunchAgent trên macOS, systemd user unit trên Linux).</li>
+  </ol>
+  <figure><img src="images/vi/01-login.png" alt="Trang đăng nhập" loading="lazy"><figcaption>Đăng nhập. Đăng nhập sai bị giới hạn theo IP.</figcaption></figure>
+  <div class="callout"><strong>Không muốn dùng admin / admin?</strong><code>office init</code> hỏi email và mật khẩu admin (Enter = giữ <code>admin</code> / <code>admin</code>). Với Docker hay script, <code>office user create --email ban@example.com</code> thay luôn <code>admin</code> / <code>admin</code>. Quên mật khẩu thì <code>office user passwd --email …</code>.</div>
+  <div class="callout tip"><strong>Dữ liệu nằm ở đâu?</strong>Mặc định ở <code>~/.agent-office</code> (một office cho cả máy). Chạy <code>office init --local</code> trong một repo để giữ dữ liệu trong <code>&lt;repo&gt;/.office</code>.</div>
+  <div class="callout"><strong>Truy cập từ xa</strong>Mở dashboard từ điện thoại hay laptop khác qua Tailscale hoặc mạng LAN. Đăng nhập MCP qua OAuth vẫn chạy: dán lại link trình duyệt chuyển tới sau khi đăng nhập.</div>
+</section>
+
+<!-- 3 -->
+<section id="overview">
+  <h2><span class="num">3</span>Tổng quan</h2>
+  <p class="intro">Hộp thư của bạn: mọi thứ cần quyết, từ mọi project, gom vào một danh sách.</p>
+  <ul>
+    <li>Tab <b>Công việc</b>: đề xuất chờ duyệt, job lỗi, tiến trình đã dừng, giám sát đang Down, tự động hóa bị tắt, bot mất kết nối, chat chưa đọc. Xử lý ngay tại chỗ, hoặc <b>Bỏ qua tất cả</b>.</li>
+    <li>Tab <b>Hiệu suất</b>: chi phí và số lượt chạy theo ngày, theo project và theo model, trong 7/30/90 ngày.</li>
+    <li>Tab <b>Máy</b> (admin): CPU/RAM, các tiến trình của office (đóng hoặc kill), kết nối AI và checklist thiết lập.</li>
+  </ul>
+  <div class="row">
+    <figure><img src="images/vi/27-stats.png" alt="Tab Hiệu suất" loading="lazy"><figcaption>Hiệu suất: chi tiêu và hoạt động theo thời gian.</figcaption></figure>
+    <figure><img src="images/vi/37-machine.png" alt="Tab Máy" loading="lazy"><figcaption>Máy: tình trạng và checklist thiết lập.</figcaption></figure>
+  </div>
+  <div class="callout tip"><strong>Cập nhật trực tiếp</strong>Dashboard giữ một kết nối SSE. Tin nhắn mới, kết quả job và thay đổi trạng thái hiện ra ngay, không cần tải lại trang.</div>
+</section>
+
+<!-- 4 -->
+<section id="providers">
+  <h2><span class="num">4</span>Kết nối AI</h2>
+  <p class="intro">Khai báo những tài khoản AI office được dùng. Agent chọn từ danh sách này.</p>
+  <figure><img src="images/vi/23-providers.png" alt="Kết nối AI" loading="lazy"><figcaption>Kết nối AI, kèm thống kê 7 ngày của từng kết nối.</figcaption></figure>
+  <table>
+    <tr><th>Loại</th><th>Ghi chú</th></tr>
+    <tr><td>Claude Code CLI</td><td>Dùng gói Claude của bạn. Cài và đăng nhập ngay trên dashboard. Hiện hạn mức sử dụng (khung 5 giờ và theo tuần).</td></tr>
+    <tr><td>Codex CLI</td><td>Dùng tài khoản ChatGPT/Codex. Cài và đăng nhập giống trên.</td></tr>
+    <tr><td>Anthropic / OpenAI API</td><td>API key, lưu mã hóa. Chi phí tính theo bảng giá (sửa được).</td></tr>
+    <tr><td>API tương thích OpenAI</td><td>Hơn 18 nhà cung cấp có sẵn: OpenRouter, Gemini, DeepSeek, GLM, Kimi, Ollama… hoặc bất kỳ base URL nào.</td></tr>
+  </table>
+  <ol class="steps">
+    <li>Bấm <b>Thêm kết nối</b>, chọn loại, dán key hoặc đăng nhập.</li>
+    <li>Bấm <b>Kiểm tra</b> (miễn phí) hoặc <b>Gửi thử</b> (tốn token).</li>
+    <li>Đặt một kết nối làm <b>mặc định</b>. Agent không tự chọn sẽ dùng kết nối này.</li>
+  </ol>
+  <div class="callout"><strong>Kết nối dự phòng</strong>Trong thẻ <b>Model</b> của từng agent, thêm các kết nối dự phòng theo thứ tự. Nếu kết nối chính lỗi hoặc hết hạn mức trước khi kịp làm gì, lượt đó chuyển sang kết nối kế tiếp và báo trong chat ("A lỗi, chuyển sang B"). Kết nối đang hết hạn mức bị xếp cuối danh sách.</div>
+  <div class="callout warn"><strong>Cảnh báo hạn mức</strong>Khi một kết nối CLI sắp chạm hạn mức, office có thể nhắn cảnh báo vào kênh bot bạn chọn.</div>
+</section>
+
+<!-- 5 -->
+<section id="projects">
+  <h2><span class="num">5</span>Project</h2>
+  <p class="intro">Mọi công việc đều nằm trong một project.</p>
+  <figure><img src="images/vi/03-projects.png" alt="Danh sách project" loading="lazy"><figcaption>Ba kiểu project: repo dùng mô hình Team, repo dùng Tam quyền, và trợ lý không thư mục.</figcaption></figure>
+  <ol class="steps">
+    <li><b>Thư mục</b>: chọn một thư mục có sẵn bằng cây thư mục.</li>
+    <li><b>Clone</b>: dán link git (https, ssh hoặc dạng scp). Mặc định office clone vào cùng cấp với thư mục chứa office.</li>
+    <li><b>Không thư mục</b>: trợ lý cho lập kế hoạch, viết bài hay việc chung của cả máy.</li>
+    <li>Chọn mô hình tổ chức ngay, hoặc để sau qua menu <b>⋯</b> của project.</li>
+  </ol>
+  <p>Trong một project có các tab: <b>Chat</b>, <b>Tự động</b>, <b>Vận hành</b>, <b>Agents</b>, <b>Quyền</b>; admin thấy thêm <b>Files</b>, <b>Skills</b>, <b>MCP</b>, <b>Burn</b>, <b>Nhật ký</b>, <b>Thông tin</b>. Thanh tiêu đề hiện nhánh git kèm nút fetch, commit và push.</p>
+</section>
+
+<!-- 6 -->
+<section id="setup">
+  <h2><span class="num">6</span>Thiết lập bằng AI</h2>
+  <p class="intro">Để một agent đọc repo và đề xuất đội phù hợp.</p>
+  <figure><img src="images/vi/18-setup-ai.png" alt="Thiết lập bằng AI" loading="lazy"><figcaption>Project → ⋯ → Thiết lập bằng AI.</figcaption></figure>
+  <ol class="steps">
+    <li><b>Quét</b> (miễn phí): manifest, framework, file hạ tầng, các file agent sẵn có như <code>CLAUDE.md</code> hay <code>.claude/agents</code>.</li>
+    <li><b>Đề xuất</b>: AI gợi ý mô hình và tinh chỉnh từng agent, có lý do cho mỗi lựa chọn và ước tính chi phí.</li>
+    <li>Đổi mẫu hoặc tùy chọn thì bản xem trước tự dựng lại. Chưa có gì được ghi cho tới khi bạn bấm <b>Tạo</b>.</li>
+  </ol>
+</section>
+
+<!-- 7 -->
+<section id="models">
+  <h2><span class="num">7</span>Mô hình tổ chức</h2>
+  <p class="intro">Cách các agent trong project được sắp xếp và ra quyết định.</p>
+  <figure><img src="images/vi/06-team-model.png" alt="Mô hình Team" loading="lazy"><figcaption>Tab Agents: sơ đồ tổ chức của một đội Team. Bấm vào agent để mở chi tiết.</figcaption></figure>
+  <table>
+    <tr><th>Mô hình</th><th>Cách làm việc</th><th>Hợp với</th></tr>
+    <tr><td><b>Solo</b></td><td>Một agent làm hết.</td><td>Repo nhỏ, trợ lý cá nhân.</td></tr>
+    <tr><td><b>Team</b></td><td>Trưởng nhóm lập kế hoạch, chia việc (quy ước chung, tối đa 3 file mỗi việc, không chồng file, có phụ thuộc), các thành viên làm song song, trưởng nhóm gộp và báo cáo.</td><td>Phần lớn project code.</td></tr>
+    <tr><td><b>Tam quyền</b></td><td>Lập pháp, hành pháp, tư pháp: đề xuất được biểu quyết, có thể bị phủ quyết, và kết quả được kiểm tra lại.</td><td>Thay đổi rủi ro, thanh toán, bảo mật.</td></tr>
+    <tr><td><b>Tự tạo</b></td><td>Lưu mô hình của một project làm mẫu, hoặc dựng từ đầu.</td><td>Dùng lại cách làm hiệu quả.</td></tr>
+  </table>
+  <div class="row">
+    <figure><img src="images/vi/20-council.png" alt="Mô hình Tam quyền" loading="lazy"><figcaption>Mô hình Tam quyền trên project demo-shop.</figcaption></figure>
+    <figure><img src="images/vi/24-templates.png" alt="Mô hình mẫu" loading="lazy"><figcaption>Mô hình: mẫu có sẵn và mẫu đã lưu, xuất/nhập.</figcaption></figure>
+  </div>
+  <div class="callout tip"><strong>Sửa tới khi đạt</strong>Một việc chạy vòng lặp (sửa → build/test → sửa) cho tới khi kiểm tra đạt. Nó dừng khi không tiến triển được, cần bạn trả lời, hoặc hết ngân sách.</div>
+</section>
+
+<!-- 8 -->
+<section id="agents">
+  <h2><span class="num">8</span>Agent</h2>
+  <p class="intro">Mỗi agent là một nhân viên bạn có thể tinh chỉnh.</p>
+  <figure><img src="images/vi/07-agent.png" alt="Chi tiết agent" loading="lazy"><figcaption>Trang của một agent: số liệu, việc gần đây, các thẻ cài đặt và lịch sử.</figcaption></figure>
+  <ul>
+    <li><b>Số liệu</b>: lượt chạy, chi phí và tỉ lệ lỗi theo ngày và theo model, chat gần đây.</li>
+    <li><b>Model</b>: kết nối AI, hạng model (mạnh / cân bằng / nhanh), mức suy nghĩ, kết nối dự phòng.</li>
+    <li><b>Hướng dẫn</b>: vai trò và quy tắc thêm, được ghép vào system prompt.</li>
+    <li><b>Quyền</b>: một gói có sẵn hoặc từng quyền lẻ. Xem mục <a href="#permissions">Quyền</a>.</li>
+    <li><b>Trí nhớ</b>: ghi chú lâu dài agent mang theo vào mọi chat ("repo dùng pnpm", "làm thẳng trên main"). Agent tự thêm ghi chú bằng <code>remember</code>. Ghi chú dài được một model nhanh rút gọn.</li>
+    <li><b>Lịch sử</b>: mọi lần đổi cài đặt kèm diff. Khôi phục được bất kỳ phiên bản nào.</li>
+    <li><b>Công tắc bật/tắt</b>: agent tạm nghỉ bị ẩn khỏi chat và <code>@</code>. Ai gọi tới chỉ nhận thông báo, không tốn token.</li>
+  </ul>
+  <p>Mỗi thẻ tự lưu khi bạn sửa.</p>
+</section>
+
+<!-- 9 -->
+<section id="chat">
+  <h2><span class="num">9</span>Chat</h2>
+  <p class="intro">Nơi công việc diễn ra. Nói chuyện với một agent, hoặc kéo nhiều agent vào cùng nhóm.</p>
+  <figure><img src="images/vi/04-chat.png" alt="Chat có diff chờ duyệt" loading="lazy"><figcaption>Một chat: các công cụ agent đã dùng, câu trả lời và một diff chờ duyệt.</figcaption></figure>
+  <h3>Giao việc</h3>
+  <ul>
+    <li>Gõ việc rồi bấm <kbd>Enter</kbd>. Câu trả lời hiện dần, kèm từng lần gọi công cụ (đọc, sửa, chạy lệnh).</li>
+    <li><code>@tên</code> kéo agent khác vào chat. Mỗi agent có phiên riêng và chỉ thấy tin nhắn mới.</li>
+    <li><code>/skill</code> gọi một skill của project, của máy hoặc của plugin.</li>
+    <li>Đính kèm ảnh, PDF, file chữ hoặc log (kéo thả, dán, hoặc nút kẹp giấy).</li>
+    <li>Agent có thể <b>giao việc</b> cho nhau: việc chạy nền như subagent, xong thì kết quả quay về chat.</li>
+  </ul>
+  <h3>Sắp xếp chat</h3>
+  <ul>
+    <li><b>Tag</b>: thêm ở dòng tag hoặc menu <b>⋯</b>. Lọc theo nhiều tag cùng lúc.</li>
+    <li><b>Lọc nguồn</b>: web, Discord, Telegram, tự động hóa, Burn.</li>
+    <li><b>Chép link</b> tới bất kỳ tin nhắn nào. Dán link chat vào chat khác thì agent đọc được.</li>
+    <li>Agent tìm được chat cũ (<code>search_history</code>) khi bạn nói "như lần trước".</li>
+  </ul>
+  <figure><img src="images/vi/05-chat-answer.png" alt="Câu trả lời trong chat" loading="lazy"><figcaption>Trưởng nhóm điều tra build lỗi, đọc log tiến trình và giao việc sửa.</figcaption></figure>
+  <div class="row">
+    <figure><img src="images/vi/34-dark-chat.png" alt="Giao diện tối" loading="lazy"><figcaption>Giao diện tối (Tài khoản → Giao diện).</figcaption></figure>
+    <figure class="phone"><img src="images/vi/36-mobile-chat.png" alt="Trên điện thoại" loading="lazy"><figcaption>Trên điện thoại.</figcaption></figure>
+  </div>
+  <div class="callout"><strong>Chế độ sửa</strong><b>Worktree riêng</b> (mặc định): agent sửa trên bản sao riêng, bạn duyệt diff. <b>Sửa thẳng</b>: sửa ngay thư mục project như khi dùng CLI. Đặt được theo từng chat, từng tự động hóa hoặc cả project.</div>
+</section>
+
+<!-- 10 -->
+<section id="approvals">
+  <h2><span class="num">10</span>Duyệt đề xuất</h2>
+  <p class="intro">Agent đề xuất, bạn quyết định.</p>
+  <table>
+    <tr><th>Thẻ</th><th>Khi được duyệt</th></tr>
+    <tr><td><b>Diff</b></td><td>Gộp thay đổi trong worktree của agent vào project. Xem theo từng file.</td></tr>
+    <tr><td><b>Lệnh</b></td><td>Chạy một lệnh không nằm trong danh sách được phép của agent.</td></tr>
+    <tr><td><b>Tiến trình / container</b></td><td>Bật, chạy lại hoặc dừng dev server, job, service docker compose.</td></tr>
+    <tr><td><b>Git</b></td><td>Commit, tạo nhánh, push (push luôn cần người duyệt).</td></tr>
+    <tr><td><b>Đổi cài đặt</b></td><td>Một tự động hóa, agent, giám sát hay quyền mà agent muốn tạo hoặc sửa.</td></tr>
+    <tr><td><b>Gọi MCP</b></td><td>Công cụ có ghi dữ liệu lên dịch vụ bên ngoài.</td></tr>
+  </table>
+  <ul>
+    <li><b>Duyệt</b>: chạy, rồi agent tự làm tiếp.</li>
+    <li><b>Duyệt &amp; luôn cho phép</b>: lưu mẫu lệnh vào quyền của agent. Mẫu nguy hiểm bị từ chối.</li>
+    <li><b>Từ chối</b>: agent được báo và có thể thử cách khác.</li>
+    <li><b>Bỏ qua</b>: gạt đi mà agent không chạy lại. <b>Bỏ qua tất cả</b> dọn sạch một project.</li>
+  </ul>
+  <div class="callout tip"><strong>Duyệt ở đâu cũng được</strong>Thẻ đề xuất cũng hiện trên Discord/Telegram có nút bấm, hoặc dùng <code>/skip</code>, <code>/bo-qua</code>. Quyết ở một nơi thì nơi kia tự cập nhật.</div>
+</section>
+
+<!-- 11 -->
+<section id="permissions">
+  <h2><span class="num">11</span>Quyền</h2>
+  <p class="intro">Theo từng hành động, từng agent, có gói sẵn để không phải bắt đầu từ con số không.</p>
+  <figure><img src="images/vi/08-permissions.png" alt="Quyền" loading="lazy"><figcaption>Tab Quyền: gói lệnh của project và file cấm sửa.</figcaption></figure>
+  <ul>
+    <li><b>Gói lệnh</b>: nhóm lệnh theo công cụ (Git, Go, Docker…), có gói chỉ đọc. Sửa được hoặc tự tạo gói mới.</li>
+    <li><b>Mẫu lệnh</b>: <code>go test *</code>, <code>pnpm typecheck</code>… Dấu <code> *</code> ở cuối cho phép tham số tùy ý, nhưng cờ nguy hiểm (<code>-exec</code>, <code>--output</code>, <code>--no-index</code>, đường dẫn ra ngoài project) vẫn bị chặn.</li>
+    <li><b>File cấm sửa</b>: file bí mật và file agent không bao giờ được sửa.</li>
+    <li>Quyền <b>administrator</b> đặt trên agent. Tự động hóa kế thừa hoặc ghi đè.</li>
+  </ul>
+</section>
+
+<!-- 12 -->
+<section id="ops">
+  <h2><span class="num">12</span>Vận hành &amp; giám sát</h2>
+  <p class="intro">Chạy project như pm2, và agent đọc đúng log bạn đang xem.</p>
+  <figure><img src="images/vi/11-operations.png" alt="Vận hành" loading="lazy"><figcaption>Tiến trình kèm trạng thái, CPU/RAM và cổng; container; giám sát kèm uptime.</figcaption></figure>
+  <h3>Tiến trình</h3>
+  <ol class="steps">
+    <li>Bấm <b>Quét project</b>: office tìm lệnh trong <code>Makefile</code>, <code>package.json</code>, <code>docker-compose.yml</code>… Ghim lệnh hay dùng.</li>
+    <li>Bật, dừng hoặc chạy lại. Service có thể <b>tự chạy lại</b> khi chết và <b>tự bật</b> cùng office.</li>
+    <li>Mở log trực tiếp. <b>Hỏi agent</b> đính kèm 300 dòng log cuối vào chat; <b>Sửa lỗi</b> mở chat mới và gửi luôn.</li>
+  </ol>
+  <h3>Container</h3>
+  <p>Stack docker compose: trạng thái, cổng, CPU/RAM/mạng, up/stop/restart/down/pull/build theo stack hoặc service, log trực tiếp.</p>
+  <h3>Giám sát</h3>
+  <table>
+    <tr><th>Loại</th><th>Kiểm tra</th></tr>
+    <tr><td>HTTP</td><td>Mã trạng thái, từ khóa, timeout.</td></tr>
+    <tr><td>TCP</td><td>Một host:port còn trả lời.</td></tr>
+    <tr><td>Heartbeat</td><td>Cron job của bạn gọi một URL bí mật. Không thấy ping là Down.</td></tr>
+    <tr><td>Tiến trình / container</td><td>Một tiến trình của office hay một service compose đang chạy.</td></tr>
+  </table>
+  <p>Mỗi giám sát hiện uptime 24 giờ, độ trễ và xu hướng. Bật <b>AI phân tích</b> để agent điều tra khi Down, có ngân sách theo ngày và thời gian chờ giữa hai lần.</p>
+</section>
+
+<!-- 13 -->
+<section id="automations">
+  <h2><span class="num">13</span>Tự động hóa</h2>
+  <p class="intro">Việc tự bắt đầu: theo lịch, từ webhook, hoặc từ tin nhắn chat.</p>
+  <figure><img src="images/vi/09-automations.png" alt="Tự động hóa" loading="lazy"><figcaption>Tự động hóa của một project, kèm lần chạy trước và lần chạy tới.</figcaption></figure>
+  <table>
+    <tr><th>Kích hoạt</th><th>Ví dụ</th></tr>
+    <tr><td><b>Lịch</b></td><td>Cron + múi giờ, hoặc mỗi N phút. "T2–T6 8:00: tóm tắt commit hôm qua."</td></tr>
+    <tr><td><b>Webhook</b></td><td>URL bí mật có token. "Cảnh báo Sentry → phân loại và đề xuất cách sửa."</td></tr>
+    <tr><td><b>Telegram / Discord</b></td><td>Tin nhắn trong chat của bot, có thể kèm lệnh như <code>/deploy</code>.</td></tr>
+  </table>
+  <table>
+    <tr><th>Hành động</th><th>Chi phí</th></tr>
+    <tr><td><b>Script</b> (bash, node, python)</td><td>Miễn phí. Chạy trong thư mục project, nhận payload qua stdin và <code>$OFFICE_PAYLOAD</code>. Chỉ gọi agent khi script lỗi, hoặc khi in dòng <code>@@agent: …</code>.</td></tr>
+    <tr><td><b>Chat</b></td><td>Gửi prompt cho agent. Dùng được <code>{{payload}}</code>, <code>{{today}}</code>.</td></tr>
+  </table>
+  <figure><img src="images/vi/10-automation-builder.png" alt="Trình tạo tự động hóa" loading="lazy"><figcaption>Trình tạo: một bên là form, bên kia là chat. Mô tả điều bạn muốn, AI điền form; bấm <b>Chạy thử</b> trước khi lưu.</figcaption></figure>
+  <div class="callout"><strong>Giới hạn an toàn</strong>Số lần chạy tối đa mỗi giờ, chi phí mỗi ngày, debounce (gom webhook dồn dập), số lượt chạy song song, số phút tối đa mỗi lượt, và tự tắt sau N lần lỗi. Agent cũng đề xuất được tự động hóa, và luôn chờ bạn duyệt.</div>
+</section>
+
+<!-- 14 -->
+<section id="bots">
+  <h2><span class="num">14</span>Bot Discord &amp; Telegram</h2>
+  <p class="intro">Giao việc cho đội và duyệt đề xuất ngay trên điện thoại.</p>
+  <figure><img src="images/vi/19-bot.png" alt="Kết nối bot" loading="lazy"><figcaption>Project → Tự động → thêm bot.</figcaption></figure>
+  <ol class="steps">
+    <li>Tạo bot trên Discord (Developer Portal) hoặc Telegram (@BotFather) rồi dán token.</li>
+    <li>Thêm <b>Admin</b> và <b>Người dùng</b> bằng ID chat. Chỉ họ nói chuyện được với bot.</li>
+    <li>Nhắn cho bot: "@bot sửa test đang lỗi". Thread Discord giữ mỗi việc riêng một luồng. Bot báo khi đang làm, gửi ảnh và file, và gửi thẻ duyệt có nút bấm.</li>
+    <li>Thêm lệnh: mỗi lệnh là một tự động hóa riêng (script hoặc chat).</li>
+  </ol>
+</section>
+
+<!-- 15 -->
+<section id="burn">
+  <h2><span class="num">15</span>Burn</h2>
+  <p class="intro">Một agent tự làm việc liên tục trong project cho tới giờ bạn đặt.</p>
+  <figure><img src="images/vi/13-burn.png" alt="Burn" loading="lazy"><figcaption>Tab Burn: cài đặt, hẹn giờ và danh sách việc tìm được.</figcaption></figure>
+  <ul>
+    <li>Tìm ba loại việc: <b>việc dang dở</b> (TODO/FIXME, test lỗi, đề xuất còn treo), <b>chỗ nâng cấp được</b>, và <b>lỗi nhỏ</b>.</li>
+    <li>Mỗi việc chạy trong worktree riêng. Kết quả vào <b>nhánh riêng</b> (commit local) hoặc <b>diff chờ duyệt</b>.</li>
+    <li>Cài đặt: agent chính, mức model, số subagent tối đa (0–5), trọng tâm ("ưu tiên checkout, bỏ qua docs"), giờ tắt (mặc định là lúc hạn mức tuần của kết nối AI được làm mới, không có thì sau 8 giờ).</li>
+    <li>Tắt thì việc đang làm tạm dừng, bật lại thì làm tiếp. Chat của phiên Burn hiện trong Chat với biểu tượng 🔥, nhắn vào đó để chỉnh hướng.</li>
+  </ul>
+  <div class="callout warn"><strong>Chỉ dành cho admin</strong>Burn chạy với toàn quyền máy, không hỏi duyệt từng bước, và tốn nhiều hạn mức AI. Hộp xác nhận khi bật nói rõ điều này.</div>
+</section>
+
+<!-- 16 -->
+<section id="files">
+  <h2><span class="num">16</span>Files</h2>
+  <p class="intro">Duyệt và sửa file trong project mà không rời dashboard (admin).</p>
+  <figure><img src="images/vi/12-files.png" alt="Files" loading="lazy"><figcaption>Cây thư mục tải dần, trình sửa file, và diff so với commit gần nhất.</figcaption></figure>
+  <ul>
+    <li>File trong gitignore và file bí mật mặc định bị ẩn. Bấm <b>Hiện file ẩn</b> để xem.</li>
+    <li>Lưu file bí mật hoặc file được bảo vệ cần xác nhận. Nếu người khác đã sửa file trong lúc bạn mở, bạn nhận báo xung đột thay vì ghi đè.</li>
+  </ul>
+</section>
+
+<!-- 17 -->
+<section id="skills">
+  <h2><span class="num">17</span>Skills, MCP &amp; thư viện</h2>
+  <p class="intro">Mọi thứ agent dùng được, gom vào một chỗ.</p>
+  <div class="row">
+    <figure><img src="images/vi/14-skills.png" alt="Skills" loading="lazy"><figcaption>Skill của project và của máy.</figcaption></figure>
+    <figure><img src="images/vi/15-mcp.png" alt="MCP" loading="lazy"><figcaption>MCP do office quản lý.</figcaption></figure>
+  </div>
+  <h3>Skills</h3>
+  <p>Xem mọi skill trên máy, cài vào project, lưu vào thư viện, hoặc soạn skill mới cùng AI (<b>Skill mới</b>). Skill được kiểm tra nội dung không an toàn trước khi cài.</p>
+  <h3>Cổng MCP chung</h3>
+  <ol class="steps">
+    <li>Thêm MCP (HTTP hoặc stdio), hoặc <b>Chuyển vào office</b> MCP bạn đã có trong Claude Code.</li>
+    <li>MCP cần đăng nhập: bấm <b>Kết nối</b>. Office lo OAuth (dò endpoint, đăng ký client, PKCE, tự làm mới token).</li>
+    <li>Gán MCP cho agent và đặt quyền cho từng tool: cho phép, hỏi, hoặc chặn. Tool có ghi dữ liệu mặc định phải hỏi.</li>
+    <li>Mọi lần gọi đều được ghi lại. Agent Claude Code, Codex và API đều đi qua cùng một cổng.</li>
+  </ol>
+  <figure><img src="images/vi/25-library.png" alt="Thư viện" loading="lazy"><figcaption>Thư viện (admin): đã cài ở mọi nơi, thư viện của bạn, MCP phổ biến, và tìm trong MCP Registry.</figcaption></figure>
+</section>
+
+<!-- 18 -->
+<section id="assistant">
+  <h2><span class="num">18</span>Trợ lý office</h2>
+  <p class="intro">Một chat để quản lý chính office, xuyên suốt mọi project.</p>
+  <figure><img src="images/vi/21-assistant.png" alt="Trợ lý office" loading="lazy"><figcaption>"Thêm giám sát cho API của shop", "Tuần này kết nối nào tốn nhất?"</figcaption></figure>
+  <p>Chọn phạm vi project bằng chip, trợ lý đọc được và đề xuất thay đổi mọi cài đặt: kết nối, ngân sách, agent, tự động hóa. Thay đổi đến dưới dạng thẻ chờ bạn duyệt. Trợ lý cũng có kết nối dự phòng riêng.</p>
+</section>
+
+<!-- 19 -->
+<section id="watch">
+  <h2><span class="num">19</span>Theo dõi</h2>
+  <p class="intro">Nhiều chat của nhiều project đặt cạnh nhau, như các khung trong iTerm.</p>
+  <figure><img src="images/vi/22-watch.png" alt="Theo dõi" loading="lazy"><figcaption>Chia ngang hoặc dọc, kéo để đổi kích thước. Bố cục được lưu trong trình duyệt này.</figcaption></figure>
+</section>
+
+<!-- 20 -->
+<section id="jobs">
+  <h2><span class="num">20</span>Job</h2>
+  <p class="intro">Mọi lần chạy, của mọi project: lượt chat, tự động hóa, phân tích giám sát.</p>
+  <figure><img src="images/vi/26-jobs.png" alt="Job" loading="lazy"><figcaption>Trạng thái, thời gian, token và chi phí. Số lỗi và chi phí 24 giờ qua ở đầu trang.</figcaption></figure>
+  <p>Hủy job đang chạy hoặc chạy lại job lỗi. Job bị cắt ngang do khởi động lại được đánh dấu lỗi, không bao giờ âm thầm chạy lại.</p>
+</section>
+
+<!-- 21 -->
+<section id="log">
+  <h2><span class="num">21</span>Nhật ký thay đổi &amp; audit</h2>
+  <p class="intro">Ai đổi gì, ai duyệt, và từ đâu.</p>
+  <div class="row">
+    <figure><img src="images/vi/16-change-log.png" alt="Nhật ký thay đổi" loading="lazy"><figcaption>Nhật ký của project: người, agent hay tự động hóa; từ chat/job/kênh nào; trước và sau.</figcaption></figure>
+    <figure><img src="images/vi/29-audit.png" alt="Audit log" loading="lazy"><figcaption>Quản trị → Audit log: toàn máy, có bộ lọc và thống kê.</figcaption></figure>
+  </div>
+</section>
+
+<!-- 22 -->
+<section id="budget">
+  <h2><span class="num">22</span>Thông tin project &amp; ngân sách</h2>
+  <figure><img src="images/vi/17-project-info.png" alt="Thông tin project" loading="lazy"><figcaption>Thư mục, git remote, mô tả và ngân sách theo ngày của project.</figcaption></figure>
+  <p>Ngân sách có ba cấp: toàn office (trang Kết nối AI), từng project (tab Thông tin) và từng tự động hóa. Lượt chạy nào vượt trần bị chặn và báo trên trang Tổng quan.</p>
+</section>
+
+<!-- 23 -->
+<section id="users">
+  <h2><span class="num">23</span>Tài khoản</h2>
+  <div class="row">
+    <figure><img src="images/vi/28-users.png" alt="Danh sách tài khoản" loading="lazy"><figcaption>Quản trị → Tài khoản: tạo, đặt lại mật khẩu, vô hiệu hóa (thu hồi phiên đăng nhập).</figcaption></figure>
+    <figure><img src="images/vi/33-account.png" alt="Tài khoản của bạn" loading="lazy"><figcaption>Tài khoản của bạn: tên, mật khẩu, ngôn ngữ, giao diện, token cá nhân.</figcaption></figure>
+  </div>
+  <ul>
+    <li><b>Admin</b>: làm được mọi thứ. <b>Member</b>: chat và dùng project, chỉ xóa được chat của mình.</li>
+    <li><b>Token cá nhân</b> cho công cụ khác gọi cổng MCP của office với quyền theo vai trò của bạn. Hết hạn sau 30/90/365 ngày, hoặc không hết hạn.</li>
+  </ul>
+</section>
+
+<!-- 24 -->
+<section id="data">
+  <h2><span class="num">24</span>Dữ liệu, sao lưu &amp; đồng bộ</h2>
+  <div class="row">
+    <figure><img src="images/vi/30-data.png" alt="Quản lý dữ liệu" loading="lazy"><figcaption>Quản trị → Quản lý dữ liệu: cái gì đang chiếm dung lượng, dọn tay hoặc tự động.</figcaption></figure>
+    <figure><img src="images/vi/31-transfer.png" alt="Sao lưu &amp; đồng bộ" loading="lazy"><figcaption>Quản trị → Sao lưu &amp; đồng bộ: xuất/nhập toàn bộ cài đặt (không kèm key) để chuyển máy.</figcaption></figure>
+  </div>
+<pre><code>office export ./office-config --commit   # một thư mục để lưu trong git
+office import ./office-config --dry-run  # luôn xem trước
+office backup                            # database + khóa mã hóa</code></pre>
+</section>
+
+<!-- 25 -->
+<section id="update">
+  <h2><span class="num">25</span>Cập nhật office</h2>
+  <figure><img src="images/vi/32-update.png" alt="Cập nhật office" loading="lazy"><figcaption>Quản trị → Cập nhật office: build lại từ mã nguồn, xem log trực tiếp.</figcaption></figure>
+  <p>Nút cập nhật chỉ hiện khi mã nguồn khác bản đang chạy. Nếu bản mới không khởi động được, office tự quay về bản cũ. Sidebar hiện phiên bản và commit cuối.</p>
+  <div class="callout tip"><strong>Văn phòng tự nâng cấp chính nó</strong>agent-office cũng là một project. Thêm chính thư mục của nó làm project rồi nhờ các agent làm điều công việc bạn cần ("thêm kênh Zalo OA", "giám sát hạn chứng chỉ SSL"). Agent sửa và test mã nguồn trong worktree, bạn duyệt diff, rồi bấm <b>Cập nhật office</b> để build lại. Văn phòng uốn theo cách bạn làm việc, mỗi lần một diff đã duyệt.</div>
+</section>
+
+<!-- 26 -->
+<section id="cli">
+  <h2><span class="num">26</span>Lệnh CLI</h2>
+  <table>
+    <tr><th>Lệnh</th><th>Tác dụng</th></tr>
+    <tr><td><code>office run</code></td><td>Supervisor: server API + dashboard, tự bật lại khi dừng, áp dụng bản cập nhật. Cờ: <code>--ui-port</code>, <code>--no-ui</code>, <code>--api</code>, <code>--home</code>.</td></tr>
+    <tr><td><code>office serve</code></td><td>Chỉ chạy server API.</td></tr>
+    <tr><td><code>office init [path] [--local] [--template team]</code></td><td>Đăng ký repo và chọn mô hình.</td></tr>
+    <tr><td><code>office project add|list|rm</code></td><td>Quản lý project. Không có path = trợ lý toàn máy.</td></tr>
+    <tr><td><code>office provider add|list|test</code></td><td>Kết nối AI.</td></tr>
+    <tr><td><code>office template list</code></td><td>Mô hình tổ chức.</td></tr>
+    <tr><td><code>office user create|list|passwd</code></td><td>Admin đầu tiên (thay <code>admin</code> / <code>admin</code>), liệt kê tài khoản, đặt lại mật khẩu. Tài khoản sau: tạo trên dashboard, hoặc <code>create --force</code>.</td></tr>
+    <tr><td><code>office export | import | backup</code></td><td>Chuyển hoặc sao lưu cài đặt và dữ liệu.</td></tr>
+    <tr><td><code>office service install|status|uninstall</code></td><td>Tự bật cùng phiên đăng nhập máy.</td></tr>
+  </table>
+</section>
+
+<!-- 27 -->
+<section id="faq">
+  <h2><span class="num">27</span>Mẹo &amp; hỏi đáp</h2>
+  <h3>Code của tôi có bị gửi đi đâu không?</h3>
+  <p>Chỉ gửi tới các kết nối AI bạn cấu hình, y như khi bạn dùng trực tiếp các công cụ đó. Bản thân office chạy trên máy bạn và lưu dữ liệu trong SQLite.</p>
+  <h3>Agent có làm hỏng repo không?</h3>
+  <p>Ở chế độ worktree, agent sửa trên một bản sao riêng. Không có gì vào thư mục của bạn cho tới khi bạn duyệt diff. Lệnh ngoài danh sách cho phép, git push và việc khởi động lại đều phải hỏi trước.</p>
+  <h3>Làm sao tiết kiệm chi phí?</h3>
+  <ul>
+    <li>Ưu tiên tự động hóa dạng <b>script</b>: miễn phí, chỉ gọi agent khi cần.</li>
+    <li>Cho agent làm việc đơn giản dùng hạng model <b>nhanh</b>, đặt ngân sách cho project và tự động hóa.</li>
+    <li>Thêm một kết nối dự phòng rẻ để chạm hạn mức không làm dừng việc.</li>
+  </ul>
+  <h3>Việc lặp lại định kỳ?</h3>
+  <p>Nói trong chat: "mỗi sáng T2–T6 lúc 8 giờ, kiểm tra X". Agent đề xuất một tự động hóa, bạn duyệt là xong.</p>
+  <h3>Chụp lại ảnh cho hướng dẫn này</h3>
+<pre><code>make build &amp;&amp; make ui-build
+node docs/guide/capture.mjs --lang=vi            # office demo trong /tmp, cổng 18787/12704
+node docs/guide/capture.mjs --lang=vi --only-missing --reuse   # chụp tiếp, dùng lại demo đang chạy
+node docs/guide/capture.mjs --stop               # tắt office demo</code></pre>
+</section>
+
+<footer>agent-office · hướng dẫn sử dụng. Ảnh chụp từ một office demo có dữ liệu mẫu.</footer>
+</main>
+</div>
+
+<button class="menu-btn" id="menuBtn" type="button">Mục lục</button>
+<div id="lightbox" role="dialog" aria-label="Ảnh chụp màn hình"><img alt=""></div>
+
+<script>
+  // missing screenshot → placeholder
+  document.querySelectorAll('figure img').forEach(img => {
+    const mark = () => img.closest('figure').classList.add('missing')
+    if (img.complete && img.naturalWidth === 0) mark()
+    img.addEventListener('error', mark)
+  })
+  // click to zoom
+  const box = document.getElementById('lightbox')
+  document.querySelectorAll('figure img').forEach(img => img.addEventListener('click', () => {
+    box.querySelector('img').src = img.src
+    box.classList.add('open')
+  }))
+  box.addEventListener('click', () => box.classList.remove('open'))
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') box.classList.remove('open') })
+  // mobile menu
+  const toc = document.getElementById('toc')
+  document.getElementById('menuBtn').addEventListener('click', () => toc.classList.toggle('open'))
+  toc.addEventListener('click', e => { if (e.target.tagName === 'A') toc.classList.remove('open') })
+  // highlight the section in view
+  const links = new Map([...toc.querySelectorAll('li a')].map(a => [a.getAttribute('href').slice(1), a]))
+  const io = new IntersectionObserver(entries => {
+    for (const e of entries) if (e.isIntersecting) {
+      links.forEach(a => a.classList.remove('active'))
+      links.get(e.target.id)?.classList.add('active')
+    }
+  }, { rootMargin: '-20% 0px -70% 0px' })
+  document.querySelectorAll('main section').forEach(s => io.observe(s))
+</script>
+</body>
+</html>

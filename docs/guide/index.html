@@ -1,0 +1,630 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>agent-office · User guide</title>
+<meta name="description" content="A complete, illustrated guide to agent-office: your personal AI office with a team of agents that runs on your machine.">
+<style>
+  :root {
+    --bg: #ffffff; --bg-soft: #f6f7f9; --bg-card: #ffffff; --text: #1d2330; --muted: #5d6676;
+    --border: #e4e7ec; --accent: #4f46e5; --accent-soft: #eef0ff; --ok: #12805c; --warn: #b54708;
+    --code-bg: #f2f4f7; --shadow: 0 1px 2px rgba(16,24,40,.06), 0 8px 24px rgba(16,24,40,.08);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0d1117; --bg-soft: #131a23; --bg-card: #161d27; --text: #e6e9ef; --muted: #9aa4b2;
+      --border: #263040; --accent: #8b87ff; --accent-soft: #1f2140; --ok: #4ade80; --warn: #fbbf24;
+      --code-bg: #1b2330; --shadow: 0 1px 2px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.35);
+    }
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; scroll-padding-top: 24px; }
+  body { margin: 0; font: 16px/1.65 -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif; background: var(--bg); color: var(--text); }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  code, kbd, pre { font-family: "SF Mono", ui-monospace, Menlo, Consolas, monospace; font-size: .88em; }
+  code { background: var(--code-bg); padding: .12em .4em; border-radius: 5px; }
+  kbd { border: 1px solid var(--border); border-bottom-width: 2px; border-radius: 5px; padding: .05em .4em; background: var(--bg-card); }
+  pre { background: var(--code-bg); padding: 14px 16px; border-radius: 10px; overflow-x: auto; line-height: 1.5; }
+  pre code { background: none; padding: 0; }
+
+  .layout { display: grid; grid-template-columns: 270px minmax(0, 1fr); min-height: 100vh; }
+  nav.toc { position: sticky; top: 0; height: 100vh; overflow-y: auto; padding: 24px 18px 40px; border-right: 1px solid var(--border); background: var(--bg-soft); }
+  nav.toc .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 18px; margin-bottom: 4px; }
+  nav.toc .brand span.logo { width: 30px; height: 30px; border-radius: 8px; background: linear-gradient(135deg, #6366f1, #a855f7); display: grid; place-items: center; color: #fff; font-size: 16px; }
+  nav.toc .sub { color: var(--muted); font-size: 13px; margin: 0 0 12px; }
+  .lang { display: flex; gap: 6px; margin: 0 0 14px; }
+  .lang a, .lang b { font-size: 13px; padding: 3px 11px; border: 1px solid var(--border); border-radius: 999px; color: var(--text); }
+  .lang b { background: var(--accent-soft); color: var(--accent); border-color: transparent; }
+  .lang a:hover { text-decoration: none; border-color: var(--accent); }
+  nav.toc h4 { margin: 18px 0 6px; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+  nav.toc ol { list-style: none; margin: 0; padding: 0; }
+  nav.toc li a { display: block; padding: 4px 10px; border-radius: 6px; color: var(--text); font-size: 14px; }
+  nav.toc li a:hover { background: var(--accent-soft); text-decoration: none; }
+  nav.toc li a.active { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+  main { padding: 0 56px 120px; max-width: 1080px; }
+
+  .hero { padding: 64px 0 36px; border-bottom: 1px solid var(--border); margin-bottom: 8px; }
+  .hero h1 { font-size: 44px; line-height: 1.15; margin: 0 0 14px; letter-spacing: -.02em; }
+  .hero h1 em { font-style: normal; background: linear-gradient(90deg, #6366f1, #a855f7); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .hero p.lead { font-size: 19px; color: var(--muted); max-width: 760px; margin: 0 0 24px; }
+  .pills { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 28px; }
+  .pill { border: 1px solid var(--border); background: var(--bg-card); border-radius: 999px; padding: 4px 12px; font-size: 13px; color: var(--muted); }
+
+  section { padding: 40px 0 8px; border-bottom: 1px solid var(--border); }
+  section:last-of-type { border-bottom: 0; }
+  h2 { font-size: 28px; letter-spacing: -.01em; margin: 0 0 6px; }
+  h2 .num { color: var(--accent); font-weight: 600; margin-right: 10px; }
+  h3 { font-size: 19px; margin: 28px 0 8px; }
+  p.intro { color: var(--muted); font-size: 17px; margin: 0 0 18px; }
+  ul, ol { padding-left: 22px; }
+  li { margin: 4px 0; }
+
+  figure { margin: 22px 0 26px; }
+  figure img { width: 100%; height: auto; display: block; border-radius: 12px; border: 1px solid var(--border); box-shadow: var(--shadow); cursor: zoom-in; background: var(--bg-soft); }
+  figure figcaption { font-size: 13.5px; color: var(--muted); margin-top: 8px; text-align: center; }
+  figure.missing img { display: none; }
+  figure.missing::before { content: "Screenshot not generated yet: run node docs/guide/capture.mjs"; display: block; padding: 48px 16px; text-align: center; color: var(--muted); border: 1px dashed var(--border); border-radius: 12px; }
+  .row { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+  .row figure { margin: 10px 0 18px; }
+  figure.phone { max-width: 320px; margin-inline: auto; }
+
+  .steps { counter-reset: s; list-style: none; padding: 0; }
+  .steps > li { counter-increment: s; position: relative; padding: 2px 0 10px 44px; }
+  .steps > li::before { content: counter(s); position: absolute; left: 0; top: 2px; width: 28px; height: 28px; border-radius: 50%; background: var(--accent-soft); color: var(--accent); font-weight: 700; font-size: 14px; display: grid; place-items: center; }
+
+  .callout { border: 1px solid var(--border); border-left: 4px solid var(--accent); background: var(--bg-soft); border-radius: 10px; padding: 12px 16px; margin: 18px 0; font-size: 15px; }
+  .callout.tip { border-left-color: var(--ok); }
+  .callout.warn { border-left-color: var(--warn); }
+  .callout strong:first-child { display: block; margin-bottom: 2px; }
+
+  table { width: 100%; border-collapse: collapse; margin: 14px 0 22px; font-size: 15px; }
+  th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  th { font-size: 12.5px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); background: var(--bg-soft); }
+
+  .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 14px; margin: 20px 0 8px; }
+  .card { border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; background: var(--bg-card); }
+  .card b { display: block; margin-bottom: 4px; }
+  .card span { color: var(--muted); font-size: 14px; }
+
+  #lightbox { position: fixed; inset: 0; background: rgba(5,8,15,.86); display: none; align-items: center; justify-content: center; padding: 28px; z-index: 50; cursor: zoom-out; }
+  #lightbox.open { display: flex; }
+  #lightbox img { max-width: 100%; max-height: 100%; border-radius: 10px; box-shadow: 0 20px 60px rgba(0,0,0,.5); }
+
+  footer { color: var(--muted); font-size: 13px; padding: 40px 0; }
+  .menu-btn { display: none; }
+  @media (max-width: 900px) {
+    .layout { grid-template-columns: 1fr; }
+    nav.toc { position: fixed; inset: 0 30% 0 0; z-index: 40; transform: translateX(-102%); transition: transform .2s; }
+    nav.toc.open { transform: none; }
+    main { padding: 0 20px 80px; }
+    .row { grid-template-columns: 1fr; }
+    .hero h1 { font-size: 34px; }
+    .menu-btn { display: block; position: fixed; right: 16px; bottom: 16px; z-index: 45; border: 0; border-radius: 999px; padding: 10px 16px; background: var(--accent); color: #fff; font-weight: 600; box-shadow: var(--shadow); }
+  }
+</style>
+</head>
+<body>
+<div class="layout">
+<nav class="toc" id="toc">
+  <div class="brand"><span class="logo">◆</span> agent-office</div>
+  <p class="sub">User guide · every feature, step by step</p>
+  <div class="lang"><b>English</b><a href="vi.html" hreflang="vi" lang="vi">Tiếng Việt</a></div>
+  <h4>Start</h4>
+  <ol>
+    <li><a href="#what">What is agent-office</a></li>
+    <li><a href="#install">Install &amp; first run</a></li>
+    <li><a href="#overview">Overview</a></li>
+    <li><a href="#providers">AI connections</a></li>
+    <li><a href="#projects">Projects</a></li>
+    <li><a href="#setup">Set up with AI</a></li>
+  </ol>
+  <h4>Your team</h4>
+  <ol>
+    <li><a href="#models">Organisation models</a></li>
+    <li><a href="#agents">Agents</a></li>
+    <li><a href="#chat">Chat</a></li>
+    <li><a href="#approvals">Approvals</a></li>
+    <li><a href="#permissions">Permissions</a></li>
+  </ol>
+  <h4>Work while you're away</h4>
+  <ol>
+    <li><a href="#ops">Operations &amp; monitors</a></li>
+    <li><a href="#automations">Automations</a></li>
+    <li><a href="#bots">Discord &amp; Telegram bots</a></li>
+    <li><a href="#burn">Burn</a></li>
+  </ol>
+  <h4>Tools</h4>
+  <ol>
+    <li><a href="#files">Files</a></li>
+    <li><a href="#skills">Skills, MCP &amp; library</a></li>
+    <li><a href="#assistant">Office assistant</a></li>
+    <li><a href="#watch">Watch</a></li>
+    <li><a href="#jobs">Jobs</a></li>
+    <li><a href="#log">Change log &amp; audit</a></li>
+    <li><a href="#budget">Project info &amp; budgets</a></li>
+  </ol>
+  <h4>Admin</h4>
+  <ol>
+    <li><a href="#users">Users &amp; account</a></li>
+    <li><a href="#data">Data, transfer &amp; backup</a></li>
+    <li><a href="#update">Updating office</a></li>
+    <li><a href="#cli">CLI reference</a></li>
+    <li><a href="#faq">Tips &amp; FAQ</a></li>
+  </ol>
+</nav>
+
+<main>
+<header class="hero">
+  <div class="lang"><b>English</b><a href="vi.html" hreflang="vi" lang="vi">Tiếng Việt</a></div>
+  <h1>Your own <em>AI office</em>,<br>running on your machine.</h1>
+  <p class="lead">agent-office gives every project a team of AI agents. They take work over chat (dashboard, Discord, Telegram), edit code in isolated git worktrees, run your dev servers, watch your services, and ask you only when something needs approval.</p>
+  <div class="pills">
+    <span class="pill">Go + SQLite backend</span><span class="pill">Nuxt dashboard</span><span class="pill">Claude Code · Codex · any API</span>
+    <span class="pill">Worktree per chat</span><span class="pill">Per-action permissions</span><span class="pill">English / Tiếng Việt</span>
+  </div>
+  <figure><img src="images/02-overview.png" alt="agent-office overview page" loading="lazy"><figcaption>The Overview page: what needs you, recent work, and the setup checklist.</figcaption></figure>
+</header>
+
+<!-- 1 -->
+<section id="what">
+  <h2><span class="num">1</span>What is agent-office</h2>
+  <p class="intro">Think of it as an office where the staff are AI agents and you are the manager.</p>
+  <div class="cards">
+    <div class="card"><b>👥 A team per project</b><span>Lead, developers, QA, reviewer… organised as Solo, Team, Council or your own model.</span></div>
+    <div class="card"><b>🌳 Isolated edits</b><span>Each chat works in its own git worktree. You see a diff before anything reaches your repo.</span></div>
+    <div class="card"><b>🔐 Permission per action</b><span>Read, edit, run a command, restart a container, commit, push: each one allowed, asked or blocked.</span></div>
+    <div class="card"><b>⏰ Always on</b><span>Schedules, webhooks, chat bots, monitors and Burn keep work moving while you sleep.</span></div>
+    <div class="card"><b>🔌 One gateway out</b><span>MCP servers, bots and logins live in the office, with one permission model and one log.</span></div>
+    <div class="card"><b>💸 Cost-aware</b><span>Every AI call is logged with its cost. Budgets and fallback connections keep you in control.</span></div>
+  </div>
+  <h3>Key words</h3>
+  <table>
+    <tr><th>Word</th><th>Meaning</th></tr>
+    <tr><td><b>Project</b></td><td>A folder (usually a git repo), a cloned URL, or a folder-less helper for non-code work.</td></tr>
+    <tr><td><b>Organisation model</b></td><td>The set of agents in a project and how they work together.</td></tr>
+    <tr><td><b>Agent</b></td><td>One AI staff member: role, instructions, AI connection, model tier, permissions, memory.</td></tr>
+    <tr><td><b>Chat</b></td><td>A conversation with one or more agents. Each chat has its own worktree.</td></tr>
+    <tr><td><b>Proposal</b></td><td>Something an agent wants to do that needs a person: a diff, a command, a restart, a settings change.</td></tr>
+    <tr><td><b>Job</b></td><td>One run of anything (chat turn, automation, monitor analysis), with its cost and result.</td></tr>
+  </table>
+</section>
+
+<!-- 2 -->
+<section id="install">
+  <h2><span class="num">2</span>Install &amp; first run</h2>
+  <p class="intro">You need Go ≥ 1.27, Node 22, pnpm, and at least one AI account.</p>
+  <div class="callout tip"><strong>The AI way 🤖</strong>It's an office run by AI, so let an AI set it up. Clone the repo, run <code>claude</code> (or <code>codex</code>) in the folder and say <i>"run this project"</i>. It builds everything, starts the office and hands you the link. If it asks you something, that's your first approval request.</div>
+  <p>Or by hand:</p>
+<pre><code>make build                        # → bin/office
+make ui-install &amp;&amp; make ui-build  # → dashboard/.output
+./bin/office run                  # API on :8787, dashboard on http://localhost:2704</code></pre>
+  <ol class="steps">
+    <li>Open <code>http://localhost:2704</code> (or the server's address) and sign in with <b><code>admin</code> / <code>admin</code></b>.</li>
+    <li>Set your own email and password. The default account can do nothing else until you do.</li>
+    <li>Follow the checklist on <b>Overview → Machine</b>: AI connection → project → organisation model.</li>
+    <li>Optional: <code>./bin/office service install --now</code> starts the office every time you log in (LaunchAgent on macOS, systemd user unit on Linux).</li>
+  </ol>
+  <figure><img src="images/01-login.png" alt="Login page" loading="lazy"><figcaption>Sign in. Failed logins are rate-limited per IP.</figcaption></figure>
+  <div class="callout"><strong>Skip admin / admin?</strong><code>office init</code> asks for the admin email and password (Enter keeps <code>admin</code> / <code>admin</code>). In Docker or a script, <code>office user create --email you@example.com</code> takes the place of <code>admin</code> / <code>admin</code>. Forgot a password? <code>office user passwd --email …</code>.</div>
+  <div class="callout tip"><strong>Where is my data?</strong>By default in <code>~/.agent-office</code> (one office for the whole machine). Run <code>office init --local</code> inside a repo to keep data in <code>&lt;repo&gt;/.office</code> instead.</div>
+  <div class="callout"><strong>Remote access</strong>Reach the dashboard from your phone or laptop over Tailscale or LAN. MCP OAuth logins still work: paste the link your browser lands on after signing in.</div>
+</section>
+
+<!-- 3 -->
+<section id="overview">
+  <h2><span class="num">3</span>Overview</h2>
+  <p class="intro">Your inbox. Everything that needs a decision, from every project, in one list.</p>
+  <ul>
+    <li><b>Work</b> tab: proposals waiting for approval, failed jobs, stopped processes, monitors that are down, disabled automations, disconnected bots, and unread chats. Act in place, or <b>Skip all</b>.</li>
+    <li><b>Performance</b> tab: cost and runs per day, per project and per model, over 7/30/90 days.</li>
+    <li><b>Machine</b> tab (admin): CPU/RAM, the office's own processes (close or kill), AI connections and the setup checklist.</li>
+  </ul>
+  <div class="row">
+    <figure><img src="images/27-stats.png" alt="Stats tab" loading="lazy"><figcaption>Performance: spending and activity over time.</figcaption></figure>
+    <figure><img src="images/37-machine.png" alt="Machine tab" loading="lazy"><figcaption>Machine: health and setup checklist.</figcaption></figure>
+  </div>
+  <div class="callout tip"><strong>Live updates</strong>The dashboard keeps one server-sent-events connection open. New messages, job results and status changes appear without refreshing.</div>
+</section>
+
+<!-- 4 -->
+<section id="providers">
+  <h2><span class="num">4</span>AI connections</h2>
+  <p class="intro">Tell the office which AI accounts it may use. Agents pick from these.</p>
+  <figure><img src="images/23-providers.png" alt="AI connections" loading="lazy"><figcaption>AI connections with 7-day usage per connection.</figcaption></figure>
+  <table>
+    <tr><th>Kind</th><th>Notes</th></tr>
+    <tr><td>Claude Code CLI</td><td>Uses your Claude subscription. Install and log in from the dashboard. Shows usage limits (5-hour and weekly windows).</td></tr>
+    <tr><td>Codex CLI</td><td>Uses your ChatGPT/Codex account. Same install and login flow.</td></tr>
+    <tr><td>Anthropic / OpenAI API</td><td>API key, stored encrypted. Cost is computed from the price table (editable).</td></tr>
+    <tr><td>OpenAI-compatible</td><td>18+ presets: OpenRouter, Gemini, DeepSeek, GLM, Kimi, Ollama… or any base URL.</td></tr>
+  </table>
+  <ol class="steps">
+    <li>Click <b>Add connection</b>, choose a kind, and paste a key or log in.</li>
+    <li>Click <b>Test</b> (free) or <b>Send a test prompt</b> (uses tokens).</li>
+    <li>Mark one as <b>default</b>. Agents without their own choice use it.</li>
+  </ol>
+  <div class="callout"><strong>Fallback connections</strong>On each agent's <b>Model</b> card, add backup connections in order. If the main one fails or hits its limit before doing anything, the turn moves to the next one and says so in the chat ("A failed, switching to B"). A connection that is out of quota goes to the end of the list.</div>
+  <div class="callout warn"><strong>Limits alert</strong>When a CLI connection gets close to its usage limit, the office can post a warning in a bot chat you choose.</div>
+</section>
+
+<!-- 5 -->
+<section id="projects">
+  <h2><span class="num">5</span>Projects</h2>
+  <p class="intro">Every piece of work happens inside a project.</p>
+  <figure><img src="images/03-projects.png" alt="Projects list" loading="lazy"><figcaption>Three kinds of project: a repo with a Team, a repo with a Council, and a folder-less helper.</figcaption></figure>
+  <ol class="steps">
+    <li><b>Folder</b>: pick an existing folder with the folder tree.</li>
+    <li><b>Clone</b>: paste a git URL (https, ssh or scp style). The office clones it next to its own folder by default.</li>
+    <li><b>No folder</b>: a helper for planning, writing or anything machine-wide.</li>
+    <li>Choose an organisation model now, or later from the project's <b>⋯</b> menu.</li>
+  </ol>
+  <p>Inside a project the tabs are: <b>Chat</b>, <b>Automations</b>, <b>Operations</b>, <b>Agents</b>, <b>Permissions</b>, and for admins also <b>Files</b>, <b>Skills</b>, <b>MCP</b>, <b>Burn</b>, <b>Change log</b>, <b>Info</b>. The header shows the git branch with fetch, commit and push buttons.</p>
+</section>
+
+<!-- 6 -->
+<section id="setup">
+  <h2><span class="num">6</span>Set up with AI</h2>
+  <p class="intro">Let an agent read the repo and propose the right team.</p>
+  <figure><img src="images/18-setup-ai.png" alt="Set up with AI" loading="lazy"><figcaption>Project → ⋯ → Set up with AI.</figcaption></figure>
+  <ol class="steps">
+    <li><b>Scan</b> (free): manifests, frameworks, infra files, existing agent files such as <code>CLAUDE.md</code> or <code>.claude/agents</code>.</li>
+    <li><b>Propose</b>: the AI suggests a model and tunes each agent, with a reason for every choice and an estimated cost.</li>
+    <li>Change the template or options and the preview rebuilds. Nothing is written until you click <b>Create</b>.</li>
+  </ol>
+</section>
+
+<!-- 7 -->
+<section id="models">
+  <h2><span class="num">7</span>Organisation models</h2>
+  <p class="intro">How the agents of a project are arranged and how they decide.</p>
+  <figure><img src="images/06-team-model.png" alt="Team model" loading="lazy"><figcaption>The Agents tab: the org chart of a Team. Click an agent to open it.</figcaption></figure>
+  <table>
+    <tr><th>Model</th><th>How work flows</th><th>Good for</th></tr>
+    <tr><td><b>Solo</b></td><td>One agent does everything.</td><td>Small repos, personal helpers.</td></tr>
+    <tr><td><b>Team</b></td><td>The lead plans, splits work (shared conventions, at most 3 files per task, no overlapping files, dependencies), members work in parallel, the lead merges and reports.</td><td>Most code projects.</td></tr>
+    <tr><td><b>Council</b></td><td>Legislative, executive and judicial roles: proposals are voted on, can be vetoed, and the result is checked.</td><td>Risky changes, payments, security.</td></tr>
+    <tr><td><b>Your own</b></td><td>Save any project's model as a template, or build one from scratch.</td><td>Reusing what works.</td></tr>
+  </table>
+  <div class="row">
+    <figure><img src="images/20-council.png" alt="Council model" loading="lazy"><figcaption>A Council model on the demo-shop project.</figcaption></figure>
+    <figure><img src="images/24-templates.png" alt="Templates" loading="lazy"><figcaption>Org models: built-in and saved templates, export/import.</figcaption></figure>
+  </div>
+  <div class="callout tip"><strong>Fix until it passes</strong>A task loops (edit → build/test → fix) until checks pass. It stops when it can't make progress, needs your answer, or runs out of budget.</div>
+</section>
+
+<!-- 8 -->
+<section id="agents">
+  <h2><span class="num">8</span>Agents</h2>
+  <p class="intro">Each agent is a staff member you can tune.</p>
+  <figure><img src="images/07-agent.png" alt="Agent detail" loading="lazy"><figcaption>An agent's page: stats, recent work, settings cards and history.</figcaption></figure>
+  <ul>
+    <li><b>Stats</b>: runs, cost and error rate per day and per model, recent chats.</li>
+    <li><b>Model</b>: AI connection, model tier (strong / balanced / fast), thinking effort, fallback connections.</li>
+    <li><b>Instructions</b>: role and extra rules, added to the system prompt.</li>
+    <li><b>Permissions</b>: a preset (read-only, edit, operate, admin…) or individual permissions. See <a href="#permissions">Permissions</a>.</li>
+    <li><b>Memory</b>: long-term notes the agent carries into every chat ("repo uses pnpm", "work on main"). Agents can add notes themselves with <code>remember</code>. Long notes get compacted by a fast model.</li>
+    <li><b>History</b>: every settings change with a diff. Restore any version.</li>
+    <li><b>On/off switch</b>: a paused agent is hidden from chat and <code>@</code>. Anything that calls it gets a notice instead of spending tokens.</li>
+  </ul>
+  <p>Every card saves itself as you edit.</p>
+</section>
+
+<!-- 9 -->
+<section id="chat">
+  <h2><span class="num">9</span>Chat</h2>
+  <p class="intro">Where the work happens. Talk to one agent or pull several into a group.</p>
+  <figure><img src="images/04-chat.png" alt="Chat with a diff waiting" loading="lazy"><figcaption>A chat: the tools the agent used, its answer, and a diff waiting for approval.</figcaption></figure>
+  <h3>Sending work</h3>
+  <ul>
+    <li>Type a task and press <kbd>Enter</kbd>. Answers stream in, with every tool call (read, edit, command) shown inline.</li>
+    <li><code>@name</code> pulls another agent into the chat. Each agent has its own session and sees only new messages.</li>
+    <li><code>/skill</code> runs a skill from the project, the machine or a plugin.</li>
+    <li>Attach images, PDFs, text files or logs (drag, paste, or the paperclip).</li>
+    <li>Agents can <b>delegate</b>: work runs in the background like a sub-agent, and the result comes back into the chat.</li>
+  </ul>
+  <h3>Organising chats</h3>
+  <ul>
+    <li><b>Tags</b>: add from the tag row or the <b>⋯</b> menu. Filter by several tags at once.</li>
+    <li><b>Source filter</b>: web, Discord, Telegram, automation, Burn.</li>
+    <li><b>Copy link</b> to any message. Paste a chat link into another chat and the agent reads it.</li>
+    <li>Agents can search past chats (<code>search_history</code>) when you say "like last time".</li>
+  </ul>
+  <figure><img src="images/05-chat-answer.png" alt="Chat answer" loading="lazy"><figcaption>The lead investigates a failed build, reads process logs and delegates the fix.</figcaption></figure>
+  <div class="row">
+    <figure><img src="images/34-dark-chat.png" alt="Dark mode" loading="lazy"><figcaption>Dark mode (Account → Appearance).</figcaption></figure>
+    <figure class="phone"><img src="images/36-mobile-chat.png" alt="Mobile" loading="lazy"><figcaption>On a phone.</figcaption></figure>
+  </div>
+  <div class="callout"><strong>Edit modes</strong><b>Worktree</b> (default): the agent edits a private copy and you approve the diff. <b>Direct</b>: edits the project folder like the CLI does. Set per chat, per automation, or per project.</div>
+</section>
+
+<!-- 10 -->
+<section id="approvals">
+  <h2><span class="num">10</span>Approvals</h2>
+  <p class="intro">Agents propose. You decide.</p>
+  <table>
+    <tr><th>Card</th><th>What it does when approved</th></tr>
+    <tr><td><b>Diff</b></td><td>Merges the agent's worktree changes into the project. View per file, side by side.</td></tr>
+    <tr><td><b>Command</b></td><td>Runs a command that isn't on the agent's allow-list.</td></tr>
+    <tr><td><b>Process / container</b></td><td>Start, restart or stop a dev server, job or docker compose service.</td></tr>
+    <tr><td><b>Git</b></td><td>Commit, create a branch, push (push always needs a person).</td></tr>
+    <tr><td><b>Settings change</b></td><td>An automation, agent, monitor or policy the agent wants to create or edit.</td></tr>
+    <tr><td><b>MCP call</b></td><td>A tool that writes on an external service.</td></tr>
+  </table>
+  <ul>
+    <li><b>Approve</b>: it runs, and the agent continues on its own.</li>
+    <li><b>Approve &amp; always allow</b>: saves the command pattern to the agent's permissions. Dangerous patterns are refused.</li>
+    <li><b>Reject</b>: the agent is told and can try another way.</li>
+    <li><b>Skip</b>: dismiss without the agent running again. <b>Skip all</b> clears a project.</li>
+  </ul>
+  <div class="callout tip"><strong>Approve from anywhere</strong>Cards also appear in Discord/Telegram with buttons, or use <code>/skip</code>. Deciding in one place updates the other.</div>
+</section>
+
+<!-- 11 -->
+<section id="permissions">
+  <h2><span class="num">11</span>Permissions</h2>
+  <p class="intro">Per action, per agent, with presets so you don't start from zero.</p>
+  <figure><img src="images/08-permissions.png" alt="Permissions" loading="lazy"><figcaption>The Permissions tab: the project's command packs and forbidden files.</figcaption></figure>
+  <ul>
+    <li><b>Command packs</b>: commands grouped by tool (Git, Go, Docker…), with read-only packs. Edit them or build your own.</li>
+    <li><b>Command patterns</b>: <code>go test *</code>, <code>pnpm typecheck</code>… A trailing <code> *</code> allows any arguments, but dangerous flags (<code>-exec</code>, <code>--output</code>, <code>--no-index</code>, paths outside the project) are still blocked.</li>
+    <li><b>Protected files</b>: secrets and files agents may never edit.</li>
+    <li><b>Administrator</b> is set on the agent. Automations inherit it or override it.</li>
+  </ul>
+</section>
+
+<!-- 12 -->
+<section id="ops">
+  <h2><span class="num">12</span>Operations &amp; monitors</h2>
+  <p class="intro">Run your project like pm2, and let the agents read the same logs you do.</p>
+  <figure><img src="images/11-operations.png" alt="Operations" loading="lazy"><figcaption>Processes with status, CPU/RAM and ports; containers; monitors with uptime.</figcaption></figure>
+  <h3>Processes</h3>
+  <ol class="steps">
+    <li>Click <b>Scan</b>: the office finds commands in <code>Makefile</code>, <code>package.json</code>, <code>docker-compose.yml</code>… Pin the ones you use.</li>
+    <li>Start, stop or restart. Services can <b>auto-restart</b> on crash and <b>auto-start</b> with the office.</li>
+    <li>Open the live log. <b>Ask agent</b> attaches the last 300 lines to a chat; <b>Fix</b> starts a new chat and sends it right away.</li>
+  </ol>
+  <h3>Containers</h3>
+  <p>Docker compose stacks: status, ports, CPU/RAM/network, up/stop/restart/down/pull/build per stack or service, live logs.</p>
+  <h3>Monitors</h3>
+  <table>
+    <tr><th>Type</th><th>Checks</th></tr>
+    <tr><td>HTTP</td><td>Status code, keyword, timeout.</td></tr>
+    <tr><td>TCP</td><td>A host:port answers.</td></tr>
+    <tr><td>Heartbeat</td><td>Your cron job calls a secret URL. Missing pings mean Down.</td></tr>
+    <tr><td>Process / container</td><td>One of the office's processes or a compose service is running.</td></tr>
+  </table>
+  <p>Each monitor shows 24h uptime, latency and a trend. Turn on <b>AI analysis</b> to have an agent investigate when it goes Down, with a daily budget and a cooldown.</p>
+</section>
+
+<!-- 13 -->
+<section id="automations">
+  <h2><span class="num">13</span>Automations</h2>
+  <p class="intro">Work that starts on its own: on a schedule, from a webhook, or from a chat message.</p>
+  <figure><img src="images/09-automations.png" alt="Automations" loading="lazy"><figcaption>Automations of a project, with last run and next run.</figcaption></figure>
+  <table>
+    <tr><th>Trigger</th><th>Example</th></tr>
+    <tr><td><b>Schedule</b></td><td>Cron + timezone, or every N minutes. "Mon–Fri 08:00: brief me on yesterday's commits."</td></tr>
+    <tr><td><b>Webhook</b></td><td>A secret URL with a token. "Sentry alert → triage and propose a fix."</td></tr>
+    <tr><td><b>Telegram / Discord</b></td><td>A message in a bot chat, optionally a command like <code>/deploy</code>.</td></tr>
+  </table>
+  <table>
+    <tr><th>Action</th><th>Cost</th></tr>
+    <tr><td><b>Script</b> (bash, node, python)</td><td>Free. Runs in the project folder, gets the payload on stdin and <code>$OFFICE_PAYLOAD</code>. Calls an agent only when it fails, or when it prints a line <code>@@agent: …</code>.</td></tr>
+    <tr><td><b>Chat</b></td><td>Sends a prompt to an agent. Use <code>{{payload}}</code>, <code>{{today}}</code>.</td></tr>
+  </table>
+  <figure><img src="images/10-automation-builder.png" alt="Automation builder" loading="lazy"><figcaption>The builder: a form on one side, a chat on the other. Describe what you want and the AI fills the form; <b>Test run</b> before saving.</figcaption></figure>
+  <div class="callout"><strong>Guard rails</strong>Max runs per hour, daily cost, debounce (collapse bursts of webhooks), parallel runs, max minutes per run, and auto-disable after N failures. Agents can propose automations too, and they always wait for your approval.</div>
+</section>
+
+<!-- 14 -->
+<section id="bots">
+  <h2><span class="num">14</span>Discord &amp; Telegram bots</h2>
+  <p class="intro">Give work to your team and approve proposals from your phone.</p>
+  <figure><img src="images/19-bot.png" alt="Connect a bot" loading="lazy"><figcaption>Project → Automations → add a bot.</figcaption></figure>
+  <ol class="steps">
+    <li>Create a bot in Discord (Developer Portal) or Telegram (@BotFather) and paste its token.</li>
+    <li>Add <b>Admins</b> and <b>Users</b> by their chat IDs. Only they can talk to it.</li>
+    <li>Talk to it: "@bot fix the failing test". Discord threads keep each task separate. The bot shows when it's working, posts images and files, and sends approval cards with buttons.</li>
+    <li>Add commands: each command is its own automation (script or chat).</li>
+  </ol>
+</section>
+
+<!-- 15 -->
+<section id="burn">
+  <h2><span class="num">15</span>Burn</h2>
+  <p class="intro">An agent that keeps working on a project by itself until a time you set.</p>
+  <figure><img src="images/13-burn.png" alt="Burn" loading="lazy"><figcaption>The Burn tab: settings, timer and the list of work it found.</figcaption></figure>
+  <ul>
+    <li>It finds three kinds of work: <b>unfinished work</b> (TODO/FIXME, failing tests, stale proposals), <b>improvements</b>, and <b>small bugs</b>.</li>
+    <li>Each item runs in its own worktree. Results go to a <b>local branch</b> or a <b>diff waiting for approval</b>.</li>
+    <li>Settings: lead agent, model tier, max sub-agents (0–5), focus ("checkout first, skip docs"), stop time (default: when the AI connection's weekly limit resets, otherwise 8 hours).</li>
+    <li>Stop pauses the current item. Start again and it resumes. Its chat appears in Chat with a 🔥, where you can steer it.</li>
+  </ul>
+  <div class="callout warn"><strong>Admin only</strong>Burn runs with full machine access and no per-step approval, and it uses a lot of your AI quota. The confirm dialog spells this out.</div>
+</section>
+
+<!-- 16 -->
+<section id="files">
+  <h2><span class="num">16</span>Files</h2>
+  <p class="intro">Browse and edit the project without leaving the dashboard (admin).</p>
+  <figure><img src="images/12-files.png" alt="Files" loading="lazy"><figcaption>A lazy-loading tree, an editor, and a diff against the last commit.</figcaption></figure>
+  <ul>
+    <li>Gitignored and secret files are hidden by default. <b>Show hidden</b> reveals them.</li>
+    <li>Saving a secret or protected file asks for confirmation. If someone else changed the file meanwhile, you get a conflict instead of overwriting.</li>
+  </ul>
+</section>
+
+<!-- 17 -->
+<section id="skills">
+  <h2><span class="num">17</span>Skills, MCP &amp; library</h2>
+  <p class="intro">Everything the agents can use, in one place.</p>
+  <div class="row">
+    <figure><img src="images/14-skills.png" alt="Skills" loading="lazy"><figcaption>Skills of the project and the machine.</figcaption></figure>
+    <figure><img src="images/15-mcp.png" alt="MCP" loading="lazy"><figcaption>MCP servers held by the office.</figcaption></figure>
+  </div>
+  <h3>Skills</h3>
+  <p>See every skill on the machine, install into a project, save to the library, or write a new one with an AI helper (<b>Write skill</b>). Skills are checked for unsafe content before installing.</p>
+  <h3>MCP gateway</h3>
+  <ol class="steps">
+    <li>Add an MCP server (HTTP or stdio), or <b>Move into office</b> one you already have in Claude Code.</li>
+    <li>Servers that need a login: click <b>Connect</b>. The office handles OAuth (discovery, client registration, PKCE, token refresh).</li>
+    <li>Assign servers to agents and set a permission per tool: allowed, ask, or blocked. Tools that write ask by default.</li>
+    <li>Every call is logged. Claude Code, Codex and API agents all go through the same gateway.</li>
+  </ol>
+  <figure><img src="images/25-library.png" alt="Library" loading="lazy"><figcaption>Library (admin): installed everywhere, your library, popular MCP servers, and search in the MCP Registry.</figcaption></figure>
+</section>
+
+<!-- 18 -->
+<section id="assistant">
+  <h2><span class="num">18</span>Office assistant</h2>
+  <p class="intro">A chat that manages the office itself, across all projects.</p>
+  <figure><img src="images/21-assistant.png" alt="Office assistant" loading="lazy"><figcaption>"Add a monitor for the shop API", "Which connection costs the most this week?"</figcaption></figure>
+  <p>Pick a project scope with the chip, and the assistant can read and propose changes to any setting: connections, budgets, agents, automations. Changes come as cards you approve. You can also give it fallback connections.</p>
+</section>
+
+<!-- 19 -->
+<section id="watch">
+  <h2><span class="num">19</span>Watch</h2>
+  <p class="intro">Several chats from different projects side by side, like iTerm panes.</p>
+  <figure><img src="images/22-watch.png" alt="Watch" loading="lazy"><figcaption>Split horizontally or vertically, resize by dragging. The layout is saved in this browser.</figcaption></figure>
+</section>
+
+<!-- 20 -->
+<section id="jobs">
+  <h2><span class="num">20</span>Jobs</h2>
+  <p class="intro">Every run, from every project: chat turns, automations, monitor analyses.</p>
+  <figure><img src="images/26-jobs.png" alt="Jobs" loading="lazy"><figcaption>Status, duration, tokens and cost. Errors and cost in the last 24 hours at the top.</figcaption></figure>
+  <p>Cancel a running job or retry a failed one. Jobs cut off by a restart are marked failed, never silently re-run.</p>
+</section>
+
+<!-- 21 -->
+<section id="log">
+  <h2><span class="num">21</span>Change log &amp; audit</h2>
+  <p class="intro">Who changed what, who approved it, and from where.</p>
+  <div class="row">
+    <figure><img src="images/16-change-log.png" alt="Change log" loading="lazy"><figcaption>Project change log: person, agent or automation; chat/job/channel; before and after.</figcaption></figure>
+    <figure><img src="images/29-audit.png" alt="Audit" loading="lazy"><figcaption>Admin → Audit: the whole machine, with filters and stats.</figcaption></figure>
+  </div>
+</section>
+
+<!-- 22 -->
+<section id="budget">
+  <h2><span class="num">22</span>Project info &amp; budgets</h2>
+  <figure><img src="images/17-project-info.png" alt="Project info" loading="lazy"><figcaption>Folder, git remote, description and the project's daily budget.</figcaption></figure>
+  <p>Budgets exist at three levels: the whole office (AI connections page), each project (Info tab) and each automation. A run that would go over is blocked and reported on the Overview.</p>
+</section>
+
+<!-- 23 -->
+<section id="users">
+  <h2><span class="num">23</span>Users &amp; account</h2>
+  <div class="row">
+    <figure><img src="images/28-users.png" alt="Users" loading="lazy"><figcaption>Administration → Accounts: create, reset password, disable (ends sessions).</figcaption></figure>
+    <figure><img src="images/33-account.png" alt="Account" loading="lazy"><figcaption>Account: name, password, language, theme, personal API tokens.</figcaption></figure>
+  </div>
+  <ul>
+    <li><b>Admin</b>: everything. <b>Member</b>: chat and use projects, delete only their own chats.</li>
+    <li><b>Personal tokens</b> let other tools reach the office's MCP endpoint with your role's rights. They expire after 30/90/365 days, or never.</li>
+  </ul>
+</section>
+
+<!-- 24 -->
+<section id="data">
+  <h2><span class="num">24</span>Data, transfer &amp; backup</h2>
+  <div class="row">
+    <figure><img src="images/30-data.png" alt="Data" loading="lazy"><figcaption>Admin → Data: what uses disk space, clean by hand or automatically.</figcaption></figure>
+    <figure><img src="images/31-transfer.png" alt="Transfer" loading="lazy"><figcaption>Administration → Backup &amp; sync: export/import all settings (no keys) to move machines.</figcaption></figure>
+  </div>
+<pre><code>office export ./office-config --commit   # a folder you can keep in git
+office import ./office-config --dry-run  # always previews first
+office backup                            # database + encryption key</code></pre>
+</section>
+
+<!-- 25 -->
+<section id="update">
+  <h2><span class="num">25</span>Updating office</h2>
+  <figure><img src="images/32-update.png" alt="Update" loading="lazy"><figcaption>Admin → Update: rebuild from source with a live log.</figcaption></figure>
+  <p>The button appears only when the source differs from the running build. If the new build fails to start, the office rolls back to the previous one. The sidebar shows the version and last commit.</p>
+  <div class="callout tip"><strong>An office that upgrades itself</strong>agent-office is a project like any other. Add its own folder as a project and ask its agents for what your work needs ("add a Zalo OA channel", "a monitor for SSL expiry"). They edit and test the source in a worktree, you approve the diff, then <b>Update office</b> rebuilds it. The office bends to how you work, one approved diff at a time.</div>
+</section>
+
+<!-- 26 -->
+<section id="cli">
+  <h2><span class="num">26</span>CLI reference</h2>
+  <table>
+    <tr><th>Command</th><th>What it does</th></tr>
+    <tr><td><code>office run</code></td><td>Supervisor: API server + dashboard, restarts on crash, applies updates. Flags: <code>--ui-port</code>, <code>--no-ui</code>, <code>--api</code>, <code>--home</code>.</td></tr>
+    <tr><td><code>office serve</code></td><td>API server only.</td></tr>
+    <tr><td><code>office init [path] [--local] [--template team]</code></td><td>Register a repo and choose a model.</td></tr>
+    <tr><td><code>office project add|list|rm</code></td><td>Manage projects. No path = machine-wide helper.</td></tr>
+    <tr><td><code>office provider add|list|test</code></td><td>AI connections.</td></tr>
+    <tr><td><code>office template list</code></td><td>Organisation models.</td></tr>
+    <tr><td><code>office user create|list|passwd</code></td><td>The first admin (replaces <code>admin</code> / <code>admin</code>), list accounts, reset a password. Later accounts: on the dashboard, or <code>create --force</code>.</td></tr>
+    <tr><td><code>office export | import | backup</code></td><td>Move or back up configuration and data.</td></tr>
+    <tr><td><code>office service install|status|uninstall</code></td><td>Start with your login session.</td></tr>
+  </table>
+</section>
+
+<!-- 27 -->
+<section id="faq">
+  <h2><span class="num">27</span>Tips &amp; FAQ</h2>
+  <h3>Does it send my code anywhere?</h3>
+  <p>Only to the AI connections you configure, exactly like using those tools directly. The office itself runs locally and stores data in SQLite.</p>
+  <h3>Can agents break my repo?</h3>
+  <p>In worktree mode they edit a separate copy. Nothing reaches your folder until you approve a diff. Commands outside the allow-list, git pushes and restarts all ask first.</p>
+  <h3>How do I keep costs down?</h3>
+  <ul>
+    <li>Prefer <b>script</b> automations: they're free and call an agent only when needed.</li>
+    <li>Give simple agents the <b>fast</b> model tier, and set budgets per project and automation.</li>
+    <li>Add a cheap fallback connection so a limit doesn't stop work.</li>
+  </ul>
+  <h3>Recurring task?</h3>
+  <p>Ask in chat: "every weekday at 8, check X". The agent proposes an automation, and you approve it.</p>
+  <h3>Regenerating these screenshots</h3>
+<pre><code>make build &amp;&amp; make ui-build
+node docs/guide/capture.mjs                  # throwaway demo office in /tmp, ports 18787/12704
+node docs/guide/capture.mjs --lang=vi        # Vietnamese UI and data → images/vi/ (vi.html)
+node docs/guide/capture.mjs --only-missing --reuse   # carry on in batches, reusing the running demo
+node docs/guide/capture.mjs --stop           # shut the demo down
+KEEP=1 node docs/guide/capture.mjs           # leave it running to explore</code></pre>
+</section>
+
+<footer>agent-office · user guide. Screenshots come from a demo office with sample data.</footer>
+</main>
+</div>
+
+<button class="menu-btn" id="menuBtn" type="button">Contents</button>
+<div id="lightbox" role="dialog" aria-label="Screenshot"><img alt=""></div>
+
+<script>
+  // missing screenshot → placeholder
+  document.querySelectorAll('figure img').forEach(img => {
+    const mark = () => img.closest('figure').classList.add('missing')
+    if (img.complete && img.naturalWidth === 0) mark()
+    img.addEventListener('error', mark)
+  })
+  // click to zoom
+  const box = document.getElementById('lightbox')
+  document.querySelectorAll('figure img').forEach(img => img.addEventListener('click', () => {
+    box.querySelector('img').src = img.src
+    box.classList.add('open')
+  }))
+  box.addEventListener('click', () => box.classList.remove('open'))
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') box.classList.remove('open') })
+  // mobile menu
+  const toc = document.getElementById('toc')
+  document.getElementById('menuBtn').addEventListener('click', () => toc.classList.toggle('open'))
+  toc.addEventListener('click', e => { if (e.target.tagName === 'A') toc.classList.remove('open') })
+  // highlight the section in view
+  const links = new Map([...toc.querySelectorAll('li a')].map(a => [a.getAttribute('href').slice(1), a]))
+  const io = new IntersectionObserver(entries => {
+    for (const e of entries) if (e.isIntersecting) {
+      links.forEach(a => a.classList.remove('active'))
+      links.get(e.target.id)?.classList.add('active')
+    }
+  }, { rootMargin: '-20% 0px -70% 0px' })
+  document.querySelectorAll('main section').forEach(s => io.observe(s))
+</script>
+</body>
+</html>
