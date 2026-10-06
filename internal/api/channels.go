@@ -1,6 +1,8 @@
 package api
 
 import (
+	"bytes"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"slices"
@@ -11,6 +13,39 @@ import (
 	"github.com/tung1998/agent-office/internal/perm"
 	"github.com/tung1998/agent-office/internal/storage"
 )
+
+// maxDefaults bounds a bot's default setup (a prompt, a script, limits…).
+const maxDefaults = 64 << 10
+
+// cleanDefaults checks a bot's default setup: a JSON object (null = none),
+// stored compact. What it holds is checked where it is used: each command
+// taking it is saved through the automation API.
+func cleanDefaults(raw json.RawMessage) (string, error) {
+	raw = bytes.TrimSpace(raw)
+	if len(raw) == 0 || string(raw) == "null" {
+		return "", nil
+	}
+	if len(raw) > maxDefaults {
+		return "", errors.New("thiết lập mặc định của bot quá lớn")
+	}
+	var obj map[string]any
+	if json.Unmarshal(raw, &obj) != nil {
+		return "", errors.New("thiết lập mặc định của bot phải là một object JSON")
+	}
+	var out bytes.Buffer
+	if err := json.Compact(&out, raw); err != nil {
+		return "", err
+	}
+	return out.String(), nil
+}
+
+// defaultsJSON is a bot's default setup as the API shows it (null = none yet).
+func defaultsJSON(s string) json.RawMessage {
+	if s == "" {
+		return json.RawMessage("null")
+	}
+	return json.RawMessage(s)
+}
 
 // ChannelReloader restarts a channel's bot after its settings change.
 type ChannelReloader interface{ Reload(id string) }
@@ -24,27 +59,28 @@ func (s *server) botState(id string) string {
 }
 
 type channelDTO struct {
-	ID            string     `json:"id"`
-	ProjectID     string     `json:"project_id"`
-	Kind          string     `json:"kind"`
-	Name          string     `json:"name"`
-	HasToken      bool       `json:"has_token"`
-	AgentID       string     `json:"agent_id"`
-	Mode          string     `json:"mode"`
-	Enabled       bool       `json:"enabled"`
-	Allow         []string   `json:"allow"`
-	Scope         string     `json:"scope"`
-	FilterEnabled bool       `json:"filter_enabled"`
-	Refusal       string     `json:"refusal"`
-	Approvers     []string   `json:"approvers"`
-	Approval      string     `json:"approval"`
-	Header        string     `json:"header"`
-	ReplyMode     string     `json:"reply_mode"` // "" = the answer only, steps = the steps too
-	State         string     `json:"state"`      // connecting | running | "" (off or stopped: last_error)
-	Version       string     `json:"version"`    // what an edit is made from (ADR-072)
-	BotName       string     `json:"bot_name"`
-	LastError     string     `json:"last_error"`
-	LastMessageAt *time.Time `json:"last_message_at"`
+	ID            string          `json:"id"`
+	ProjectID     string          `json:"project_id"`
+	Kind          string          `json:"kind"`
+	Name          string          `json:"name"`
+	HasToken      bool            `json:"has_token"`
+	AgentID       string          `json:"agent_id"`
+	Mode          string          `json:"mode"`
+	Enabled       bool            `json:"enabled"`
+	Allow         []string        `json:"allow"`
+	Scope         string          `json:"scope"`
+	FilterEnabled bool            `json:"filter_enabled"`
+	Refusal       string          `json:"refusal"`
+	Approvers     []string        `json:"approvers"`
+	Approval      string          `json:"approval"`
+	Header        string          `json:"header"`
+	ReplyMode     string          `json:"reply_mode"` // "" = the answer only, steps = the steps too
+	Defaults      json.RawMessage `json:"defaults"`   // its commands' default setup (null = none yet)
+	State         string          `json:"state"`      // connecting | running | "" (off or stopped: last_error)
+	Version       string          `json:"version"`    // what an edit is made from (ADR-072)
+	BotName       string          `json:"bot_name"`
+	LastError     string          `json:"last_error"`
+	LastMessageAt *time.Time      `json:"last_message_at"`
 }
 
 // channelDTO is the channel with how its bot is doing now.
@@ -64,25 +100,26 @@ func toChannelDTO(c storage.Channel) channelDTO {
 		approvers = []string{}
 	}
 	return channelDTO{c.ID, c.ProjectID, c.Kind, c.Name, c.TokenEnc != "", c.AgentID, c.Mode, c.Enabled, allow, c.Scope, c.FilterEnabled, c.Refusal,
-		approvers, firstNonEmptyStr(c.Approval, "ask"), c.Header, c.ReplyMode, "", "", c.BotName, c.LastError, c.LastMessageAt}
+		approvers, firstNonEmptyStr(c.Approval, "ask"), c.Header, c.ReplyMode, defaultsJSON(c.Defaults), "", "", c.BotName, c.LastError, c.LastMessageAt}
 }
 
 type channelInput struct {
-	Kind          string    `json:"kind"`
-	Name          *string   `json:"name"`
-	Token         *string   `json:"token"` // write only
-	AgentID       *string   `json:"agent_id"`
-	Mode          *string   `json:"mode"`
-	Enabled       *bool     `json:"enabled"`
-	Allow         *[]string `json:"allow"`
-	Scope         *string   `json:"scope"`
-	FilterEnabled *bool     `json:"filter_enabled"`
-	Refusal       *string   `json:"refusal"`
-	Approvers     *[]string `json:"approvers"`
-	Approval      *string   `json:"approval"`
-	Header        *string   `json:"header"`
-	ReplyMode     *string   `json:"reply_mode"`
-	Version       string    `json:"version"` // the bot as it was read (409 when changed since)
+	Kind          string           `json:"kind"`
+	Name          *string          `json:"name"`
+	Token         *string          `json:"token"` // write only
+	AgentID       *string          `json:"agent_id"`
+	Mode          *string          `json:"mode"`
+	Enabled       *bool            `json:"enabled"`
+	Allow         *[]string        `json:"allow"`
+	Scope         *string          `json:"scope"`
+	FilterEnabled *bool            `json:"filter_enabled"`
+	Refusal       *string          `json:"refusal"`
+	Approvers     *[]string        `json:"approvers"`
+	Approval      *string          `json:"approval"`
+	Header        *string          `json:"header"`
+	ReplyMode     *string          `json:"reply_mode"`
+	Defaults      *json.RawMessage `json:"defaults"`
+	Version       string           `json:"version"` // the bot as it was read (409 when changed since)
 }
 
 func (s *server) applyChannel(in channelInput, c *storage.Channel) error {
@@ -135,6 +172,13 @@ func (s *server) applyChannel(in channelInput, c *storage.Channel) error {
 			return errors.New("kiểu trả lời của bot không hợp lệ")
 		}
 		c.ReplyMode = *in.ReplyMode
+	}
+	if in.Defaults != nil {
+		d, err := cleanDefaults(*in.Defaults)
+		if err != nil {
+			return err
+		}
+		c.Defaults = d
 	}
 	c.Approval = "ask"                     // the modes are gone (ADR-081): the Admin and Người dùng lists say who runs how
 	if slices.Contains(c.Approvers, "*") { // anyone would run as the agent, with the machine when it has it

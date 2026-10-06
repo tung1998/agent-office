@@ -71,9 +71,9 @@ func modelVersion(m storage.OrgModel) string {
 
 func channelVersion(c storage.Channel) string {
 	return versionOf(struct {
-		Name, AgentID, Mode, Scope, Refusal, Approval, Header, ReplyMode string
-		Enabled, FilterEnabled                                           bool
-		Allow, Approvers                                                 []string
-		Token                                                            string
-	}{c.Name, c.AgentID, c.Mode, c.Scope, c.Refusal, c.Approval, c.Header, c.ReplyMode, c.Enabled, c.FilterEnabled, c.Allow, c.Approvers, c.TokenEnc})
+		Name, AgentID, Mode, Scope, Refusal, Approval, Header, ReplyMode, Defaults string
+		Enabled, FilterEnabled                                                     bool
+		Allow, Approvers                                                           []string
+		Token                                                                      string
+	}{c.Name, c.AgentID, c.Mode, c.Scope, c.Refusal, c.Approval, c.Header, c.ReplyMode, c.Defaults, c.Enabled, c.FilterEnabled, c.Allow, c.Approvers, c.TokenEnc})
 }

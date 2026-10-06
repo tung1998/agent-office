@@ -41,6 +41,7 @@ export interface AutomationConfig {
   command?: string, command_description?: string, command_arg?: string
   skill?: string // the command calls this project skill
   reply_mode?: '' | 'answer' | 'steps' // what the bot shows of a run ('' = the bot's own)
+  own_setup?: boolean // a bot's command set up on its own; false = the bot's default setup
   pull_request?: boolean // a GitHub/Bitbucket PR webhook: runs on a PR opened or updated, with {{diff}}
   notify_channel_id?: string, notify_chat_id?: string // what a run answers goes to this bot's chat too
   tags?: string[] // put on the chat of each run
@@ -94,7 +95,34 @@ export interface Automation {
 }
 
 // A bot's settings as a form edits them (the token only when a new one is pasted).
-export interface BotDraft { token?: string, allow: string[], refusal: string, approvers?: string[], approval?: 'ask' | 'direct' | 'admin', header?: string, reply_mode?: '' | 'steps', version?: string }
+export interface BotDraft { token?: string, allow: string[], refusal: string, approvers?: string[], approval?: 'ask' | 'direct' | 'admin', header?: string, reply_mode?: '' | 'steps', defaults?: CommandSetup, version?: string }
+
+// What a bot's command does (not when it runs): the bot keeps one as its
+// commands' default; a command with own_setup has its own.
+export interface CommandSetup {
+  action: Automation['action'], agent_id: string, prompt: string, script: AutomationScript, tags: string[], limits: AutomationLimits
+  permission_mode?: Automation['permission_mode'], override_full_access?: boolean, override_extra_dirs?: string[]
+}
+export function setupOf(d: AutomationDraft): CommandSetup {
+  return JSON.parse(JSON.stringify({
+    action: d.action, agent_id: d.agent_id, prompt: d.prompt, script: d.script, tags: d.config.tags ?? [], limits: d.limits,
+    permission_mode: d.permission_mode ?? 'agent', override_full_access: d.override_full_access ?? false, override_extra_dirs: d.override_extra_dirs ?? []
+  }))
+}
+// applySetup puts a setup into a command's draft (a copy: the two never share)
+export function applySetup(d: AutomationDraft, s: CommandSetup) {
+  const c = JSON.parse(JSON.stringify(s)) as CommandSetup
+  d.action = c.action
+  d.agent_id = c.agent_id
+  d.prompt = c.prompt
+  d.script = { ...d.script, ...c.script }
+  d.config.tags = c.tags ?? []
+  d.limits = { ...d.limits, ...c.limits }
+  d.permission_mode = c.permission_mode ?? 'agent'
+  d.override_full_access = c.override_full_access ?? false
+  d.override_extra_dirs = c.override_extra_dirs ?? []
+}
+export const sameSetup = (a: CommandSetup, b: CommandSetup) => JSON.stringify(a) === JSON.stringify(b)
 
 // AutomationBody is what PATCH/POST take.
 export interface AutomationBody {
@@ -162,7 +190,7 @@ export function prReviewDraft(t: (k: 'auto.prName' | 'auto.prPrompt') => string)
 export function emptyDraft(): AutomationDraft {
   return {
     name: '', enabled: true, source: 'schedule',
-    config: { every_minutes: 0, cron: '0 8 * * 1-5', timezone: Intl.DateTimeFormat().resolvedOptions().timeZone, auth: 'bearer', auth_name: '', channel_id: '', keywords: [], scope: '', command: '', command_description: '', command_arg: '', skill: '', reply_mode: '', pull_request: false, notify_channel_id: '', notify_chat_id: '', tags: [] },
+    config: { every_minutes: 0, cron: '0 8 * * 1-5', timezone: Intl.DateTimeFormat().resolvedOptions().timeZone, auth: 'bearer', auth_name: '', channel_id: '', keywords: [], scope: '', command: '', command_description: '', command_arg: '', skill: '', reply_mode: '', own_setup: false, pull_request: false, notify_channel_id: '', notify_chat_id: '', tags: [] },
     bot: { token: '', allow: [], refusal: '' },
     action: 'script', agent_id: '', prompt: '', edit_mode: 'worktree', model_tier: '', keep_context: false,
     script: { lang: 'bash', body: '', timeout_s: 300 },

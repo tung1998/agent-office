@@ -255,3 +255,33 @@ func TestChannelHeaderAPI(t *testing.T) {
 		t.Fatalf("list = %v", c)
 	}
 }
+
+// A bot's reply mode and its commands' default setup are set with the bot and
+// read back; a bad one is refused.
+func TestChannelDefaultsAPI(t *testing.T) {
+	e := setup(t)
+	admin := e.client(t)
+	login(t, e, admin, "admin@x.io", "admin-password")
+	_, body := do(t, admin, "POST", e.srv.URL+"/api/projects", map[string]any{"path": t.TempDir(), "name": "shop"}, nil)
+	pid := body["project"].(map[string]any)["id"].(string)
+	ch, _ := e.st.Channels().Create(context.Background(), storage.Channel{ProjectID: pid, Kind: "discord", Name: "Dev", TokenEnc: "enc"})
+	url := e.srv.URL + "/api/channels/" + ch.ID
+	defaults := map[string]any{"action": "chat", "agent_id": "", "config": map[string]any{"tags": []string{"bot"}}}
+	if resp, b := do(t, admin, "PATCH", url, map[string]any{"reply_mode": "steps", "defaults": defaults}, nil); resp.StatusCode != 200 {
+		t.Fatalf("patch = %d %v", resp.StatusCode, b)
+	}
+	got, _ := e.st.Channels().Get(context.Background(), ch.ID)
+	if got.ReplyMode != storage.ReplySteps || got.Defaults != `{"action":"chat","agent_id":"","config":{"tags":["bot"]}}` {
+		t.Fatalf("saved = %q %q", got.ReplyMode, got.Defaults)
+	}
+	_, b := do(t, admin, "GET", e.srv.URL+"/api/projects/"+pid+"/channels", nil, nil)
+	c := b["channels"].([]any)[0].(map[string]any)
+	if d, _ := c["defaults"].(map[string]any); c["reply_mode"] != "steps" || d["action"] != "chat" {
+		t.Fatalf("list = %v", c)
+	}
+	for _, bad := range []map[string]any{{"reply_mode": "loud"}, {"defaults": []int{1}}} {
+		if resp, _ := do(t, admin, "PATCH", url, bad, nil); resp.StatusCode != 400 {
+			t.Errorf("%v = %d, want 400", bad, resp.StatusCode)
+		}
+	}
+}

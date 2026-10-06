@@ -210,6 +210,7 @@ type Channel struct {
 	Approval                  string   // a new chat's way: ask (commands) | direct (what the agent proposes is approved)
 	Header                    string   // the line on top of its answers: {agent} {project} {branch}; "" = default, "-" = none
 	ReplyMode                 string   // what a run shows: "" = its answer only, ReplySteps = its steps too (a command may override)
+	Defaults                  string   // its commands' default setup (JSON, the dashboard's); "" = none yet
 	BotName                   string
 	LastError                 string
 	LastMessageAt             *time.Time

@@ -60,6 +60,27 @@ const removed: string[] = []
   cmds.value.sort((a, b) => Number(!!a.draft.config.command) - Number(!!b.draft.config.command)) // "@bot" first
   if (!cmds.value.some(c => !c.draft.config.command)) cmds.value.unshift({ key: `k${seq++}`, draft: draftFor(''), open: isNew.value })
 }
+// what its commands do unless one has its own setup (Advanced); a bot made
+// before this takes its basic command's, and a command that differs keeps its own
+const defaultsDraft = reactive(draftFor('')) as AutomationDraft
+{
+  const saved = channel.value?.defaults
+  const basic = cmds.value.find(c => !c.draft.config.command)
+  if (saved) applySetup(defaultsDraft, saved)
+  else if (basic) applySetup(defaultsDraft, setupOf(basic.draft))
+  if (!saved) {
+    const base = setupOf(defaultsDraft)
+    cmds.value.forEach((c) => { c.draft.config.own_setup = !!c.id && !sameSetup(setupOf(c.draft), base) })
+  }
+}
+const own = (c: Cmd) => !!c.draft.config.own_setup
+// own setup on: it starts from the bot's; off: the bot's again
+function setOwn(c: Cmd, on: boolean) {
+  if (on) applySetup(c.draft, setupOf(defaultsDraft))
+  else c.draft.config.reply_mode = ''
+  c.draft.config.own_setup = on
+}
+const effective = (c: Cmd) => own(c) ? c.draft : defaultsDraft
 function addCommand() {
   cmds.value.forEach((c) => { c.open = false })
   const d = draftFor('')
@@ -103,7 +124,10 @@ function removeCommand(c: Cmd) {
   if (c.id) removed.push(c.id)
   cmds.value = cmds.value.filter(x => x !== c)
 }
-watch(() => bot.kind, (k) => { cmds.value.forEach((c) => { c.draft.source = k }) })
+watch(() => bot.kind, (k) => {
+  cmds.value.forEach((c) => { c.draft.source = k })
+  defaultsDraft.source = k
+})
 
 const botLabel = computed(() => channel.value?.bot_name ? `@${channel.value.bot_name}` : '@bot')
 const cmdLabel = (name: string) => bot.kind === 'telegram' ? name.replace(/-/g, '_') : name
@@ -112,9 +136,9 @@ const commandName = (s: string) => s.replace(/^\/+/, '').normalize('NFD').replac
   .toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 32)
 const agentName = (id: string) => agentsData.value?.agents.find(a => a.id === id)?.name ?? t('channels.agentLead')
 function summary(c: Cmd) {
-  const d = c.draft
-  if (d.action === 'script') return t('bot.doScript')
-  return t('bot.doReply', { agent: agentName(d.agent_id) })
+  const d = effective(c)
+  const what = d.action === 'script' ? t('bot.doScript') : t('bot.doReply', { agent: agentName(d.agent_id) })
+  return own(c) ? `${what} · ${t('bot.ownSetupShort')}` : what
 }
 const systemCommands = computed(() => [
   { name: 'create-conversation', arg: '', desc: t('cmd.create') },
@@ -131,10 +155,19 @@ const setKeywords = (c: Cmd, v: string) => { c.draft.config.keywords = v.split(/
 // the chat next to it fills the command that is open
 const openCmd = computed(() => cmds.value.find(c => c.open))
 const highlight = ref<string[]>([])
+// none open: the bot's default setup; one open that follows it and has its
+// setup changed: it gets its own
 function applyPatch(p: Record<string, unknown>) {
   const c = openCmd.value
-  if (!c) return toast.add({ title: t('bot.openOneFirst'), color: 'warning' })
-  const changed = mergeDraft(c.draft, p)
+  let changed: string[]
+  if (!c) {
+    changed = mergeDraft(defaultsDraft, p)
+  } else {
+    if (!own(c)) applySetup(c.draft, setupOf(defaultsDraft))
+    const before = setupOf(c.draft)
+    changed = mergeDraft(c.draft, p)
+    if (!own(c) && !sameSetup(before, setupOf(c.draft))) c.draft.config.own_setup = true
+  }
   if (!changed.length) return
   highlight.value = changed
   setTimeout(() => { highlight.value = [] }, 4000)
@@ -142,7 +175,8 @@ function applyPatch(p: Record<string, unknown>) {
 }
 const pageContext = () => JSON.stringify({
   page: 'automation.bot', bot: { kind: bot.kind, name: botLabel.value },
-  commands: cmds.value.map(c => ({ command: c.draft.config.command ? `/${c.draft.config.command}` : botLabel.value, action: c.draft.action, open: c.open })),
+  defaults: setupOf(defaultsDraft), // what the commands without their own setup do
+  commands: cmds.value.map(c => ({ command: c.draft.config.command ? `/${c.draft.config.command}` : botLabel.value, action: effective(c).action, own_setup: own(c), open: c.open })),
   draft: openCmd.value ? { ...automationBody(openCmd.value.draft), bot: undefined } : null
 })
 
@@ -166,8 +200,16 @@ async function save() {
       d.config.channel_id = channelId
       d.config.command = d.config.command ? commandName(d.config.command) : ''
       d.name = d.config.command ? `/${d.config.command}` : t('bot.tagName', { bot: botLabel.value })
+      if (!own(c)) { // the bot's setup, as it is now
+        applySetup(d, setupOf(defaultsDraft))
+        d.config.reply_mode = ''
+      }
+      d.config.own_setup = own(c)
       const body = { ...automationBody(d), version: c.version }
-      body.bot = i === 0 ? { token: bot.token || undefined, allow: ids(bot.allow), refusal: bot.refusal, approvers: ids(bot.approvers), header: bot.headerOn ? bot.header.trim() : '-', reply_mode: bot.replyMode, version: botVersion } : undefined
+      body.bot = i === 0
+        ? { token: bot.token || undefined, allow: ids(bot.allow), refusal: bot.refusal, approvers: ids(bot.approvers), header: bot.headerOn ? bot.header.trim() : '-',
+            reply_mode: bot.replyMode, defaults: setupOf(defaultsDraft), version: botVersion }
+        : undefined
       const res = c.id
         ? await $fetch<{ automation: Automation }>(`/api/automations/${c.id}`, { method: 'PATCH', body })
         : await $fetch<{ automation: Automation }>(`/api/projects/${props.projectId}/automations`, { method: 'POST', body })
@@ -263,28 +305,36 @@ async function save() {
                 <UInput v-if="bot.headerOn" v-model="bot.header" class="min-w-0 flex-1 font-mono text-xs" placeholder="{agent} · {project} · {branch}" />
               </div>
             </UFormField>
-            <!-- the commands' default: each may override it (Advanced) -->
-            <UFormField :label="t('bot.replyMode')" :help="bot.replyMode === 'steps' ? t('bot.replyStepsHelp') : t('bot.replyAnswerHelp')">
-              <div class="flex flex-wrap gap-2">
-                <button
-                  v-for="o in replyModes" :key="o.value" type="button" class="flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-sm transition"
-                  :class="bot.replyMode === o.value ? 'border-primary bg-primary/5 text-primary' : 'border-(--ui-border) text-(--ui-text-muted) hover:border-(--ui-border-accented)'"
-                  @click="bot.replyMode = o.value"
-                >
-                  <UIcon :name="o.icon" class="size-4" />{{ o.label }}
-                </button>
-              </div>
-            </UFormField>
             <UFormField :label="t('channels.refusal')" :help="t('channels.refusalHelp')">
               <UInput v-model="bot.refusal" class="w-full" :placeholder="t('channels.refusalPlaceholder')" />
             </UFormField>
           </div>
         </section>
 
-        <!-- 2. its commands, each with what it does -->
+        <!-- 2. what its commands do, unless one has its own (Advanced) -->
         <section class="space-y-3 rounded-xl border border-(--ui-border) p-4">
           <p class="flex items-center gap-2 text-sm font-semibold">
-            <span class="flex size-5 items-center justify-center rounded-full bg-primary/15 text-xs text-primary">2</span>{{ t('bot.sectionCommands') }}
+            <span class="flex size-5 items-center justify-center rounded-full bg-primary/15 text-xs text-primary">2</span>{{ t('bot.sectionSetup') }}
+            <UTooltip :text="t('bot.sectionSetupHint')"><UIcon name="i-lucide-info" class="size-4 font-normal text-(--ui-text-muted)" /></UTooltip>
+          </p>
+          <AutomationForm :project-id="projectId" :form="defaultsDraft" :highlight="openCmd ? [] : highlight" command />
+          <UFormField v-if="defaultsDraft.action === 'chat'" :label="t('bot.replyMode')" :help="bot.replyMode === 'steps' ? t('bot.replyStepsHelp') : t('bot.replyAnswerHelp')">
+            <div class="flex flex-wrap gap-2">
+              <button
+                v-for="o in replyModes" :key="o.value" type="button" class="flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-sm transition"
+                :class="bot.replyMode === o.value ? 'border-primary bg-primary/5 text-primary' : 'border-(--ui-border) text-(--ui-text-muted) hover:border-(--ui-border-accented)'"
+                @click="bot.replyMode = o.value"
+              >
+                <UIcon :name="o.icon" class="size-4" />{{ o.label }}
+              </button>
+            </div>
+          </UFormField>
+        </section>
+
+        <!-- 3. its commands: how each is called; what it does is the bot's, or its own -->
+        <section class="space-y-3 rounded-xl border border-(--ui-border) p-4">
+          <p class="flex items-center gap-2 text-sm font-semibold">
+            <span class="flex size-5 items-center justify-center rounded-full bg-primary/15 text-xs text-primary">3</span>{{ t('bot.sectionCommands') }}
           </p>
           <div class="overflow-hidden rounded-lg border border-(--ui-border)">
             <div v-for="c in cmds" :key="c.key" class="border-b border-(--ui-border) last:border-0">
@@ -339,19 +389,29 @@ async function save() {
                     <UInput v-model="c.draft.config.command_arg" class="w-full @lg:w-64" :placeholder="t('auto.cmdArgDefault')" />
                   </UFormField>
                 </template>
-                <!-- what it does and sends -->
-                <AutomationForm :project-id="projectId" :form="c.draft" :highlight="highlight" command />
-                <!-- Advanced: this command's own way over the bot's -->
-                <details v-if="c.draft.action === 'chat'" class="group" :open="!!c.draft.config.reply_mode">
+                <!-- Advanced: what it does and sends, over the bot's setup -->
+                <details class="group" :open="own(c)">
                   <summary class="flex cursor-pointer list-none items-center gap-1.5 text-xs font-medium text-(--ui-text-muted)">
                     <UIcon name="i-lucide-chevron-right" class="size-3.5 transition group-open:rotate-90" />{{ t('bot.advanced') }}
                   </summary>
-                  <UFormField :label="t('bot.replyMode')" class="mt-2">
-                    <USelect
-                      :model-value="c.draft.config.reply_mode || 'inherit'" :items="cmdReplyModes" class="w-full @lg:w-72"
-                      @update:model-value="(v: string) => { c.draft.config.reply_mode = v === 'inherit' ? '' : v as 'answer' | 'steps' }"
-                    />
-                  </UFormField>
+                  <div class="mt-2 space-y-3">
+                    <label class="flex items-start gap-2.5">
+                      <USwitch size="sm" class="mt-0.5" :model-value="own(c)" @update:model-value="(v: boolean) => setOwn(c, v)" />
+                      <span class="min-w-0 flex-1">
+                        <span class="text-sm">{{ t('bot.ownSetup') }}</span>
+                        <span class="block text-xs text-(--ui-text-muted)">{{ own(c) ? t('bot.ownSetupOn') : t('bot.ownSetupOff') }}</span>
+                      </span>
+                    </label>
+                    <template v-if="own(c)">
+                      <AutomationForm :project-id="projectId" :form="c.draft" :highlight="highlight" command />
+                      <UFormField v-if="c.draft.action === 'chat'" :label="t('bot.replyMode')">
+                        <USelect
+                          :model-value="c.draft.config.reply_mode || 'inherit'" :items="cmdReplyModes" class="w-full @lg:w-72"
+                          @update:model-value="(v: string) => { c.draft.config.reply_mode = v === 'inherit' ? '' : v as 'answer' | 'steps' }"
+                        />
+                      </UFormField>
+                    </template>
+                  </div>
                 </details>
               </div>
             </div>

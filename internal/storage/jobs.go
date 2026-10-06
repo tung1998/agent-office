@@ -168,6 +168,9 @@ type AutomationConfig struct {
 	Skill string `json:"skill,omitempty"`
 	// ReplyMode: what the bot shows of a run, answer | steps ("" = the bot's own)
 	ReplyMode string `json:"reply_mode,omitempty"`
+	// OwnSetup: a bot's command set up on its own; false = its bot's default
+	// setup (the bot's page copies it in at each save)
+	OwnSetup bool `json:"own_setup,omitempty"`
 	// PullRequest: a webhook of GitHub/Bitbucket pull requests; office runs
 	// it on a PR opened or updated only, with the PR's diff ({{diff}}).
 	PullRequest bool `json:"pull_request,omitempty"`
