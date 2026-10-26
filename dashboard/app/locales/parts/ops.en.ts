@@ -224,6 +224,7 @@ const en: Record<keyof typeof vi, string> = {
   'bell.empty': 'Nothing needs you',
   'bell.enable': 'Turn on browser notifications',
   'bell.denied': 'Browser notifications are blocked in this browser\'s settings',
+  'bell.seenAll': 'Mark all seen ({n})',
   'bell.all': 'See all',
 'hdr.incidentsError': 'Could not load the count of things needing you',
   'hdr.agents': '{n} agents running · {p} processes',

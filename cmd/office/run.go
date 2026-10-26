@@ -157,6 +157,13 @@ func serveCmd() *cobra.Command {
 			// agents' long-term notes (ADR-068); too long, a fast model compacts them
 			mem := memory.New(a.store, compactNotes(a.store, chatEngine))
 			mem.SetReviewer(reviewNotes(a.store, chatEngine))
+			mem.SetLinkSaver(func(ctx context.Context, projectID, agentID string, o memory.Op) error { // ADR-218
+				by := agentID
+				if ag, err := a.store.Agents().Get(ctx, agentID); err == nil {
+					by = ag.Name
+				}
+				return collections.New(a.store).SaveLink(ctx, projectID, collections.Link{Kind: o.Topic, Title: o.Summary, URL: o.Text, Note: o.ID}, "agent:"+by)
+			})
 			chatEngine.SetOnAnswered(func(ctx context.Context, x chat.Answered) { // ADR-215
 				if err := mem.Review(ctx, x.ProjectID, x.AgentID, x.Asked, x.Answer); err != nil {
 					slog.Warn("memory: review", "agent", x.AgentID, "err", err)

@@ -26,6 +26,20 @@ async function act(x: Incident, what: IncidentAct) {
     busy.delete(x.key)
   }
 }
+// every chat answered since the person looked, not only the ones shown
+const unread = computed(() => (data.value?.incidents ?? []).filter(x => x.kind === 'unread'))
+const clearing = ref(false)
+async function seenAll() {
+  clearing.value = true
+  try {
+    await $fetch('/api/conversations/seen', { method: 'POST' })
+    await refresh()
+  } catch (e) {
+    toast.add({ title: apiError(e), color: 'error' })
+  } finally {
+    clearing.value = false
+  }
+}
 function go(link: string) {
   open.value = false
   navigateTo(link || '/')
@@ -64,7 +78,8 @@ function go(link: string) {
         <div class="flex items-center gap-2 border-t border-(--ui-border) p-2">
           <UButton v-if="supported && permission === 'default'" size="xs" color="neutral" variant="ghost" icon="i-lucide-bell-plus" :label="t('bell.enable')" @click="enable" />
           <span v-else-if="supported && permission === 'denied'" class="text-xs text-(--ui-text-muted)">{{ t('bell.denied') }}</span>
-          <UButton size="xs" color="neutral" variant="link" :label="t('bell.all')" class="ms-auto" @click="go('/')" />
+          <UButton v-if="unread.length > 1" size="xs" color="neutral" variant="ghost" icon="i-lucide-check-check" :label="t('bell.seenAll', { n: unread.length })" :loading="clearing" class="ms-auto" @click="seenAll" />
+          <UButton size="xs" color="neutral" variant="link" :label="t('bell.all')" :class="unread.length > 1 ? '' : 'ms-auto'" @click="go('/')" />
         </div>
       </div>
     </template>

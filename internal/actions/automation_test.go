@@ -112,3 +112,45 @@ func TestApprovedAutomationIsAudited(t *testing.T) {
 		t.Fatalf("audit: %+v", rows)
 	}
 }
+
+// An edit keeps what it leaves out (an agent rewriting the prompt): its
+// condition, time zone, goal, answering agent and where it reports. Dropping
+// only_if made a 5-minute schedule run every tick (ADR-219).
+func TestUpdateAutomationKeepsWhatItLeavesOut(t *testing.T) {
+	ctx := context.Background()
+	st, _ := sqlite.Open(filepath.Join(t.TempDir(), "o.db"))
+	defer st.Close()
+	st.Migrate(ctx)
+	proj, _ := st.Repos().Create(ctx, storage.Repo{Name: "p", Path: t.TempDir()})
+	lead, _ := st.Agents().Create(ctx, storage.Agent{ProjectID: proj.ID, Key: "lead", Name: "Lead", ModelTier: "fast"})
+	svc := New(st, nil)
+	sc := Scope{ProjectID: proj.ID, RunRef: "r1", Agent: "Lead", Level: perm.Operate, Access: perm.Access{Level: perm.Operate, Caps: perm.Preset(perm.Operate)}}
+	save := func(kind, id string, v map[string]any) {
+		t.Helper()
+		raw, _ := json.Marshal(v)
+		a, err := svc.Propose(ctx, sc, kind, id, "", storage.ActionArgs{Automation: raw})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if a.Status == "pending" {
+			if _, err := svc.Decide(ctx, a.ID, true, "human:a@b.c"); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	save("create_automation", "x", map[string]any{"name": "Điều phối", "source": "schedule", "cron": "0 8 * * *", "timezone": "Asia/Ho_Chi_Minh",
+		"action": "chat", "agent_id": lead.ID, "prompt": "v1", "goal": map[string]any{"text": "xong", "judge": true}, "only_if": map[string]any{"board": "changed"}})
+	list, _ := st.Automations().List(ctx, proj.ID)
+	x := list[0]
+	x.Config.NotifyChatID, x.Config.PullRequest = "cnv_report", true // set from the dashboard
+	if err := st.Automations().UpdateSpec(ctx, x); err != nil {
+		t.Fatal(err)
+	}
+	save("update_automation", x.ID, map[string]any{"automation_id": x.ID, "name": "Điều phối", "source": "schedule", "cron": "0 9 * * *", "action": "chat", "prompt": "v2"})
+	b, _ := st.Automations().Get(ctx, x.ID)
+	c := b.Config
+	if b.Prompt != "v2" || c.Cron != "0 9 * * *" || c.Timezone != "Asia/Ho_Chi_Minh" || b.AgentID != lead.ID || c.Goal == nil || c.Goal.Text != "xong" ||
+		c.OnlyIf == nil || c.OnlyIf.Board != storage.BoardChanged || c.NotifyChatID != "cnv_report" || !c.PullRequest {
+		t.Fatalf("updated = %q agent %q %+v", b.Prompt, b.AgentID, c)
+	}
+}

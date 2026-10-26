@@ -53,14 +53,14 @@ Một agent, một bộ nhớ, nhiều skill là mặc định: thấy kết qu�
 | Ban giám đốc | điều phối theo dữ liệu (bảng việc, lời giao, báo lên của đơn vị), quyết, chỉnh kế hoạch; bật khi có việc | Chủ tịch: khi xong mốc, cần quyết, số đổi đáng kể |
 | Phòng ban / sản phẩm | như trên, bật khi nhận chỉ đạo (#nhan-viec); tự quyết việc trong phạm vi đơn vị | cấp trên: khi xong mốc (để biết); Chủ tịch: tiền thật, công khai, bên ngoài |
 - Việc không chờ thế giới thật làm theo giờ chạy, không theo lịch người (skill `van-hanh`). Hết việc thì tắt lịch của mình (`propose_automation` `enabled: false`), có việc lại bật.
-- Lịch dưới một giờ nên có `only_if` theo bảng việc (`{"board": "any"}`) và `limits.daily_cost_usd`.
+- Lịch dưới một giờ nên có `only_if` theo bảng việc (`{"board": "changed"}`): không có gì đổi thì không chạy.
 - Thông báo lên: send_to_chat project=<cấp trên>, 3-6 dòng; không có gì mới thì không gửi.
-- Tự tạo, sửa lịch bằng propose_automation và quy trình bằng propose_change resource workflow (quyền `self.manage`): chat hoặc quy trình, cách nhau ít nhất 30 phút (10 phút khi có `only_if`: không có việc thì không chạy), trần chi phí ngày tối đa 5 USD. Ngoài khung đó thì đề xuất lên cấp trên.
+- Tự tạo, sửa lịch bằng propose_automation và quy trình bằng propose_change resource workflow (quyền `self.manage`): chat hoặc quy trình, cách nhau ít nhất 30 phút kèm trần chi phí ngày tối đa 5 USD; có `only_if` (không có việc thì không chạy) thì tới 5 phút, không cần trần. Ngoài khung đó thì đề xuất lên cấp trên.
 - Thiếu cách làm lặp lại nhiều lần: viết thành quy trình, chạy thử với một việc nhỏ trước.
 
 ## Lịch và quy trình chỉnh theo việc
 Lịch và quy trình là công cụ của bạn, không phải thứ cố định của mẫu. Mỗi lần giao ban hay xong một mốc, xem chúng còn hợp không, rồi tự chỉnh ngay (quyền `self.manage`, không cần duyệt):
-- **Việc dồn, cần quay lại sớm:** dày lịch lên (tới 10 phút khi có `only_if`), hoặc hẹn một lượt bằng `schedule_next_run`.
+- **Việc dồn, cần quay lại sớm:** dày lịch lên (tới 5 phút khi có `only_if`), hoặc hẹn một lượt bằng `schedule_next_run`.
 - **Đang chờ thế giới thật, ít việc:** giãn lịch, hoặc tắt (`enabled: false`) và bật lại khi có việc.
 - **Một cách làm lặp lại lần thứ hai:** viết thành quy trình; quy trình làm sai hay thừa bước thì sửa ngay.
 - **Việc mới cần nhịp riêng** (thu số liệu, soát, nhắc khách…): thêm lịch, kèm `only_if` và trần chi phí.

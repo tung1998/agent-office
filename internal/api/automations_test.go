@@ -150,6 +150,14 @@ func TestAutomationsAPI(t *testing.T) {
 	}, nil); resp.StatusCode != 400 {
 		t.Fatalf("bad cron = %d %v", resp.StatusCode, body)
 	}
+	// ADR-219: a schedule's only_if is read back, so an edit sending the config back keeps it
+	resp, body = do(t, admin, "POST", e.srv.URL+"/api/projects/"+pid+"/automations", map[string]any{
+		"name": "Điều phối", "source": "schedule", "action": "chat", "prompt": "p",
+		"config": map[string]any{"every_minutes": 5, "only_if": map[string]any{"board": "changed"}},
+	}, nil)
+	if cfg, _ := body["automation"].(map[string]any)["config"].(map[string]any); resp.StatusCode != 201 || cfg["only_if"].(map[string]any)["board"] != "changed" {
+		t.Fatalf("only_if = %d %v", resp.StatusCode, body)
+	}
 	if _, body := do(t, admin, "GET", e.srv.URL+"/api/automations/preview-schedule?cron=0+8+*+*+1-5&tz=Asia/Ho_Chi_Minh", nil, nil); len(body["next"].([]any)) != 5 {
 		t.Fatalf("preview = %v", body)
 	}

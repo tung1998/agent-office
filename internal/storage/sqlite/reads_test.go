@@ -47,3 +47,29 @@ func TestUnread(t *testing.T) {
 		t.Fatalf("a new answer after looking = %v", ids)
 	}
 }
+
+// Seen all: every chat of theirs answered since they looked, in one go; a
+// chat they never wrote in stays as it is.
+func TestMarkAllSeen(t *testing.T) {
+	ctx := context.Background()
+	st, p := openStore(t)
+	chat := st.Chat()
+	for _, title := range []string{"a", "b", "c"} {
+		c, _ := chat.CreateConversation(ctx, storage.Conversation{ProjectID: p.ID, Title: title})
+		chat.AddMessage(ctx, storage.Message{ConversationID: c.ID, Role: "user", Author: "human:a@x.io", Content: "làm"})
+		chat.AddMessage(ctx, storage.Message{ConversationID: c.ID, Role: "assistant", Author: "Dev", Content: "xong"})
+	}
+	theirs, _ := chat.CreateConversation(ctx, storage.Conversation{ProjectID: p.ID, Title: "b's"})
+	chat.AddMessage(ctx, storage.Message{ConversationID: theirs.ID, Role: "user", Author: "human:b@x.io", Content: "làm"})
+	chat.AddMessage(ctx, storage.Message{ConversationID: theirs.ID, Role: "assistant", Author: "Dev", Content: "xong"})
+	n, err := chat.MarkAllSeen(ctx, "usr_a", "human:a@x.io")
+	if err != nil || n != 3 {
+		t.Fatalf("marked = %d %v", n, err)
+	}
+	if ids, _ := chat.Unread(ctx, "usr_a", "human:a@x.io"); len(ids) != 0 {
+		t.Fatalf("left unread = %v", ids)
+	}
+	if ids, _ := chat.Unread(ctx, "usr_b", "human:b@x.io"); len(ids) != 1 {
+		t.Fatalf("someone else's chat = %v", ids)
+	}
+}

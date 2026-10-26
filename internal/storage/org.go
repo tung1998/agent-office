@@ -572,6 +572,8 @@ type ChatRepo interface {
 	// Unread: the chats the person wrote in (as author) that an agent
 	// answered after they last looked, newest first.
 	Unread(ctx context.Context, userID, author string) ([]string, error)
+	// MarkAllSeen: every chat Unread would list is seen now, in one go; how many.
+	MarkAllSeen(ctx context.Context, userID, author string) (int, error)
 	CreateConversation(ctx context.Context, c Conversation) (Conversation, error)
 	UpdateConversation(ctx context.Context, c Conversation) error
 	GetConversation(ctx context.Context, id string) (Conversation, error)

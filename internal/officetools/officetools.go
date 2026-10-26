@@ -291,7 +291,7 @@ func (t *Toolbox) Tools() []Tool {
 				"why":    map[string]any{"type": "string", "description": "add: when it helps, one line, e.g. before a website goes live"},
 			}, "action", "name")})
 		str := func(desc string) map[string]any { return map[string]any{"type": "string", "description": desc} }
-		list = append(list, Tool{Name: "propose_automation", Description: "Propose an automation (the person approves it). Prefer action=script (NO AI tokens); chat only when every run needs AI; workflow runs a project workflow. A script feeds the project's Burn: each output line '@@quest <title> :: <detail>' becomes a Burn quest (open ones with the same title are skipped). chat/workflow with goal runs until a check passes. A frequent schedule takes only_if (it runs only when its data or the work board has work: no tokens otherwise) and limits. With the self.manage capability, a chat/workflow schedule at most every 30 minutes with limits.daily_cost_usd up to 5 is done at once, no approval. With automation_id it edits that one.",
+		list = append(list, Tool{Name: "propose_automation", Description: "Propose an automation (the person approves it). Prefer action=script (NO AI tokens); chat only when every run needs AI; workflow runs a project workflow. A script feeds the project's Burn: each output line '@@quest <title> :: <detail>' becomes a Burn quest (open ones with the same title are skipped). chat/workflow with goal runs until a check passes. A frequent schedule takes only_if (it runs only when its data or the work board has work: no tokens otherwise) and limits. With the self.manage capability, a chat/workflow schedule at most every 30 minutes with limits.daily_cost_usd up to 5 is done at once, no approval. With automation_id it edits that one: what the edit leaves out (time zone, agent, prompt, goal, only_if, limits, where it reports) stays as it is.",
 			Schema: obj(map[string]any{
 				"automation_id": str("Edit this automation (empty = create a new one)"),
 				"enabled":       map[string]any{"type": "boolean", "description": "Turn it on (true) or off (false); empty = a new one on, an edited one as it is"},
@@ -323,7 +323,7 @@ func (t *Toolbox) Tools() []Tool {
 					"where": map[string]any{"type": "array", "description": "Run when a record matches all of these; \"$today\"/\"$now\" stand for the tick's date/time, e.g. [{\"field\":\"status\",\"op\":\"in\",\"value\":[\"cho-kiem-tra\"]}] or [{\"field\":\"due\",\"op\":\"lt\",\"value\":\"$today\"}]",
 						"items": obj(map[string]any{"field": str("Field"), "op": str("eq ne lt lte gt gte contains in"), "value": map[string]any{"description": "Value (a list for in)"}}, "field", "op", "value")},
 					"changed": map[string]any{"type": "boolean", "description": "Also run when a record changed since its last run"},
-					"board":   str("Also (or only, with no collection) the project's work board, the Burn's: open = work no one is doing (Burn off with pieces left, or a piece waiting for review); changed = a piece added, started or finished since its last run; any = either"),
+					"board":   str("Also (or only, with no collection) the project's work board, the Burn's: open = work no one is doing (Burn off with pieces left, or a piece waiting for review); changed = a piece added, finished or waiting for review since its last run (not one being worked on); any = either"),
 				}),
 				"limits": obj(map[string]any{
 					"daily_cost_usd": map[string]any{"type": "number", "description": "Cost cap a day; it turns off when reached"},
@@ -395,6 +395,10 @@ func (t *Toolbox) Tools() []Tool {
 				"item":  map[string]any{"type": "string", "description": "One quest's id (from burn_quests)"},
 				"from":  map[string]any{"type": "string", "description": "Or: every open quest this agent follows up (key or name)"},
 			}, "owner")},
+			Tool{Name: "burn_drop", Description: "Take an open quest off the work board, with why: a duplicate, or one a newer plan replaced. It is closed as skipped (the Burn or an agent working on it stops there); the person sees the reason.", Schema: obj(map[string]any{
+				"item":   map[string]any{"type": "string", "description": "The quest's id (from burn_quests)"},
+				"reason": map[string]any{"type": "string", "description": "Why it is dropped, e.g. duplicate of bit_…, replaced by the new contract"},
+			}, "item", "reason")},
 			Tool{Name: "burn_quests", Description: "The project's work board: the Burn's state, its run's work not merged yet, what it found on its own, and each quest's status and, once finished, its summary.", Schema: obj(map[string]any{"owner": map[string]any{"type": "string", "description": "Only the quests this agent follows up (key or name); empty = all"}}), ReadOnly: true},
 		)
 	}
@@ -776,7 +780,7 @@ func (t *Toolbox) Call(ctx context.Context, sc Scope, name string, raw json.RawM
 		var d struct{ Days int }
 		_ = json.Unmarshal(raw, &d)
 		out, err = t.staffLoad(ctx, sc, d.Days)
-	case "burn_quest", "burn_quests", "burn_assign":
+	case "burn_quest", "burn_quests", "burn_assign", "burn_drop":
 		if t.burn == nil {
 			return "Burn chưa bật trên office này", true
 		}
@@ -784,7 +788,7 @@ func (t *Toolbox) Call(ctx context.Context, sc Scope, name string, raw json.RawM
 			return "Bạn không có quyền giao việc cho Burn (gói hiện tại: " + perm.Label(sc.Level) + ")", true
 		}
 		sc.ProjectID = projectID
-		out, err = t.burn(ctx, sc, name, BurnInput{Title: in.Title, Detail: in.Detail, Item: in.Item, Owner: in.Owner, From: in.From})
+		out, err = t.burn(ctx, sc, name, BurnInput{Title: in.Title, Detail: in.Detail, Item: in.Item, Reason: in.Reason, Owner: in.Owner, From: in.From})
 	case "burn_add", "burn_pick", "burn_skip", "burn_done", "burn_fail", "burn_list", "burn_scan_done":
 		if t.burn == nil || !t.burnChat(sc) {
 			return "Các công cụ burn_* chỉ dùng trong hội thoại Burn", true
@@ -1297,7 +1301,7 @@ func (t *Toolbox) agentID(ctx context.Context, projectID, name string) (string, 
 
 // questTool: the Burn tools of any chat (giving the Burn work, reading it back).
 func questTool(name string) bool {
-	return name == "burn_quest" || name == "burn_quests" || name == "burn_assign"
+	return name == "burn_quest" || name == "burn_quests" || name == "burn_assign" || name == "burn_drop"
 }
 
 // burnChat: the run is a Burn's conversation or one of its pieces' work

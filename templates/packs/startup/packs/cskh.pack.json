@@ -125,20 +125,18 @@
     {
       "name": "Điều phối đơn vị",
       "enabled": false,
-      "every_minutes": 30,
+      "every_minutes": 5,
       "timezone": "Asia/Ho_Chi_Minh",
       "action": "chat",
       "agent": "truong-don-vi",
-      "prompt": "Lượt điều phối đơn vị (skill `van-hanh`). 1) Nghiệm thu: việc vừa xong trên bảng việc (`burn_quests`) hoặc có kết quả mới: đặt cạnh lời giao đầu `ROADMAP.md`, tự kiểm bằng dùng thật và chạy test (skill `y-dinh`), việc quan trọng #kiem-tra; đạt thì commit file của việc đó (`propose_action git_commit`) (việc đã sang xong trên bảng kèm kết quả) (thay đổi ở nhánh khác thì soát rồi `propose_action git_merge`), không đạt thì thêm việc sửa lên bảng (`burn_quest`) và giao lại. 2) Đo: chỉ số đổi thì ghi `metrics`. 3) Phân công: việc đang chờ trên bảng và bước tiếp theo của ROADMAP.md: chọn người làm trong đơn vị, giao bằng `delegate` kèm `task_id` (office tự chuyển việc sang đang làm rồi xong) (mỗi agent một việc một lúc). Không bật Burn để nó tự nhận việc. 4) Việc trong đơn vị thì tự quyết, không chờ ai. Báo cấp trên (send_to_chat project=<cấp trên trong ghi nhớ>, 3-6 dòng) chỉ khi xong một mốc (để biết) hoặc cần Chủ tịch (tiền thật, công khai, bên ngoài). 5) Hẹn lượt sau theo ước lượng (`schedule_next_run`): việc vừa giao xong nhanh thì 15-20 phút, đang chờ thì lâu hơn; không hẹn thì theo lịch. Hết việc hẳn: tắt lịch này (`enabled: false`), báo cấp trên.",
+      "prompt": "Lượt điều phối đơn vị (skill `van-hanh`). 1) Nghiệm thu: việc vừa xong trên bảng việc (`burn_quests`) hoặc có kết quả mới: đặt cạnh lời giao đầu `ROADMAP.md`, tự kiểm bằng dùng thật và chạy test (skill `y-dinh`), việc quan trọng #kiem-tra; đạt thì commit file của việc đó (`propose_action git_commit`) (việc đã sang xong trên bảng kèm kết quả) (thay đổi ở nhánh khác thì soát rồi `propose_action git_merge`), không đạt thì thêm việc sửa lên bảng (`burn_quest`) và giao lại. 2) Đo: chỉ số đổi thì ghi `metrics`. 3) Phân công: việc đang chờ trên bảng và bước tiếp theo của ROADMAP.md: chọn người làm trong đơn vị, giao bằng `delegate` kèm `task_id` (office tự chuyển việc sang đang làm rồi xong) (mỗi agent một việc một lúc). Không bật Burn để nó tự nhận việc. 4) Việc trong đơn vị thì tự quyết, không chờ ai. Báo cấp trên (send_to_chat project=<cấp trên trong ghi nhớ>, 3-6 dòng) chỉ khi xong một mốc (để biết) hoặc cần Chủ tịch (tiền thật, công khai, bên ngoài). 5) Lịch quét 5 phút một lần nhưng chỉ chạy khi bảng việc vừa đổi (việc mới, người làm vừa xong, việc chờ nghiệm thu): không cần hẹn lượt sau. Hết việc (bảng việc không còn việc chờ, ROADMAP.md không còn bước đơn vị tự làm được) hoặc mọi việc còn lại chờ cấp trên: không tắt lịch (không có việc thì nó không chạy, không tốn gì); xin chỉ đạo cấp trên (send_to_chat project=<cấp trên>, 3-6 dòng: đã xong gì, đang chờ gì, đề xuất 1-3 việc tiếp, cuối 'Cần cấp trên quyết: …'); chỉ đạo về thành việc trên bảng thì lịch tự chạy lại.",
       "limits": {
-        "daily_cost_usd": 5,
         "max_minutes": 20,
-        "disable_after_failures": 3,
-        "max_runs_per_hour": 2
+        "disable_after_failures": 3
       },
       "keep_context": false,
       "only_if": {
-        "board": "any"
+        "board": "changed"
       }
     }
   ],

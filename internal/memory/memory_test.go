@@ -129,3 +129,26 @@ func TestReview(t *testing.T) {
 		t.Fatal("reviewed while the project keeps notes by hand")
 	}
 }
+
+// ADR-218: a review's links go to the project's links, at most
+// ReviewLinks a turn, and change no note.
+func TestReviewLinks(t *testing.T) {
+	ctx := context.Background()
+	st, pid := open(t)
+	svc := memory.New(st, nil)
+	var kept []memory.Op
+	svc.SetLinkSaver(func(_ context.Context, _, _ string, o memory.Op) error { kept = append(kept, o); return nil })
+	svc.SetReviewer(func(context.Context, string, string, []storage.Memory, string, string) ([]memory.Op, error) {
+		return []memory.Op{{Op: "link", Topic: "tai-ve", Summary: "Bản build", Text: "https://x.io/1.zip"},
+			{Op: "link", Text: "https://x.io/2"}, {Op: "link", Text: "https://x.io/3"}, {Op: "link", Text: "https://x.io/4"}}, nil
+	})
+	if err := svc.Review(ctx, pid, "agt_1", "link tải đâu?", "đây"); err != nil {
+		t.Fatal(err)
+	}
+	if len(kept) != memory.ReviewLinks || kept[0].Text != "https://x.io/1.zip" {
+		t.Fatalf("links = %+v", kept)
+	}
+	if list, _ := st.Memories().List(ctx, pid, "agt_1"); len(list) != 0 {
+		t.Fatalf("notes = %+v", list)
+	}
+}

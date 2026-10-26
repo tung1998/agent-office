@@ -54,8 +54,10 @@ func HasWork(ctx context.Context, st storage.Store, a storage.Automation, now ti
 
 // boardHasWork reads the project's work board (its Burn's pieces): open =
 // work no one is doing (the Burn off with pieces left, or one waiting for
-// review); changed = a piece changed since the schedule's last run; any =
-// either. A board it cannot read lets it run.
+// review); changed = a piece added, finished or waiting for review since the
+// schedule's last run (a piece being worked on writes its cost and chats all
+// along: that is no news for whoever follows it up); any = either. A board
+// it cannot read lets it run.
 func boardHasWork(ctx context.Context, st storage.Store, a storage.Automation, board string) bool {
 	b, err := st.Burn().Session(ctx, a.ProjectID)
 	if errors.Is(err, storage.ErrNotFound) {
@@ -71,7 +73,9 @@ func boardHasWork(ctx context.Context, st storage.Store, a storage.Automation, b
 	open, changed := board == storage.BoardOpen || board == storage.BoardAny, board == storage.BoardChanged || board == storage.BoardAny
 	for _, it := range items {
 		switch {
-		case changed && (a.LastRunAt == nil || it.UpdatedAt.After(*a.LastRunAt)):
+		case changed && (a.LastRunAt == nil || it.CreatedAt.After(*a.LastRunAt)):
+			return true
+		case changed && it.UpdatedAt.After(*a.LastRunAt) && settled(it.Status):
 			return true
 		case open && it.Status == "review":
 			return true
@@ -80,6 +84,12 @@ func boardHasWork(ctx context.Context, st storage.Store, a storage.Automation, b
 		}
 	}
 	return false
+}
+
+// settled: a piece's state its follower acts on (accept, return, hand the
+// next one out).
+func settled(status string) bool {
+	return status == "review" || status == "done" || status == "failed" || status == "skipped"
 }
 
 func dateWord(v any, now time.Time, tz string) any {

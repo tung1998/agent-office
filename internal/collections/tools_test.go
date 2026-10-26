@@ -8,15 +8,15 @@ import (
 	"github.com/tung1998/agent-office/internal/officetools"
 )
 
-// ADR-172: the data_* tools are there once the project has a collection;
-// writing needs "propose".
+// ADR-172: the data_* tools are there in a project (its links always are,
+// ADR-218); writing needs "propose".
 func TestTools(t *testing.T) {
 	ctx := context.Background()
 	s, p := setup(t)
 	tools := NewTools(s, nil)
 	read, write := officetools.Scope{ProjectID: p, Level: "read"}, officetools.Scope{ProjectID: p, Level: "propose", Agent: "cskh"}
-	if tools.Tools(read) != nil {
-		t.Fatal("no collection: no tools")
+	if tools.Tools(officetools.Scope{Level: "read"}) != nil {
+		t.Fatal("no project: no tools")
 	}
 	s.Define(ctx, p, customers)
 	names := func(sc officetools.Scope) (out []string) {

@@ -160,3 +160,30 @@ func TestRecordCap(t *testing.T) {
 		t.Fatalf("over the cap: %v", err)
 	}
 }
+
+// ADR-218: every project has its links; a link saved twice (same url) is
+// one record keeping its title, a kind not known becomes khac.
+func TestLinks(t *testing.T) {
+	ctx := context.Background()
+	s, p := setup(t)
+	list, err := s.List(ctx, p)
+	if err != nil || len(list) != 1 || list[0].Key != LinksKey {
+		t.Fatalf("collections = %+v, %v", list, err)
+	}
+	if err := s.SaveLink(ctx, p, Link{Title: "Bản build", URL: "https://x.io/b.zip", Kind: "tai-ve"}, "agent:A"); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SaveLink(ctx, p, Link{URL: "https://x.io/b.zip", Kind: "lạ", Note: "bản 0.2"}, "agent:A"); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SaveLink(ctx, p, Link{URL: " "}, "agent:A"); err == nil {
+		t.Fatal("an empty link was kept")
+	}
+	recs, total, err := s.Query(ctx, p, LinksKey, Query{})
+	if err != nil || total != 1 {
+		t.Fatalf("links = %+v, %v", recs, err)
+	}
+	if d := recs[0].Data; d["kind"] != "khac" || d["note"] != "bản 0.2" || d["title"] != "Bản build" {
+		t.Fatalf("link = %+v", d)
+	}
+}

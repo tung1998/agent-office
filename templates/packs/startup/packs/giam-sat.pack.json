@@ -157,18 +157,19 @@
     {
       "name": "Điều phối",
       "enabled": false,
-      "every_minutes": 60,
+      "every_minutes": 5,
       "timezone": "Asia/Ho_Chi_Minh",
       "action": "chat",
       "agent": "ceo",
-      "prompt": "Lượt điều phối (skill `van-hanh`, `y-dinh`). 1) Đọc trạng thái từ dữ liệu, không từ chat cũ: lời giao (`goals.request`), bảng việc của bạn (`burn_quests`), báo lên của đơn vị đã về, `project_report` (hours 2). 2) Đặt kết quả cạnh lời giao: lệch thì chỉ đạo lại đơn vị trong chat mới (mục tiêu, ưu tiên), không giao việc trong dự án; mốc xong thì nghiệm thu bằng dùng thật, cập nhật `goals.current`, `metrics`, `docs/roadmap.md`. 3) Việc của Ban giám đốc: nghiệm thu, giao việc chờ (`delegate` kèm `task_id`). 4) Đội và chi phí (`staff_load` của bạn và các đơn vị): ai tốn nhiều mà ra ít, ai rảnh, thiếu vai, việc lặp lại chưa thành quy trình hay lịch: đổi ngay (skill `to-chuc`). 5) Báo Chủ tịch chỉ khi xong mốc, cần quyết, hoặc số đổi đáng kể (tối đa 8 dòng, cuối 'Cần Chủ tịch quyết'); không thì một dòng. Hẹn lượt sau (`schedule_next_run`); hết việc thì tắt lịch này và báo Chủ tịch.",
+      "prompt": "Lượt điều phối (skill `van-hanh`, `y-dinh`). 1) Đọc trạng thái từ dữ liệu, không từ chat cũ: lời giao (`goals.request`), bảng việc của bạn (`burn_quests`), báo lên của đơn vị đã về, `project_report` (hours 2). 2) Đặt kết quả cạnh lời giao: lệch thì chỉ đạo lại đơn vị trong chat mới (mục tiêu, ưu tiên), không giao việc trong dự án; mốc xong thì nghiệm thu bằng dùng thật, cập nhật `goals.current`, `metrics`, `docs/roadmap.md`. 3) Việc của Ban giám đốc: nghiệm thu, giao việc chờ (`delegate` kèm `task_id`). 4) Đội và chi phí (`staff_load` của bạn và các đơn vị): ai tốn nhiều mà ra ít, ai rảnh, thiếu vai, việc lặp lại chưa thành quy trình hay lịch: đổi ngay (skill `to-chuc`). 5) Báo Chủ tịch chỉ khi xong mốc, cần quyết, hoặc số đổi đáng kể (tối đa 8 dòng, cuối 'Cần Chủ tịch quyết'); không thì một dòng. Cần quay lại khi bảng không đổi (chờ thế giới thật) thì hẹn `schedule_next_run`. Hết việc hoặc mọi việc chờ Chủ tịch: không tắt lịch (không có việc thì nó không chạy, không tốn gì); xin Chủ tịch chỉ đạo: đã xong gì, đang chờ gì, đề xuất 1-3 hướng tiếp, cuối 'Cần Chủ tịch quyết: …'.",
       "limits": {
-        "daily_cost_usd": 5,
         "max_minutes": 45,
-        "disable_after_failures": 3,
-        "max_runs_per_hour": 6
+        "disable_after_failures": 3
       },
-      "keep_context": false
+      "keep_context": false,
+      "only_if": {
+        "board": "changed"
+      }
     },
     {
       "name": "Báo cáo sáng",
@@ -180,7 +181,6 @@
       "prompt": "Báo cáo sáng cho Chủ tịch. 1) Lấy số: `project_report` (hours 24), `goals`, `docs/roadmap.md`. 2) Viết báo cáo, tối đa 15 dòng: từng dự án so với kế hoạch (mốc, việc xong / đang làm / thất bại trên bảng việc), agent nào chạy nhiều, lỗi, chi phí hôm qua, thay đổi cài đặt đáng kể (agent, quy trình, lịch), vướng và đề xuất; cuối là 'Cần Chủ tịch quyết' (không có thì ghi 'Không'). 3) Ghi vào `reports` (data_upsert) và trả lời bằng chính báo cáo đó. Không có dự án hay việc nào chạy từ hôm qua: trả lời một dòng.",
       "keep_context": false,
       "limits": {
-        "daily_cost_usd": 1,
         "max_minutes": 15,
         "disable_after_failures": 3
       }

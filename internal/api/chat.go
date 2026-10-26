@@ -696,6 +696,18 @@ func (s *server) recentConversations(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"conversations": out, "projects": names})
 }
 
+// markAllSeen: every chat of the person's answered since they looked is
+// seen, in one request (the header's "Đã xem hết").
+func (s *server) markAllSeen(w http.ResponseWriter, r *http.Request) {
+	u := userFrom(r)
+	n, err := s.cfg.Store.Chat().MarkAllSeen(r.Context(), u.ID, "human:"+u.Email)
+	if err != nil {
+		s.internal(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]int{"seen": n})
+}
+
 // markSeen: the person looked at the chat ({"seen": true}, also the default)
 // or wants it back as unread ({"seen": false}).
 func (s *server) markSeen(w http.ResponseWriter, r *http.Request) {

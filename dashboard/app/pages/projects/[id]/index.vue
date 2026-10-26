@@ -116,6 +116,7 @@ async function removeRepo() {
                 <UButton size="xs" color="error" variant="ghost" icon="i-lucide-folder-minus" :label="t('project.unmanage')" :loading="removing" class="ms-auto" @click="removeRepo" />
               </div>
             </UCard>
+              <ProjectLinks :project-id="project.id" />
               <FeaturePacks :project-id="project.id" @changed="refresh()" />
               <PackSync v-if="isAdmin" :project-id="project.id" @changed="refresh()" />
               <ProjectBudget :project-id="project.id" />

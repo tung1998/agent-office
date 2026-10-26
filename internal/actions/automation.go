@@ -39,6 +39,33 @@ func (s *Service) automationSpec(ctx context.Context, projectID, kind string, ra
 	return spec, nil
 }
 
+// keepLeftOut: an edit (an agent rewriting the prompt) keeps what it leaves
+// out, as it is: its time zone, answering agent, prompt, goal and condition.
+// Dropped, a cron moved to UTC, the team lead answered, and a 5-minute
+// schedule without its only_if ran every tick (ADR-219).
+func keepLeftOut(spec *trigger.Spec, old storage.Automation) {
+	if spec.Source != old.Source {
+		return
+	}
+	if spec.Timezone == "" {
+		spec.Timezone = old.Config.Timezone
+	}
+	if spec.Action == old.Action {
+		if spec.AgentID == "" {
+			spec.AgentID = old.AgentID
+		}
+		if spec.Prompt == "" {
+			spec.Prompt = old.Prompt
+		}
+		if spec.Goal == nil {
+			spec.Goal = old.Config.Goal
+		}
+	}
+	if spec.OnlyIf == nil {
+		spec.OnlyIf = old.Config.OnlyIf
+	}
+}
+
 // saveAutomation creates or updates the automation of an approved proposal.
 func (s *Service) saveAutomation(ctx context.Context, a storage.Action) error {
 	spec, err := s.automationSpec(ctx, a.ProjectID, a.Kind, a.Args.Automation)
@@ -52,7 +79,14 @@ func (s *Service) saveAutomation(ctx context.Context, a storage.Action) error {
 			return err
 		}
 		old := x
+		keepLeftOut(&spec, old)
 		spec.Apply(&x, now)
+		// the rest of its setup (where it reports, a pull request, a kept
+		// chat…) is not the spec's: it stays as it was
+		cfg := old.Config
+		cfg.EveryMinutes, cfg.Cron, cfg.Timezone, cfg.Workflow, cfg.Goal, cfg.OnlyIf = x.Config.EveryMinutes, x.Config.Cron, x.Config.Timezone, x.Config.Workflow, x.Config.Goal, x.Config.OnlyIf
+		cfg.Tags, cfg.EndsAt, cfg.Auth = x.Config.Tags, x.Config.EndsAt, x.Config.Auth
+		x.Config = cfg
 		err = s.store.Automations().UpdateSpec(ctx, x)
 		if err == nil && spec.Enabled != nil && *spec.Enabled != old.Enabled { // turned on or off (ADR-200)
 			if x, err = s.store.Automations().Get(ctx, x.ID); err == nil {

@@ -120,3 +120,29 @@ func TestQuestOwners(t *testing.T) {
 		t.Fatal("assigned with neither item nor from")
 	}
 }
+
+// burn_drop takes a quest off the board with why (a duplicate, one a newer
+// plan replaced): it is skipped, its reason the summary; one already closed,
+// or no reason, is refused.
+func TestQuestDrop(t *testing.T) {
+	f := setup(t)
+	ctx := context.Background()
+	sc := actions.Scope{ProjectID: f.project.ID, Agent: "Lead"}
+	f.svc.Tool(ctx, sc, "burn_quest", burn.ToolInput{Title: "W1 skin", Detail: "d"})
+	b, _ := f.svc.Session(ctx, f.project.ID)
+	items, _ := f.st.Burn().Items(ctx, b.ID)
+	id := items[0].ID
+	if _, err := f.svc.Tool(ctx, sc, "burn_drop", burn.ToolInput{Item: id}); err == nil {
+		t.Fatal("dropped with no reason")
+	}
+	if _, err := f.svc.Tool(ctx, sc, "burn_drop", burn.ToolInput{Item: id, Reason: "thay bằng hợp đồng mới"}); err != nil {
+		t.Fatal(err)
+	}
+	it, _ := f.st.Burn().Item(ctx, id)
+	if it.Status != "skipped" || !strings.Contains(it.Summary, "thay bằng hợp đồng mới") {
+		t.Fatalf("dropped = %s %q", it.Status, it.Summary)
+	}
+	if _, err := f.svc.Tool(ctx, sc, "burn_drop", burn.ToolInput{Item: id, Reason: "again"}); err == nil {
+		t.Fatal("a closed quest dropped again")
+	}
+}

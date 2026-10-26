@@ -15,11 +15,11 @@ Công ty dùng các phần sẵn có của office, không tự dựng lại:
 
 | Việc của công ty | Phần của office |
 |---|---|
-| Bảng việc và phân công | Bảng việc của project (trang **Việc**: `burn_quest`, `burn_quests`, `burn_assign`); người điều phối chọn ai làm và giao bằng `delegate` kèm `task_id`, office tự chuyển việc sang đang làm rồi xong kèm kết quả; Burn trong trang đó làm liền một loạt việc khi được bật |
+| Bảng việc và phân công | Bảng việc của project (trang **Việc**: `burn_quest`, `burn_quests`, `burn_assign`, `burn_drop`); người điều phối chọn ai làm và giao bằng `delegate` kèm `task_id`, office tự chuyển việc sang đang làm rồi xong kèm kết quả; Burn trong trang đó làm liền một loạt việc khi được bật |
 | Kiểm tra độc lập | #kiem-tra (so với lời giao nguyên văn, bằng dùng thật), #can-nhac (`kiem-soat`, model khác hãng) |
 | Giữ ý định | Lời giao chép nguyên văn (`goals.request`, đầu `ROADMAP.md` của đơn vị); bị sửa thì qua #nhan-viec trước khi làm theo (skill `y-dinh`) |
 | Tích lũy sản phẩm | Nghiệm thu rồi gộp thay đổi vào nhánh chính (`git_merge` khi làm trên nhánh riêng) |
-| Nhịp làm việc | Ban giám đốc điều phối theo dữ liệu (lời giao, bảng việc, báo lên của đơn vị, `staff_load`), không hỏi báo cáo theo giờ; mỗi lượt một chat mới; đơn vị điều phối việc của mình mỗi 30 phút khi có việc; lịch khác tự thêm khi cần; lịch dày chỉ chạy khi bảng việc có việc (`only_if.board`) |
+| Nhịp làm việc | Ban giám đốc điều phối theo dữ liệu (lời giao, bảng việc, báo lên của đơn vị, `staff_load`), không hỏi báo cáo theo giờ; mỗi lượt một chat mới; điều phối quét 5 phút một lần, chỉ chạy khi bảng việc vừa đổi; lịch khác tự thêm khi cần; lịch dày chỉ chạy khi bảng việc vừa đổi (`only_if.board`) |
 | Đo | Bảng dữ liệu `metrics`, `goals`, `ledger`; script theo lịch thu số (không tốn token), in `@@agent` khi cần người điều phối xem |
 | Tổ chức | Đơn vị = project liên kết, có bảng việc riêng; CEO giao việc cho trưởng đơn vị, trưởng đơn vị chọn người làm |
 | Nhân sự | `staff_load` (tải từng agent), người theo dõi việc (`burn_assign`) khi chia việc hay bàn giao, bảng `staff` (skill `to-chuc`) |
@@ -52,9 +52,9 @@ Tài liệu: `docs/roadmap.md`, `docs/chien-luoc.md`, `docs/chi-so.md`.
 
 ## Nhịp
 
-Một tuần việc của người là khoảng một giờ của công ty: việc không chờ thế giới thật làm theo giờ chạy, không theo lịch người. **Lúc tạo không có lịch nào chạy.** Mẫu chỉ có sẵn lịch **Điều phối** (mỗi giờ), đang tắt; #nhan-viec bật nó. Mỗi lượt mở chat mới, đọc trạng thái từ dữ liệu, đặt kết quả cạnh lời giao, nghiệm thu, giao việc tiếp, xem đội và chi phí (`staff_load`), báo khi xong mốc, rồi tự hẹn lượt sau theo ước lượng (`schedule_next_run`). Lịch khác CEO và quản lý tự thêm khi có lý do (skill `van-hanh`).
+Một tuần việc của người là khoảng một giờ của công ty: việc không chờ thế giới thật làm theo giờ chạy, không theo lịch người. **Lúc tạo không có lịch nào chạy.** Mẫu chỉ có sẵn lịch **Điều phối** (quét 5 phút, chỉ chạy khi bảng việc vừa đổi), đang tắt; #nhan-viec bật nó. Mỗi lượt mở chat mới, đọc trạng thái từ dữ liệu, đặt kết quả cạnh lời giao, nghiệm thu, giao việc tiếp, xem đội và chi phí (`staff_load`), báo khi xong mốc, rồi tự hẹn lượt sau theo ước lượng (`schedule_next_run`). Lịch khác CEO và quản lý tự thêm khi có lý do (skill `van-hanh`).
 
-Đơn vị lập sau từ thư viện mẫu của office (`@agentoffice/startup/san-pham`, `ky-thuat`, `marketing`, `ban-hang`, `cskh`, `don-vi`): Trưởng đơn vị, Thực thi, Kiểm soát (Sản phẩm có thêm Dùng thử: một bản chỉ xong khi nó dùng thật được), bảng việc riêng có việc khởi đầu theo mảng; điều phối mỗi 30 phút, bật khi nhận chỉ đạo đầu tiên, báo lên khi xong mốc.
+Đơn vị lập sau từ thư viện mẫu của office (`@agentoffice/startup/san-pham`, `ky-thuat`, `marketing`, `ban-hang`, `cskh`, `don-vi`): Trưởng đơn vị, Thực thi, Kiểm soát (Sản phẩm có thêm Dùng thử: một bản chỉ xong khi nó dùng thật được), bảng việc riêng có việc khởi đầu theo mảng; điều phối quét 5 phút khi bảng việc có việc, bật khi nhận chỉ đạo đầu tiên, báo lên khi xong mốc.
 
 ## Sau khi tạo công ty
 

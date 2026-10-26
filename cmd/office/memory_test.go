@@ -25,3 +25,15 @@ func TestParseReview(t *testing.T) {
 		}
 	}
 }
+
+// ADR-218: a LINK line is a link to keep: kind, title, url, note.
+func TestParseReviewLink(t *testing.T) {
+	got := parseReview("LINK tai-ve | Bản build 0.2 | https://x.io/b.zip | bản cho Chrome\nLINK web | - | https://x.io\nLINK web | thiếu url")
+	want := []memory.Op{
+		{Op: "link", Topic: "tai-ve", Summary: "Bản build 0.2", Text: "https://x.io/b.zip", ID: "bản cho Chrome"},
+		{Op: "link", Topic: "web", Text: "https://x.io"},
+	}
+	if len(got) != len(want) || got[0] != want[0] || got[1] != want[1] {
+		t.Fatalf("ops = %+v", got)
+	}
+}

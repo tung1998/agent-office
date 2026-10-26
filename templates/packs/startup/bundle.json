@@ -5,7 +5,7 @@
     {
       "key": "",
       "title": "Startup",
-      "description": "Chỉ có Tổng giám đốc: nó tự tạo người làm, người soát, người tra cứu khi có việc cần; một lịch điều phối mỗi giờ (bật khi đã giao việc); bảng việc, mục tiêu, chỉ số, thu chi, nhân sự.",
+      "description": "Chỉ có Tổng giám đốc: nó tự tạo người làm, người soát, người tra cứu khi có việc cần; một lịch điều phối quét 5 phút, chỉ chạy khi bảng việc vừa đổi (bật khi đã giao việc); bảng việc, mục tiêu, chỉ số, thu chi, nhân sự.",
       "file": "office.pack.json",
       "root": true
     },

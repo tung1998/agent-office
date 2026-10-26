@@ -100,7 +100,7 @@ func TestToolsReadOnly(t *testing.T) {
 	}
 	writes := []string{"run_command", "propose_action", "propose_automation", "propose_change", "remember", "my_skills",
 		"send_to_chat", "send_file", "delegate", "run_automation", "burn_add", "burn_pick", "burn_skip",
-		"burn_done", "burn_scan_done", "burn_fail", "burn_quest", "burn_assign", "workflow_delegate", "workflow_send",
+		"burn_done", "burn_scan_done", "burn_fail", "burn_quest", "burn_assign", "burn_drop", "workflow_delegate", "workflow_send",
 		"workflow_ask", "workflow_vote", "workflow_gate", "workflow_done"}
 
 	// No single scope offers every tool at once (the office assistant gets

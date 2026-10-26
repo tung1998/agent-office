@@ -61,12 +61,13 @@ func TestSelfAutomation(t *testing.T) {
 			t.Errorf("%s: %s", name, a.Status)
 		}
 	}
-	// ADR-207: one that runs only when there is work may run every 10 minutes
-	if a := propose(self, `{"name":"Điều phối dày","source":"schedule","every_minutes":15,"action":"chat","prompt":"p","only_if":{"collection":"tasks","changed":true},"limits":{"daily_cost_usd":2}}`); a.Status != "done" {
-		t.Fatalf("every 15 minutes with only_if: %s", a.Status)
+	// ADR-207, ADR-219: one that runs only when there is work may run every
+	// 5 minutes, with no cost cap
+	if a := propose(self, `{"name":"Điều phối dày","source":"schedule","every_minutes":5,"action":"chat","prompt":"p","only_if":{"board":"any"}}`); a.Status != "done" {
+		t.Fatalf("every 5 minutes with only_if: %s %s", a.Status, a.Detail)
 	}
-	if a := propose(self, `{"name":"Quá dày","source":"schedule","every_minutes":5,"action":"chat","prompt":"p","only_if":{"collection":"tasks","changed":true},"limits":{"daily_cost_usd":2}}`); a.Status != "pending" {
-		t.Fatalf("every 5 minutes: %s", a.Status)
+	if a := propose(self, `{"name":"Quá dày","source":"schedule","every_minutes":2,"action":"chat","prompt":"p","only_if":{"board":"any"}}`); a.Status != "pending" {
+		t.Fatalf("every 2 minutes: %s", a.Status)
 	}
 	if a := propose(self, `{"name":"Giờ hành chính","source":"schedule","cron":"0,30 8-17 * * 1-5","action":"chat","prompt":"p","limits":{"daily_cost_usd":3}}`); a.Status != "done" {
 		t.Fatalf("every half hour in office hours: %s", a.Status)

@@ -36,7 +36,8 @@ type Compactor func(ctx context.Context, projectID, agentID string, items []stor
 type Reviewer func(ctx context.Context, projectID, agentID string, notes []storage.Memory, asked, answer string) ([]Op, error)
 
 // Op is one change to an agent's notes: add (Text, Topic, Summary), edit
-// (ID, Text) or drop (ID).
+// (ID, Text) or drop (ID); or a link to keep in the project's links (Topic
+// its kind, Summary its title, Text its url, ID a note; ADR-218).
 type Op struct {
 	Op      string
 	ID      string
@@ -45,11 +46,15 @@ type Op struct {
 	Summary string
 }
 
+// LinkSaver keeps a link in the project's links (ADR-218).
+type LinkSaver func(ctx context.Context, projectID, agentID string, o Op) error
+
 // Service adds, compacts and restores notes.
 type Service struct {
 	store   storage.Store
 	compact Compactor
 	review  Reviewer
+	link    LinkSaver
 	busy    sync.Map // projectID/agentID: a review under way
 	// Limit: characters of core notes before they are compacted (and the
 	// most of them a conversation is given).
@@ -76,6 +81,9 @@ func New(store storage.Store, c Compactor) *Service {
 
 // SetReviewer keeps the notes up to date after each turn (ADR-215).
 func (s *Service) SetReviewer(r Reviewer) { s.review = r }
+
+// SetLinkSaver keeps the links a review finds (ADR-218).
+func (s *Service) SetLinkSaver(l LinkSaver) { s.link = l }
 
 var ErrEmpty = errors.New("ghi nhớ trống")
 
@@ -187,6 +195,7 @@ func clip(text string) string {
 const (
 	ReviewAdds    = 2
 	ReviewChanges = 10
+	ReviewLinks   = 3
 )
 
 // Review keeps an agent's notes up to date after a turn it answered: a fast
@@ -217,8 +226,12 @@ func (s *Service) Review(ctx context.Context, projectID, agentID, asked, answer 
 	}
 	var add []storage.Memory
 	edit, drop := map[string]string{}, []string{}
+	links := 0
 	for _, o := range ops {
 		switch {
+		case o.Op == "link" && s.link != nil && links < ReviewLinks && strings.TrimSpace(o.Text) != "":
+			links++
+			_ = s.link(ctx, projectID, agentID, o) // a link it could not keep leaves the notes as they are
 		case o.Op == "add" && len(add) < ReviewAdds && strings.TrimSpace(o.Text) != "":
 			if _, dup := s.Duplicate(ctx, projectID, agentID, o.Text); !dup {
 				add = append(add, storage.Memory{Text: o.Text, Topic: o.Topic, Summary: o.Summary, Source: "review"})

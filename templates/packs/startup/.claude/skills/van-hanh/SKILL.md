@@ -30,7 +30,7 @@ Burn không nằm trong vòng này: nó tự nhận việc, không phân công �
 ## Nhịp: tính bằng giờ chạy, không bằng lịch người
 Một tuần việc của người là khoảng một giờ của công ty. Lịch người (ngày, tuần, giờ hành chính) chỉ dùng cho phần phải chờ thế giới thật: khách trả lời, số liệu cần ngày để có, Chủ tịch duyệt.
 
-**Lúc tạo công ty không có lịch nào chạy.** Khi Chủ tịch giao việc, CEO đưa lời đó qua #nhan-viec, quy trình đó bật lịch **Điều phối**; đơn vị nhận chỉ đạo cũng qua #nhan-viec, bật **Điều phối đơn vị**. Mỗi lượt điều phối mở chat mới, đọc trạng thái từ dữ liệu (lời giao nguyên văn, bảng việc, `goals`, roadmap), không từ trí nhớ của chat: nghiệm thu việc vừa về, đặt kết quả cạnh lời giao, giao việc tiếp. Không hỏi báo cáo từng đơn vị theo giờ, không duyệt việc trong phạm vi đơn vị: đơn vị tự quyết, tự báo lên khi xong mốc hoặc khi cần Chủ tịch. Cuối lượt **tự hẹn lượt sau theo ước lượng** (`schedule_next_run`, 10 phút tới 7 ngày); hết việc thì tắt lịch.
+**Lúc tạo công ty không có lịch nào chạy.** Khi Chủ tịch giao việc, CEO đưa lời đó qua #nhan-viec, quy trình đó bật lịch **Điều phối**; đơn vị nhận chỉ đạo cũng qua #nhan-viec, bật **Điều phối đơn vị**. Mỗi lượt điều phối mở chat mới, đọc trạng thái từ dữ liệu (lời giao nguyên văn, bảng việc, `goals`, roadmap), không từ trí nhớ của chat: nghiệm thu việc vừa về, đặt kết quả cạnh lời giao, giao việc tiếp. Không hỏi báo cáo từng đơn vị theo giờ, không duyệt việc trong phạm vi đơn vị: đơn vị tự quyết, tự báo lên khi xong mốc hoặc khi cần Chủ tịch. Lịch điều phối quét 5 phút một lần nhưng chỉ chạy khi bảng việc vừa đổi (`only_if.board: changed`: việc mới, người làm vừa xong, việc chờ nghiệm thu): người làm xong là lượt sau chạy ngay; việc nằm chờ (chờ Chủ tịch, chờ thế giới thật) không làm lịch chạy lại, không tốn gì. Cần quay lại khi bảng không đổi (chờ thế giới thật) thì hẹn bằng `schedule_next_run`. Hết việc, hoặc mọi việc còn lại chờ cấp trên: không tắt lịch (không có việc thì nó không chạy); xin chỉ đạo cấp trên (đơn vị → Ban giám đốc, Ban giám đốc → Chủ tịch) kèm đề xuất 1-3 việc tiếp; chỉ đạo về thành việc trên bảng thì lịch tự chạy lại.
 
 Lịch khác **chỉ thêm khi có lý do**, CEO và các quản lý tự đặt (`propose_automation`):
 
@@ -59,7 +59,7 @@ Việc trong phạm vi của mình thì tự quyết, không gửi lên xin duy�
 
 ## Bảng việc và phân công
 
-Mọi việc của project đi qua **bảng việc** (trang Việc trên dashboard, người dùng xem ở đó): ghi việc bằng `burn_quest`, xem bằng `burn_quests` (trạng thái, người theo dõi, kết quả), đổi người theo dõi bằng `burn_assign`. Người điều phối (lúc đầu là Tổng giám đốc, về sau trưởng đơn vị hoặc trưởng nhóm) **quyết định ai làm từng việc**; người theo dõi (`owner`) là người nghiệm thu.
+Mọi việc của project đi qua **bảng việc** (trang Việc trên dashboard, người dùng xem ở đó): ghi việc bằng `burn_quest`, xem bằng `burn_quests` (trạng thái, người theo dõi, kết quả), đổi người theo dõi bằng `burn_assign`, bỏ việc trùng hay việc kế hoạch mới đã thay bằng `burn_drop` (kèm lý do). Người điều phối (lúc đầu là Tổng giám đốc, về sau trưởng đơn vị hoặc trưởng nhóm) **quyết định ai làm từng việc**; người theo dõi (`owner`) là người nghiệm thu.
 
 ### Viết việc
 - Một việc là một kết quả kiểm được, một agent làm xong trong một lượt dài. To hơn: chia thành nhiều việc theo thứ tự.

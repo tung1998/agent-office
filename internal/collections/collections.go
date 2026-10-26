@@ -136,13 +136,21 @@ func (s *Service) Define(ctx context.Context, projectID string, c storage.Collec
 	return s.store.Collections().Get(ctx, projectID, c.Key)
 }
 
-// List lists a project's collections.
+// List lists a project's collections (its links always among them).
 func (s *Service) List(ctx context.Context, projectID string) ([]storage.Collection, error) {
+	if err := s.ensureLinks(ctx, projectID); err != nil {
+		return nil, err
+	}
 	return s.store.Collections().List(ctx, projectID)
 }
 
 // Collection reads one collection by key.
 func (s *Service) Collection(ctx context.Context, projectID, key string) (storage.Collection, error) {
+	if key == LinksKey {
+		if err := s.ensureLinks(ctx, projectID); err != nil {
+			return storage.Collection{}, err
+		}
+	}
 	c, err := s.store.Collections().Get(ctx, projectID, key)
 	if errors.Is(err, storage.ErrNotFound) {
 		return c, invalid("không có collection %q", key)

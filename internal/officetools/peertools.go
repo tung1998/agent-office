@@ -16,7 +16,7 @@ var peerReadTools = []string{"describe", "list", "get", "project_report", "burn_
 // change, at once and in the name of the admin who paired (it may already
 // run the assistant with full access to this machine).
 var peerAdminTools = []string{"git_status", "git_log", "git_diff", "process_logs", "ops_overview", "monitor_detail",
-	"pending_requests", "decide_request", "propose_change", "propose_automation", "burn_quest", "burn_assign", "data_upsert", "data_delete", "remember", "forget"}
+	"pending_requests", "decide_request", "propose_change", "propose_automation", "burn_quest", "burn_assign", "burn_drop", "data_upsert", "data_delete", "remember", "forget"}
 
 // PeerAgentTools act on one agent's notes: the call names the agent.
 var PeerAgentTools = []string{"recall", "remember", "forget"}

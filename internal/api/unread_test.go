@@ -41,6 +41,9 @@ func TestUnreadIncident(t *testing.T) {
 	if !unread() {
 		t.Fatal("marked unread: not back")
 	}
+	if res, body := do(t, admin, "POST", e.srv.URL+"/api/conversations/seen", nil, nil); res.StatusCode != 200 || body["seen"] != float64(1) || unread() {
+		t.Fatalf("seen all = %d %v, still unread %v", res.StatusCode, body, unread())
+	}
 }
 
 // ADR-085: a project's chats come 20 at a time, the next page from the last

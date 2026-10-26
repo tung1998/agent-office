@@ -223,6 +223,7 @@ export default {
   'bell.empty': 'Không có gì cần xử lý',
   'bell.enable': 'Bật thông báo trình duyệt',
   'bell.denied': 'Trình duyệt đang chặn thông báo (mở lại trong cài đặt trình duyệt)',
+  'bell.seenAll': 'Đã xem hết ({n})',
   'bell.all': 'Xem tất cả',
   'hdr.incidentsError': 'Không tải được số việc cần xử lý',
   'hdr.agents': '{n} agent đang chạy · {p} tiến trình',

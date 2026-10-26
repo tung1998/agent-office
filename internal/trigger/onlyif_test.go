@@ -103,6 +103,22 @@ func TestOnlyIfBoard(t *testing.T) {
 	if !trigger.HasWork(ctx, st, auto(storage.BoardChanged, &earlier), now) {
 		t.Fatal("a piece finished since its last run did not wake it")
 	}
+	// A piece being worked on writes its cost and chats all along: no news.
+	run := time.Now()
+	doing := it
+	doing.Status, doing.CostUSD = "doing", 0.4
+	if err := st.Burn().UpdateItem(ctx, doing); err != nil {
+		t.Fatal(err)
+	}
+	if trigger.HasWork(ctx, st, auto(storage.BoardChanged, &run), now) {
+		t.Fatal("a piece still being worked on woke the schedule")
+	}
+	if _, err := st.Burn().AddItem(ctx, storage.BurnItem{SessionID: b.ID, Title: "q2", Kind: "quest", Status: "queued"}); err != nil {
+		t.Fatal(err)
+	}
+	if !trigger.HasWork(ctx, st, auto(storage.BoardChanged, &run), now) {
+		t.Fatal("a piece added since its last run did not wake it")
+	}
 	both := storage.Automation{ProjectID: p.ID, LastRunAt: &later, Config: storage.AutomationConfig{EveryMinutes: 30,
 		OnlyIf: &storage.AutomationCondition{Collection: "gone", Changed: true, Board: storage.BoardOpen}}}
 	if !trigger.HasWork(ctx, st, both, now) {

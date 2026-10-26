@@ -35,6 +35,8 @@ export interface Job {
 
 export interface AutomationConfig {
   every_minutes?: number, cron?: string, timezone?: string, auth?: string, auth_name?: string
+  // a schedule runs only when its data or work board has work (ADR-194, ADR-196); kept as read on save
+  only_if?: { collection?: string, where?: { field: string, op: string, value: unknown }[], changed?: boolean, board?: '' | 'open' | 'changed' | 'any' }
   // telegram | discord (ADR-049): the channel, which messages (a keyword; none = any), within a scope
   channel_id?: string, keywords?: string[], scope?: string
   // …or a custom slash command of the bot, and the text typed after it ("" = none)

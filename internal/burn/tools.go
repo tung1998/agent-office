@@ -24,6 +24,8 @@ func (s *Service) Tool(ctx context.Context, sc actions.Scope, name string, in To
 		return s.quests(ctx, sc.ProjectID, in.Owner)
 	case "burn_assign":
 		return s.assign(ctx, sc.ProjectID, in)
+	case "burn_drop":
+		return s.drop(ctx, sc, in)
 	}
 	b, err := s.store.Burn().SessionByConversation(ctx, sc.ConversationID)
 	if err != nil || sc.ConversationID == "" {
@@ -237,6 +239,36 @@ func (s *Service) assign(ctx context.Context, projectID string, in ToolInput) (s
 		return "", fmt.Errorf("không có quest %q để giao (hoặc đã là của %s)", in.Item, cmp.Or(to, "agent mặc định"))
 	}
 	return fmt.Sprintf("%d quest now followed up by %s.", n, cmp.Or(to, "the default agent")), nil
+}
+
+// drop is burn_drop: a quest taken off the board with why (a duplicate, one
+// a newer plan replaced), as the person skips one on the dashboard. A Burn
+// or an agent on it meanwhile does not merge or close it (they see it moved).
+func (s *Service) drop(ctx context.Context, sc actions.Scope, in ToolInput) (string, error) {
+	why := strings.TrimSpace(in.Reason)
+	if why == "" {
+		return "", errors.New("hãy ghi lý do bỏ quest (reason)")
+	}
+	b, err := s.Session(ctx, sc.ProjectID)
+	if err != nil || b.ID == "" {
+		return "", errors.New("bảng việc chưa có quest nào")
+	}
+	it, err := s.store.Burn().Item(ctx, strings.TrimSpace(in.Item))
+	if err != nil || it.SessionID != b.ID || it.Kind != KindQuest {
+		return "", fmt.Errorf("không có quest %q trên bảng việc này", in.Item)
+	}
+	if !openStatus[it.Status] {
+		return "", fmt.Errorf("quest %s đã %s, không cần bỏ", it.ID, it.Status)
+	}
+	from := it.Status
+	it.Status, it.Summary = "skipped", "Bỏ ("+sc.Agent+"): "+why
+	if err := s.store.Burn().UpdateItemFrom(ctx, it, from); err != nil {
+		if errors.Is(err, storage.ErrConflict) {
+			return "", fmt.Errorf("quest %s vừa đổi trạng thái ở nơi khác, hãy xem lại bảng việc", it.ID)
+		}
+		return "", err
+	}
+	return fmt.Sprintf("Dropped: %s.", it.Title), nil
 }
 
 // setOwner changes only its owner: a Burn moving it meanwhile is not undone

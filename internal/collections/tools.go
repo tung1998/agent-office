@@ -63,7 +63,7 @@ func (t Tools) Tools(sc officetools.Scope) []officetools.Tool {
 	}
 	if perm.AtLeast(sc.Level, perm.Propose) {
 		out = append(out, officetools.Tool{Name: "data_upsert",
-			Description: "Write a record: with id, patch that record; else the record a unique field's value matches is patched, or a new one made. Only the fields given change; null takes a field out. Every change is kept in its history.",
+			Description: "Write a record: with id, patch that record; else the record a unique field's value matches is patched, or a new one made. Only the fields given change; null takes a field out. Every change is kept in its history. A link worth finding again (a doc, a download a build made, a site the person wants kept) goes to collection links: title, url, kind (tai-lieu, tai-ve, web, khac), note.",
 			Schema: obj(map[string]any{"collection": collectionProp, "id": str("Record id to patch (optional)"),
 				"data": map[string]any{"type": "object", "description": "Field values by name"}}, "collection", "data")})
 		if t.propose != nil {

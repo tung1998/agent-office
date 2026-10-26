@@ -43,7 +43,7 @@ func compactNotes(st storage.Store, engine *chat.Engine) memory.Compactor {
 
 // reviewNotes keeps an agent's notes up to date after a turn (ADR-215): a
 // fast model, no tools, reads the turn beside the notes and answers with
-// ADD/EDIT/DROP lines.
+// ADD/EDIT/DROP lines, and LINK for a link to keep (ADR-218).
 func reviewNotes(st storage.Store, engine *chat.Engine) memory.Reviewer {
 	return func(ctx context.Context, projectID, agentID string, items []storage.Memory, asked, answer string) ([]memory.Op, error) {
 		project, err := st.Repos().Get(ctx, projectID)
@@ -67,7 +67,7 @@ func reviewNotes(st storage.Store, engine *chat.Engine) memory.Reviewer {
 	}
 }
 
-// parseReview reads the ADD/EDIT/DROP lines of a review; anything else is ignored.
+// parseReview reads the ADD/EDIT/DROP/LINK lines of a review; anything else is ignored.
 func parseReview(text string) []memory.Op {
 	var out []memory.Op
 	for _, l := range strings.Split(text, "\n") {
@@ -91,6 +91,14 @@ func parseReview(text string) []memory.Op {
 		case "EDIT":
 			if len(parts) >= 2 {
 				out = append(out, memory.Op{Op: "edit", ID: parts[0], Text: strings.Join(parts[1:], " | ")})
+			}
+		case "LINK": // ADR-218: kind | title | url | note
+			if len(parts) >= 3 && parts[2] != "" {
+				o := memory.Op{Op: "link", Topic: dash(parts[0]), Summary: dash(parts[1]), Text: parts[2]}
+				if len(parts) > 3 {
+					o.ID = dash(strings.Join(parts[3:], " | "))
+				}
+				out = append(out, o)
 			}
 		case "DROP":
 			if parts[0] != "" {

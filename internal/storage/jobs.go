@@ -264,7 +264,8 @@ type AutomationCondition struct {
 	Changed    bool   `json:"changed,omitempty"`
 	// Board: the project's work board (its Burn's). open = work no one is
 	// doing (the Burn off with pieces left, or a piece waiting for review);
-	// changed = a piece added, started or finished since its last run;
+	// changed = a piece added, finished or waiting for review since its
+	// last run (not one being worked on);
 	// any = either.
 	Board string `json:"board,omitempty"`
 }

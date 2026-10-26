@@ -14,15 +14,17 @@ import (
 // Bounds of what an agent with perm.CapSelf does on its own (ADR-194).
 const (
 	SelfMinGap      = 30 * time.Minute // between two runs of a schedule
-	SelfMinGapIf    = 10 * time.Minute // one that runs only when there is work (only_if, ADR-207)
-	SelfMaxDailyUSD = 5.0              // a schedule's daily cost cap, which it must have
+	SelfMinGapIf    = 5 * time.Minute  // one that runs only when there is work (only_if, ADR-207, ADR-219)
+	SelfMaxDailyUSD = 5.0              // a schedule's daily cost cap, which one that always runs must have
 	SelfMaxAgents   = 15               // agents a project may reach by agents making them (ADR-204)
 )
 
 // selfAutomation: a schedule an agent may make or change on its own: it
 // sends a message or runs a workflow (never a script), runs at most every
-// SelfMinGap, and has a daily cost cap of at most SelfMaxDailyUSD. One a
-// person set to run with other rights (override) stays theirs.
+// SelfMinGap with a daily cost cap of at most SelfMaxDailyUSD, or, when it
+// runs only when there is work (only_if), at most every SelfMinGapIf with
+// no cap needed (ADR-219). One a person set to run with other rights
+// (override) stays theirs.
 func (s *Service) selfAutomation(ctx context.Context, a storage.Action) bool {
 	var spec trigger.Spec
 	if json.Unmarshal(a.Args.Automation, &spec) != nil || spec.Source != "schedule" || (spec.Action != "chat" && spec.Action != "workflow") {
@@ -38,12 +40,11 @@ func (s *Service) selfAutomation(ctx context.Context, a storage.Action) bool {
 			l = &x.Limits
 		}
 	}
-	if l == nil || l.DailyCostUSD <= 0 || l.DailyCostUSD > SelfMaxDailyUSD {
-		return false
-	}
 	least := SelfMinGap
 	if spec.OnlyIf != nil || a.Kind == "update_automation" && s.hasOnlyIf(ctx, spec.AutomationID) {
 		least = SelfMinGapIf // no work, no run: it costs nothing between
+	} else if l == nil || l.DailyCostUSD <= 0 || l.DailyCostUSD > SelfMaxDailyUSD {
+		return false
 	}
 	return minGap(storage.AutomationConfig{EveryMinutes: spec.EveryMinutes, Cron: spec.Cron, Timezone: spec.Timezone}) >= least
 }

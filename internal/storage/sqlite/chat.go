@@ -576,6 +576,21 @@ func (r chatRepo) Unread(ctx context.Context, userID, author string) ([]string, 
 	return out, rows.Err()
 }
 
+func (r chatRepo) MarkAllSeen(ctx context.Context, userID, author string) (int, error) {
+	res, err := r.db.ExecContext(ctx, `INSERT INTO conversation_reads (user_id, conversation_id, seen_at)
+		SELECT ?, c.id, ? FROM conversations c
+		JOIN (SELECT conversation_id, max(created_at) AS at FROM messages WHERE role='assistant' GROUP BY conversation_id) a ON a.conversation_id=c.id
+		LEFT JOIN conversation_reads s ON s.conversation_id=c.id AND s.user_id=?
+		WHERE a.at > coalesce(s.seen_at, '')
+		  AND EXISTS (SELECT 1 FROM messages m WHERE m.conversation_id=c.id AND m.role='user' AND m.author=?)
+		ON CONFLICT (user_id, conversation_id) DO UPDATE SET seen_at=excluded.seen_at`, userID, fmtTime(time.Now()), userID, author)
+	if err != nil {
+		return 0, err
+	}
+	n, err := res.RowsAffected()
+	return int(n), err
+}
+
 // ftsQuery makes the person's words an FTS5 query: every word must be there,
 // each one quoted (nothing in it is FTS syntax), the last a prefix.
 func ftsQuery(q string) string {

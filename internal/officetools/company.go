@@ -19,7 +19,7 @@ import (
 // with burn_quest (ADR-196).
 
 // linkedTools take a "project" (a linked project) in an administrator's run.
-var linkedTools = []string{"describe", "list", "get", "propose_change", "propose_automation", "burn_quest", "burn_quests", "burn_assign", "staff_load"}
+var linkedTools = []string{"describe", "list", "get", "propose_change", "propose_automation", "burn_quest", "burn_quests", "burn_assign", "burn_drop", "staff_load"}
 
 // withLinked gives a settings tool a "project" argument: this project or one it links to.
 func withLinked(x Tool) Tool {
