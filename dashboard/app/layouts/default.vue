@@ -206,8 +206,10 @@ const items = computed<NavigationMenuItem[][]>(() => {
   return [projects, office, library, admin]
 })
 
+const settingsOpen = ref(false)
 const userMenu = computed<DropdownMenuItem[][]>(() => [
   [{ label: user.value?.email ?? '', type: 'label' }],
+  [{ label: t('settings.title'), icon: 'i-lucide-settings', onSelect: () => { settingsOpen.value = true } }],
   [{ label: t('user.changePassword'), icon: 'i-lucide-key-round', to: '/account' }, { label: t('cli.title'), icon: 'i-lucide-terminal', to: '/account' }],
   [{ label: t('user.logout'), icon: 'i-lucide-log-out', color: 'error', onSelect: () => logout() }]
 ])
@@ -272,5 +274,6 @@ const userMenu = computed<DropdownMenuItem[][]>(() => [
 
     <slot />
     <FloatingChat />
+    <SettingsModal v-model:open="settingsOpen" />
   </UDashboardGroup>
 </template>

@@ -55,6 +55,7 @@ const en: Record<MessageKey, string> = {
   'nav.ops': 'Operations',
   'user.changePassword': 'Change password',
   'user.logout': 'Sign out',
+  'settings.title': 'Settings',
   'build.dirty': 'uncommitted changes',
   'build.noSubject': 'Unknown commit',
   'build.time': 'Built {time}',

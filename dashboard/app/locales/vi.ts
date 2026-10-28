@@ -54,6 +54,7 @@ const vi = {
   'nav.ops': 'Vận hành',
   'user.changePassword': 'Đổi mật khẩu',
   'user.logout': 'Đăng xuất',
+  'settings.title': 'Cài đặt',
   'build.dirty': 'có sửa chưa commit',
   'build.noSubject': 'Không rõ commit',
   'build.time': 'Build lúc {time}',
