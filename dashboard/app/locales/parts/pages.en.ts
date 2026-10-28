@@ -379,6 +379,7 @@ const en: Record<keyof typeof vi, string> = {
   'admin.usersAdd': 'Add account',
   'admin.usersDisabled': 'Disabled',
   'admin.usersActive': 'Active',
+  'admin.usersViewAs': 'View as this account',
   'admin.usersResetPassword': 'Reset password',
   'admin.usersEnable': 'Re-enable',
   'admin.usersDisable': 'Disable',

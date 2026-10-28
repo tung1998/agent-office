@@ -330,9 +330,9 @@ func (r sessionRepo) Create(ctx context.Context, s storage.Session) (storage.Ses
 		s.ID = ids.New("ses")
 	}
 	_, err := r.db.ExecContext(ctx,
-		`INSERT INTO sessions (id, user_id, token_hash, created_at, expires_at, last_seen_at, user_agent, ip)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-		s.ID, s.UserID, s.TokenHash, fmtTime(s.CreatedAt), fmtTime(s.ExpiresAt), fmtTime(s.LastSeenAt), s.UserAgent, s.IP)
+		`INSERT INTO sessions (id, user_id, token_hash, created_at, expires_at, last_seen_at, user_agent, ip, impersonator_id)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		s.ID, s.UserID, s.TokenHash, fmtTime(s.CreatedAt), fmtTime(s.ExpiresAt), fmtTime(s.LastSeenAt), s.UserAgent, s.IP, s.ImpersonatorID)
 	if isUnique(err) {
 		return storage.Session{}, storage.ErrConflict
 	}
@@ -345,9 +345,9 @@ func (r sessionRepo) GetByTokenHash(ctx context.Context, tokenHash string) (stor
 		created, expires, seen string
 	)
 	err := r.db.QueryRowContext(ctx,
-		`SELECT id, user_id, token_hash, created_at, expires_at, last_seen_at, user_agent, ip
+		`SELECT id, user_id, token_hash, created_at, expires_at, last_seen_at, user_agent, ip, impersonator_id
 		 FROM sessions WHERE token_hash = ?`, tokenHash).
-		Scan(&s.ID, &s.UserID, &s.TokenHash, &created, &expires, &seen, &s.UserAgent, &s.IP)
+		Scan(&s.ID, &s.UserID, &s.TokenHash, &created, &expires, &seen, &s.UserAgent, &s.IP, &s.ImpersonatorID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return s, storage.ErrNotFound
 	}

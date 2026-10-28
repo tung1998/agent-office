@@ -46,6 +46,10 @@ import (
 // SessionCookie is the name of the login cookie.
 const SessionCookie = "office_session"
 
+// backCookie keeps an admin's own session while it views the office as
+// another account; ending the view puts it back.
+const backCookie = "office_session_back"
+
 const maxBody = 64 << 10
 
 // Config wires the API.
@@ -207,6 +211,8 @@ func New(cfg Config) http.Handler {
 	mux.Handle("GET /api/users", s.requireRole(storage.RoleAdmin, http.HandlerFunc(s.listUsers)))
 	mux.Handle("POST /api/users", s.requireRole(storage.RoleAdmin, http.HandlerFunc(s.createUser)))
 	mux.Handle("PATCH /api/users/{id}", s.requireRole(storage.RoleAdmin, http.HandlerFunc(s.updateUser)))
+	mux.Handle("POST /api/users/{id}/view-as", s.requireRole(storage.RoleAdmin, http.HandlerFunc(s.viewAs)))
+	mux.HandleFunc("POST /api/auth/view-as/end", s.endViewAs)
 	mux.Handle("POST /api/users/{id}/reset-password", s.requireRole(storage.RoleAdmin, http.HandlerFunc(s.resetPassword)))
 	mux.Handle("GET /api/audit", s.requireRole(storage.RoleAdmin, http.HandlerFunc(s.listAudit)))
 	mux.Handle("GET /api/audit/stats", s.requireRole(storage.RoleAdmin, http.HandlerFunc(s.auditStats)))
@@ -343,6 +349,11 @@ func (s *server) requireAuth(next http.Handler) http.Handler {
 			writeError(w, http.StatusForbidden, "Đặt email và mật khẩu cho tài khoản mặc định trước")
 			return
 		}
+		// viewing as another account only reads
+		if sess.ImpersonatorID != "" && r.Method != http.MethodGet && r.Method != http.MethodHead {
+			writeError(w, http.StatusForbidden, "Đang xem với tư cách tài khoản khác: chỉ xem, không thay đổi được")
+			return
+		}
 		ctx := context.WithValue(r.Context(), ctxUser, u)
 		ctx = team.WithActor(ctx, "human:"+u.Email)
 		ctx = context.WithValue(ctx, ctxSession, sess)
@@ -393,15 +404,16 @@ func (s *server) secure(r *http.Request) bool {
 }
 
 func (s *server) setCookie(w http.ResponseWriter, r *http.Request, token string, ttl time.Duration) {
-	http.SetCookie(w, &http.Cookie{
-		Name: SessionCookie, Value: token, Path: "/", MaxAge: int(ttl.Seconds()),
-		HttpOnly: true, Secure: s.secure(r), SameSite: http.SameSiteLaxMode,
-	})
+	s.setNamedCookie(w, r, SessionCookie, token, int(ttl.Seconds()))
 }
 
 func (s *server) clearCookie(w http.ResponseWriter, r *http.Request) {
+	s.setNamedCookie(w, r, SessionCookie, "", -1)
+}
+
+func (s *server) setNamedCookie(w http.ResponseWriter, r *http.Request, name, value string, maxAge int) {
 	http.SetCookie(w, &http.Cookie{
-		Name: SessionCookie, Value: "", Path: "/", MaxAge: -1,
+		Name: name, Value: value, Path: "/", MaxAge: maxAge,
 		HttpOnly: true, Secure: s.secure(r), SameSite: http.SameSiteLaxMode,
 	})
 }

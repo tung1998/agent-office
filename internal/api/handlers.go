@@ -122,6 +122,7 @@ func (s *server) logout(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	s.clearCookie(w, r)
+	s.setNamedCookie(w, r, backCookie, "", -1)
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -132,7 +133,59 @@ func (s *server) me(w http.ResponseWriter, r *http.Request) {
 		s.internal(w, r, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"user": d, "build": s.build})
+	out := map[string]any{"user": d, "build": s.build}
+	// viewing as this account: the admin who is, for the banner
+	if by := sessionFrom(r).ImpersonatorID; by != "" {
+		if a, err := s.cfg.Store.Users().GetByID(r.Context(), by); err == nil {
+			out["viewed_by"] = map[string]string{"email": a.Email, "name": a.Name}
+		}
+	}
+	writeJSON(w, http.StatusOK, out)
+}
+
+// viewAs: an admin opens the office as another account, read-only; its own
+// session waits in backCookie for endViewAs.
+func (s *server) viewAs(w http.ResponseWriter, r *http.Request) {
+	ck, err := r.Cookie(SessionCookie)
+	if err != nil {
+		writeError(w, http.StatusUnauthorized, "not logged in")
+		return
+	}
+	res, err := s.cfg.Auth.ViewAs(r.Context(), userFrom(r), sessionFrom(r), r.PathValue("id"), auth.ClientMeta{IP: s.clientIP(r), UserAgent: r.UserAgent()})
+	switch {
+	case errors.Is(err, storage.ErrNotFound):
+		writeError(w, http.StatusNotFound, "user not found")
+		return
+	case errors.Is(err, auth.ErrCannotView):
+		writeError(w, http.StatusBadRequest, "Chỉ xem được với tư cách tài khoản không phải admin, đang hoạt động và đã thiết lập")
+		return
+	case err != nil:
+		s.internal(w, r, err)
+		return
+	}
+	s.setNamedCookie(w, r, backCookie, ck.Value, int(time.Until(sessionFrom(r).ExpiresAt).Seconds()))
+	s.setCookie(w, r, res.Token, time.Until(res.Session.ExpiresAt))
+	writeJSON(w, http.StatusOK, map[string]any{"user": toDTO(res.User)})
+}
+
+// endViewAs closes the view and logs the admin back in with its own session;
+// when that is gone, the browser is just logged out.
+func (s *server) endViewAs(w http.ResponseWriter, r *http.Request) {
+	var view, back string
+	if ck, err := r.Cookie(SessionCookie); err == nil {
+		view = ck.Value
+	}
+	if ck, err := r.Cookie(backCookie); err == nil {
+		back = ck.Value
+	}
+	s.setNamedCookie(w, r, backCookie, "", -1)
+	admin, err := s.cfg.Auth.EndView(r.Context(), view, back)
+	if err != nil {
+		writeError(w, http.StatusUnauthorized, "not logged in")
+		return
+	}
+	s.setCookie(w, r, back, s.cfg.Auth.SessionTTL())
+	writeJSON(w, http.StatusOK, map[string]any{"user": toDTO(admin)})
 }
 
 func (s *server) changePassword(w http.ResponseWriter, r *http.Request) {

@@ -2,7 +2,7 @@
 import type { DropdownMenuItem, NavigationMenuItem } from '@nuxt/ui'
 
 const route = useRoute()
-const { user, build, isOfficeAdmin, manages, logout } = useAuth()
+const { user, build, viewedBy, isOfficeAdmin, manages, logout, endViewAs } = useAuth()
 const { t, when: fmtWhen } = useLang()
 
 // which office is running, above the user (from /api/auth/me)
@@ -32,7 +32,7 @@ const bareLayout = computed(() => route.path === '/login' || route.path === '/se
 // which order, hidden ones out), each with its sections (refetched on
 // navigation and on a change, so added/renamed projects show up)
 const projectList = ref<Project[]>([])
-const { menu, single } = useProjectMenu()
+const { menu, single, showsGroup } = useProjectMenu()
 const recentProjects = computed(() => menu(projectList.value, route.params.id as string | undefined))
 async function loadProjects() {
   if (bareLayout.value) return
@@ -46,6 +46,7 @@ watch(() => route.path, loadProjects, { immediate: true })
 // a project's own arrow closes it, unless the account chose one at a time
 // (kept in this browser across reloads)
 const OPEN_KEY = 'office:nav-open'
+const LIBRARY_PATHS = ['/agents', '/skills', '/mcp', '/automations/templates', '/packs', '/workflows']
 const navOpen = ref<string[]>([])
 onMounted(() => {
   try {
@@ -59,6 +60,10 @@ onMounted(() => {
   }, { immediate: true })
   watch(() => route.path === '/watch', (on) => {
     if (on && !navOpen.value.includes('watch')) navOpen.value = [...navOpen.value, 'watch']
+  }, { immediate: true })
+  // a library page opens the library entry, to show where it is
+  watch(() => LIBRARY_PATHS.some(p => route.path.startsWith(p)), (on) => {
+    if (on && !navOpen.value.includes('library')) navOpen.value = [...navOpen.value, 'library']
   }, { immediate: true })
   watch(navOpen, (v, old) => {
     const added = v.filter(x => x.startsWith('project-') && !old?.includes(x)).at(-1)
@@ -150,6 +155,25 @@ const watchBoards = computed<NavigationMenuItem[]>(() => [
 ])
 
 const items = computed<NavigationMenuItem[][]>(() => {
+  // what projects pick from: agents (ADR-153), skills, MCP servers, workflows;
+  // one entry of the work group, its pages under it
+  const library: NavigationMenuItem = {
+    value: 'library',
+    label: t('nav.library'),
+    icon: 'i-lucide-library',
+    children: [
+      { label: t('nav.agents'), icon: 'i-lucide-bot', to: '/agents' },
+      ...(isOfficeAdmin.value
+        ? [
+            { label: t('tools.skillsTab'), icon: 'i-lucide-sparkles', to: '/skills' },
+            { label: t('tools.mcpTab'), icon: 'i-lucide-plug-zap', to: '/mcp' },
+            { label: t('nav.automationTemplates'), icon: 'i-lucide-zap', to: '/automations/templates' },
+            { label: t('packs.title'), icon: 'i-lucide-building-2', to: '/packs' },
+            { label: t('wf.section'), icon: 'i-lucide-workflow', to: '/workflows' }
+          ]
+        : [])
+    ]
+  }
   // office-wide pages: the day's work, then how office is set up
   const office: NavigationMenuItem[] = [
     { label: t('nav.work'), type: 'label' },
@@ -162,29 +186,14 @@ const items = computed<NavigationMenuItem[][]>(() => {
     {
       label: t('nav.providers'), icon: 'i-lucide-plug', to: '/providers',
       badge: brokenProviders.value ? { label: String(brokenProviders.value), color: 'error' as const, variant: 'solid' as const } : undefined
-    }
-  ]
-  // what projects pick from: agents (ADR-153), skills, MCP servers, workflows
-  const library: NavigationMenuItem[] = [
-    { label: t('nav.library'), type: 'label' },
-    { label: t('nav.agents'), icon: 'i-lucide-bot', to: '/agents' },
-    ...(isOfficeAdmin.value
-      ? [
-          { label: t('tools.skillsTab'), icon: 'i-lucide-sparkles', to: '/skills' },
-          { label: t('tools.mcpTab'), icon: 'i-lucide-plug-zap', to: '/mcp' },
-          { label: t('nav.automationTemplates'), icon: 'i-lucide-zap', to: '/automations/templates' },
-          { label: t('packs.title'), icon: 'i-lucide-building-2', to: '/packs' },
-          { label: t('wf.section'), icon: 'i-lucide-workflow', to: '/workflows' }
-        ]
-      : [])
+    },
+    ...(showsGroup('library') ? [library] : [])
   ]
   const admin: NavigationMenuItem[] = isOfficeAdmin.value
     ? [
         { label: t('nav.admin'), type: 'label' },
         { label: t('nav.users'), icon: 'i-lucide-users', to: '/admin/users' },
-        { label: t('nav.audit'), icon: 'i-lucide-scroll-text', to: '/admin/audit' },
         { label: t('nav.peers'), icon: 'i-lucide-building-2', to: '/admin/peers' },
-        { label: t('nav.transfer'), icon: 'i-lucide-archive-restore', to: '/admin/transfer' },
         { label: t('nav.data'), icon: 'i-lucide-database', to: '/admin/data' },
         { label: t('nav.update'), icon: 'i-lucide-package', to: '/admin/update' }
       ]
@@ -203,14 +212,23 @@ const items = computed<NavigationMenuItem[][]>(() => {
       ? { label: t('nav.allProjects'), icon: 'i-lucide-list', to: '/projects', exact: true }
       : { label: t('nav.addProject'), icon: 'i-lucide-plus', to: '/projects', exact: true }
   ]
-  return [projects, office, library, admin]
+  // groups the account turned off in Settings stay reachable by their URL
+  return [projects, showsGroup('work') ? office : [], showsGroup('admin') ? admin : []]
 })
 
 const settingsOpen = ref(false)
 const userMenu = computed<DropdownMenuItem[][]>(() => [
   [{ label: user.value?.email ?? '', type: 'label' }],
+  ...(viewedBy.value ? [[{ label: t('user.viewingAsEnd'), icon: 'i-lucide-undo-2', onSelect: () => endViewAs() }]] : []),
   [{ label: t('settings.title'), icon: 'i-lucide-settings', onSelect: () => { settingsOpen.value = true } }],
   [{ label: t('user.changePassword'), icon: 'i-lucide-key-round', to: '/account' }, { label: t('cli.title'), icon: 'i-lucide-terminal', to: '/account' }],
+  // the office's records and backups: an admin's, from its own menu
+  ...(isOfficeAdmin.value
+    ? [[
+        { label: t('nav.audit'), icon: 'i-lucide-scroll-text', to: '/admin/audit' },
+        { label: t('nav.transfer'), icon: 'i-lucide-archive-restore', to: '/admin/transfer' }
+      ]]
+    : []),
   [{ label: t('user.logout'), icon: 'i-lucide-log-out', color: 'error', onSelect: () => logout() }]
 ])
 </script>
@@ -272,6 +290,11 @@ const userMenu = computed<DropdownMenuItem[][]>(() => [
       </template>
     </UDashboardSidebar>
 
+    <div v-if="viewedBy" class="fixed bottom-3 left-1/2 z-50 flex max-w-[90vw] -translate-x-1/2 items-center gap-3 rounded-full bg-warning px-4 py-1.5 text-sm text-(--ui-bg) shadow-lg">
+      <UIcon name="i-lucide-eye" class="size-4 shrink-0" />
+      <span class="min-w-0 truncate">{{ t('user.viewingAs', { admin: viewedBy.email, email: user?.email ?? '' }) }}</span>
+      <UButton size="xs" color="neutral" variant="solid" :label="t('user.viewingAsEnd')" @click="endViewAs" />
+    </div>
     <slot />
     <FloatingChat />
     <SettingsModal v-model:open="settingsOpen" />

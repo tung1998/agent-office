@@ -10,7 +10,7 @@ import (
 // with the account so they follow it to any browser.
 
 // prefKeys: the settings an account may keep; anything else is refused.
-// projects: the sidebar's projects, {order: [ids], hidden: [ids]}.
+// projects: the sidebar's menu, {order: [ids], hidden: [ids], max, sort, single, groupsOff}.
 var prefKeys = map[string]bool{"watch": true, "projects": true}
 
 const maxPrefBytes = 512 << 10

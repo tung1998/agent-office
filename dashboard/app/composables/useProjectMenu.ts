@@ -1,9 +1,12 @@
 // The sidebar's projects, kept with the account (/api/me/prefs/projects) so
 // they follow it to any browser: the order set on the Projects page, the
 // projects hidden from the menu (still listed there) and the menu's options:
-// how many show, in which order, and whether opening one closes the others.
+// how many show, in which order, and whether opening one closes the others;
+// and the sidebar's groups the account turned off.
 type MenuSort = 'manual' | 'usage' | 'name'
-interface Saved { order: string[], hidden: string[], max?: number, sort?: MenuSort, single?: boolean }
+export type MenuGroup = 'work' | 'library' | 'admin'
+export const MENU_GROUPS: MenuGroup[] = ['work', 'library', 'admin']
+interface Saved { order: string[], hidden: string[], max?: number, sort?: MenuSort, single?: boolean, groupsOff?: MenuGroup[] }
 const PREF_URL = '/api/me/prefs/projects'
 const MENU_MAX = { min: 1, max: 30, def: 5 }
 
@@ -47,6 +50,11 @@ export function useProjectMenu() {
   const sort = computed<MenuSort>(() => prefs.value.sort ?? 'manual')
   const single = computed(() => !!prefs.value.single)
   const setOptions = (o: Pick<Saved, 'max' | 'sort' | 'single'>) => save({ ...prefs.value, ...o })
+  const showsGroup = (g: MenuGroup) => !prefs.value.groupsOff?.includes(g)
+  const setGroup = (g: MenuGroup, on: boolean) => {
+    const off = (prefs.value.groupsOff ?? []).filter(x => x !== g)
+    return save({ ...prefs.value, groupsOff: on ? off : [...off, g] })
+  }
 
   // list in the account's order; projects it never placed keep theirs, after
   function arrange<T extends { id: string }>(list: T[]): T[] {
@@ -73,5 +81,5 @@ export function useProjectMenu() {
     return out
   }
 
-  return { prefs, isHidden, setHidden, setOrder, hasOrder, arrange, max, maxLimits: MENU_MAX, sort, single, setOptions, menu }
+  return { prefs, isHidden, setHidden, setOrder, hasOrder, arrange, max, maxLimits: MENU_MAX, sort, single, setOptions, showsGroup, setGroup, menu }
 }

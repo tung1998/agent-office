@@ -378,6 +378,7 @@ export default {
   'admin.usersAdd': 'Thêm tài khoản',
   'admin.usersDisabled': 'Vô hiệu',
   'admin.usersActive': 'Hoạt động',
+  'admin.usersViewAs': 'Xem với tư cách tài khoản này',
   'admin.usersResetPassword': 'Đặt lại mật khẩu',
   'admin.usersEnable': 'Mở lại',
   'admin.usersDisable': 'Vô hiệu hóa',

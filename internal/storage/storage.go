@@ -63,6 +63,9 @@ type Session struct {
 	LastSeenAt time.Time
 	UserAgent  string
 	IP         string
+	// ImpersonatorID: the admin viewing as this user ("" = the user's own
+	// login); such a session only reads.
+	ImpersonatorID string
 }
 
 // AuditEntry is one append-only audit record (ADR-043: who, who approved,

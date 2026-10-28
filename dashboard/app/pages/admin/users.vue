@@ -153,12 +153,23 @@ async function saveAccess() {
   }
 }
 
+const { viewAs } = useAuth()
+async function startViewAs(u: OfficeUser) {
+  try {
+    await viewAs(u.id)
+  } catch (e) {
+    toast.add({ title: apiError(e), color: 'error' })
+  }
+}
+
 function rowActions(u: OfficeUser) {
   const busy = togglingId.value === u.id
   const items = [[
     ...(u.id !== me.value?.id ? [{ label: t('admin.usersAccessEdit'), icon: 'i-lucide-shield', onSelect: () => openAccess(u) }] : []),
     { label: t('admin.usersResetPassword'), icon: 'i-lucide-key-round', onSelect: () => { resetTarget.value = u } },
-    { label: t('admin.usersChatIdsEdit'), icon: 'i-lucide-link', onSelect: () => openLink(u) }
+    { label: t('admin.usersChatIdsEdit'), icon: 'i-lucide-link', onSelect: () => openLink(u) },
+    // read-only, as that account sees the office: not another admin
+    ...(u.role !== 'admin' && !u.disabled && !u.must_change ? [{ label: t('admin.usersViewAs'), icon: 'i-lucide-eye', onSelect: () => startViewAs(u) }] : [])
   ]]
   if (u.id !== me.value?.id) {
     items.push([u.disabled
