@@ -48,6 +48,7 @@ async function onSubmit() {
         <UButton type="submit" :loading="loading" :label="t('common.save')" />
       </form>
     </UCard>
+    <Passkeys class="mt-4" />
     <CliTokens class="mt-4" />
   </PageShell>
 </template>

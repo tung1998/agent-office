@@ -64,6 +64,8 @@ const vi = {
   'login.email': 'Email',
   'login.password': 'Mật khẩu',
   'login.submit': 'Đăng nhập',
+  'login.or': 'hoặc',
+  'login.passkey': 'Đăng nhập bằng passkey',
   'login.failed': 'Không đăng nhập được',
   'login.defaultTitle': 'Lần đầu dùng office?',
   'login.defaultDesc': 'Đăng nhập bằng {user} / {pass}, rồi đặt email và mật khẩu của bạn.',

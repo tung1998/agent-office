@@ -65,6 +65,8 @@ const en: Record<MessageKey, string> = {
   'login.email': 'Email',
   'login.password': 'Password',
   'login.submit': 'Sign in',
+  'login.or': 'or',
+  'login.passkey': 'Sign in with a passkey',
   'login.failed': 'Could not sign in',
   'login.defaultTitle': 'First time here?',
   'login.defaultDesc': 'Sign in with {user} / {pass}, then set your own email and password.',

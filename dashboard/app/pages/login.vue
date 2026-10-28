@@ -1,6 +1,7 @@
 <script setup lang="ts">
 const route = useRoute()
-const { login } = useAuth()
+const { login, loginPasskey } = useAuth()
+const passkey = usePasskey().supported
 const { t } = useLang()
 
 const state = reactive({ email: '', password: '' })
@@ -11,14 +12,32 @@ const { data: status } = await useLiveFetch<{ has_users: boolean, default_admin?
 // the default account of a first run (auth.DefaultAdminEmail / DefaultAdminPassword)
 const DEFAULT = { user: 'admin', pass: 'admin' }
 
+function goOn() {
+  const r = route.query.redirect
+  return navigateTo(typeof r === 'string' && r.startsWith('/') && !r.startsWith('//') ? r : '/')
+}
+
+const passkeyLoading = ref(false)
+async function onPasskey() {
+  error.value = ''
+  passkeyLoading.value = true
+  try {
+    await loginPasskey()
+    await goOn()
+  } catch (e) {
+    if (!passkeyCancelled(e)) error.value = apiError(e, t('login.failed'))
+  } finally {
+    passkeyLoading.value = false
+  }
+}
+
 async function onSubmit() {
   error.value = ''
   loading.value = true
   try {
     await login(state.email, state.password)
-    const r = route.query.redirect
     // the default admin goes to set its email and password (the middleware sees to it)
-    await navigateTo(typeof r === 'string' && r.startsWith('/') && !r.startsWith('//') ? r : '/')
+    await goOn()
   } catch (e) {
     error.value = apiError(e, t('login.failed'))
   } finally {
@@ -74,6 +93,11 @@ async function onSubmit() {
 
         <UButton type="submit" block :loading="loading" :label="t('login.submit')" />
       </form>
+      <!-- passkeys need HTTPS with a host name, or localhost (ADR-226) -->
+      <template v-if="passkey">
+        <USeparator class="my-4" :label="t('login.or')" />
+        <UButton block color="neutral" variant="outline" icon="i-lucide-fingerprint" :loading="passkeyLoading" :label="t('login.passkey')" @click="onPasskey" />
+      </template>
     </UCard>
   </div>
 </template>

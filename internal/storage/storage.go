@@ -113,6 +113,8 @@ type Store interface {
 	// Channels are two-way Telegram/Discord bots (ADR-048).
 	Channels() ChannelRepo
 	Sessions() SessionRepo
+	// Passkeys are WebAuthn credentials an account signs in with (ADR-226).
+	Passkeys() PasskeyRepo
 	Audit() AuditRepo
 
 	Providers() ProviderRepo
@@ -195,6 +197,25 @@ type SessionRepo interface {
 	// DeleteForUserExcept revokes every session of userID but keepID.
 	DeleteForUserExcept(ctx context.Context, userID, keepID string) error
 	DeleteExpired(ctx context.Context, now time.Time) (int64, error)
+}
+
+// Passkey is a WebAuthn credential of an account (ADR-226).
+type Passkey struct {
+	ID, UserID, Name string
+	CredentialID     string // base64url of the raw credential id
+	Credential       string // the WebAuthn credential record as JSON
+	CreatedAt        time.Time
+	LastUsedAt       *time.Time
+}
+
+// PasskeyRepo stores passkeys.
+type PasskeyRepo interface {
+	Create(ctx context.Context, p Passkey) (Passkey, error)
+	List(ctx context.Context, userID string) ([]Passkey, error)
+	GetByCredentialID(ctx context.Context, credentialID string) (Passkey, error)
+	// Used saves the credential after a login (its sign count) and when.
+	Used(ctx context.Context, id, credential string, at time.Time) error
+	Delete(ctx context.Context, id, userID string) error
 }
 
 // AuditRepo appends audit records. There is deliberately no update or delete.

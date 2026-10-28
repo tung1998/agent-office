@@ -197,6 +197,12 @@ func New(cfg Config) http.Handler {
 	mux.Handle("GET /api/auth/me", s.requireAuth(http.HandlerFunc(s.me)))
 	mux.Handle("POST /api/auth/password", s.requireAuth(http.HandlerFunc(s.changePassword)))
 	mux.Handle("POST /api/auth/setup", s.requireAuth(http.HandlerFunc(s.setupAccount)))
+	mux.HandleFunc("POST /api/auth/passkey/begin", s.beginPasskeyLogin)
+	mux.HandleFunc("POST /api/auth/passkey", s.passkeyLogin)
+	mux.Handle("GET /api/me/passkeys", s.requireAuth(http.HandlerFunc(s.listPasskeys)))
+	mux.Handle("POST /api/me/passkeys/begin", s.requireAuth(http.HandlerFunc(s.beginPasskey)))
+	mux.Handle("POST /api/me/passkeys", s.requireAuth(http.HandlerFunc(s.addPasskey)))
+	mux.Handle("DELETE /api/me/passkeys/{id}", s.requireAuth(http.HandlerFunc(s.deletePasskey)))
 
 	mux.Handle("GET /api/users", s.requireRole(storage.RoleAdmin, http.HandlerFunc(s.listUsers)))
 	mux.Handle("POST /api/users", s.requireRole(storage.RoleAdmin, http.HandlerFunc(s.createUser)))

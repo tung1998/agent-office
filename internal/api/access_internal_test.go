@@ -21,7 +21,7 @@ func TestRoutesClassified(t *testing.T) {
 	}
 	office := map[string]bool{ // the whole office's: admin only, or the person's own
 		"agent-library": true, "automation/library": true, "automation/templates": true, "cli-jobs": true, "cli-tools": true,
-		"mcp/servers": true, "me/prefs": true, "me/tokens": true, "peers": true, "peers/outgoing": true, "peers/requests": true,
+		"mcp/servers": true, "me/prefs": true, "me/tokens": true, "me/passkeys": true, "peers": true, "peers/outgoing": true, "peers/requests": true,
 		"providers": true, "system/processes": true, "users": true, "workflow-library": true,
 		"peer/chats": true, "peer/projects": true, // another office's calls: its own auth (peerCall)
 	}

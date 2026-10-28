@@ -68,7 +68,8 @@ type Service struct {
 	throttle   *throttle // by email
 	ipThrottle *throttle // by client IP: guessing across many emails
 	hashing    chan struct{}
-	dummy      string // hash verified for unknown emails so timing does not leak existence
+	passkeys   passkeyStates // registrations and logins in progress (ADR-226)
+	dummy      string        // hash verified for unknown emails so timing does not leak existence
 }
 
 // NewService builds a Service.
@@ -285,7 +286,12 @@ func (s *Service) Login(ctx context.Context, email, password string, meta Client
 		return LoginResult{}, ErrInvalidCredentials
 	}
 	s.throttle.reset(email)
+	return s.openSession(ctx, u, meta, nil)
+}
 
+// openSession logs u in; detail is added to the audit entry.
+func (s *Service) openSession(ctx context.Context, u storage.User, meta ClientMeta, detail map[string]any) (LoginResult, error) {
+	now := s.opts.Now()
 	token, hash, err := newToken()
 	if err != nil {
 		return LoginResult{}, err
@@ -298,7 +304,11 @@ func (s *Service) Login(ctx context.Context, email, password string, meta Client
 		return LoginResult{}, err
 	}
 	_ = s.store.Users().TouchLogin(ctx, u.ID, now)
-	s.audit(ctx, "human:"+u.Email, "auth.login", u.ID, map[string]any{"ip": meta.IP, "session": sess.ID})
+	d := map[string]any{"ip": meta.IP, "session": sess.ID}
+	for k, v := range detail {
+		d[k] = v
+	}
+	s.audit(ctx, "human:"+u.Email, "auth.login", u.ID, d)
 	return LoginResult{Token: token, User: u, Session: sess}, nil
 }
 

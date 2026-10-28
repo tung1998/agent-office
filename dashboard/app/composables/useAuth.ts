@@ -54,6 +54,12 @@ export function useAuth() {
     loaded.value = true
   }
 
+  async function loginPasskey() {
+    const res = await usePasskey().login()
+    user.value = res.user
+    loaded.value = true
+  }
+
   async function logout() {
     await $fetch('/api/auth/logout', { method: 'POST', body: {} }).catch(() => {})
     stopLive()
@@ -73,5 +79,5 @@ export function useAuth() {
   const isAdmin = computed(() => isOfficeAdmin.value || (route.path.startsWith('/projects/') && manages(String(route.params.id ?? ''))))
   const canCreateProject = computed(() => user.value?.role === 'admin' || user.value?.role === 'manager')
 
-  return { user, loaded, build, isAdmin, isOfficeAdmin, canCreateProject, manages, fetchMe, login, logout }
+  return { user, loaded, build, isAdmin, isOfficeAdmin, canCreateProject, manages, fetchMe, login, loginPasskey, logout }
 }
