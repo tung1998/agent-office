@@ -14,6 +14,15 @@ Measure where they stand, not where they say: count `tu_vung` and `ngu_phap` by 
 
 The kind of plan (profile "Kiểu lộ trình", ask when the goal does not make it clear): `thi` (an exam: its sections and format, practice tests), `can-bang` (all four skills), `giao-tiep` (speaking and listening, everyday topics), `doc-hieu` (reading, vocabulary). It sets the share of time per skill.
 
+| Kind | Words, grammar, characters (with review) | Reading | Listening | Speaking | Writing | Practice tests |
+|---|---|---|---|---|---|---|
+| `thi` | 40% | 15% | 15% | by the exam | by the exam | 15-30%, more near the date |
+| `can-bang` | 35% | 15% | 15% | 20% | 15% | checkpoints only |
+| `giao-tiep` | 30% | 5% | 30% | 30% | 5% | checkpoints only |
+| `doc-hieu` | 40% | 35% | 10% | 5% | 10% | checkpoints only |
+
+An exam with no speaking or writing part (JLPT, TOEIC Listening & Reading) gives that time to its parts, but keep 10% for speaking and writing unless the learner says no. Skills practice follows the skill `luyen-ky-nang`.
+
 ## 2. Is it feasible
 - The gap: what the target level needs (vocabulary, characters, grammar patterns, listening/reading hours, exam sections) minus what is known. The level's requirements: look them up from official or trustworthy sources (the Test writer has the web) and keep them with their source in `tai-lieu/chuan-trinh-do.md`; read that file first next time. Say figures are estimates when the exam publishes none (JLPT publishes no word list).
 - The time: days to the date × minutes per day, less one rest day a week and a 10-15% buffer for missed days and the final review.
@@ -25,7 +34,7 @@ The kind of plan (profile "Kiểu lộ trình", ask when the goal does not make 
 1. **Phases**: from the date back. The last 1-2 weeks: full practice tests and review only, no new material. Before that: the core (new material by topic and weak areas), then a ramp-up at the start if the base is shaky.
 2. **Weeks**: each week has a target that can be checked (e.g. "N3 words: 200 new, kanji 60, grammar 15 patterns; listening 2 h"), a theme, the forecast review minutes, and its checkpoint.
 3. **Checkpoints**: a short test in the exam's format every 2 weeks (#ra-de), a full mock test 2-3 weeks before the date. Each has a pass mark; under it the plan is adapted (section 5).
-4. **Days**: by the days per week and minutes per day. Every day keeps review (skill `on-tap`) first, then new material, then practice; one lighter day a week. Match the learner's way of learning (short sessions, more examples, more listening) from the profile and memory `nguoi-hoc`.
+4. **Days**: by the days per week and minutes per day. Every day keeps review (skill `on-tap`) first, then new material, then one skill's practice (rotating, so each skill comes every week by its share); one lighter day a week. Match the learner's way of learning (short sessions, more examples, more listening) from the profile and memory `nguoi-hoc`.
 
 ## 4. Where it is written
 - The plan: `lo-trinh/<YYYY-MM-DD>-<goal>.md` (date it was made), with: goal and date, kind of plan, starting point (counts and scores), feasibility (the numbers, the choices made), phases, a table of weeks (target, theme, review minutes, checkpoint), a `## Progress` table (per week: planned vs done, review accuracy, checkpoint score, and a 0-5 level per skill: vocabulary, grammar, characters, listening, reading, speaking, writing), and a `## Changes` log (date, what changed, why).
