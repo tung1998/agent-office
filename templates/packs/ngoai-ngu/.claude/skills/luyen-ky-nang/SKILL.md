@@ -5,7 +5,7 @@ description: Practise each skill of a language, not only words and grammar: read
 
 # Skills practice
 
-Words and grammar are the notebook (skills `ghi-bai`, `on-tap`); this skill uses them. Every practice ends with: what went well, each mistake with its fix, the new words and patterns worth recording (skill `ghi-bai`, tag `ky-nang:<skill>`), and the `bai_tap` record (`kind` `luyen-tap`, `skill`, score when there is one, `weak_tags`). A roadmap task: set its `lich_hoc` `status` and `result`.
+Words and grammar are the notebook (skills `ghi-bai`, `on-tap`); this skill uses them. Every practice ends with: what went well, each mistake with its fix (kept in `loi_sai`, skill `on-tap`), the new words and patterns worth recording (skill `ghi-bai`, tag `ky-nang:<skill>`), and the `bai_tap` record (`kind` `luyen-tap`, `skill`, score when there is one, `weak_tags`). A roadmap task: set its `lich_hoc` `status` and `result`.
 
 ## Level of the material
 Material is at the learner's level plus a little (about 90-95% known words): count against `tu_vung` (`status` not `moi`) when choosing. Mostly topics they care about (profile, memory `nguoi-hoc`), the target exam's topics when the plan is `thi`.

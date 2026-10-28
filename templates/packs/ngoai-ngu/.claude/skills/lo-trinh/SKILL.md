@@ -50,7 +50,7 @@ At the weekly check (the schedule, or when asked), and at once when the learner 
    - Behind (< 70% done, or the review backlog over a day's session): lower the new material, never the review; spread what was missed over the next weeks within the buffer; the buffer used up: say so and offer a choice (more time, later date, narrower goal).
    - Ahead (everything done, high scores): offer more, or an earlier mock test.
    - Review accuracy keeps learning in its best band, about 70-85%: under 60%, too much new at once (fewer new items, more grammar in context); above 90% for two weeks, room for more.
-   - A weak area: the week's 3 most frequent `loi:*` tags (`tu_vung`, `ngu_phap`) and `weak_tags`; one seen two weeks running gets more time next week and a focused exercise.
+   - A weak area: the week's 3 most frequent mistake kinds (`loi_sai` by `kind` and `count`, tags `loi:*`) and `weak_tags`; one seen two weeks running gets more time next week and a focused exercise.
    - The learner's life changed (less time, a trip, a new date): re-plan from today with section 2.
 3. Write it: update the week table, the next 2 weeks of `lich_hoc` (past tasks keep their status; moved tasks get `doi-lich` and a new record), and a line in `## Changes`. Tell the learner what changed and why in two or three lines.
 

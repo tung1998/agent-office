@@ -104,7 +104,7 @@ func TestLibraryPacksImport(t *testing.T) {
 			// a learner: notebook tables, its five workflows, three schedules off
 			if b.Name == "@agentoffice/ngoai-ngu" {
 				cols, _ := o.st.Collections().List(ctx, repo.ID)
-				if len(agents) != 3 || len(wfs) != 5 || len(autos) != 3 || len(cols) < 4 {
+				if len(agents) != 3 || len(wfs) != 5 || len(autos) != 3 || len(cols) < 5 {
 					t.Fatalf("ngoai-ngu: %d agents, %d workflows, %d schedules, %d tables", len(agents), len(wfs), len(autos), len(cols))
 				}
 			}

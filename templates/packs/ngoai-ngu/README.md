@@ -22,7 +22,7 @@ thêm từ mới ──► sổ: tu_vung, ngu_phap (có tag) + bai-hoc/<ngày>.m
 | Lộ trình | "Mình muốn đỗ N3 trong 2 tháng, mỗi ngày 45 phút"; `#lap-lo-trinh`. Kiểm tra có kịp không, chia giai đoạn, tuần, mốc kiểm tra, xếp việc 2 tuần tới; lịch **Điều chỉnh lộ trình hằng tuần** sửa theo kết quả | Giáo viên lập, Chấm bài soát |
 | Thêm từ mới | Gửi từ, câu, đoạn văn, ảnh sách, link vào chat; nhiều mục thì Giáo viên chạy `#them-tu` | Giáo viên ghi, Chấm bài soát |
 | Ôn tập | "Ôn bài" trong chat, hoặc lịch **Ôn tập hằng ngày**; `#on-tap` | Soạn đề soạn, Giáo viên hỏi |
-| Chấm | Trả lời trong chat; `#cham-bai` | Chấm bài |
+| Chấm | Trả lời trong chat; `#cham-bai`. Từ chưa nhớ về hộp 1, sai nhiều thành **khó**, câu sai vào sổ **Lỗi hay sai**; buổi ôn sau dành khoảng 1/3 cho các mục yếu | Chấm bài |
 | Luyện kỹ năng | Đọc (bài đọc đúng trình độ), nghe (link audio thật có transcript, chép chính tả, shadowing), nói (nhập vai trong chat, đọc bằng giọng nói ra chữ), viết (đề bài, sửa lỗi, bản viết lại), chữ (kanji, hán tự); theo việc của lộ trình hoặc khi hỏi | Giáo viên, Soạn đề tìm bài đọc và nguồn nghe |
 | Đề luyện thi | "Cho mình đề JLPT N3 ngữ pháp", hoặc lịch **Đề luyện thi hằng tuần**; `#ra-de` | Soạn đề (tra web), Chấm bài soát |
 
@@ -34,6 +34,7 @@ thêm từ mới ──► sổ: tu_vung, ngu_phap (có tag) + bai-hoc/<ngày>.m
 ## Dữ liệu
 - `tu_vung`: từ, cách đọc, nghĩa, ví dụ, trình độ, `topics`, `tags`, hộp ôn, ngày ôn, số lần đúng/sai.
 - `ngu_phap`: mẫu ngữ pháp, cấu trúc, ví dụ, cùng các trường ôn tập.
+- `loi_sai`: câu đã viết hoặc nói sai, câu đúng, vì sao, số lần sai; được ôn lại (đặt câu mới cùng lỗi) đến khi sửa được.
 - `bai_tap`: bài ôn và đề thi đã soạn, điểm, phần yếu.
 - `lich_hoc`: việc từng ngày của lộ trình: chỉ tiêu, số phút, trạng thái, kết quả.
 
