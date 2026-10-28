@@ -1,74 +1,74 @@
 ---
 name: ghi-bai
-description: Ghi từ mới, mẫu ngữ pháp và bài học của người học ngoại ngữ vào sổ (bảng tu_vung, ngu_phap và file bai-hoc/), theo một quy ước tag thống nhất để ôn lại và ra đề về sau. Dùng mỗi khi người học gửi từ, câu, đoạn văn hay tài liệu mới.
+description: Record a language learner's new words, grammar patterns and lessons in the notebook (tables tu_vung, ngu_phap and files in bai-hoc/), with one tagging convention so they can be reviewed and tested later. Use whenever the learner sends new words, sentences, passages or material.
 ---
 
-# Ghi bài
+# Recording a lesson
 
-Sổ học có hai phần: **bảng dữ liệu** (mỗi từ, mỗi mẫu ngữ pháp là một bản ghi, lọc được theo tag, hộp, ngày ôn) và **file bài học** (đọc lại như vở ghi). Bảng là nguồn chính; file bài học trỏ tới cùng các mục.
+The notebook has two parts: **data tables** (one record per word or grammar pattern, filtered by tag, box and review date) and **lesson files** (read again like class notes). The tables are the source of truth; a lesson file points to the same items.
 
-## 1. Tách cái đáng học
-- Từ người học gửi: từ đơn, cụm từ, thành ngữ, cách nói cố định (collocation) đều là một mục `tu_vung`.
-- Câu, đoạn văn: chọn từ mới và mẫu ngữ pháp đáng học theo trình độ trong `docs/ho-so.md`; không ghi từ người học chắc chắn đã biết (hỏi khi không rõ).
-- Mỗi mẫu ngữ pháp là một mục `ngu_phap` (cấu trúc, không phải từng câu).
+## 1. Pick what is worth learning
+- From what the learner sends: single words, phrases, idioms and fixed expressions (collocations) are each one `tu_vung` item.
+- From sentences and passages: pick new words and grammar patterns worth learning at the level in `docs/ho-so.md`; skip what the learner surely knows (ask when unsure).
+- Each grammar pattern is one `ngu_phap` item (the structure, not each sentence).
 
-## 2. Không ghi trùng
-`data_query` bảng `tu_vung` với `search` là từ đó (và `language`). Có rồi: bổ sung nghĩa, ví dụ mới, tag, không tạo mục mới. Từ đồng âm khác nghĩa thì là mục riêng, ghi rõ ở `meaning`.
+## 2. No duplicates
+`data_query` the `tu_vung` table with `search` set to the word (and `language`). Already there: add the new meaning, example or tags instead of a new item. Homonyms with different meanings are separate items, told apart in `meaning`.
 
-## 3. Bảng `tu_vung` (data_upsert)
-| Trường | Ghi gì |
+## 3. Table `tu_vung` (data_upsert)
+| Field | What to write |
 |---|---|
-| `word` | Từ hoặc cụm, dạng gốc (động từ nguyên thể, danh từ số ít) |
-| `language` | Mã ngôn ngữ: `en`, `ja`, `zh`, `ko`, `fr`, `de`… |
-| `reading` | Cách đọc: IPA, pinyin có thanh, furigana, romaja |
-| `meaning` | Nghĩa tiếng Việt, ngắn; nhiều nghĩa thì đánh số |
+| `word` | The word or phrase, base form (infinitive, singular) |
+| `language` | Language code: `en`, `ja`, `zh`, `ko`, `fr`, `de`… |
+| `reading` | Pronunciation: IPA, pinyin with tones, furigana, romaja |
+| `meaning` | Meaning in the learner's language, short; numbered when several |
 | `part_of_speech` | `noun`, `verb`, `adj`, `adv`, `phrase`, `idiom`, `other` |
-| `example` / `example_meaning` | Một câu ví dụ tự nhiên ở trình độ người học, và nghĩa |
-| `notes` | Collocation, từ đồng nghĩa/trái nghĩa, sắc thái, chia động từ bất quy tắc, dễ nhầm với… |
-| `level` | Trình độ của từ: `A1`…`C2`, `N5`…`N1`, `HSK1`…`HSK6`, `TOPIK1`…`TOPIK6` |
-| `topics` | Chủ đề (xem quy ước tag) |
-| `tags` | Tag còn lại (xem quy ước tag) |
-| `source` | Lấy từ đâu: tên sách/bài/phim/link |
-| `lesson` | Đường dẫn file bài học, ví dụ `bai-hoc/2026-10-28-du-lich.md` |
-| `status` | `moi` khi vừa ghi |
-| `box` | `1` khi vừa ghi |
-| `next_review` | Ngày mai (ngày `YYYY-MM-DD`) |
+| `example` / `example_meaning` | One natural example sentence at the learner's level, and its meaning |
+| `notes` | Collocations, synonyms/antonyms, nuance, irregular forms, easily confused with… |
+| `level` | The word's level: `A1`…`C2`, `N5`…`N1`, `HSK1`…`HSK6`, `TOPIK1`…`TOPIK6` |
+| `topics` | Topics (see the tagging convention) |
+| `tags` | Other tags (see the tagging convention) |
+| `source` | Where it came from: book, article, film, link |
+| `lesson` | The lesson file, e.g. `bai-hoc/2026-10-28-du-lich.md` |
+| `status` | `moi` when just recorded |
+| `box` | `1` when just recorded |
+| `next_review` | Tomorrow (`YYYY-MM-DD`) |
 
-Bảng `ngu_phap` tương tự: `pattern` (cấu trúc, ví dụ `V-ている`, `have + V3`), `meaning`, `structure` (cách ghép, chia), `examples` (2-3 câu kèm nghĩa), `notes` (khi nào dùng, phân biệt với mẫu gần giống), `level`, `topics`, `tags`, `lesson`, `status`, `box`, `next_review`.
+Table `ngu_phap` likewise: `pattern` (the structure, e.g. `V-ている`, `have + V3`), `meaning`, `structure` (how it is formed, conjugated), `examples` (2-3 sentences with their meaning), `notes` (when to use it, how it differs from close patterns), `level`, `topics`, `tags`, `lesson`, `status`, `box`, `next_review`.
 
-## 4. Quy ước tag
-Tag viết thường, không dấu, nối bằng `-`. Hai trường:
-- **`topics`**: chủ đề nội dung, chọn từ danh sách sẵn có trước khi đặt cái mới: `chao-hoi`, `gia-dinh`, `cong-viec`, `du-lich`, `an-uong`, `mua-sam`, `suc-khoe`, `giao-duc`, `cong-nghe`, `moi-truong`, `xa-hoi`, `kinh-te`, `cam-xuc`, `thoi-gian`, `nha-cua`, `giao-thong`, `the-thao`, `van-hoa`.
-- **`tags`**: tag có tiền tố, để lọc khi ôn và ra đề:
-  - `bai:<YYYY-MM-DD>` buổi học ghi mục này (bắt buộc)
-  - `nguon:<sach|phim|bao|podcast|hoi-thoai|de-thi>` loại nguồn
-  - `ky-thi:<ielts|toeic|jlpt|hsk|topik|delf|…>` khi mục thuộc phạm vi kỳ thi mục tiêu
-  - `ky-nang:<nghe|noi|doc|viet>` khi mục gắn với một kỹ năng
-  - `loi:<loai>` do Chấm bài thêm khi người học sai: `loi:nghia`, `loi:chinh-ta`, `loi:cach-doc`, `loi:chia-dong-tu`, `loi:gioi-tu`, `loi:trat-tu`, `loi:nham-tu-gan`
-  - `can-kiem` khi chưa chắc về nghĩa hay ví dụ (Chấm bài soát rồi bỏ tag)
-  - `uu-tien` khi người học muốn ôn nhiều
+## 4. Tagging convention
+Tags are lowercase ASCII, words joined by `-`. Two fields:
+- **`topics`**: what the item is about; reuse one of these before making a new one: `chao-hoi` (greetings), `gia-dinh` (family), `cong-viec` (work), `du-lich` (travel), `an-uong` (food), `mua-sam` (shopping), `suc-khoe` (health), `giao-duc` (education), `cong-nghe` (technology), `moi-truong` (environment), `xa-hoi` (society), `kinh-te` (economy), `cam-xuc` (feelings), `thoi-gian` (time), `nha-cua` (home), `giao-thong` (transport), `the-thao` (sport), `van-hoa` (culture).
+- **`tags`**: prefixed tags, to filter reviews and tests:
+  - `bai:<YYYY-MM-DD>` the session that recorded it (required)
+  - `nguon:<sach|phim|bao|podcast|hoi-thoai|de-thi>` kind of source (book, film, news, podcast, conversation, exam)
+  - `ky-thi:<ielts|toeic|jlpt|hsk|topik|delf|…>` when the item is in the target exam's scope
+  - `ky-nang:<nghe|noi|doc|viet>` when tied to a skill (listening, speaking, reading, writing)
+  - `loi:<kind>` added by the grader when the learner gets it wrong: `loi:nghia` (meaning), `loi:chinh-ta` (spelling), `loi:cach-doc` (pronunciation), `loi:chia-dong-tu` (conjugation), `loi:gioi-tu` (preposition/particle), `loi:trat-tu` (word order), `loi:nham-tu-gan` (confused with a close word)
+  - `can-kiem` when the meaning or example is uncertain (the reviewer checks it, then removes the tag)
+  - `uu-tien` when the learner wants it reviewed more
 
-## 5. File bài học
-Mỗi buổi một file `bai-hoc/<YYYY-MM-DD>-<chu-de>.md` (cùng ngày học thêm thì ghi tiếp vào file đó):
+## 5. Lesson file
+One file per session, `bai-hoc/<YYYY-MM-DD>-<topic>.md` (more on the same day goes into the same file). Headings in the learner's language:
 
 ```markdown
-# <Chủ đề> · <ngày>
-Nguồn: <…>
+# <Topic> · <date>
+Source: <…>
 
-## Từ vựng
-| Từ | Cách đọc | Nghĩa | Ví dụ |
+## Vocabulary
+| Word | Reading | Meaning | Example |
 |---|---|---|---|
 
-## Ngữ pháp
-### <mẫu>
-Cấu trúc, ý nghĩa, ví dụ, phân biệt với…
+## Grammar
+### <pattern>
+Structure, meaning, examples, how it differs from…
 
-## Giải thích thêm
-Văn hóa, cách dùng, điều dễ nhầm.
+## Notes
+Culture, usage, common mistakes.
 
-## Tự kiểm tra
-3-5 câu hỏi nhanh (đáp án ở cuối file, sau dòng `---`).
+## Self-check
+3-5 quick questions (answers at the end of the file, after a `---` line).
 ```
 
-## 6. Báo lại người học
-Đã ghi bao nhiêu từ, mẫu ngữ pháp nào, file nào; từ nào đã có (đã bổ sung gì); điều gì chưa chắc.
+## 6. Tell the learner
+How many words and which grammar patterns were recorded, in which file; which words were already there (and what was added); what is still uncertain.

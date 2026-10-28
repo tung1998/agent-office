@@ -1,45 +1,45 @@
 ---
 name: on-tap
-description: Ôn tập ngoại ngữ theo lặp lại ngắt quãng (hộp Leitner): chọn từ và mẫu ngữ pháp đến hạn từ bảng tu_vung, ngu_phap theo tag, soạn bài ôn nhiều dạng, chấm và cập nhật hộp, ngày ôn, tag lỗi. Dùng khi ôn hằng ngày, khi người học hỏi ôn hay khi chấm bài ôn.
+description: Spaced-repetition review for a language learner (Leitner boxes): pick the words and grammar patterns due from tables tu_vung, ngu_phap by tag, write varied review exercises, grade them and update box, review date and mistake tags. Use for the daily review, when the learner asks to review, or when grading a review.
 ---
 
-# Ôn tập
+# Review
 
-## Lịch ôn (hộp Leitner)
-Mỗi mục có `box` 1-5 và `next_review`.
+## Review schedule (Leitner boxes)
+Each item has a `box` 1-5 and a `next_review`.
 
-| Hộp | Ôn lại sau |
+| Box | Review again after |
 |---|---|
-| 1 | 1 ngày |
-| 2 | 3 ngày |
-| 3 | 7 ngày |
-| 4 | 14 ngày |
-| 5 | 30 ngày |
+| 1 | 1 day |
+| 2 | 3 days |
+| 3 | 7 days |
+| 4 | 14 days |
+| 5 | 30 days |
 
-- Trả lời đúng: lên một hộp (tối đa 5), `next_review` = hôm nay + khoảng của hộp mới. Đúng ở hộp 5 hai lần liền: `status` = `thuoc`.
-- Sai: về hộp 1, `next_review` = ngày mai, `status` = `dang-hoc`, thêm tag `loi:<loại>`. Sai từ 3 lần trở lên (`wrong` ≥ 3): `status` = `kho`.
-- Gần đúng (sai chính tả nhỏ, thiếu dấu thanh): giữ hộp, ôn lại sau 1 ngày.
-- Luôn cập nhật `last_review`, `correct` hoặc `wrong`.
+- Right: up one box (at most 5), `next_review` = today + the new box's interval. Right twice in a row in box 5: `status` = `thuoc` (mastered).
+- Wrong: back to box 1, `next_review` = tomorrow, `status` = `dang-hoc` (learning), add the tag `loi:<kind>`. Wrong 3 times or more (`wrong` ≥ 3): `status` = `kho` (hard).
+- Nearly right (a small spelling slip, a missing tone mark): keep the box, review again in 1 day.
+- Always update `last_review` and `correct` or `wrong`.
 
-## Chọn mục để ôn
-1. Đến hạn: `data_query` `tu_vung` với `next_review` `lte` hôm nay, `status` `ne` `thuoc`, sắp theo `next_review`. Tương tự `ngu_phap`.
-2. Ưu tiên: tag `uu-tien`, `status` `kho`, tag `loi:*`.
-3. Người học chọn phạm vi ("ôn chủ đề du lịch", "ôn bài tuần trước"): lọc theo `topics` (`contains`), `tags` `bai:<ngày>`, `level`.
-4. Một buổi ôn 15-25 mục (theo thời gian trong `docs/ho-so.md`); quá nhiều mục đến hạn thì lấy mục quá hạn lâu nhất trước, còn lại để mai.
+## Picking the items
+1. Due: `data_query` `tu_vung` with `next_review` `lte` today and `status` `ne` `thuoc`, sorted by `next_review`. Same for `ngu_phap`.
+2. First: tag `uu-tien`, `status` `kho`, tags `loi:*`.
+3. The learner picks a scope ("review travel", "review last week"): filter by `topics` (`contains`), tag `bai:<date>`, `level`.
+4. One session is 15-25 items (by the daily time in `docs/ho-so.md`); too many due: the longest overdue first, the rest tomorrow.
 
-## Dạng bài
-Trộn để nhớ chắc, mỗi mục một câu:
-- Nghĩa → từ (gõ lại từ, có cách đọc), từ → nghĩa
-- Điền vào chỗ trống trong câu mới (không dùng lại câu ví dụ đã ghi)
-- Chọn đáp án đúng (4 lựa chọn, nhiễu là từ gần nghĩa hoặc gần hình)
-- Chia động từ / chọn dạng đúng theo mẫu ngữ pháp
-- Sửa lỗi câu sai, dịch câu ngắn Việt → ngôn ngữ học
-- Nghe/nói: đưa câu để người học đọc to, hoặc chép chính tả (ghi rõ là tự đánh giá)
+## Exercise types
+Mix them so it sticks, one question per item:
+- Meaning → word (type the word, with its reading), word → meaning
+- Fill the gap in a new sentence (never reuse the stored example)
+- Multiple choice (4 options, distractors close in meaning or form)
+- Conjugate / pick the right form for a grammar pattern
+- Correct a wrong sentence; translate a short sentence into the target language
+- Listening/speaking: a sentence to read aloud, or a dictation (marked as self-assessed)
 
-## File và bảng
-- Bài ôn: `bai-tap/<YYYY-MM-DD>-on-tap.md`; đáp án: `bai-tap/<YYYY-MM-DD>-on-tap-dap-an.md`. Mỗi câu ghi mục nó kiểm tra: `(tu_vung: <word>)` hoặc `(ngu_phap: <pattern>)` trong file đáp án.
-- Bản ghi `bai_tap`: `kind` = `on-tap`, `file`, `items`, `status` = `chua-lam`.
-- Đưa câu hỏi vào chat theo thứ tự, không kèm đáp án. Người học trả lời trong chat hoặc ghi vào file bài.
+## Files and tables
+- Exercise: `bai-tap/<YYYY-MM-DD>-on-tap.md`; answers: `bai-tap/<YYYY-MM-DD>-on-tap-dap-an.md`. In the answer file, each question names the item it tests: `(tu_vung: <word>)` or `(ngu_phap: <pattern>)`.
+- A `bai_tap` record: `kind` = `on-tap`, `file`, `items`, `status` = `chua-lam` (not done).
+- Put the questions in the chat in order, without answers. The learner answers in the chat or in the exercise file.
 
-## Sau khi chấm
-Tóm tắt: đúng bao nhiêu, mục lên hộp, mục về hộp 1 kèm lỗi, tag yếu (`weak_tags`), số mục đến hạn ngày mai.
+## After grading
+Sum up: how many right, items that moved up, items back in box 1 with their mistake, weak tags (`weak_tags`), how many items are due tomorrow.
