@@ -20,9 +20,22 @@ func (s *server) activityOverview(w http.ResponseWriter, r *http.Request) {
 		hours = 24
 	}
 	hours = min(hours, 720)
+	sc, err := s.scope(r)
+	if err != nil {
+		s.internal(w, r, err)
+		return
+	}
 	var projects []storage.Repo
 	if id := r.URL.Query().Get("project"); id != "" {
-		projects = activity.Linked(r.Context(), s.cfg.Store, id)
+		if !sc.has(id) {
+			writeError(w, http.StatusNotFound, "không tìm thấy project")
+			return
+		}
+		for _, x := range activity.Linked(r.Context(), s.cfg.Store, id) {
+			if sc.has(x.ID) {
+				projects = append(projects, x)
+			}
+		}
 	} else {
 		list, err := s.cfg.Store.Repos().List(r.Context())
 		if err != nil {
@@ -31,7 +44,7 @@ func (s *server) activityOverview(w http.ResponseWriter, r *http.Request) {
 		}
 		helper := assistant.ID(r.Context(), s.cfg.Store)
 		for _, x := range list {
-			if x.ID != helper {
+			if x.ID != helper && sc.has(x.ID) {
 				projects = append(projects, x)
 			}
 		}

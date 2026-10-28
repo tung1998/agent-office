@@ -15,13 +15,14 @@ import (
 	"github.com/tung1998/agent-office/internal/verify"
 )
 
-// allowedMode: members may only ask first; admins may pick any package
+// allowedMode: members may only ask first; admins, and managers in their
+// projects (the routes are gated to those, ADR-224), may pick any package
 // (the project's cap and each agent's own package still apply).
 func (s *server) allowedMode(r *http.Request, mode string) string {
 	if !perm.Valid(mode) {
 		return perm.Propose
 	}
-	if userFrom(r).Role != storage.RoleAdmin && perm.AtLeast(mode, perm.Check) {
+	if !manages(userFrom(r)) && perm.AtLeast(mode, perm.Check) {
 		return perm.Propose
 	}
 	return mode
@@ -29,7 +30,7 @@ func (s *server) allowedMode(r *http.Request, mode string) string {
 
 // allowedEditMode: editing the project folder directly is for admins
 func (s *server) allowedEditMode(r *http.Request, mode string) string {
-	if mode == perm.EditDirect && userFrom(r).Role == storage.RoleAdmin {
+	if mode == perm.EditDirect && manages(userFrom(r)) {
 		return perm.EditDirect
 	}
 	return perm.EditWorktree

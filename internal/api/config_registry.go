@@ -361,11 +361,13 @@ func (s *server) ApplyChange(ctx context.Context, a storage.Action) (string, err
 	var patch map[string]any
 	_ = json.Unmarshal(c.Patch, &patch)
 	body := map[string]any{}
+	target := a.ProjectID // the project the change lands in
 	if c.Op != "create" {
-		obj, _, err := k.get(s, ctx, c.ID, a.ProjectID)
+		obj, project, err := k.get(s, ctx, c.ID, a.ProjectID)
 		if err != nil {
 			return "", fmt.Errorf("không còn %s %q", k.title, c.ID)
 		}
+		target = project
 		st := k.state(obj)
 		now, _ := json.Marshal(audit.Snapshot(st))
 		if (c.Hash != "" && stateHash(st) != c.Hash) || (c.Hash == "" && len(c.Before) > 0 && !sameJSON(now, c.Before)) {
@@ -389,6 +391,15 @@ func (s *server) ApplyChange(ctx context.Context, a storage.Action) (string, err
 	u, err := s.approver(ctx, a.DecidedBy)
 	if err != nil {
 		return "", err
+	}
+	if u.Role != storage.RoleAdmin { // ADR-224: its own projects' settings only
+		sc, err := s.scopeOf(ctx, u)
+		if err != nil {
+			return "", err
+		}
+		if k.office || !sc.has(target) {
+			return "", errors.New("chỉ admin của office duyệt được thay đổi này")
+		}
 	}
 	pathID, err := rt.pathID(s, ctx, c.ID, a.ProjectID)
 	if err != nil {

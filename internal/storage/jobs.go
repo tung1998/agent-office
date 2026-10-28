@@ -85,7 +85,10 @@ func SpeaksFor(ctx context.Context, st Store, j Job) (string, bool) {
 
 // JobFilter narrows a job listing; empty fields match everything.
 type JobFilter struct {
-	ProjectID        string
+	ProjectID string
+	// ProjectIDs: only these projects' jobs (nil = every project; empty =
+	// none): what a person who is not an admin sees (ADR-224).
+	ProjectIDs       []string
 	ExcludeProjectID string // omit this project's jobs (the office assistant's own)
 	// HideOthersIn: an assistant-chat project whose jobs are hidden unless
 	// CreatedBy is Me (ADR-046: an assistant chat is its creator's alone).

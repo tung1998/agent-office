@@ -155,26 +155,14 @@ func TestMCPServersAPI(t *testing.T) {
 	if code, out := call(tb["token"].(string)); code != 200 || !strings.Contains(out, "ok from upstream") {
 		t.Fatalf("personal token = %d %s", code, out)
 	}
-	// a tool not known to only read: an admin's token calls it, a member's
-	// reads but never writes with the server's credentials without an approval
+	// a tool not known to only read: an admin's token calls it
 	if code, out := callTool(tb["token"].(string), "write-thing"); code != 200 || !strings.Contains(out, "ok from upstream") {
 		t.Fatalf("admin token writes = %d %s", code, out)
 	}
+	// a personal token reads the whole office: an admin's alone (ADR-224)
 	_, mt := do(t, member, "POST", e.srv.URL+"/api/me/tokens", map[string]any{"name": "cli"}, nil)
-	if code, out := call(mt["token"].(string)); code != 200 || !strings.Contains(out, "ok from upstream") {
-		t.Fatalf("member token reads = %d %s", code, out)
-	}
-	if code, out := callTool(mt["token"].(string), "write-thing"); code != 200 || strings.Contains(out, "ok from upstream") || !strings.Contains(out, "đề xuất") && !strings.Contains(out, "chỉ được đọc") {
-		t.Fatalf("member token writes = %d %s", code, out)
-	}
-	batch := `[{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"write-thing","arguments":{}}}]`
-	req, _ := http.NewRequest("POST", e.srv.URL+"/mcp/s/context7", bytes.NewBufferString(batch))
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer "+mt["token"].(string))
-	if r, err := http.DefaultClient.Do(req); err != nil || r.StatusCode != 400 {
-		t.Fatalf("member batch = %v %v", r, err)
-	} else {
-		r.Body.Close()
+	if code, _ := call(mt["token"].(string)); code != 401 {
+		t.Fatalf("member token = %d", code)
 	}
 
 	if resp, _ := do(t, admin, "DELETE", base+"/"+id, nil, nil); resp.StatusCode != 204 {

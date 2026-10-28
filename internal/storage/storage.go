@@ -26,12 +26,13 @@ var (
 type Role string
 
 const (
-	RoleAdmin  Role = "admin"  // manage users, config, approvals
-	RoleMember Role = "member" // read everything, ask, comment
+	RoleAdmin   Role = "admin"   // the office's admin: every project, users, config, approvals
+	RoleManager Role = "manager" // a project admin: manages its own projects only (ADR-224)
+	RoleMember  Role = "member"  // reads its projects, asks, comments
 )
 
 // Valid reports whether r is a known role.
-func (r Role) Valid() bool { return r == RoleAdmin || r == RoleMember }
+func (r Role) Valid() bool { return r == RoleAdmin || r == RoleManager || r == RoleMember }
 
 // User is a dashboard account.
 type User struct {
@@ -173,6 +174,15 @@ type UserRepo interface {
 	ByChatID(ctx context.Context, kind, chatUserID string) (User, error)
 	TouchLogin(ctx context.Context, id string, at time.Time) error
 	Delete(ctx context.Context, id string) error
+	// SetRole changes the account's role.
+	SetRole(ctx context.Context, id string, role Role) error
+	// Projects are the ids of the projects the account was given (ADR-224);
+	// an admin sees every project whatever is listed.
+	Projects(ctx context.Context, id string) ([]string, error)
+	// SetProjects replaces the account's projects.
+	SetProjects(ctx context.Context, id string, projectIDs []string) error
+	// AddProject gives the account one more project (the one it created).
+	AddProject(ctx context.Context, id, projectID string) error
 }
 
 // SessionRepo manages login sessions.

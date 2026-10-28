@@ -8,6 +8,16 @@ const { user: me } = useAuth()
 const { t, when: fmtWhen } = useLang()
 const { data, refresh, status } = await useLiveFetch<{ users: OfficeUser[] }>('/api/users')
 const users = computed(() => data.value?.users ?? [])
+// the projects an account other than an admin sees (ADR-224)
+const { data: projData } = useLiveFetch<{ projects: Project[] }>('/api/projects', { lazy: true })
+const projectItems = computed(() => (projData.value?.projects ?? []).map(p => ({ label: p.name, value: p.id })))
+const projectName = (id: string) => projData.value?.projects.find(p => p.id === id)?.name ?? id
+const roleItems = computed(() => [
+  { label: t('admin.usersRoleMember'), value: 'member' },
+  { label: t('admin.usersRoleManager'), value: 'manager' },
+  { label: t('admin.usersRoleAdmin'), value: 'admin' }
+])
+const roleColor = (r: string) => r === 'admin' ? 'primary' : r === 'manager' ? 'info' : 'neutral'
 
 const columns = computed<TableColumn<OfficeUser>[]>(() => [
   { accessorKey: 'email', header: t('admin.usersEmail') },
@@ -25,7 +35,7 @@ function fmt(d: string | null) {
 
 // ---- create ----
 const createOpen = ref(false)
-const createState = reactive({ email: '', name: '', role: 'member', password: '' })
+const createState = reactive({ email: '', name: '', role: 'member', password: '', projects: [] as string[] })
 const createError = ref('')
 const creating = ref(false)
 
@@ -35,7 +45,7 @@ async function createUser() {
   try {
     await $fetch('/api/users', { method: 'POST', body: { ...createState } })
     toast.add({ title: t('admin.usersCreated', { email: createState.email }), color: 'success' })
-    Object.assign(createState, { email: '', name: '', role: 'member', password: '' })
+    Object.assign(createState, { email: '', name: '', role: 'member', password: '', projects: [] })
     createOpen.value = false
     await refresh()
   } catch (e) {
@@ -112,9 +122,41 @@ async function saveLink() {
   }
 }
 
+// ---- role and projects ----
+const accessTarget = ref<OfficeUser | null>(null)
+const accessState = reactive({ role: 'member' as OfficeUser['role'], projects: [] as string[] })
+const accessError = ref('')
+const savingAccess = ref(false)
+
+function openAccess(u: OfficeUser) {
+  Object.assign(accessState, { role: u.role, projects: [...(u.projects ?? [])] })
+  accessError.value = ''
+  accessTarget.value = u
+}
+
+async function saveAccess() {
+  const u = accessTarget.value
+  if (!u || savingAccess.value) return
+  accessError.value = ''
+  savingAccess.value = true
+  try {
+    const body: { role?: string, projects?: string[] } = { projects: accessState.role === 'admin' ? [] : accessState.projects }
+    if (accessState.role !== u.role) body.role = accessState.role
+    await $fetch(`/api/users/${u.id}`, { method: 'PATCH', body })
+    toast.add({ title: t('admin.usersAccessSaved', { email: u.email }), color: 'success' })
+    accessTarget.value = null
+    await refresh()
+  } catch (e) {
+    accessError.value = apiError(e)
+  } finally {
+    savingAccess.value = false
+  }
+}
+
 function rowActions(u: OfficeUser) {
   const busy = togglingId.value === u.id
   const items = [[
+    ...(u.id !== me.value?.id ? [{ label: t('admin.usersAccessEdit'), icon: 'i-lucide-shield', onSelect: () => openAccess(u) }] : []),
     { label: t('admin.usersResetPassword'), icon: 'i-lucide-key-round', onSelect: () => { resetTarget.value = u } },
     { label: t('admin.usersChatIdsEdit'), icon: 'i-lucide-link', onSelect: () => openLink(u) }
   ]]
@@ -135,7 +177,12 @@ function rowActions(u: OfficeUser) {
 
     <UTable :data="users" :columns="columns" :loading="status === 'pending'">
       <template #role-cell="{ row }">
-        <UBadge :label="row.original.role" :color="row.original.role === 'admin' ? 'primary' : 'neutral'" variant="subtle" />
+        <div class="flex flex-col items-start gap-1">
+          <UBadge :label="row.original.role" :color="roleColor(row.original.role)" variant="subtle" />
+          <span class="text-xs text-(--ui-text-muted)">
+            {{ row.original.role === 'admin' ? t('admin.usersAllProjects') : row.original.projects?.length ? row.original.projects.map(projectName).join(', ') : t('admin.usersNoProject') }}
+          </span>
+        </div>
       </template>
       <template #disabled-cell="{ row }">
         <UBadge
@@ -173,7 +220,10 @@ function rowActions(u: OfficeUser) {
             <UInput v-model="createState.name" class="w-full" />
           </UFormField>
           <UFormField :label="t('admin.usersRole')">
-            <USelect v-model="createState.role" :items="[{ label: t('admin.usersRoleMember'), value: 'member' }, { label: t('admin.usersRoleAdmin'), value: 'admin' }]" class="w-full" />
+            <USelect v-model="createState.role" :items="roleItems" class="w-full" />
+          </UFormField>
+          <UFormField v-if="createState.role !== 'admin'" :label="t('admin.usersProjects')" :hint="createState.role === 'manager' ? t('admin.usersProjectsHint') : undefined">
+            <USelectMenu v-model="createState.projects" :items="projectItems" value-key="value" multiple class="w-full" />
           </UFormField>
           <UFormField :label="t('admin.usersTempPassword')" :hint="t('admin.usersPasswordHint')" required>
             <UInput v-model="createState.password" type="password" autocomplete="new-password" class="w-full" />
@@ -185,6 +235,26 @@ function rowActions(u: OfficeUser) {
         <div class="flex w-full justify-end gap-2">
           <UButton color="neutral" variant="ghost" :label="t('common.cancel')" @click="createOpen = false" />
           <UButton type="submit" form="create-user" :loading="creating" :label="t('common.create')" />
+        </div>
+      </template>
+    </UModal>
+
+    <UModal :open="!!accessTarget" :title="t('admin.usersAccessModal', { email: accessTarget?.email ?? '' })" @update:open="v => { if (!v) accessTarget = null }">
+      <template #body>
+        <form id="user-access" class="space-y-4" @submit.prevent="saveAccess">
+          <UFormField :label="t('admin.usersRole')" :hint="accessTarget && accessState.role !== accessTarget.role ? t('admin.usersRoleChangeWarn') : undefined">
+            <USelect v-model="accessState.role" :items="roleItems" class="w-full" />
+          </UFormField>
+          <UFormField v-if="accessState.role !== 'admin'" :label="t('admin.usersProjects')">
+            <USelectMenu v-model="accessState.projects" :items="projectItems" value-key="value" multiple class="w-full" />
+          </UFormField>
+          <UAlert v-if="accessError" color="error" variant="subtle" :description="accessError" />
+        </form>
+      </template>
+      <template #footer>
+        <div class="flex w-full justify-end gap-2">
+          <UButton color="neutral" variant="ghost" :label="t('common.cancel')" @click="accessTarget = null" />
+          <UButton type="submit" form="user-access" :label="t('common.save')" :loading="savingAccess" :disabled="savingAccess" />
         </div>
       </template>
     </UModal>

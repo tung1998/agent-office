@@ -103,8 +103,8 @@ func (s *server) tokenScope(ctx context.Context, tok string) (officetools.Scope,
 		return officetools.Scope{}, false
 	}
 	u, err := s.cfg.Store.Users().GetByID(ctx, t.UserID)
-	if err != nil || u.Disabled {
-		return officetools.Scope{}, false
+	if err != nil || u.Disabled || u.Role != storage.RoleAdmin {
+		return officetools.Scope{}, false // it reads the whole office: an admin's (ADR-224)
 	}
 	_ = s.cfg.Store.Tokens().Touch(ctx, t.ID, time.Now().UTC())
 	project := assistant.ID(ctx, s.cfg.Store)
@@ -130,8 +130,16 @@ func (s *server) pendingActions(w http.ResponseWriter, r *http.Request) {
 		s.internal(w, r, err)
 		return
 	}
+	sc, err := s.scope(r)
+	if err != nil {
+		s.internal(w, r, err)
+		return
+	}
 	out := make([]chat.ActionDTO, 0, len(list))
 	for _, a := range list {
+		if !sc.has(a.ProjectID) {
+			continue
+		}
 		out = append(out, chat.ToActionDTO(a))
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"actions": out})

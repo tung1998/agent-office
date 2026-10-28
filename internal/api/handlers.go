@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/http"
@@ -21,6 +22,19 @@ type userDTO struct {
 	TelegramID  string     `json:"telegram_id"`
 	CreatedAt   time.Time  `json:"created_at"`
 	LastLoginAt *time.Time `json:"last_login_at"`
+	// Projects: the projects it sees, when not an admin (ADR-224)
+	Projects []string `json:"projects,omitempty"`
+}
+
+// withProjects adds the projects an account other than an admin sees.
+func (s *server) withProjects(ctx context.Context, u storage.User) (userDTO, error) {
+	d := toDTO(u)
+	if u.Role == storage.RoleAdmin {
+		return d, nil
+	}
+	ids, err := s.cfg.Store.Users().Projects(ctx, u.ID)
+	d.Projects = ids
+	return d, err
 }
 
 func toDTO(u storage.User) userDTO {
@@ -113,7 +127,12 @@ func (s *server) logout(w http.ResponseWriter, r *http.Request) {
 
 func (s *server) me(w http.ResponseWriter, r *http.Request) {
 	// build: which office is running, shown under the sidebar for everyone
-	writeJSON(w, http.StatusOK, map[string]any{"user": toDTO(userFrom(r)), "build": s.build})
+	d, err := s.withProjects(r.Context(), userFrom(r))
+	if err != nil {
+		s.internal(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"user": d, "build": s.build})
 }
 
 func (s *server) changePassword(w http.ResponseWriter, r *http.Request) {
@@ -145,22 +164,35 @@ func (s *server) listUsers(w http.ResponseWriter, r *http.Request) {
 	}
 	out := make([]userDTO, 0, len(users))
 	for _, u := range users {
-		out = append(out, toDTO(u))
+		d, err := s.withProjects(r.Context(), u)
+		if err != nil {
+			s.internal(w, r, err)
+			return
+		}
+		out = append(out, d)
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"users": out})
 }
 
 func (s *server) createUser(w http.ResponseWriter, r *http.Request) {
 	var in struct {
-		Email    string `json:"email"`
-		Name     string `json:"name"`
-		Role     string `json:"role"`
-		Password string `json:"password"`
+		Email    string   `json:"email"`
+		Name     string   `json:"name"`
+		Role     string   `json:"role"`
+		Password string   `json:"password"`
+		Projects []string `json:"projects"` // what a manager or member sees (ADR-224)
 	}
 	if !decode(w, r, &in) {
 		return
 	}
 	u, err := s.cfg.Auth.CreateUser(r.Context(), auth.NewUser{Email: in.Email, Name: in.Name, Role: storage.Role(in.Role), Password: in.Password}, "human:"+userFrom(r).Email)
+	if err == nil && len(in.Projects) > 0 && u.Role != storage.RoleAdmin {
+		err = s.cfg.Auth.SetProjects(r.Context(), u.ID, in.Projects, "human:"+userFrom(r).Email)
+		if errors.Is(err, storage.ErrNotFound) {
+			writeError(w, http.StatusBadRequest, "project không tồn tại")
+			return
+		}
+	}
 	switch {
 	case errors.Is(err, auth.ErrEmailTaken):
 		writeError(w, http.StatusConflict, "Email đã tồn tại")
@@ -169,19 +201,56 @@ func (s *server) createUser(w http.ResponseWriter, r *http.Request) {
 	case err != nil:
 		s.internal(w, r, err)
 	default:
-		writeJSON(w, http.StatusCreated, map[string]any{"user": toDTO(u)})
+		d, err := s.withProjects(r.Context(), u)
+		if err != nil {
+			s.internal(w, r, err)
+			return
+		}
+		writeJSON(w, http.StatusCreated, map[string]any{"user": d})
 	}
 }
 
 func (s *server) updateUser(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	var in struct {
-		Disabled   *bool   `json:"disabled"`
-		DiscordID  *string `json:"discord_id"`
-		TelegramID *string `json:"telegram_id"`
+		Disabled   *bool     `json:"disabled"`
+		DiscordID  *string   `json:"discord_id"`
+		TelegramID *string   `json:"telegram_id"`
+		Role       *string   `json:"role"`
+		Projects   *[]string `json:"projects"` // what a manager or member sees (ADR-224)
 	}
 	if !decode(w, r, &in) {
 		return
+	}
+	actor := "human:" + userFrom(r).Email
+	if in.Role != nil {
+		if id == userFrom(r).ID && storage.Role(*in.Role) != storage.RoleAdmin {
+			writeError(w, http.StatusBadRequest, "Không thể tự hạ quyền tài khoản của mình")
+			return
+		}
+		err := s.cfg.Auth.SetRole(r.Context(), id, storage.Role(*in.Role), actor)
+		switch {
+		case errors.Is(err, auth.ErrInvalidRole):
+			writeError(w, http.StatusBadRequest, err.Error())
+			return
+		case errors.Is(err, storage.ErrNotFound):
+			writeError(w, http.StatusNotFound, "user not found")
+			return
+		case err != nil:
+			s.internal(w, r, err)
+			return
+		}
+	}
+	if in.Projects != nil {
+		err := s.cfg.Auth.SetProjects(r.Context(), id, *in.Projects, actor)
+		switch {
+		case errors.Is(err, storage.ErrNotFound):
+			writeError(w, http.StatusBadRequest, "project hoặc tài khoản không tồn tại")
+			return
+		case err != nil:
+			s.internal(w, r, err)
+			return
+		}
 	}
 	if in.DiscordID != nil || in.TelegramID != nil { // linking the account to its bot ids
 		cur, err := s.cfg.Store.Users().GetByID(r.Context(), id)
@@ -237,7 +306,12 @@ func (s *server) updateUser(w http.ResponseWriter, r *http.Request) {
 		s.internal(w, r, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"user": toDTO(u)})
+	d, err := s.withProjects(r.Context(), u)
+	if err != nil {
+		s.internal(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"user": d})
 }
 
 func (s *server) resetPassword(w http.ResponseWriter, r *http.Request) {

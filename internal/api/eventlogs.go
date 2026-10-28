@@ -54,13 +54,22 @@ func (s *server) eventLog(w http.ResponseWriter, r *http.Request) {
 	}
 	switch in.Source {
 	case "process":
-		if _, err := s.cfg.Store.Processes().Get(r.Context(), in.ID); err != nil {
+		p, err := s.cfg.Store.Processes().Get(r.Context(), in.ID)
+		if err != nil {
 			s.writeDomainError(w, r, err)
+			return
+		}
+		if !s.sees(r, p.ProjectID) {
+			writeError(w, http.StatusNotFound, "không tìm thấy project")
 			return
 		}
 	case "action", "compose":
 		if _, err := s.cfg.Store.Repos().Get(r.Context(), in.ID); err != nil {
 			s.writeDomainError(w, r, err)
+			return
+		}
+		if !s.sees(r, in.ID) {
+			writeError(w, http.StatusNotFound, "không tìm thấy project")
 			return
 		}
 	default:

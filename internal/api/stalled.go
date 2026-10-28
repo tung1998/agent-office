@@ -24,7 +24,7 @@ func (s *server) stalledChats(ctx context.Context, u storage.User, p storage.Rep
 			continue
 		}
 		seen[j.ConversationID] = true
-		if u.Role != storage.RoleAdmin && j.CreatedBy != "human:"+u.Email {
+		if !manages(u) && j.CreatedBy != "human:"+u.Email {
 			continue
 		}
 		// gone on since (a newer turn, whatever came of it): not stalled any more

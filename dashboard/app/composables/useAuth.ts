@@ -2,7 +2,8 @@ export interface OfficeUser {
   id: string
   email: string
   name: string
-  role: 'admin' | 'member'
+  role: 'admin' | 'manager' | 'member' // manager: a project admin (ADR-224)
+  projects?: string[] // the projects a manager or member sees
   disabled: boolean
   must_change?: boolean // the default admin, until it sets a real email and password
   discord_id?: string // its own ids on the bots' platforms: a message to a bot from one is shown as this account's
@@ -60,7 +61,17 @@ export function useAuth() {
     await navigateTo('/login')
   }
 
-  const isAdmin = computed(() => user.value?.role === 'admin')
+  // isAdmin: may manage what the page shows: an admin anywhere, a manager
+  // on a page of one of its projects (ADR-224). isOfficeAdmin: the whole
+  // office's settings (users, AI connections, MCP…).
+  const route = useRoute()
+  const isOfficeAdmin = computed(() => user.value?.role === 'admin')
+  function manages(projectId: string) {
+    const u = user.value
+    return u?.role === 'admin' || (u?.role === 'manager' && !!u.projects?.includes(projectId))
+  }
+  const isAdmin = computed(() => isOfficeAdmin.value || (route.path.startsWith('/projects/') && manages(String(route.params.id ?? ''))))
+  const canCreateProject = computed(() => user.value?.role === 'admin' || user.value?.role === 'manager')
 
-  return { user, loaded, build, isAdmin, fetchMe, login, logout }
+  return { user, loaded, build, isAdmin, isOfficeAdmin, canCreateProject, manages, fetchMe, login, logout }
 }

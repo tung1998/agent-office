@@ -2,6 +2,7 @@ package api
 
 import (
 	"github.com/tung1998/agent-office/internal/audit"
+	"github.com/tung1998/agent-office/internal/storage"
 	"net/http"
 	"strconv"
 	"time"
@@ -15,6 +16,29 @@ func (s *server) usageSummary(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		s.internal(w, r, err)
 		return
+	}
+	sc, err := s.scope(r)
+	if err != nil {
+		s.internal(w, r, err)
+		return
+	}
+	if !sc.all { // only its projects' spending (ADR-224)
+		rows := []storage.UsageRow{}
+		sum.Period, sum.Today = 0, 0
+		for _, x := range sum.ByProject {
+			if sc.has(x.Key) {
+				rows = append(rows, x)
+				sum.Period += x.CostUSD
+			}
+		}
+		today := map[string]float64{}
+		for id, c := range sum.ProjectToday {
+			if sc.has(id) {
+				today[id] = c
+				sum.Today += c
+			}
+		}
+		sum.ByProject, sum.ProjectToday, sum.ByDay, sum.ByModel = rows, today, []storage.UsageRow{}, []storage.UsageRow{}
 	}
 	writeJSON(w, http.StatusOK, sum)
 }
@@ -48,6 +72,15 @@ func (s *server) usageRuns(w http.ResponseWriter, r *http.Request) {
 	if limit <= 0 || limit > 500 {
 		limit = 100
 	}
+	sc, err := s.scope(r)
+	if err != nil {
+		s.internal(w, r, err)
+		return
+	}
+	if p := q.Get("project"); p != "" && !sc.has(p) {
+		writeError(w, http.StatusNotFound, "không tìm thấy project")
+		return
+	}
 	runs, err := s.cfg.Usage.Runs(r.Context(), q.Get("project"), days, limit, q.Get("before"))
 	if err != nil {
 		s.internal(w, r, err)
@@ -56,6 +89,9 @@ func (s *server) usageRuns(w http.ResponseWriter, r *http.Request) {
 	names := map[string]string{}
 	out := make([]runDTO, 0, len(runs))
 	for _, x := range runs {
+		if !sc.has(x.ProjectID) {
+			continue
+		}
 		name, ok := names[x.ProjectID]
 		if !ok && x.ProjectID != "" {
 			if p, err := s.cfg.Store.Repos().Get(r.Context(), x.ProjectID); err == nil {

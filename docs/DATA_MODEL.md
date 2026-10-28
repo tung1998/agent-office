@@ -281,11 +281,19 @@ Index `(day, agent_id)`, `(incident_id)`. View `cost_daily` group theo `day, age
 | id | text PK | `usr_<ulid>` |
 | email | text unique | lowercase, so sánh không phân biệt hoa thường |
 | name | text | |
-| role | text | `admin` \| `member` |
+| role | text | `admin` (cả office) \| `manager` (admin project) \| `member` (ADR-224) |
 | password_hash | text | argon2id encoded |
 | disabled | bool | |
 | discord_id, telegram_id | text | user ID trên nền tảng bot ('' = chưa gắn); một ID một tài khoản. Tin gửi bot từ ID đó hiện tên tài khoản (`messages.sender`) |
 | created_at, updated_at, last_login_at | ts | |
+
+### `project_members`
+Project mà `manager`/`member` thấy (ADR-224); `admin` thấy mọi project.
+| Cột | Kiểu | Ghi chú |
+|---|---|---|
+| project_id | text FK | `repos`, cascade delete |
+| user_id | text FK | `users`, cascade delete |
+| created_at | ts | |
 
 ### `sessions`
 | Cột | Kiểu | Ghi chú |

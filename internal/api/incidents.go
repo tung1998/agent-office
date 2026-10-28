@@ -55,11 +55,15 @@ func (s *server) incidentsFor(ctx context.Context, u storage.User) ([]incident, 
 	if err != nil {
 		return nil, err
 	}
+	sc, err := s.scopeOf(ctx, u)
+	if err != nil {
+		return nil, err
+	}
 	hidden := assistant.ID(ctx, s.cfg.Store)
 	day := time.Now().UTC().Add(-24 * time.Hour)
 	out := []incident{}
 	for _, p := range projects {
-		if p.ID == hidden {
+		if p.ID == hidden || !sc.has(p.ID) {
 			continue
 		}
 		base := "/projects/" + p.ID
@@ -130,10 +134,10 @@ func (s *server) incidentsFor(ctx context.Context, u storage.User) ([]incident, 
 			out = append(out, it)
 		}
 	}
-	if u.Role == storage.RoleAdmin { // cards waiting for a person
+	if manages(u) { // cards waiting for a person
 		if acts, err := s.cfg.Store.Actions().Pending(ctx, 100); err == nil {
 			for _, a := range acts {
-				if _, busy := deciding.Is(a.ID); busy { // approved (on its own, or elsewhere), running: nobody need act
+				if _, busy := deciding.Is(a.ID); busy || !sc.has(a.ProjectID) { // approved (on its own, or elsewhere), running: nobody need act
 					continue
 				}
 				name := a.ProjectID
@@ -153,14 +157,14 @@ func (s *server) incidentsFor(ctx context.Context, u storage.User) ([]incident, 
 			}
 		}
 	}
-	if u.Role == storage.RoleAdmin { // chats' diffs waiting for a person
+	if manages(u) { // chats' diffs waiting for a person
 		if ps, err := s.cfg.Store.Chat().PendingPatches(ctx, 100); err == nil {
 			for _, p := range ps {
 				if _, busy := deciding.Is(p.ID); busy {
 					continue
 				}
 				c, err := s.cfg.Store.Chat().GetConversation(ctx, p.ConversationID)
-				if err != nil || c.ProjectID == hidden {
+				if err != nil || c.ProjectID == hidden || !sc.has(c.ProjectID) {
 					continue
 				}
 				name := c.ProjectID

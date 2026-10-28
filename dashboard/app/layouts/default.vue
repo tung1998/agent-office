@@ -2,7 +2,7 @@
 import type { DropdownMenuItem, NavigationMenuItem } from '@nuxt/ui'
 
 const route = useRoute()
-const { user, build, isAdmin, logout } = useAuth()
+const { user, build, isOfficeAdmin, manages, logout } = useAuth()
 const { t, when: fmtWhen } = useLang()
 
 // which office is running, above the user (from /api/auth/me)
@@ -19,7 +19,7 @@ const buildTime = computed(() => {
 const buildInfoOpen = ref(false)
 // a dot when the source moved past the running build (admins, once per load)
 const hasUpdate = ref(false)
-watch(isAdmin, async (admin) => {
+watch(isOfficeAdmin, async (admin) => {
   if (!admin || !import.meta.client) return
   try {
     hasUpdate.value = (await $fetch<{ changed: boolean }>('/api/system/update/changes')).changed
@@ -32,7 +32,20 @@ const bareLayout = computed(() => route.path === '/login' || route.path === '/se
 // (refetched on navigation and on a change, so added/renamed projects show up)
 const projectList = ref<Project[]>([])
 const { top } = useProjectUsage()
-const recentProjects = computed(() => top(projectList.value, 5, route.params.id as string | undefined))
+// the account's order from the Projects page when set, else the most opened;
+// hidden ones stay out (the open one still shows, for its sections)
+const { isHidden, hasOrder, arrange } = useProjectMenu()
+const recentProjects = computed(() => {
+  const visible = projectList.value.filter(p => !isHidden(p.id))
+  const out = hasOrder.value ? arrange(visible).slice(0, 5) : top(visible, 5)
+  const cur = route.params.id as string | undefined
+  const open = cur ? projectList.value.find(p => p.id === cur) : undefined
+  if (open && !out.includes(open)) {
+    if (out.length < 5) out.push(open)
+    else out[4] = open
+  }
+  return out
+})
 async function loadProjects() {
   if (bareLayout.value) return
   try {
@@ -93,11 +106,16 @@ function projectSections(id: string): NavigationMenuItem[] {
     { label: t('project.sectionModel'), icon: 'i-lucide-users', to: to('agents'), exactQuery: 'partial' },
     { label: t('wf.section'), icon: 'i-lucide-workflow', to: to('workflows'), exactQuery: 'partial' },
     { label: t('project.sectionPerm'), icon: 'i-lucide-shield', to: to('perm'), exactQuery: 'partial' },
-    ...(isAdmin.value
+    ...(manages(id)
       ? [
           { label: t('files.section'), icon: 'i-lucide-folder-tree', to: to('files'), exactQuery: 'partial' as const },
-          { label: t('project.sectionSkill'), icon: 'i-lucide-sparkles', to: to('skill'), exactQuery: 'partial' as const },
-          { label: t('project.sectionMcp'), icon: 'i-lucide-plug-zap', to: to('mcp'), exactQuery: 'partial' as const },
+          // skills and MCP install through the office's own settings (ADR-224)
+          ...(isOfficeAdmin.value
+            ? [
+                { label: t('project.sectionSkill'), icon: 'i-lucide-sparkles', to: to('skill'), exactQuery: 'partial' as const },
+                { label: t('project.sectionMcp'), icon: 'i-lucide-plug-zap', to: to('mcp'), exactQuery: 'partial' as const }
+              ]
+            : []),
           { label: t('project.sectionBurn'), icon: 'i-lucide-list-checks', to: to('burn'), exactQuery: 'partial' as const }, // the work board; Burn runs it (ADR-210)
           { label: t('nav.log'), icon: 'i-lucide-scroll-text', to: to('log'), exactQuery: 'partial' as const }
         ]
@@ -139,7 +157,8 @@ const items = computed<NavigationMenuItem[][]>(() => {
   const office: NavigationMenuItem[] = [
     { label: t('nav.work'), type: 'label' },
     // one place to follow the office: what needs a person is counted here
-    { label: t('assistant.title'), icon: 'i-lucide-sparkles', to: '/assistant' },
+    // the assistant reads the whole office: an admin's (ADR-224)
+    ...(isOfficeAdmin.value ? [{ label: t('assistant.title'), icon: 'i-lucide-sparkles', to: '/assistant' }] : []),
     { value: 'watch', label: t('watch.title'), icon: 'i-lucide-layout-grid', to: '/watch', children: watchBoards.value },
     { label: t('nav.overview'), icon: 'i-lucide-layout-dashboard', to: '/', badge: attention.value || undefined },
     { label: t('nav.jobs'), icon: 'i-lucide-list-checks', to: '/jobs' },
@@ -152,7 +171,7 @@ const items = computed<NavigationMenuItem[][]>(() => {
   const library: NavigationMenuItem[] = [
     { label: t('nav.library'), type: 'label' },
     { label: t('nav.agents'), icon: 'i-lucide-bot', to: '/agents' },
-    ...(isAdmin.value
+    ...(isOfficeAdmin.value
       ? [
           { label: t('tools.skillsTab'), icon: 'i-lucide-sparkles', to: '/skills' },
           { label: t('tools.mcpTab'), icon: 'i-lucide-plug-zap', to: '/mcp' },
@@ -162,7 +181,7 @@ const items = computed<NavigationMenuItem[][]>(() => {
         ]
       : [])
   ]
-  const admin: NavigationMenuItem[] = isAdmin.value
+  const admin: NavigationMenuItem[] = isOfficeAdmin.value
     ? [
         { label: t('nav.admin'), type: 'label' },
         { label: t('nav.users'), icon: 'i-lucide-users', to: '/admin/users' },
@@ -220,7 +239,7 @@ const userMenu = computed<DropdownMenuItem[][]>(() => [
         <div class="flex w-full min-w-0 flex-col gap-1">
           <div v-if="buildLabel && !collapsed" class="flex min-w-0 items-center gap-1 px-2.5 text-xs text-(--ui-text-dimmed)">
             <!-- the update page is admin-only: members just read the line -->
-            <NuxtLink v-if="isAdmin" to="/admin/update" class="flex min-w-0 items-center gap-1 hover:text-(--ui-text-muted)">
+            <NuxtLink v-if="isOfficeAdmin" to="/admin/update" class="flex min-w-0 items-center gap-1 hover:text-(--ui-text-muted)">
               <span v-if="hasUpdate" class="size-1.5 shrink-0 rounded-full bg-primary" :title="t('build.hasUpdate')" />
               <span class="truncate">{{ buildText }}</span>
             </NuxtLink>

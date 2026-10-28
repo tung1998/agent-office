@@ -10,6 +10,21 @@ const _f1 = useLiveFetch<{ project: Project }>(() => `/api/projects/${id.value}`
 const { data, refresh, error: loadError } = _f1
 // not awaited: the page shows at once with a skeleton (a phone over a VPN)
 const project = computed(() => data.value?.project)
+// hidden from this account's menu, still on the Projects page
+const menu = useProjectMenu()
+const hidingMenu = ref(false)
+async function toggleMenu() {
+  hidingMenu.value = true
+  const hide = !menu.isHidden(id.value)
+  try {
+    await menu.setHidden(id.value, hide)
+    toast.add({ title: hide ? t('project.hiddenFromMenu') : t('project.shownInMenu'), color: 'success' })
+  } catch (e) {
+    toast.add({ title: apiError(e), color: 'error' })
+  } finally {
+    hidingMenu.value = false
+  }
+}
 
 // the tab lives in the URL so the sidebar can link to each section
 // (older links: tab=config&section=…, tab=tools, tab=channels: bots live in Automations now,
@@ -110,10 +125,17 @@ async function removeRepo() {
                 <p class="whitespace-pre-line text-(--ui-text-toned)">{{ project.description || '—' }}</p>
               </div>
               <!-- the project's own actions (the page header holds none) -->
-              <div v-if="isAdmin" class="flex flex-wrap gap-2">
-                <UButton size="xs" color="neutral" variant="outline" icon="i-lucide-pencil" :label="t('project.rename')" @click="openEdit" />
-                <UButton size="xs" color="neutral" variant="outline" icon="i-lucide-sparkles" :label="t('project.setupAi')" :to="`/projects/${id}/setup`" />
-                <UButton size="xs" color="error" variant="ghost" icon="i-lucide-folder-minus" :label="t('project.unmanage')" :loading="removing" class="ms-auto" @click="removeRepo" />
+              <div class="flex flex-wrap gap-2">
+                <template v-if="isAdmin">
+                  <UButton size="xs" color="neutral" variant="outline" icon="i-lucide-pencil" :label="t('project.rename')" @click="openEdit" />
+                  <UButton size="xs" color="neutral" variant="outline" icon="i-lucide-sparkles" :label="t('project.setupAi')" :to="`/projects/${id}/setup`" />
+                </template>
+                <UButton
+                  size="xs" color="neutral" variant="outline" :loading="hidingMenu"
+                  :icon="menu.isHidden(id) ? 'i-lucide-eye' : 'i-lucide-eye-off'" :label="menu.isHidden(id) ? t('project.showInMenu') : t('project.hideFromMenu')"
+                  @click="toggleMenu"
+                />
+                <UButton v-if="isAdmin" size="xs" color="error" variant="ghost" icon="i-lucide-folder-minus" :label="t('project.unmanage')" :loading="removing" class="ms-auto" @click="removeRepo" />
               </div>
             </UCard>
               <ProjectLinks :project-id="project.id" />

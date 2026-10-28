@@ -340,18 +340,28 @@ func (s *server) requireAuth(next http.Handler) http.Handler {
 		ctx := context.WithValue(r.Context(), ctxUser, u)
 		ctx = team.WithActor(ctx, "human:"+u.Email)
 		ctx = context.WithValue(ctx, ctxSession, sess)
-		next.ServeHTTP(w, r.WithContext(ctx))
+		r = r.WithContext(ctx)
+		if _, admin := next.(adminOnly); !admin && !s.gate(w, r, false) {
+			return // a project it does not see (ADR-224)
+		}
+		next.ServeHTTP(w, r)
 	})
 }
 
+// adminOnly is a handler behind requireRole(RoleAdmin): the gate there lets
+// a manager in for its own projects.
+type adminOnly struct{ http.Handler }
+
 func (s *server) requireRole(role storage.Role, next http.Handler) http.Handler {
-	return s.requireAuth(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if userFrom(r).Role != role {
-			writeError(w, http.StatusForbidden, "forbidden")
+	if role != storage.RoleAdmin {
+		panic("requireRole: only RoleAdmin")
+	}
+	return s.requireAuth(adminOnly{http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !s.gate(w, r, true) {
 			return
 		}
 		next.ServeHTTP(w, r)
-	}))
+	})})
 }
 
 // ---- helpers ----

@@ -191,6 +191,14 @@ func do(t *testing.T, c *http.Client, method, url string, body any, hdr map[stri
 
 func login(t *testing.T, e *env, c *http.Client, email, pw string) {
 	t.Helper()
+	// the tests' member sees the projects made so far (ADR-224)
+	if u, err := e.st.Users().GetByEmail(context.Background(), email); err == nil && u.Role != storage.RoleAdmin {
+		if list, err := e.st.Repos().List(context.Background()); err == nil {
+			for _, p := range list {
+				_ = e.st.Users().AddProject(context.Background(), u.ID, p.ID)
+			}
+		}
+	}
 	resp, body := do(t, c, "POST", e.srv.URL+"/api/auth/login", map[string]string{"email": email, "password": pw}, nil)
 	if resp.StatusCode != 200 {
 		t.Fatalf("login %s = %d %v", email, resp.StatusCode, body)

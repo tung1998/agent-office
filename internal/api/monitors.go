@@ -86,6 +86,11 @@ func (s *server) toMonitorDTO(r *http.Request, m storage.Monitor, withStats bool
 }
 
 func (s *server) listMonitors(w http.ResponseWriter, r *http.Request) {
+	sc, err := s.scope(r)
+	if err != nil {
+		s.internal(w, r, err)
+		return
+	}
 	list, err := s.cfg.Store.Monitors().List(r.Context(), r.URL.Query().Get("project"))
 	if err != nil {
 		s.internal(w, r, err)
@@ -94,6 +99,9 @@ func (s *server) listMonitors(w http.ResponseWriter, r *http.Request) {
 	out := make([]monitorDTO, 0, len(list))
 	sum := map[string]int{"up": 0, "down": 0, "pending": 0, "paused": 0}
 	for _, m := range list {
+		if !sc.has(m.ProjectID) {
+			continue
+		}
 		d := s.toMonitorDTO(r, m, true)
 		sum[d.Status]++
 		out = append(out, d)
@@ -289,8 +297,16 @@ func (s *server) monitorEvents(w http.ResponseWriter, r *http.Request) {
 			names[m.ID] = m.Name
 		}
 	}
+	sc, err := s.scope(r)
+	if err != nil {
+		s.internal(w, r, err)
+		return
+	}
 	out := make([]monitorEventDTO, 0, len(evs))
 	for _, e := range evs {
+		if !sc.has(e.ProjectID) {
+			continue
+		}
 		out = append(out, monitorEventDTO{ID: e.ID, MonitorID: e.MonitorID, MonitorName: names[e.MonitorID], ProjectID: e.ProjectID, Kind: e.Kind,
 			Message: e.Message, Analysis: e.Analysis, AnalysisStatus: e.AnalysisStatus, CostUSD: e.CostUSD, At: e.At})
 	}

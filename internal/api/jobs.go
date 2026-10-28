@@ -93,12 +93,16 @@ func (s *server) toJobDTO(r *http.Request, j storage.Job, n *names) jobDTO {
 	return d
 }
 
-func jobFilter(r *http.Request) storage.JobFilter {
+func (s *server) jobFilter(r *http.Request) storage.JobFilter {
 	q := r.URL.Query()
 	f := storage.JobFilter{ProjectID: q.Get("project"), Kind: q.Get("kind"), Origin: q.Get("origin"), OriginID: q.Get("origin_id"),
 		Status: q.Get("status"), AgentID: q.Get("agent"), Before: q.Get("before"), Source: q.Get("source"), Query: q.Get("q"), ConversationID: q.Get("conversation")}
 	if ids := q.Get("origin_ids"); ids != "" { // comma separated
 		f.OriginIDs = strings.Split(ids, ",")
+	}
+	f.ProjectIDs = []string{} // none until the projects of the person are known
+	if sc, err := s.scope(r); err == nil {
+		f.ProjectIDs = sc.list() // ADR-224
 	}
 	f.Limit, _ = strconv.Atoi(q.Get("limit"))
 	if d, err := time.ParseDuration(q.Get("since")); err == nil && d > 0 {
@@ -110,7 +114,7 @@ func jobFilter(r *http.Request) storage.JobFilter {
 }
 
 func (s *server) listJobs(w http.ResponseWriter, r *http.Request) {
-	f := jobFilter(r)
+	f := s.jobFilter(r)
 	jobs, err := s.cfg.Store.Jobs().List(r.Context(), f)
 	if err != nil {
 		s.internal(w, r, err)
@@ -155,7 +159,7 @@ func (s *server) getJob(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *server) jobStats(w http.ResponseWriter, r *http.Request) {
-	f := jobFilter(r)
+	f := s.jobFilter(r)
 	if f.Since.IsZero() {
 		f.Since = time.Now().UTC().AddDate(0, 0, -7)
 	}
@@ -171,7 +175,7 @@ func (s *server) jobStats(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// the numbers of the moment: running and waiting now, failed and spent in 24h
-	now := storage.JobFilter{ProjectID: f.ProjectID, Kind: f.Kind, Origin: f.Origin, OriginID: f.OriginID, AgentID: f.AgentID, HideOthersIn: f.HideOthersIn, Me: f.Me}
+	now := storage.JobFilter{ProjectID: f.ProjectID, ProjectIDs: f.ProjectIDs, Kind: f.Kind, Origin: f.Origin, OriginID: f.OriginID, AgentID: f.AgentID, HideOthersIn: f.HideOthersIn, Me: f.Me}
 	count := func(status string, since time.Time) int {
 		x := now
 		x.Status, x.Since, x.Limit = status, since, 200
@@ -321,7 +325,7 @@ type jobGroupDTO struct {
 
 func (s *server) jobGroups(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	f := jobFilter(r)
+	f := s.jobFilter(r)
 	gs, err := s.cfg.Store.Jobs().Groups(ctx, f)
 	if err != nil {
 		s.internal(w, r, err)

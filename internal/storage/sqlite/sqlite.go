@@ -148,6 +148,10 @@ func isUnique(err error) bool {
 	return err != nil && strings.Contains(err.Error(), "UNIQUE constraint failed")
 }
 
+func isForeignKey(err error) bool {
+	return err != nil && strings.Contains(err.Error(), "FOREIGN KEY constraint failed")
+}
+
 // ---- users ----
 
 type userRepo struct{ db dbtx }
@@ -273,6 +277,47 @@ func (r userRepo) ByChatID(ctx context.Context, kind, chatUserID string) (storag
 
 func (r userRepo) TouchLogin(ctx context.Context, id string, at time.Time) error {
 	return execOne(ctx, r.db, `UPDATE users SET last_login_at = ? WHERE id = ?`, fmtTime(at), id)
+}
+
+func (r userRepo) SetRole(ctx context.Context, id string, role storage.Role) error {
+	return execOne(ctx, r.db, `UPDATE users SET role = ?, updated_at = ? WHERE id = ?`, string(role), fmtTime(time.Now()), id)
+}
+
+func (r userRepo) Projects(ctx context.Context, id string) ([]string, error) {
+	rows, err := r.db.QueryContext(ctx, `SELECT project_id FROM project_members WHERE user_id = ? ORDER BY created_at`, id)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []string{}
+	for rows.Next() {
+		var p string
+		if err := rows.Scan(&p); err != nil {
+			return nil, err
+		}
+		out = append(out, p)
+	}
+	return out, rows.Err()
+}
+
+func (r userRepo) SetProjects(ctx context.Context, id string, projectIDs []string) error {
+	if _, err := r.db.ExecContext(ctx, `DELETE FROM project_members WHERE user_id = ?`, id); err != nil {
+		return err
+	}
+	for _, p := range projectIDs {
+		if err := r.AddProject(ctx, id, p); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (r userRepo) AddProject(ctx context.Context, id, projectID string) error {
+	_, err := r.db.ExecContext(ctx, `INSERT INTO project_members (project_id, user_id, created_at) VALUES (?, ?, ?) ON CONFLICT DO NOTHING`, projectID, id, fmtTime(time.Now()))
+	if isForeignKey(err) {
+		return storage.ErrNotFound
+	}
+	return err
 }
 
 // ---- sessions ----

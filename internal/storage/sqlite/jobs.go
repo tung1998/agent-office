@@ -290,6 +290,16 @@ func (r jobRepo) where(f storage.JobFilter) (string, []any) {
 		}
 	}
 	add("project_id", f.ProjectID)
+	if f.ProjectIDs != nil {
+		if len(f.ProjectIDs) == 0 {
+			conds = append(conds, "0")
+		} else {
+			conds = append(conds, "project_id IN (?"+strings.Repeat(",?", len(f.ProjectIDs)-1)+")")
+			for _, id := range f.ProjectIDs {
+				args = append(args, id)
+			}
+		}
+	}
 	if f.ExcludeProjectID != "" {
 		conds = append(conds, "project_id<>?")
 		args = append(args, f.ExcludeProjectID)

@@ -282,9 +282,10 @@ func (s *server) chatMembers(r *http.Request, conversationID string) []map[strin
 	return out
 }
 
-// deleteConversation: a member deletes only the chats they started; admins any.
+// deleteConversation: a member deletes only the chats they started; admins
+// and managers any (of the projects they see).
 func (s *server) deleteConversation(w http.ResponseWriter, r *http.Request) {
-	if u := userFrom(r); u.Role != storage.RoleAdmin {
+	if u := userFrom(r); !manages(u) {
 		c, err := s.cfg.Store.Chat().GetConversation(r.Context(), r.PathValue("id"))
 		if err != nil {
 			s.writeDomainError(w, r, err)
@@ -634,7 +635,11 @@ func (s *server) mayOpen(r *http.Request, conversationID string) bool {
 	if err != nil {
 		return true // the handler reports it
 	}
-	return c.ProjectID != assistant.ID(r.Context(), s.cfg.Store) || c.CreatedBy == "human:"+userFrom(r).Email
+	helper := assistant.ID(r.Context(), s.cfg.Store)
+	if u := userFrom(r); u.Role != storage.RoleAdmin && (c.ProjectID == helper || !s.sees(r, c.ProjectID)) {
+		return false // ADR-224
+	}
+	return c.ProjectID != helper || c.CreatedBy == "human:"+userFrom(r).Email
 }
 
 func (s *server) ownChat(h http.HandlerFunc) http.HandlerFunc {
@@ -670,11 +675,16 @@ func (s *server) recentConversations(w http.ResponseWriter, r *http.Request) {
 		s.internal(w, r, err)
 		return
 	}
+	sc, err := s.scope(r)
+	if err != nil {
+		s.internal(w, r, err)
+		return
+	}
 	hidden := assistant.ID(ctx, s.cfg.Store)
 	names := map[string]string{}
 	var all []storage.Conversation
 	for _, p := range projects {
-		if p.ID == hidden {
+		if p.ID == hidden || !sc.has(p.ID) {
 			continue
 		}
 		names[p.ID] = p.Name

@@ -41,10 +41,21 @@ func (s *server) startLiveData() {
 }
 
 // canSee: whose page may show the chat (an office assistant chat is its
-// maker's own, as GET /api/conversations/{id} has it).
+// maker's own, as GET /api/conversations/{id} has it; a project's chats are
+// for those who see the project, ADR-224).
 func (s *server) canSee(c storage.Conversation) func(events.Viewer, map[string]bool) bool {
-	private := c.ProjectID == assistant.ID(context.Background(), s.cfg.Store)
-	return func(v events.Viewer, _ map[string]bool) bool { return !private || c.CreatedBy == "human:"+v.Email }
+	ctx := context.Background()
+	private := c.ProjectID == assistant.ID(ctx, s.cfg.Store)
+	return func(v events.Viewer, _ map[string]bool) bool {
+		if v.Admin {
+			return !private || c.CreatedBy == "human:"+v.Email
+		}
+		if private {
+			return false
+		}
+		sc, err := s.scopeOf(ctx, storage.User{ID: v.UserID, Role: storage.RoleMember})
+		return err == nil && sc.has(c.ProjectID)
+	}
 }
 
 func (s *server) chatChanged(c storage.Change) {
@@ -94,6 +105,8 @@ func (s *server) pushIncidentsTo(ctx context.Context, v events.Viewer, force boo
 	u := storage.User{ID: v.UserID, Email: v.Email, Role: storage.RoleMember}
 	if v.Admin {
 		u.Role = storage.RoleAdmin
+	} else if x, err := s.cfg.Store.Users().GetByID(ctx, v.UserID); err == nil {
+		u.Role = x.Role // a manager sees its projects' cards
 	}
 	list, err := s.incidentsFor(ctx, u)
 	if err != nil {

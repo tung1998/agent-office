@@ -1,12 +1,39 @@
 <script setup lang="ts">
-const { isAdmin } = useAuth()
+const { isOfficeAdmin, canCreateProject, manages, fetchMe } = useAuth()
 const { t } = useLang()
 const _f1 = useLiveFetch<{ projects: Project[] }>('/api/projects')
 const { data, refresh } = _f1
 const _f3 = useLiveFetch<{ mode: string, home_dir: string, project_root?: string, clone_root?: string }>('/api/system')
 const { data: sys } = _f3
 await Promise.all([_f1, _f3]) // started together: one round trip, not 2 (a phone over a VPN)
-const projects = computed(() => data.value?.projects ?? [])
+// the account's order (dragged here); its first 5 not hidden show in the menu
+const { isHidden, hasOrder, setOrder, arrange } = useProjectMenu()
+const ordered = computed(() => arrange(data.value?.projects ?? []))
+const projects = ref<Project[]>([])
+watch(ordered, v => { projects.value = [...v] }, { immediate: true })
+// until an order is set the menu shows the most opened ones: no mark then
+const inMenu = computed(() => new Set(!hasOrder.value ? [] : projects.value.filter(p => !isHidden(p.id)).slice(0, 5).map(p => p.id)))
+const dragging = ref('')
+function dragOver(target: Project) {
+  const from = projects.value.findIndex(p => p.id === dragging.value)
+  const to = projects.value.indexOf(target)
+  if (from < 0 || to < 0 || from === to) return
+  const list = [...projects.value]
+  list.splice(to, 0, ...list.splice(from, 1))
+  projects.value = list
+}
+async function dragEnd() {
+  if (!dragging.value) return
+  dragging.value = ''
+  const ids = projects.value.map(p => p.id)
+  if (ids.join() === ordered.value.map(p => p.id).join()) return
+  try {
+    await setOrder(ids)
+  } catch (e) {
+    projects.value = [...ordered.value]
+    toast.add({ title: apiError(e), color: 'error' })
+  }
+}
 
 const addOpen = ref(false)
 type Scope = 'folder' | 'clone' | 'idea' | 'template' | 'machine'
@@ -70,12 +97,12 @@ async function scanMachine() {
     scanning.value = false
   }
 }
-onMounted(() => { if (isAdmin.value) scanMachine() })
+onMounted(() => { if (isOfficeAdmin.value) scanMachine() })
 // the Library's project templates open the form with theirs picked (ADR-199)
 const route = useRoute()
 onMounted(() => {
   const ref = typeof route.query.template === 'string' ? route.query.template : ''
-  if (ref && isAdmin.value) {
+  if (ref && canCreateProject.value) {
     openAdd('', '', ref)
     navigateTo({ query: {} }, { replace: true })
   }
@@ -102,6 +129,7 @@ async function add() {
             body: { path: form.scope === 'folder' ? form.path : '', name: form.name }
           })
     addOpen.value = false
+    await fetchMe() // a project admin now has this one too (ADR-224)
     // a template comes set up (its pack); any other has the starter agent: the setup picks what else it needs (ADR-166)
     await navigateTo(form.scope === 'template' ? `/projects/${res.project.id}` : `/projects/${res.project.id}/setup`)
   } catch (e) {
@@ -116,7 +144,7 @@ async function add() {
 <template>
   <PageShell :title="t('projects.title')">
     <template #actions>
-      <UButton v-if="isAdmin" icon="i-lucide-folder-plus" :label="t('projects.add')" @click="openAdd()" />
+      <UButton v-if="canCreateProject" icon="i-lucide-folder-plus" :label="t('projects.add')" @click="openAdd()" />
     </template>
 
     <div class="space-y-4">
@@ -134,20 +162,27 @@ async function add() {
         <p class="text-sm text-(--ui-text-muted)">
           {{ t('projects.emptyDesc', { cmd: 'office init' }) }}
         </p>
-        <UButton v-if="isAdmin" class="mt-4" icon="i-lucide-folder-plus" :label="t('projects.add')" @click="openAdd()" />
+        <UButton v-if="canCreateProject" class="mt-4" icon="i-lucide-folder-plus" :label="t('projects.add')" @click="openAdd()" />
       </div>
 
+      <p v-if="projects.length > 1" class="text-xs text-(--ui-text-muted)">{{ t('projects.dragHint') }}</p>
       <div class="grid gap-3">
         <NuxtLink
-          v-for="p in projects" :key="p.id" :to="`/projects/${p.id}`"
+          v-for="p in projects" :key="p.id" :to="`/projects/${p.id}`" draggable="true"
           class="flex flex-wrap items-center gap-4 rounded-lg border border-(--ui-border) p-4 transition hover:border-(--ui-primary)"
+          :class="dragging === p.id ? 'opacity-50' : ''"
+          @dragstart="(e: DragEvent) => { dragging = p.id; e.dataTransfer?.setData('text/plain', p.id) }"
+          @dragover.prevent="dragOver(p)" @drop.prevent @dragend="dragEnd"
         >
+          <UIcon name="i-lucide-grip-vertical" class="size-4 shrink-0 cursor-grab text-(--ui-text-dimmed)" />
           <UIcon :name="p.scope === 'machine' ? 'i-lucide-monitor' : 'i-lucide-folder-git-2'" class="size-6 text-primary" />
           <div class="min-w-0 flex-1">
             <p class="font-semibold">{{ p.name }}</p>
             <p v-if="p.scope === 'folder'" class="truncate font-mono text-xs text-(--ui-text-muted)">{{ p.path }}</p>
             <p v-else class="text-xs text-(--ui-text-muted)">{{ t('projects.machineHelper') }}</p>
           </div>
+          <UBadge v-if="isHidden(p.id)" icon="i-lucide-eye-off" :label="t('projects.hiddenFromMenu')" color="neutral" variant="subtle" />
+          <UBadge v-else-if="inMenu.has(p.id)" icon="i-lucide-panel-left" :label="t('projects.inMenu')" color="primary" variant="subtle" />
           <UBadge v-if="!p.exists" :label="t('projects.notFound')" color="error" variant="subtle" />
           <div v-if="p.agent_count" class="flex items-center gap-2 text-sm">
             <UIcon name="i-lucide-bot" class="size-4" />
@@ -155,7 +190,7 @@ async function add() {
           </div>
           <UBadge v-else :label="t('team.noAgents')" color="warning" variant="subtle" />
           <UButton
-            v-if="isAdmin" size="xs" color="neutral" variant="ghost" icon="i-lucide-trash-2" class="hover:text-(--ui-error)"
+            v-if="manages(p.id)" size="xs" color="neutral" variant="ghost" icon="i-lucide-trash-2" class="hover:text-(--ui-error)"
             :aria-label="t('project.unmanage')" :title="t('project.unmanage')" :loading="removing.has(p.id)" :disabled="removing.has(p.id)"
             @click.prevent.stop="remove(p)"
           />
@@ -163,7 +198,7 @@ async function add() {
         </NuxtLink>
       </div>
 
-      <section v-if="isAdmin && (found.length || scanning)" class="space-y-2">
+      <section v-if="isOfficeAdmin && (found.length || scanning)" class="space-y-2">
         <div class="flex items-center gap-2">
           <h3 class="text-sm font-semibold">{{ t('projects.foundOnMachine') }}</h3>
           <UButton size="xs" color="neutral" variant="ghost" icon="i-lucide-refresh-cw" :loading="scanning" :aria-label="t('projects.rescan')" class="ms-auto" @click="scanMachine" />

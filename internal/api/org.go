@@ -963,10 +963,15 @@ func (s *server) listRepos(w http.ResponseWriter, r *http.Request) {
 		s.internal(w, r, err)
 		return
 	}
+	sc, err := s.scope(r)
+	if err != nil {
+		s.internal(w, r, err)
+		return
+	}
 	out := make([]repoDTO, 0, len(list))
 	hidden := assistant.ID(r.Context(), s.cfg.Store) // the office assistant's own (ADR-046)
 	for _, x := range list {
-		if x.ID == hidden {
+		if x.ID == hidden || !sc.has(x.ID) {
 			continue
 		}
 		d, err := s.repoDTO(r, x, false)
@@ -1047,6 +1052,7 @@ func (s *server) registerRepo(w http.ResponseWriter, r *http.Request, info repos
 	for k, v := range extra {
 		detail[k] = v
 	}
+	s.ownProject(r, x.ID)
 	s.auditAction(r, "project.create", x.ID, detail)
 	for _, f := range then {
 		f(x)

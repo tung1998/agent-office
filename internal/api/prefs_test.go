@@ -24,6 +24,10 @@ func TestPrefsPerAccount(t *testing.T) {
 	if _, got := do(t, member, "GET", url, nil, nil); got["value"] != nil {
 		t.Fatalf("member sees admin's: %v", got)
 	}
+	// the sidebar's projects: order and hidden ones
+	if resp, _ := do(t, admin, "PUT", e.srv.URL+"/api/me/prefs/projects", map[string]any{"value": map[string]any{"order": []string{"a", "b"}, "hidden": []string{"b"}}}, nil); resp.StatusCode != 204 {
+		t.Fatalf("put projects = %d", resp.StatusCode)
+	}
 	if resp, _ := do(t, admin, "PUT", e.srv.URL+"/api/me/prefs/other", map[string]any{"value": 1}, nil); resp.StatusCode != 404 {
 		t.Fatalf("unknown key = %d", resp.StatusCode)
 	}

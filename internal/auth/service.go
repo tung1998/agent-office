@@ -402,6 +402,34 @@ func (s *Service) SetDisabled(ctx context.Context, userID string, disabled bool,
 	return nil
 }
 
+// SetRole changes an account's role; its sessions end, so pages opened with
+// the old role reload.
+func (s *Service) SetRole(ctx context.Context, userID string, role storage.Role, actor string) error {
+	if !role.Valid() {
+		return ErrInvalidRole
+	}
+	if err := s.store.Users().SetRole(ctx, userID, role); err != nil {
+		return err
+	}
+	if err := s.store.Sessions().DeleteForUser(ctx, userID); err != nil {
+		return err
+	}
+	s.audit(ctx, actor, "user.set_role", userID, map[string]any{"role": role})
+	return nil
+}
+
+// SetProjects sets the projects an account other than an admin sees (ADR-224).
+func (s *Service) SetProjects(ctx context.Context, userID string, projectIDs []string, actor string) error {
+	err := s.store.InTx(ctx, func(tx storage.Store) error {
+		return tx.Users().SetProjects(ctx, userID, projectIDs)
+	})
+	if err != nil {
+		return err
+	}
+	s.audit(ctx, actor, "user.set_projects", userID, map[string]any{"projects": projectIDs})
+	return nil
+}
+
 // ErrChatIDTaken: another account is linked to that Discord/Telegram id.
 var ErrChatIDTaken = errors.New("ID này đã gắn với tài khoản khác")
 
