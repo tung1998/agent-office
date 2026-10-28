@@ -51,7 +51,9 @@ async function start(force = false) {
     watchUpdate()
   } catch (e) {
     const d = (e as { data?: { code?: string, error?: string } }).data
-    if (d?.code === 'busy' && confirm(t('admin.updateBusyConfirm', { msg: d.error ?? '' }))) {
+    if (d?.code === 'busy') {
+      // the confirm already says it: no toast when the person declines
+      if (!confirm(t('admin.updateBusyConfirm', { msg: d.error ?? '' }))) return
       starting.value = false
       return start(true)
     }
