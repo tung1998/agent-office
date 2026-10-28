@@ -8,6 +8,8 @@ Giáo viên điền ở buổi đầu và cập nhật khi thay đổi.
 - Mục tiêu:
 - Kỳ thi và ngày thi (nếu có):
 - Thời gian mỗi ngày:
+- Số ngày học mỗi tuần:
 - Kỹ năng muốn ưu tiên (nghe, nói, đọc, viết):
 - Chủ đề quan tâm:
 - Cách học thích (giải thích ngắn/dài, nhiều ví dụ, dịch sát…):
+- Lộ trình hiện tại (file trong `lo-trinh/`):

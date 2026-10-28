@@ -76,7 +76,7 @@ func TestLibrary(t *testing.T) {
 	if _, err := packs.Write(ctx, "@agentoffice/ngoai-ngu", learn, true); err != nil {
 		t.Fatal(err)
 	}
-	for _, f := range []string{"office.pack.json", ".claude/skills/ghi-bai/SKILL.md", ".claude/skills/on-tap/SKILL.md", ".claude/skills/ra-de/SKILL.md", "docs/ho-so.md", "bai-hoc/README.md"} {
+	for _, f := range []string{"office.pack.json", ".claude/skills/ghi-bai/SKILL.md", ".claude/skills/on-tap/SKILL.md", ".claude/skills/ra-de/SKILL.md", ".claude/skills/lo-trinh/SKILL.md", "docs/ho-so.md", "bai-hoc/README.md", "lo-trinh/README.md"} {
 		if _, err := os.Stat(filepath.Join(learn, f)); err != nil {
 			t.Fatalf("ngoai-ngu: %s missing", f)
 		}

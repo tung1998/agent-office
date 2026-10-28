@@ -101,10 +101,10 @@ func TestLibraryPacksImport(t *testing.T) {
 			if company && !alone && (err != nil || bs.ReviewProfileID == "" || bs.Active()) {
 				t.Fatalf("%s: burn %+v %v", e.Ref, bs, err)
 			}
-			// a learner: notebook tables, its four workflows, two schedules off
+			// a learner: notebook tables, its five workflows, three schedules off
 			if b.Name == "@agentoffice/ngoai-ngu" {
 				cols, _ := o.st.Collections().List(ctx, repo.ID)
-				if len(agents) != 3 || len(wfs) != 4 || len(autos) != 2 || len(cols) < 3 {
+				if len(agents) != 3 || len(wfs) != 5 || len(autos) != 3 || len(cols) < 4 {
 					t.Fatalf("ngoai-ngu: %d agents, %d workflows, %d schedules, %d tables", len(agents), len(wfs), len(autos), len(cols))
 				}
 			}
