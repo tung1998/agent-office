@@ -1,7 +1,7 @@
 ---
 key: better-harness
 name: Khám vòng làm việc của agent
-description: Như Better Harness (QoderAI) nhưng từ dữ liệu của office, chia hai góc như Harness² (Google Research). Một script thu bằng chứng (diff gộp/bác, lệnh lỗi/bị từ chối, có chạy test trước khi gộp không, chỗ người dùng sửa agent, Burn, trí nhớ, file chỉ dẫn/skill/CI). Một agent soát cách agent làm việc, một agent soát kiến thức về project mà agent thiếu. Agent tổng hợp chấm 5 mặt, rút bài học có bằng chứng và đề xuất tối đa 3 thay đổi để người duyệt, hoặc giữ nguyên.
+description: Như Better Harness (QoderAI) nhưng từ dữ liệu của office, chia hai góc như Harness² (Google Research). Một script thu bằng chứng (diff gộp/bác, lệnh lỗi/bị từ chối, có chạy test trước khi gộp không, chỗ người dùng sửa agent, việc người dùng nhờ đi nhờ lại, Burn, trí nhớ, file chỉ dẫn/skill/CI). Một agent soát cách agent làm việc, một agent soát kiến thức về project mà agent thiếu. Agent tổng hợp chấm 5 mặt, rút bài học có bằng chứng và đề xuất tối đa 3 thay đổi (kể cả tự động hóa hay skill cho việc lặp lại) để người duyệt, hoặc giữ nguyên.
 input: "Số ngày gần nhất cần xem (mặc định 30) và điều muốn chú ý, nếu có"
 inputs:
   - { key: days, description: "Số ngày gần nhất (1-90)", type: number }
@@ -49,10 +49,11 @@ steps:
 
       Focus asked by the person: {{input.focus}}
 
-      Your dimension: HOW THE AGENTS WORK. You own procedure, tool use and completion, not subject matter. Read the sessions: diffs merged, refused by the person or failing to merge (diffs), commands failed or refused (commands), failed turns (turns), whether a check ran before each merged diff (validation), where the person corrected an agent (corrections: some are only questions), repeated failures (learning.repeated_errors), Burn's failed or refused work (burn). Read the harness that steers procedure: how to build/test/lint and whether it is written down, CI, hooks, the project's commands in office (assets.processes).
+      Your dimension: HOW THE AGENTS WORK. You own procedure, tool use and completion, not subject matter. Read the sessions: diffs merged, refused by the person or failing to merge (diffs), commands failed or refused (commands), failed turns (turns), whether a check ran before each merged diff (validation), where the person corrected an agent (corrections: some are only questions), repeated failures (learning.repeated_errors), requests the person made again and again across chats (repeats: count, chats, newest wording), Burn's failed or refused work (burn). Read the harness that steers procedure: how to build/test/lint and whether it is written down, CI, hooks, the project's commands in office (assets.processes), the automations already running (assets.automations).
       Trace each pattern to its earliest divergence and match it to the cheapest fix:
       - Tool or command error: tell bad input from timeout, missing capability, permission or unread output; one bounded fallback, never blind retries.
       - Mechanical repetition: a project command or script with clear input, output and failure.
+      - A request the person repeats (repeats): on a clock or an event (a report, a check, a sync), an automation, script first (no AI tokens), an agent only when every run needs judgement; on demand with the same steps each time, a skill. Open one chat id to see what was really done before naming it; skip it when an automation in assets.automations already covers it or the runs differ in substance.
       - A narrow multi-step procedure with a clear trigger: a skill, named in the always-on instructions.
       - A rule the agents keep skipping despite clear text: only repeated evidence justifies a hook or a check.
       - Ordinary sequencing or "done" not defined: one short line in the instructions.
@@ -107,6 +108,7 @@ steps:
 
       Then propose at most 3 changes, only those with evidence from this window (numbers, chat ids, file:line); fewer is fine and none is a real answer: a change the evidence does not argue for costs context and buys nothing. Prefer the cheapest component: a line cut or added in an instruction file, a skill, a project command; a hook or check only for a rule skipped again and again. Propose each the way it lands:
       - a repo file (CLAUDE.md, AGENTS.md, a skill under the project's skills folder, a script): a diff;
+      - a repeated request (repeats) that runs on a clock or an event: propose_automation, action=script when a script can do it (an agent only when the script fails or each run needs judgement), with only_if for a frequent schedule; never one that duplicates assets.automations;
       - an office agent's instructions or the project's commands: propose_change (describe/get first, patch only the fields that change).
       - an agent's skills at hand: name the agent, the skill to add or drop and why, for the person to change on the agent's page (Memory tab).
       Never touch secrets, never propose giving an agent more permission, never edit code that is not the harness.
@@ -118,6 +120,7 @@ steps:
          - Change validation: is there proof a change works before it is merged?
          - Reliable delivery: do reviews, approvals and git steps hold?
          - Learning capture: does the next task benefit from this one?
+         - Automation of repeated work (extra line): the top repeats, and whether an automation or skill now covers them.
       2. Lessons, up to 5, most important first, each as:
          - cue: the shape of situation it applies to (a pattern, not this window's facts)
          - lesson: what to do, naming the component (file, skill, command, setting)

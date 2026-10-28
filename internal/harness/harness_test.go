@@ -108,3 +108,55 @@ func TestCollectAgentSkills(t *testing.T) {
 		t.Fatalf("agent skills = %q", got)
 	}
 }
+
+// ADR-228: the same request in several chats is a repeat, wording, accents
+// and case aside; one chat's back-and-forth, short replies and office's own
+// messages are not. Enabled automations are listed so a covered one is not
+// proposed again.
+func TestCollectRepeats(t *testing.T) {
+	ctx := context.Background()
+	st, err := sqlite.Open(filepath.Join(t.TempDir(), "o.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { st.Close() })
+	if err := st.Migrate(ctx); err != nil {
+		t.Fatal(err)
+	}
+	p, _ := st.Repos().Create(ctx, storage.Repo{Name: "shop"})
+	say := func(content string) string {
+		c, err := st.Chat().CreateConversation(ctx, storage.Conversation{ProjectID: p.ID, Title: "x"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := st.Chat().AddMessage(ctx, storage.Message{ConversationID: c.ID, Role: "user", Author: "human:a@x.io", Content: content}); err != nil {
+			t.Fatal(err)
+		}
+		return c.ID
+	}
+	say("kiểm tra log lỗi production hôm nay rồi báo lại")
+	say("Kiem tra log loi production hom qua roi bao lai")
+	say("kiểm tra log lỗi production sáng nay và báo lại giúp")
+	say("ok tiếp tục")
+	say("@Thực thi làm đi")
+	say("@Thực thi làm đi")
+	say("@Thực thi làm đi")
+	say("[office] kiểm tra log lỗi production hôm nay rồi báo lại")
+	one := say("viết test cho hàm tính giá ship")
+	for range 3 {
+		st.Chat().AddMessage(ctx, storage.Message{ConversationID: one, Role: "user", Author: "human:a@x.io", Content: "viết test cho hàm tính giá ship"})
+	}
+	st.Automations().Create(ctx, storage.Automation{ProjectID: p.ID, Name: "Báo cáo sáng", Enabled: true, Source: "schedule", Action: "script"})
+	st.Automations().Create(ctx, storage.Automation{ProjectID: p.ID, Name: "Cũ", Source: "schedule", Action: "chat"})
+	ev, err := harness.Collect(ctx, st, p, 30)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r := ev.Repeats
+	if len(r) != 1 || r[0].Count != 3 || r[0].Chats != 3 || !strings.Contains(r[0].Sample, "production") {
+		t.Fatalf("repeats = %+v", r)
+	}
+	if a := ev.Assets.Automations; len(a) != 1 || a[0] != "Báo cáo sáng: schedule → script" {
+		t.Fatalf("automations = %q", a)
+	}
+}

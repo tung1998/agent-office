@@ -4,7 +4,8 @@
 // project's agent assets (instructions, skills, tests, CI, hooks) and, over
 // a window, how diffs ended, which commands failed or were refused, whether
 // a check ran before a diff was merged, where the person corrected an agent,
-// Burn's reviews and the agents' notes. No model is called: the bundle is
+// what the person asked again and again (ADR-228), Burn's reviews and the
+// agents' notes. No model is called: the bundle is
 // what the review's agents read.
 package harness
 
@@ -18,6 +19,11 @@ import (
 	"sort"
 	"strings"
 	"time"
+	"unicode"
+
+	"golang.org/x/text/runes"
+	"golang.org/x/text/transform"
+	"golang.org/x/text/unicode/norm"
 
 	"github.com/tung1998/agent-office/internal/scan"
 	"github.com/tung1998/agent-office/internal/storage"
@@ -38,6 +44,7 @@ type Evidence struct {
 	Turns       Turns       `json:"turns"`
 	Validation  Validation  `json:"validation"`
 	Corrections Corrections `json:"corrections"`
+	Repeats     []Repeat    `json:"repeats"` // requests the person made again and again
 	Burn        Burn        `json:"burn"`
 	Learning    Learning    `json:"learning"`
 }
@@ -55,6 +62,9 @@ type Assets struct {
 	// them as CLAUDE.md does (name (role): instruction size)
 	Agents      []string `json:"agents"`
 	Description string   `json:"description"` // the project's description in office
+	// Automations already run for the project (name: source → action), so a
+	// repeated request they cover is not proposed again
+	Automations []string `json:"automations"`
 }
 
 // Diffs are how the agents' code changes ended.
@@ -100,6 +110,17 @@ type Corrections struct {
 	Messages int    `json:"person_messages"`
 	Count    int    `json:"count"`
 	Samples  []Item `json:"samples"` // newest first
+}
+
+// Repeat is one request the person made in several chats: a candidate for
+// an automation (same thing on a schedule or an event) or a skill (same
+// procedure on demand).
+type Repeat struct {
+	Count  int      `json:"count"`
+	Chats  int      `json:"chats"`
+	Sample string   `json:"sample"` // the newest wording
+	Ids    []string `json:"chat_ids"`
+	Last   string   `json:"last"` // date
 }
 
 // Burn is how Burn's work ended and what it learned.
@@ -157,6 +178,13 @@ func Collect(ctx context.Context, store storage.Store, p storage.Repo, days int)
 			}
 		}
 	}
+	if autos, err := store.Automations().List(ctx, p.ID); err == nil {
+		for _, a := range autos {
+			if a.Enabled {
+				ev.Assets.Automations = append(ev.Assets.Automations, fmt.Sprintf("%s: %s → %s", cut(a.Name, 80), a.Source, a.Action))
+			}
+		}
+	}
 	if procs, err := store.Processes().List(ctx, p.ID); err == nil {
 		for _, pr := range procs {
 			ev.Assets.Processes = append(ev.Assets.Processes, pr.Name+": "+cut(pr.Command, 120))
@@ -171,6 +199,7 @@ func Collect(ctx context.Context, store storage.Store, p storage.Repo, days int)
 	ev.Turns = turns(f.Jobs)
 	ev.Validation = validation(f)
 	ev.Corrections = corrections(f.UserMessages)
+	ev.Repeats = repeats(f.UserMessages)
 	ev.Burn = burn(f)
 	ev.Learning = Learning{Memories: f.Memories, NewMemories: f.NewMemories, Topics: f.MemoryTopics, RepeatedErrors: repeated(f), AgentSkills: skills}
 	return ev, nil
@@ -392,6 +421,110 @@ func corrections(ms []storage.HarnessMessage) Corrections {
 		}
 	}
 	return c
+}
+
+// ---- repeated requests ----
+
+// Repeated requests are grouped by their words, accents and case aside: two
+// messages are the same request when they share most words (Jaccard).
+const (
+	repeatSimilar   = 0.5
+	repeatMinWords  = 4    // shorter ones ("ok", "tiếp tục") say nothing of the task
+	repeatMinCount  = 3    // seen this often…
+	repeatMinChats  = 2    // …in this many chats, so not one chat's back-and-forth
+	repeatMaxScan   = 3000 // newest messages compared, to keep it linear enough
+	repeatSampleLen = 200
+)
+
+var (
+	wordRe    = regexp.MustCompile(`[\pL\pN]{2,}`)
+	mentionRe = regexp.MustCompile(`@\S+`) // "@Thực thi làm đi" is a nudge, not a task
+)
+
+func words(s string) map[string]bool {
+	out := map[string]bool{}
+	for _, w := range wordRe.FindAllString(strings.ToLower(fold(mentionRe.ReplaceAllString(s, ""))), -1) {
+		out[w] = true
+	}
+	return out
+}
+
+func fold(s string) string {
+	t := transform.Chain(norm.NFD, runes.Remove(runes.In(unicode.Mn)), norm.NFC)
+	out, _, err := transform.String(t, strings.ReplaceAll(strings.ReplaceAll(s, "đ", "d"), "Đ", "D"))
+	if err != nil {
+		return s
+	}
+	return out
+}
+
+func jaccard(a, b map[string]bool) float64 {
+	n := 0
+	for w := range a {
+		if b[w] {
+			n++
+		}
+	}
+	return float64(n) / float64(len(a)+len(b)-n)
+}
+
+func repeats(ms []storage.HarnessMessage) []Repeat {
+	type group struct {
+		words map[string]bool
+		msgs  []storage.HarnessMessage // newest first
+	}
+	var groups []*group
+	scanned := 0
+	for i := len(ms) - 1; i >= 0 && scanned < repeatMaxScan; i-- {
+		m := ms[i]
+		if officeWritten(m.Content) {
+			continue
+		}
+		w := words(m.Content)
+		if len(w) < repeatMinWords {
+			continue
+		}
+		scanned++
+		var best *group
+		bestScore := repeatSimilar
+		for _, g := range groups {
+			if s := jaccard(w, g.words); s >= bestScore {
+				best, bestScore = g, s
+			}
+		}
+		if best == nil {
+			groups = append(groups, &group{words: w, msgs: []storage.HarnessMessage{m}})
+		} else {
+			best.msgs = append(best.msgs, m)
+		}
+	}
+	out := []Repeat{}
+	for _, g := range groups {
+		chats := map[string]bool{}
+		var ids []string
+		for _, m := range g.msgs {
+			if !chats[m.ConversationID] {
+				chats[m.ConversationID] = true
+				if len(ids) < 3 {
+					ids = append(ids, m.ConversationID)
+				}
+			}
+		}
+		if len(g.msgs) < repeatMinCount || len(chats) < repeatMinChats {
+			continue
+		}
+		out = append(out, Repeat{Count: len(g.msgs), Chats: len(chats), Sample: cut(oneLine(g.msgs[0].Content), repeatSampleLen), Ids: ids, Last: g.msgs[0].CreatedAt.Format("2006-01-02")})
+	}
+	sort.SliceStable(out, func(i, j int) bool {
+		if out[i].Chats != out[j].Chats {
+			return out[i].Chats > out[j].Chats
+		}
+		return out[i].Count > out[j].Count
+	})
+	if len(out) > maxGroups {
+		out = out[:maxGroups]
+	}
+	return out
 }
 
 // ---- Burn and learning ----
