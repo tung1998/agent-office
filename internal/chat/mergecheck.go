@@ -19,6 +19,12 @@ const maxCheckFixes = 2
 // check failed, or the turn was stopped while checking), why opening pt's
 // detail; a failure is kept on turn for its fix turn.
 func (e *Engine) mergeCheck(ctx context.Context, turn *Turn, policy perm.Policy, dir string, pt *storage.Patch) bool {
+	// a key or token in the diff never merges on its own (ADR-227)
+	if leak := verify.Secrets(dir, pt.Files); leak != "" {
+		pt.Detail = lines(verify.Held+":\n"+leak, pt.Detail)
+		turn.held = leak
+		return true
+	}
 	cmds := verify.ForDiff(policy.MergeChecks, dir, pt.Files)
 	if len(cmds) == 0 {
 		return false

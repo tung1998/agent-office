@@ -1389,6 +1389,8 @@ func (e *Engine) run(ctx context.Context, turn *Turn, conv storage.Conversation,
 			held := false
 			if pt.Status == "" && acc.Can(perm.CapApply) { // merged with no person: checked first (ADR-222)
 				held = e.mergeCheck(ctx, turn, policy, pl.dir, &pt)
+			} else if leak := verify.Secrets(pl.dir, pt.Files); leak != "" { // a person approves it: they see it first (ADR-227)
+				pt.Detail = lines(leak, pt.Detail)
 			}
 			saved, err := e.store.Chat().AddPatch(context.Background(), pt)
 			if err == nil && saved.Status == "pending" && acc.Can(perm.CapApply) && !held {

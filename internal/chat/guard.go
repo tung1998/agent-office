@@ -146,11 +146,12 @@ var ForegroundCommand string
 // of the session); a turn is one `claude -p`, nothing calls the agent back.
 const headlessDisallowed = "Monitor ScheduleWakeup CronCreate CronDelete CronList"
 
-// foregroundSettings: Bash and subagents go through `office hook foreground`
-// (runs with every built-in tool: the administrator's, ADR-059).
+// foregroundSettings: Bash, subagents and file tools go through `office hook
+// foreground` (runs with every built-in tool: the administrator's, ADR-059;
+// file tools for the home's secrets, ADR-227).
 func foregroundSettings() string {
 	b, _ := json.Marshal(map[string]any{"hooks": map[string]any{"PreToolUse": []map[string]any{
-		{"matcher": "Bash|Agent|Task", "hooks": []map[string]any{{"type": "command", "command": ForegroundCommand}}},
+		{"matcher": "Bash|Agent|Task|Read|Grep|Glob|Edit|Write|MultiEdit|NotebookEdit", "hooks": []map[string]any{{"type": "command", "command": ForegroundCommand}}},
 	}}})
 	return string(b)
 }
@@ -160,7 +161,9 @@ func foregroundSettings() string {
 // background is killed and no notification ever wakes the agent, so "I'll
 // wait for it" would end the turn with nothing waiting.
 // It also keeps an administrator's shell off master/main (ADR-188): a push
-// there goes through propose_action git_push, a person approves.
+// there goes through propose_action git_push, a person approves. And off the
+// home's keys and tokens, and from sending data out (ADR-227): a prompt
+// injection in what the agent reads must not reach them.
 func Foreground(in io.Reader, out io.Writer) {
 	var ev struct {
 		Cwd       string         `json:"cwd"`
@@ -168,6 +171,24 @@ func Foreground(in io.Reader, out io.Writer) {
 	}
 	if json.NewDecoder(in).Decode(&ev) != nil {
 		return
+	}
+	for _, k := range []string{"file_path", "notebook_path", "path"} {
+		if p, _ := ev.ToolInput[k].(string); p != "" {
+			if why := secretPath(p, ev.Cwd); why != "" {
+				deny(out, "agent-office: "+why)
+				return
+			}
+		}
+	}
+	if cmd, _ := ev.ToolInput["command"].(string); cmd != "" {
+		if why := secretInCommand(cmd); why != "" {
+			deny(out, "agent-office: "+why)
+			return
+		}
+		if why := exfiltrates(cmd); why != "" {
+			deny(out, "agent-office: không gửi dữ liệu của máy ra ngoài ("+why+"). Cần thật thì nhờ người chạy")
+			return
+		}
 	}
 	if bg, _ := ev.ToolInput["run_in_background"].(bool); bg {
 		deny(out, "agent-office: không chạy nền được — lượt chạy kết thúc khi bạn trả lời, việc chạy nền bị dừng và không có thông báo nào gọi lại bạn. Chạy ở tiền cảnh (Bash timeout tối đa 600000 ms) và đợi kết quả ngay trong lượt này; việc lâu hơn thì dùng propose_action (tiến trình) hoặc propose_automation")

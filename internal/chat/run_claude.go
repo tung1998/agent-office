@@ -95,6 +95,7 @@ func (claudeRunner) args(req RunRequest, resume bool) []string {
 	a := []string{"-p", "--output-format", "stream-json", "--verbose", "--include-partial-messages", "--permission-mode", "dontAsk",
 		"--setting-sources", "user,project,local"}
 	deny := []string{"Read(./.env)", "Read(./.env.*)", "Read(**/.env)", "Read(**/*.pem)", "Read(**/*.key)"}
+	deny = append(deny, homeSecretDenies()...) // ADR-227
 	if req.Write {
 		// edits stay in the working folder (dontAsk refuses the rest), never
 		// secrets or the project's protected files
