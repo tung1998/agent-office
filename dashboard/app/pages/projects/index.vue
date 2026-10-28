@@ -129,7 +129,7 @@ async function add() {
             body: { path: form.scope === 'folder' ? form.path : '', name: form.name }
           })
     addOpen.value = false
-    await fetchMe() // a project admin now has this one too (ADR-224)
+    await fetchMe() // a manager now has this one too (ADR-224)
     // a template comes set up (its pack); any other has the starter agent: the setup picks what else it needs (ADR-166)
     await navigateTo(form.scope === 'template' ? `/projects/${res.project.id}` : `/projects/${res.project.id}/setup`)
   } catch (e) {

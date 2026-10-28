@@ -2,7 +2,7 @@ export interface OfficeUser {
   id: string
   email: string
   name: string
-  role: 'admin' | 'manager' | 'member' // manager: a project admin (ADR-224)
+  role: 'admin' | 'manager' | 'member' // manager: manages its own projects (ADR-224)
   projects?: string[] // the projects a manager or member sees
   disabled: boolean
   must_change?: boolean // the default admin, until it sets a real email and password

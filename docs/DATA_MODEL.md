@@ -281,7 +281,7 @@ Index `(day, agent_id)`, `(incident_id)`. View `cost_daily` group theo `day, age
 | id | text PK | `usr_<ulid>` |
 | email | text unique | lowercase, so sánh không phân biệt hoa thường |
 | name | text | |
-| role | text | `admin` (cả office) \| `manager` (admin project) \| `member` (ADR-224) |
+| role | text | `admin` (cả office) \| `manager` (quản lý project của mình) \| `member` (ADR-224) |
 | password_hash | text | argon2id encoded |
 | disabled | bool | |
 | discord_id, telegram_id | text | user ID trên nền tảng bot ('' = chưa gắn); một ID một tài khoản. Tin gửi bot từ ID đó hiện tên tài khoản (`messages.sender`) |
