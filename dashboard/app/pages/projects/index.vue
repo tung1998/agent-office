@@ -6,13 +6,20 @@ const { data, refresh } = _f1
 const _f3 = useLiveFetch<{ mode: string, home_dir: string, project_root?: string, clone_root?: string }>('/api/system')
 const { data: sys } = _f3
 await Promise.all([_f1, _f3]) // started together: one round trip, not 2 (a phone over a VPN)
-// the account's order (dragged here); its first 5 not hidden show in the menu
-const { isHidden, hasOrder, setOrder, arrange } = useProjectMenu()
+// the account's order (dragged here) and menu options; the menu's projects get a mark
+const { isHidden, setOrder, arrange, menu, max, maxLimits: menuLimits, sort, single, setOptions } = useProjectMenu()
 const ordered = computed(() => arrange(data.value?.projects ?? []))
 const projects = ref<Project[]>([])
 watch(ordered, v => { projects.value = [...v] }, { immediate: true })
-// until an order is set the menu shows the most opened ones: no mark then
-const inMenu = computed(() => new Set(!hasOrder.value ? [] : projects.value.filter(p => !isHidden(p.id)).slice(0, 5).map(p => p.id)))
+const inMenu = computed(() => new Set(menu(data.value?.projects ?? []).map(p => p.id)))
+const sortItems = computed(() => (['manual', 'usage', 'name'] as const).map(v => ({ label: t(`projects.menuSort.${v}`), value: v })))
+async function saveOptions(o: Parameters<typeof setOptions>[0]) {
+  try {
+    await setOptions(o)
+  } catch (e) {
+    toast.add({ title: apiError(e), color: 'error' })
+  }
+}
 const dragging = ref('')
 function dragOver(target: Project) {
   const from = projects.value.findIndex(p => p.id === dragging.value)
@@ -144,6 +151,20 @@ async function add() {
 <template>
   <PageShell :title="t('projects.title')">
     <template #actions>
+      <UPopover :content="{ align: 'end' }">
+        <UButton color="neutral" variant="outline" icon="i-lucide-panel-left" :label="t('projects.menuOptions')" />
+        <template #content>
+          <div class="w-72 space-y-3 p-3">
+            <UFormField :label="t('projects.menuMax')">
+              <UInputNumber :model-value="max" :min="menuLimits.min" :max="menuLimits.max" class="w-full" @update:model-value="(v: number | null) => v && v !== max && saveOptions({ max: v })" />
+            </UFormField>
+            <UFormField :label="t('projects.menuSort')">
+              <USelect :model-value="sort" :items="sortItems" class="w-full" @update:model-value="(v) => saveOptions({ sort: v as typeof sort })" />
+            </UFormField>
+            <USwitch :model-value="single" :label="t('projects.menuSingle')" @update:model-value="(v: boolean) => saveOptions({ single: v })" />
+          </div>
+        </template>
+      </UPopover>
       <UButton v-if="canCreateProject" icon="i-lucide-folder-plus" :label="t('projects.add')" @click="openAdd()" />
     </template>
 
@@ -165,7 +186,7 @@ async function add() {
         <UButton v-if="canCreateProject" class="mt-4" icon="i-lucide-folder-plus" :label="t('projects.add')" @click="openAdd()" />
       </div>
 
-      <p v-if="projects.length > 1" class="text-xs text-(--ui-text-muted)">{{ t('projects.dragHint') }}</p>
+      <p v-if="projects.length > 1" class="text-xs text-(--ui-text-muted)">{{ t('projects.dragHint', { n: max }) }}</p>
       <div class="grid gap-3">
         <NuxtLink
           v-for="p in projects" :key="p.id" :to="`/projects/${p.id}`" draggable="true"

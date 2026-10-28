@@ -28,24 +28,12 @@ watch(isOfficeAdmin, async (admin) => {
 
 const bareLayout = computed(() => route.path === '/login' || route.path === '/setup-account')
 
-// sidebar: the 5 projects this viewer opens most, each with its sections
-// (refetched on navigation and on a change, so added/renamed projects show up)
+// sidebar: the projects of the account's menu (useProjectMenu: how many, in
+// which order, hidden ones out), each with its sections (refetched on
+// navigation and on a change, so added/renamed projects show up)
 const projectList = ref<Project[]>([])
-const { top } = useProjectUsage()
-// the account's order from the Projects page when set, else the most opened;
-// hidden ones stay out (the open one still shows, for its sections)
-const { isHidden, hasOrder, arrange } = useProjectMenu()
-const recentProjects = computed(() => {
-  const visible = projectList.value.filter(p => !isHidden(p.id))
-  const out = hasOrder.value ? arrange(visible).slice(0, 5) : top(visible, 5)
-  const cur = route.params.id as string | undefined
-  const open = cur ? projectList.value.find(p => p.id === cur) : undefined
-  if (open && !out.includes(open)) {
-    if (out.length < 5) out.push(open)
-    else out[4] = open
-  }
-  return out
-})
+const { menu, single } = useProjectMenu()
+const recentProjects = computed(() => menu(projectList.value, route.params.id as string | undefined))
 async function loadProjects() {
   if (bareLayout.value) return
   try {
@@ -55,20 +43,29 @@ async function loadProjects() {
 watch(() => route.path, loadProjects, { immediate: true })
 
 // which projects show their sections: opening one keeps the others open, only
-// a project's own arrow closes it (kept in this browser across reloads)
+// a project's own arrow closes it, unless the account chose one at a time
+// (kept in this browser across reloads)
 const OPEN_KEY = 'office:nav-open'
 const navOpen = ref<string[]>([])
 onMounted(() => {
   try {
     navOpen.value = JSON.parse(localStorage.getItem(OPEN_KEY) ?? '[]')
   } catch { /* broken or private mode: start closed */ }
-  watch(() => route.params.id as string | undefined, (id) => {
-    if (id && !navOpen.value.includes(`project-${id}`)) navOpen.value = [...navOpen.value, `project-${id}`]
+  watch([() => route.params.id as string | undefined, single], ([id, one]) => {
+    if (!id) return
+    const key = `project-${id}`
+    if (one) navOpen.value = [...navOpen.value.filter(x => !x.startsWith('project-')), key]
+    else if (!navOpen.value.includes(key)) navOpen.value = [...navOpen.value, key]
   }, { immediate: true })
   watch(() => route.path === '/watch', (on) => {
     if (on && !navOpen.value.includes('watch')) navOpen.value = [...navOpen.value, 'watch']
   }, { immediate: true })
-  watch(navOpen, (v) => {
+  watch(navOpen, (v, old) => {
+    const added = v.filter(x => x.startsWith('project-') && !old?.includes(x)).at(-1)
+    if (single.value && added && v.some(x => x.startsWith('project-') && x !== added)) {
+      navOpen.value = v.filter(x => !x.startsWith('project-') || x === added)
+      return
+    }
     try {
       localStorage.setItem(OPEN_KEY, JSON.stringify(v))
     } catch { /* private mode */ }
