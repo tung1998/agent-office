@@ -119,8 +119,9 @@ func (s *Sampler) Quick(ctx context.Context) (cpuPercent float64, memUsed, memTo
 	return
 }
 
-// Count is how many processes are under root.
-func Count(ctx context.Context, root int32) int {
+// Count is how many processes are under root, and under (and with) each of
+// adopted: what an office before this one started, now under no one.
+func Count(ctx context.Context, root int32, adopted ...int32) int {
 	all, err := process.ProcessesWithContext(ctx)
 	if err != nil {
 		return 0
@@ -131,20 +132,32 @@ func Count(ctx context.Context, root int32) int {
 			kids[pp] = append(kids[pp], p.Pid)
 		}
 	}
-	n := 0
+	seen := map[int32]bool{}
 	var walk func(int32)
 	walk = func(pid int32) {
 		for _, k := range kids[pid] {
-			n++
-			walk(k)
+			if !seen[k] {
+				seen[k] = true
+				walk(k)
+			}
 		}
 	}
 	walk(root)
-	return n
+	for _, a := range adopted {
+		if a != root && !seen[a] {
+			if ok, _ := process.PidExistsWithContext(ctx, a); ok {
+				seen[a] = true
+				walk(a)
+			}
+		}
+	}
+	return len(seen)
 }
 
-// Tree is root and every process under it (each child after its parent).
-func (s *Sampler) Tree(ctx context.Context, root int32) (Proc, []Proc, error) {
+// Tree is root and every process under it (each child after its parent),
+// then each of adopted not under root yet, with what is under it: what an
+// office before this one started runs on, its parent gone.
+func (s *Sampler) Tree(ctx context.Context, root int32, adopted ...int32) (Proc, []Proc, error) {
 	all, err := process.ProcessesWithContext(ctx)
 	if err != nil {
 		return Proc{}, nil, err
@@ -180,6 +193,14 @@ func (s *Sampler) Tree(ctx context.Context, root int32) (Proc, []Proc, error) {
 	}
 	self := s.read(ctx, rp, 0, 0)
 	walk(root, 0)
+	for _, a := range adopted {
+		if p, ok := byPID[a]; ok && a != root && !seen[a] {
+			seen[a] = true
+			ppid, _ := p.PpidWithContext(ctx)
+			out = append(out, s.read(ctx, p, ppid, 0))
+			walk(a, 1)
+		}
+	}
 	for pid := range s.procs { // what ended is forgotten
 		if _, alive := byPID[pid]; !alive {
 			delete(s.procs, pid)

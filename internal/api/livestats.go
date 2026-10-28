@@ -2,13 +2,11 @@ package api
 
 import (
 	"context"
-	"os"
 	"runtime"
 	"sync"
 	"time"
 
 	"github.com/tung1998/agent-office/internal/events"
-	"github.com/tung1998/agent-office/internal/sysinfo"
 )
 
 // The machine's figures, pushed (ADR-078): while an admin has a page open the
@@ -41,7 +39,7 @@ func (s *server) startStats() {
 			return
 		}
 		cpu, used, total := s.sys.Quick(context.Background())
-		s.cfg.Events.SendTo(sub, events.Event{Name: "stats", Data: s.summaryOf(cpu, used, total, sysinfo.Count(context.Background(), int32(os.Getpid())))})
+		s.cfg.Events.SendTo(sub, events.Event{Name: "stats", Data: s.summaryOf(cpu, used, total, s.countProcs(context.Background()))})
 		s.ensureStats()
 	}, func(sub *events.Sub, topic string) {
 		if topic == "machine" && sub.Viewer().Admin {
@@ -110,7 +108,7 @@ func (s *server) pushStats(ctx context.Context) {
 		}
 	}
 	cpu, used, total := s.sys.Quick(ctx)
-	s.cfg.Events.Send(events.Event{Name: "stats", Data: s.summaryOf(cpu, used, total, sysinfo.Count(ctx, int32(os.Getpid())))}, admins)
+	s.cfg.Events.Send(events.Event{Name: "stats", Data: s.summaryOf(cpu, used, total, s.countProcs(ctx))}, admins)
 }
 
 // fullStats is what GET /api/system/stats answers.

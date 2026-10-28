@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"maps"
 	"net/http"
 	"os"
 	"slices"
@@ -55,7 +56,23 @@ func (s *server) systemStats(w http.ResponseWriter, r *http.Request) {
 func (s *server) systemSummary(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	cpuPct, used, total := s.sys.Quick(ctx)
-	writeJSON(w, http.StatusOK, s.summaryOf(cpuPct, used, total, sysinfo.Count(ctx, int32(os.Getpid()))))
+	writeJSON(w, http.StatusOK, s.summaryOf(cpuPct, used, total, s.countProcs(ctx)))
+}
+
+// opsPIDs are the project processes' PIDs: those an office before this one
+// started run on under no one, and are office's all the same.
+func (s *server) opsPIDs() []int32 {
+	var out []int32
+	if s.cfg.Ops != nil {
+		for _, p := range s.cfg.Ops.Running() {
+			out = append(out, int32(p.PID))
+		}
+	}
+	return out
+}
+
+func (s *server) countProcs(ctx context.Context) int {
+	return sysinfo.Count(ctx, int32(os.Getpid()), s.opsPIDs()...)
 }
 
 func (s *server) summaryOf(cpuPct float64, used, total uint64, procs int) map[string]any {
@@ -75,15 +92,15 @@ func (s *server) summaryOf(cpuPct float64, used, total uint64, procs int) map[st
 }
 
 func (s *server) officeGroups(ctx context.Context) (sysinfo.Proc, []procGroup, error) {
-	self, list, err := s.sys.Tree(ctx, int32(os.Getpid()))
-	if err != nil {
-		return self, nil, err
-	}
 	running := map[int32]ops.Running{}
 	if s.cfg.Ops != nil {
 		for _, p := range s.cfg.Ops.Running() {
 			running[int32(p.PID)] = p
 		}
+	}
+	self, list, err := s.sys.Tree(ctx, int32(os.Getpid()), slices.Collect(maps.Keys(running))...)
+	if err != nil {
+		return self, nil, err
 	}
 	projects := map[string]string{}
 	if rs, err := s.cfg.Store.Repos().List(ctx); err == nil {
