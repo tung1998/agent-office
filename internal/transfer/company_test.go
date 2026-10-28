@@ -55,6 +55,9 @@ func TestLibraryPacksImport(t *testing.T) {
 			agents, _ := o.st.Agents().List(ctx, repo.ID)
 			wfs, _ := o.st.Workflows().List(ctx, repo.ID)
 			autos, _ := o.st.Automations().List(ctx, repo.ID)
+			// the rules of an organisation (coordination, Burn) are the startup's;
+			// another bundle (a learner's, ngoai-ngu) only imports whole, off
+			company := b.Name == "@agentoffice/startup"
 			// ADR-204: the startup starts with its CEO alone, it makes the rest
 			alone := e.Ref == "@agentoffice/startup"
 			if alone && (len(agents) != 1 || agents[0].Key != "ceo" || !slices.Contains(*agents[0].Permissions.Caps, perm.CapSelf)) {
@@ -65,7 +68,7 @@ func TestLibraryPacksImport(t *testing.T) {
 			}
 			// ADR-200: a coordination schedule (and the board's morning report,
 			// ADR-210), off until its head is given work
-			if len(autos) == 0 || len(autos) > 2 || !strings.HasPrefix(autos[0].Name, "Điều phối") {
+			if len(autos) == 0 || company && (len(autos) > 2 || !strings.HasPrefix(autos[0].Name, "Điều phối")) {
 				t.Fatalf("%s: schedules %+v", e.Ref, autos)
 			}
 			for _, a := range autos {
@@ -95,8 +98,15 @@ func TestLibraryPacksImport(t *testing.T) {
 				}
 			}
 			bs, err := o.st.Burn().Session(ctx, repo.ID)
-			if !alone && (err != nil || bs.ReviewProfileID == "" || bs.Active()) {
+			if company && !alone && (err != nil || bs.ReviewProfileID == "" || bs.Active()) {
 				t.Fatalf("%s: burn %+v %v", e.Ref, bs, err)
+			}
+			// a learner: notebook tables, its four workflows, two schedules off
+			if b.Name == "@agentoffice/ngoai-ngu" {
+				cols, _ := o.st.Collections().List(ctx, repo.ID)
+				if len(agents) != 3 || len(wfs) != 4 || len(autos) != 2 || len(cols) < 3 {
+					t.Fatalf("ngoai-ngu: %d agents, %d workflows, %d schedules, %d tables", len(agents), len(wfs), len(autos), len(cols))
+				}
 			}
 			if e.Key == "cskh" {
 				if fc := features.LoadConfig(ctx, o.st, repo.ID); !fc.Packs["support"] {

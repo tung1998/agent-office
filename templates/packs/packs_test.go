@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -17,7 +18,8 @@ import (
 // overwritten; a new repo is committed.
 func TestLibrary(t *testing.T) {
 	list, err := packs.Bundles()
-	if err != nil || len(list) == 0 || list[0].Name != "@agentoffice/startup" {
+	if err != nil || !slices.ContainsFunc(list, func(b packs.Bundle) bool { return b.Name == "@agentoffice/startup" }) ||
+		!slices.ContainsFunc(list, func(b packs.Bundle) bool { return b.Name == "@agentoffice/ngoai-ngu" }) {
 		t.Fatalf("bundles: %+v %v", list, err)
 	}
 	if _, e, err := packs.Find("@agentoffice/startup"); err != nil || !e.Root {
@@ -68,6 +70,16 @@ func TestLibrary(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(sup, ".claude/skills/to-chuc/vai.md")); err != nil {
 		t.Fatal("giam-sat: the bundle's skills missing")
+	}
+	// the learner's bundle: its skills and notebook folders come with it
+	learn := repo()
+	if _, err := packs.Write(ctx, "@agentoffice/ngoai-ngu", learn, true); err != nil {
+		t.Fatal(err)
+	}
+	for _, f := range []string{"office.pack.json", ".claude/skills/ghi-bai/SKILL.md", ".claude/skills/on-tap/SKILL.md", ".claude/skills/ra-de/SKILL.md", "docs/ho-so.md", "bai-hoc/README.md"} {
+		if _, err := os.Stat(filepath.Join(learn, f)); err != nil {
+			t.Fatalf("ngoai-ngu: %s missing", f)
+		}
 	}
 	if _, e, err := packs.Find("@agentoffice/company/marketing"); err != nil || e.Ref != "@agentoffice/startup/marketing" {
 		t.Fatalf("old name: %+v %v", e, err)

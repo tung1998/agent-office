@@ -1,0 +1,13 @@
+{
+  "title": "Học ngoại ngữ",
+  "description": "Một người học ngoại ngữ với ba agent: Giáo viên ghi từ mới và ngữ pháp vào sổ có tag, Soạn đề làm bài ôn và đề theo mẫu kỳ thi thật, Chấm bài chấm và cập nhật lịch ôn.",
+  "packs": [
+    {
+      "key": "",
+      "title": "Học ngoại ngữ",
+      "description": "Thêm từ mới → sổ từ vựng, ngữ pháp có tag và bài học trong file → ôn tập theo hộp Leitner → đề luyện thi theo mẫu đề thật (IELTS, TOEIC, JLPT, HSK, TOPIK, DELF…). Hai lịch ôn và luyện đề, tắt sẵn.",
+      "file": "office.pack.json",
+      "root": true
+    }
+  ]
+}
