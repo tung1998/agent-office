@@ -40,6 +40,7 @@ import (
 	"github.com/tung1998/agent-office/internal/provider"
 	"github.com/tung1998/agent-office/internal/storage"
 	"github.com/tung1998/agent-office/internal/usage"
+	"github.com/tung1998/agent-office/internal/verify"
 )
 
 var (
@@ -163,6 +164,8 @@ type Turn struct {
 	wfStep        string // a step of a graph of steps: its answer goes to the run's runner (ADR-108)
 	err           string // why it failed ("" = it answered)
 	board         string // a hand-off's work board task (ADR-210)
+	held          string // its diff failed the checks before merging: what failed (ADR-222)
+	fixes         int    // turns office opened for this chain to fix failed checks
 
 	mu     sync.Mutex
 	events []Event
@@ -252,13 +255,19 @@ type Engine struct {
 	handed map[string][]delegation // turn id → tasks its agent gave others with the delegate tool
 	// boardHook hears of hand-offs tied to the work board (ADR-210; nil = none)
 	boardHook func(ctx context.Context, ev BoardEvent)
-	turns     map[string]*Turn // turn id → turn (kept a while for replay)
-	direct    map[string]bool  // projects with a chat editing the project folder right now
+	// nextHook gives an agent its next task of the work board (ADR-221; nil = none)
+	nextHook func(ctx context.Context, projectID string, agent storage.Agent, dflt bool) (NextWork, bool)
+	nextSeen map[string]string // project id + "/" + agent id → the board it was last sent on with
+	// boardOpen: a task of the work board is still to do (ADR-221; nil = always)
+	boardOpen func(ctx context.Context, projectID, task string) bool
+	held      map[string][]waitingHandoff // conversation id + "/" + agent id → hand-offs waiting for that agent to be done
+	turns     map[string]*Turn            // turn id → turn (kept a while for replay)
+	direct    map[string]bool             // projects with a chat editing the project folder right now
 }
 
 // NewEngine builds an Engine.
 func NewEngine(store storage.Store, providers *provider.Service, u *usage.Service) *Engine {
-	return &Engine{store: store, providers: providers, usage: u, active: map[string]*Turn{}, bg: map[string]*Turn{}, handed: map[string][]delegation{}, turns: map[string]*Turn{}, direct: map[string]bool{}}
+	return &Engine{store: store, providers: providers, usage: u, active: map[string]*Turn{}, bg: map[string]*Turn{}, handed: map[string][]delegation{}, nextSeen: map[string]string{}, held: map[string][]waitingHandoff{}, turns: map[string]*Turn{}, direct: map[string]bool{}}
 }
 
 // SetOffice gives agents the office tools: over MCP at mcpURL (Claude Code)
@@ -975,11 +984,17 @@ func (e *Engine) finish(t *Turn) {
 	if freed {
 		delete(e.active, t.ConversationID)
 	}
+	var next []waitingHandoff
 	if k := t.ConversationID + "/" + t.agentID; e.bg[k] == t {
 		delete(e.bg, k)
 		freed = true // an agent waited on may now take what waits
+		next = e.held[k]
+		delete(e.held, k)
 	}
 	e.mu.Unlock()
+	if len(next) > 0 && !e.stopping.Load() {
+		safeGo("startWaiting", func() { e.startWaiting(next) })
+	}
 	e.running(t.ConversationID)
 	if freed && !e.stopping.Load() {
 		safeGo("SendQueued", func() { e.SendQueued(t.ConversationID) }) // what the person wrote meanwhile goes now
@@ -1153,7 +1168,6 @@ func (e *Engine) run(ctx context.Context, turn *Turn, conv storage.Conversation,
 	if conv.Purpose == "automation" {
 		req.System += automationGuide
 	}
-	req.System += memory.Block(ctx, e.store, project.ID, agent.ID) // what it keeps from before (ADR-068), core and the topics (ADR-134)
 	if !consult && conv.Purpose != "channel" && !e.isAssistant(ctx, project.ID) {
 		req.System += agentskills.Block(ctx, e.store, userHome(), project.Path, agent.ID) // its skills at hand, read when needed (ADR-185)
 	}
@@ -1190,9 +1204,6 @@ func (e *Engine) run(ctx context.Context, turn *Turn, conv storage.Conversation,
 	case consult:
 		req.System += "\n\n" + prompts.Text("chat/consult")
 	}
-	if clash != "" {
-		req.System += "\n\n" + prompts.Render("chat/conflicts", map[string]any{"Files": clash})
-	}
 	if s := instructionsOf(ctx); s != "" {
 		req.System += "\n\n" + prompts.Render("chat/admin-instructions", map[string]any{"Instructions": s})
 	}
@@ -1211,6 +1222,11 @@ func (e *Engine) run(ctx context.Context, turn *Turn, conv storage.Conversation,
 	}
 	if agentFull && power == "" && !fullAccess(ctx) { // the agent's own administrator permission (ADR-074)
 		req.System += "\n\n" + prompts.Render("chat/administrator", map[string]any{"Via": "agent"})
+	}
+	// what changes from turn to turn comes last, after what a prompt cache keeps
+	req.System += memory.Block(ctx, e.store, project.ID, agent.ID) // what it keeps from before (ADR-068), core and the topics (ADR-134)
+	if clash != "" {
+		req.System += "\n\n" + prompts.Render("chat/conflicts", map[string]any{"Files": clash})
 	}
 	if noTools(ctx) { // untrusted text (a scope filter's YES/NO): the conversation only
 		// a bot's chats are not this: they run with their agent's own rights, as chosen
@@ -1290,7 +1306,7 @@ func (e *Engine) run(ctx context.Context, turn *Turn, conv storage.Conversation,
 		} else {
 			res, runErr = RunResult{}, kerr
 		}
-		if i == len(cands)-1 || !tryNext(ctx, res, runErr) {
+		if i == len(cands)-1 || !tryNext(ctx, res, runErr, readOnly(level, req)) {
 			break
 		}
 		turn.emit(Event{Type: "status", Text: switchNote(agent.Name, c, cands[i+1], runErr)})
@@ -1370,8 +1386,12 @@ func (e *Engine) run(ctx context.Context, turn *Turn, conv storage.Conversation,
 	if pl.tree != "" && !noPatch(ctx) { // a Burn item's changes are committed to its branch instead
 		// what the agent changed in its worktree, all pending changes in one diff
 		if pt, ok := e.treePatch(ctx, conv, msg.ID, pl.dir, pl.tree, policy); ok {
+			held := false
+			if pt.Status == "" && acc.Can(perm.CapApply) { // merged with no person: checked first (ADR-222)
+				held = e.mergeCheck(ctx, turn, policy, pl.dir, &pt)
+			}
 			saved, err := e.store.Chat().AddPatch(context.Background(), pt)
-			if err == nil && saved.Status == "pending" && acc.Can(perm.CapApply) {
+			if err == nil && saved.Status == "pending" && acc.Can(perm.CapApply) && !held {
 				saved = e.autoApply(conv, turn.JobID, agent.Name, level, saved)
 			}
 			if err == nil {
@@ -1493,7 +1513,11 @@ func (e *Engine) treePatch(ctx context.Context, conv storage.Conversation, messa
 			if p.Diff == diff {
 				return storage.Patch{}, false // nothing new this turn
 			}
-			_ = e.store.Chat().DecidePatch(ctx, p.ID, "rejected", "Thay bằng thay đổi mới hơn", "office", now)
+			why := "Thay bằng thay đổi mới hơn"
+			if first, _, _ := strings.Cut(p.Detail, "\n"); strings.HasPrefix(first, verify.Held) { // the harness review counts it
+				why = first + "\n" + why
+			}
+			_ = e.store.Chat().DecidePatch(ctx, p.ID, "rejected", why, "office", now)
 		}
 	}
 	return storage.Patch{ConversationID: conv.ID, MessageID: messageID, TaskID: conv.TaskID, Diff: diff, Files: files, Origin: "worktree", Tree: tree, Detail: detail}, true
@@ -1556,30 +1580,37 @@ func HistoryFor(msgs []storage.Message, self string) []HistoryItem {
 // the model unsure which one holds).
 func systemPrompt(project storage.Repo, agent storage.Agent, officeTools bool, on map[string]bool, acc perm.Access, pl place, lang Language, power string) string {
 	level := acc.Level
+	// what is the same for every chat of the project comes first, the
+	// chat's own folder last: a prompt cache keeps the longest shared start
 	var b strings.Builder
 	b.WriteString(prompts.Render("chat/intro", map[string]any{"Name": agent.Name, "Role": agent.Role}) + "\n\n")
-	if project.Path != "" {
-		fmt.Fprintf(&b, "Project: %s\nWorking directory: %s\n", project.Name, pl.dir)
-		if pl.tree != "" {
-			b.WriteString(prompts.Render("chat/worktree", map[string]any{"Path": project.Path}) + "\n")
-		}
-	} else {
-		b.WriteString("You are a helper on the person's whole machine (working directory: the home folder).\n")
-	}
-	if project.Description != "" {
-		fmt.Fprintf(&b, "Description: %s\n", project.Description)
-	}
 	if strings.TrimSpace(agent.Instructions) != "" {
-		fmt.Fprintf(&b, "\nYour instructions:\n%s\n", agent.Instructions)
+		fmt.Fprintf(&b, "Your instructions:\n%s\n\n", agent.Instructions)
 	}
-	b.WriteString("\n" + prompts.Text("chat/rules") + "\n")
+	b.WriteString(prompts.Text("chat/rules") + "\n")
 	b.WriteString(lang.Rule())
 	if officeTools {
 		b.WriteString(prompts.Render("chat/office-tools", map[string]any{"On": on}) + "\n")
 	}
+	where := func() string {
+		var w strings.Builder
+		w.WriteString("\n")
+		if project.Path != "" {
+			fmt.Fprintf(&w, "Project: %s\nWorking directory: %s\n", project.Name, pl.dir)
+			if pl.tree != "" {
+				w.WriteString(prompts.Render("chat/worktree", map[string]any{"Path": project.Path}) + "\n")
+			}
+		} else {
+			w.WriteString("You are a helper on the person's whole machine (working directory: the home folder).\n")
+		}
+		if project.Description != "" {
+			fmt.Fprintf(&w, "Description: %s\n", project.Description)
+		}
+		return w.String()
+	}
 	if power != "" {
 		b.WriteString(prompts.Render("chat/assistant-power", map[string]any{"Power": power}) + "\n")
-		return b.String()
+		return b.String() + where()
 	}
 	fmt.Fprintf(&b, "- Your permission this turn: %s (%s).\n", perm.Label(level), perm.All[perm.Rank(level)].Description)
 	auto := acc.Can(perm.CapApply)
@@ -1606,7 +1637,7 @@ func systemPrompt(project storage.Repo, agent storage.Agent, officeTools bool, o
 		}
 		b.WriteString(prompts.Render("chat/read-only", map[string]any{"Safe": safe}) + "\n")
 	}
-	return b.String()
+	return b.String() + where()
 }
 
 // InvokeResult is one agent turn outside a conversation (used by tasks).
@@ -1678,7 +1709,7 @@ func (e *Engine) Invoke(ctx context.Context, project storage.Repo, agent storage
 		} else {
 			res, runErr = RunResult{}, kerr
 		}
-		if i == len(cands)-1 || !tryNext(ctx, res, runErr) {
+		if i == len(cands)-1 || !tryNext(ctx, res, runErr, readOnly(acc.Level, req)) {
 			break
 		}
 		emit(Event{Type: "status", Text: switchNote(agent.Name, c, cands[i+1], runErr)})
@@ -1817,6 +1848,9 @@ func (e *Engine) DecidePatch(ctx context.Context, patchID string, approve bool) 
 			status, detail = "failed", err.Error()
 		} else {
 			status, detail = "applied", "Đã áp dụng vào "+strings.Join(p.Files, ", ")
+			if first, _, _ := strings.Cut(p.Detail, "\n"); strings.HasPrefix(first, verify.Passed) { // what it passed stays told
+				detail = first + "\n" + detail
+			}
 			if dir := e.treeOf(project.ID, p); dir != "" {
 				_ = worktree.Accept(ctx, dir, p.Diff) // later changes are diffed from here
 			}

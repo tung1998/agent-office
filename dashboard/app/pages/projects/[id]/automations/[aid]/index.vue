@@ -75,6 +75,12 @@ async function remove() {
         v-if="a.disabled_code" color="error" variant="subtle" icon="i-lucide-circle-alert" :title="t('auto.disabledBy', { reason: a.disabled_reason })"
         :actions="isAdmin ? [{ label: t('auto.enable'), color: 'error', variant: 'outline', loading: busy, disabled: busy, onClick: enable }] : []"
       />
+      <!-- the token is kept hashed, never shown again: a new URL comes from a new secret -->
+      <div v-if="isAdmin && a.source === 'webhook'" class="flex flex-wrap items-center gap-2 rounded-md border border-(--ui-border) p-3 text-sm">
+        <UIcon name="i-lucide-webhook" class="size-4 shrink-0" />
+        <span class="min-w-0 flex-1 truncate font-mono text-xs">{{ a.webhook_url }}</span>
+        <UButton size="xs" icon="i-lucide-key-round" :label="t('auto.newUrl')" :title="t('auto.newUrlHelp')" :loading="busy" :disabled="busy" @click="rotate" />
+      </div>
       <p class="text-sm font-medium">{{ t('auto.history') }}</p>
       <JobsTable :filter="{ origin_id: aid }" />
       <template v-if="isAdmin">

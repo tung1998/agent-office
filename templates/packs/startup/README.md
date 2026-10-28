@@ -23,7 +23,7 @@ Công ty dùng các phần sẵn có của office, không tự dựng lại:
 | Đo | Bảng dữ liệu `metrics`, `goals`, `ledger`; script theo lịch thu số (không tốn token), in `@@agent` khi cần người điều phối xem |
 | Tổ chức | Đơn vị = project liên kết, có bảng việc riêng; CEO giao việc cho trưởng đơn vị, trưởng đơn vị chọn người làm |
 | Nhân sự | `staff_load` (tải từng agent), người theo dõi việc (`burn_assign`) khi chia việc hay bàn giao, bảng `staff` (skill `to-chuc`) |
-| Học | Ghi nhớ hai tầng; #better-harness sau mỗi mốc lớn |
+| Học | Wiki `docs/wiki/` (skill `tri-thuc`, như LLM Wiki của Karpathy): trạng thái thật kèm commit đã gộp, nhật ký quyết định, hiểu biết; lint bằng script, soát hai/ba bên. Ghi nhớ hai tầng giữ luật làm việc; #better-harness sau mỗi mốc lớn |
 | Thiếu gì thì tạo ra | Toàn quyền, không chờ duyệt: thiếu công cụ thì lập ngay một project làm công cụ đó (mẫu Sản phẩm, đội cần nó là người dùng thật); thiếu người thì tạo agent; office thiếu tính năng thì làm công cụ thay thế và gửi đề xuất (skill `nang-luc`). Chỉ hỏi Chủ tịch khi tiêu tiền thật hay đưa ra bên ngoài |
 
 Nguyên tắc tổ chức vẫn là **gộp mặc định, tách khi có bằng chứng** (skill `to-chuc`). CEO làm gần hết việc quản lý lúc đầu; khi `staff_load` cho thấy dồn tải thì chia mục tiêu cho quản lý mảng, rồi thành đơn vị, thậm chí thêm một CEO cùng điều hành (skill `to-chuc`).

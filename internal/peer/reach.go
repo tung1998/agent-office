@@ -14,22 +14,26 @@ import (
 
 // What the MCP other_office reaches (ADR-169): a project's agent, the
 // projects of other offices its settings link to; the office assistant,
-// every project every paired office opens to this one.
+// every project every paired office opens to this one; an administrator's
+// run, also the assistants of the offices that made this one administrator.
 
 // Reach lists the projects in other offices a run may use: all of them for
-// the office assistant, otherwise those projectID links to.
-func Reach(ctx context.Context, st storage.Store, s *Service, projectID string, all bool) []Link {
+// the office assistant, otherwise those projectID links to, and with admin
+// (the run has administrator access) the other offices' assistants.
+func Reach(ctx context.Context, st storage.Store, s *Service, projectID string, all, admin bool) []Link {
 	if s == nil {
 		return nil
 	}
-	if !all {
-		return Linked(ctx, st, s, projectID)
-	}
 	list, _ := s.List(ctx)
 	var out []Link
+	if !all {
+		out = Linked(ctx, st, s, projectID)
+	}
 	for _, p := range list {
 		for _, r := range p.Remote {
-			out = append(out, Link{Ref: RefPrefix + p.ID + "/" + r.ID, Peer: p, Project: r})
+			if all || admin && r.Assistant {
+				out = append(out, Link{Ref: RefPrefix + p.ID + "/" + r.ID, Peer: p, Project: r})
+			}
 		}
 	}
 	return out

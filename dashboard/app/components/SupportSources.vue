@@ -117,6 +117,7 @@ async function makeAnswerer() {
 }
 async function copy(text: string) {
   if (await copyText(text)) toast.add({ title: t('auto.copied'), color: 'success' })
+  else toast.add({ title: text, color: 'neutral', duration: 0 })
 }
 const where = (s: SupportSource) => {
   const c = s.config as Record<string, string>

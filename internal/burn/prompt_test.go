@@ -1,6 +1,8 @@
 package burn
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -52,5 +54,29 @@ func TestSummary(t *testing.T) {
 	}
 	if strings.Contains(s, "Cũ") {
 		t.Errorf("an earlier run's piece is in it:\n%s", s)
+	}
+}
+
+// A result agreed with an acceptance line still open is not agreed: the
+// evidence wins over the verdict (ADR-223). Other stages read the verdict.
+func TestAcceptedNeedsEveryCriterion(t *testing.T) {
+	done := "VERDICT: AGREE\n- [x] nút lưu — app/save.vue:12\nFollow-up: đổi tên biến"
+	open := "VERDICT: AGREE\n- [x] nút lưu — app/save.vue:12\n- [ ] test — chưa có"
+	if !accepted("result", done) || accepted("result", open) || !accepted("plan", open) || accepted("result", "VERDICT: DISAGREE\n- [x] a") {
+		t.Fatal("accepted: agreed and every criterion met")
+	}
+}
+
+// The result review is told which checks already passed, and asks for the
+// acceptance with evidence.
+func TestResultReviewPromptChecks(t *testing.T) {
+	dir := t.TempDir()
+	os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module x\n"), 0o644)
+	p := reviewPrompt(storage.BurnSession{}, storage.BurnItem{Worktree: dir, Title: "x"}, "result", "")
+	if !strings.Contains(p, "they passed: go build ./..., go vet ./...") || !strings.Contains(p, "- [ ] <what it asks>") {
+		t.Fatalf("prompt:\n%s", p)
+	}
+	if p := reviewPrompt(storage.BurnSession{}, storage.BurnItem{Title: "x"}, "result", ""); !strings.Contains(p, "No automatic check ran") {
+		t.Fatalf("no checks: the reviewer verifies itself:\n%s", p)
 	}
 }

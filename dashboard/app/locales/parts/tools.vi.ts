@@ -106,6 +106,7 @@ export default {
   'cli.loginBtn': 'Đăng nhập {name}',
   'cli.loggedIn': 'Đã đăng nhập {name}',
   'cli.openLoginPage': 'Mở trang đăng nhập',
+  'cli.copyLoginUrl': 'Sao chép link',
   'cli.loginHint': 'Đăng nhập trên trình duyệt. Nếu trang hiện một mã, dán vào đây.',
   'cli.pastePlaceholder': 'Dán mã từ trình duyệt',
   'cli.sendCode': 'Gửi mã',

@@ -97,6 +97,8 @@ export default {
   'auto.savedIt': 'Tôi đã lưu',
   'auto.rotate': 'Đổi secret',
   'auto.rotateConfirm': 'Đổi secret? Secret cũ hết hiệu lực ngay.',
+  'auto.newUrl': 'Lấy URL mới (kèm token)',
+  'auto.newUrlHelp': 'Token chỉ lưu dạng băm nên không xem lại được: tạo token mới, token cũ hết hiệu lực ngay.',
   'auto.enable': 'Bật lại',
   'auto.on': 'Đang bật',
   'auto.off': 'Đang tắt',

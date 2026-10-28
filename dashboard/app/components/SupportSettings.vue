@@ -75,6 +75,7 @@ async function removeHook(h: SupportHook) {
 const delColor = { pending: 'warning', sent: 'success', failed: 'error' } as const
 async function copy(text: string) {
   if (await copyText(text)) toast.add({ title: t('auto.copied'), color: 'success' })
+  else toast.add({ title: text, color: 'neutral', duration: 0 })
 }
 </script>
 

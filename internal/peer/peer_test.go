@@ -309,8 +309,14 @@ func TestAdminOpensAssistant(t *testing.T) {
 	if l := Linked(ctx, o.st, o.svc, proj.ID); len(l) != 0 {
 		t.Fatalf("a project linked to the other office's assistant: %+v", l)
 	}
-	if l := Reach(ctx, o.st, o.svc, "", true); len(l) != 1 || !l[0].Project.Assistant {
+	if l := Reach(ctx, o.st, o.svc, "", true, false); len(l) != 1 || !l[0].Project.Assistant {
 		t.Fatalf("the office assistant does not reach it: %+v", l)
+	}
+	if l := Reach(ctx, o.st, o.svc, proj.ID, false, false); len(l) != 0 {
+		t.Fatalf("a project's run reaches the other office's assistant: %+v", l)
+	}
+	if l := Reach(ctx, o.st, o.svc, proj.ID, false, true); len(l) != 1 || !l[0].Project.Assistant {
+		t.Fatalf("an administrator's run does not reach the other office's assistant: %+v", l)
 	}
 }
 

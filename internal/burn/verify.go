@@ -2,28 +2,19 @@ package burn
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"os"
-	"os/exec"
-	"path/filepath"
 	"slices"
 	"strings"
-	"time"
 
 	"github.com/tung1998/agent-office/internal/storage"
+	verifier "github.com/tung1998/agent-office/internal/verify"
 )
 
 // A Burn's checks (ADR-131): a worker reporting done is not taken at its
 // word. Office runs the checks itself in the piece's worktree, one command a
 // line (the Burn's, else guessed from the project); one failing, the piece
-// goes back to the worker with the output. No AI: it costs nothing.
-
-// verifyTimeout caps one check.
-const verifyTimeout = 10 * time.Minute
-
-// maxVerifyOut caps what a failed check hands back.
-const maxVerifyOut = 3000
+// goes back to the worker with the output. No AI: it costs nothing. Running
+// them is package verify's, shared with a chat's diff (ADR-222).
 
 // maxVerify caps the checks the person writes.
 const maxVerify = 2000
@@ -44,24 +35,10 @@ func verifyCommands(b storage.BurnSession, dir string) []string {
 		return out
 	}
 	if len(out) == 0 {
-		out = guessVerify(dir)
+		out = verifier.Guess(dir)
 	}
 	if templateOf(b) == "builder" { // what the features done say they pass (ADR-139)
 		out = append(out, acceptance(dir)...)
-	}
-	return out
-}
-
-// guessVerify: the build checks a project's files suggest, fast ones only
-// (tests can be long: the person adds them).
-func guessVerify(dir string) []string {
-	has := func(name string) bool { _, err := os.Stat(filepath.Join(dir, name)); return err == nil }
-	var out []string
-	if has("go.mod") {
-		out = append(out, "go build ./...", "go vet ./...")
-	}
-	if has("Cargo.toml") {
-		out = append(out, "cargo check")
 	}
 	return out
 }
@@ -77,33 +54,7 @@ func ValidVerify(v string) error {
 // verify runs the checks of b on a piece in its worktree: "" when they pass
 // (or there are none), else which failed and its output's end.
 func verify(ctx context.Context, b storage.BurnSession, dir string) string {
-	if dir == "" {
-		return ""
-	}
-	for _, c := range verifyCommands(b, dir) {
-		cctx, cancel := context.WithTimeout(ctx, verifyTimeout)
-		cmd := exec.CommandContext(cctx, "sh", "-c", c)
-		cmd.Dir = dir
-		out, err := cmd.CombinedOutput()
-		timedOut := errors.Is(cctx.Err(), context.DeadlineExceeded)
-		cancel()
-		if ctx.Err() != nil {
-			return "" // stopped: not the piece's fault
-		}
-		if err == nil {
-			continue
-		}
-		why := err.Error()
-		if timedOut {
-			why = fmt.Sprintf("quá %s", verifyTimeout)
-		}
-		text := strings.TrimSpace(string(out))
-		if r := []rune(text); len(r) > maxVerifyOut {
-			text = "…" + string(r[len(r)-maxVerifyOut:])
-		}
-		return fmt.Sprintf("`%s` lỗi (%s):\n```\n%s\n```", c, why, text)
-	}
-	return ""
+	return verifier.Run(ctx, verifyCommands(b, dir), dir)
 }
 
 // checked runs the checks on a piece its worker reported done (before its

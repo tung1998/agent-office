@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"regexp"
 	"slices"
 	"strings"
 
@@ -266,7 +267,16 @@ func (s *Service) review(ctx context.Context, b storage.BurnSession, it *storage
 	if err != nil {
 		return false, "", err
 	}
-	return verdictOf(res.text) == "yes", strings.TrimSpace(res.text), nil
+	return accepted(stage, res.text), strings.TrimSpace(res.text), nil
+}
+
+// openCriterion is an acceptance line not met: "- [ ] …" (ADR-223).
+var openCriterion = regexp.MustCompile(`(?m)^\s*[-*]\s*\[ \]`)
+
+// accepted reads a review's verdict; a result agreed with an acceptance line
+// still open is not agreed: the evidence wins over the verdict (ADR-223).
+func accepted(stage, text string) bool {
+	return verdictOf(text) == "yes" && (stage != "result" || !openCriterion.MatchString(text))
 }
 
 // ensureReviewConversation gives a piece's review at stage a hidden chat of
@@ -346,12 +356,14 @@ func reviewPrompt(b storage.BurnSession, it storage.BurnItem, stage, diff string
 		Summary, Worktree, Agree, Disagree, RunBranch     string
 		Diff                                              string
 		Round, Rounds                                     int
-		FocusChecks, Related                              []string
+		FocusChecks, Related, Checked                     []string
 	}{Round: it.Attempts, Rounds: maxReviewRounds, Stage: stage, ID: it.ID, Kind: it.Kind, Title: it.Title, Detail: it.Detail, Focus: b.Focus,
 		Worktree: it.Worktree, Agree: verdictAgree, Disagree: verdictDisagree, Diff: diff,
 		RunBranch: b.RunBranch, Related: related(b, it, items)}
 	if stage == "result" {
 		d.FocusChecks = checks(b)
+		// they passed: a piece reaches its result review only then (ADR-131)
+		d.Checked = verifyCommands(b, it.Worktree)
 		if it.ReviewNote != "" { // whole: the next round is judged against what it asked
 			d.ReviewNote = clip(strings.TrimSpace(it.ReviewNote), reviewNoteMax)
 		}

@@ -22,6 +22,7 @@ func Presets() []Preset {
 		{ID: "gemini", Name: "Google Gemini", Group: "global", BaseURL: "https://generativelanguage.googleapis.com/v1beta/openai", KeyURL: "https://aistudio.google.com/apikey", KeyEnv: "GEMINI_API_KEY", NeedKey: true, Note: "Có hạn mức miễn phí"},
 		{ID: "deepseek", Name: "DeepSeek", Group: "global", BaseURL: "https://api.deepseek.com/v1", KeyURL: "https://platform.deepseek.com/api_keys", KeyEnv: "DEEPSEEK_API_KEY", NeedKey: true, Note: "Rẻ, mạnh về code"},
 		{ID: "groq", Name: "Groq", Group: "global", BaseURL: "https://api.groq.com/openai/v1", KeyURL: "https://console.groq.com/keys", KeyEnv: "GROQ_API_KEY", NeedKey: true, Note: "Rất nhanh, có hạn mức miễn phí"},
+		{ID: "meta", Name: "Meta Muse", Group: "global", BaseURL: "https://api.meta.ai/v1", KeyURL: "https://dev.meta.ai/docs/quickstart", KeyEnv: "MODEL_API_KEY", NeedKey: true, Note: "Muse Spark, rẻ, có agent code"},
 		{ID: "xai", Name: "xAI Grok", Group: "global", BaseURL: "https://api.x.ai/v1", KeyURL: "https://console.x.ai", KeyEnv: "XAI_API_KEY", NeedKey: true},
 		{ID: "mistral", Name: "Mistral", Group: "global", BaseURL: "https://api.mistral.ai/v1", KeyURL: "https://console.mistral.ai/api-keys", KeyEnv: "MISTRAL_API_KEY", NeedKey: true},
 		{ID: "together", Name: "Together AI", Group: "gateway", BaseURL: "https://api.together.xyz/v1", KeyURL: "https://api.together.ai/settings/api-keys", KeyEnv: "TOGETHER_API_KEY", NeedKey: true, Note: "Model mã nguồn mở"},

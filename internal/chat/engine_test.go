@@ -887,3 +887,88 @@ func TestBoardHook(t *testing.T) {
 		t.Fatalf("events: %+v", evs)
 	}
 }
+
+// ADR-221: an agent whose turn ends with tasks of the work board waiting for
+// it takes the next one on at once; sent once on a board as it stands.
+func TestNextWorkGoesOn(t *testing.T) {
+	g := newGroup(t)
+	var mu sync.Mutex
+	sig := "a"
+	g.engine.SetNextHook(func(_ context.Context, projectID string, agent storage.Agent, dflt bool) (chat.NextWork, bool) {
+		mu.Lock()
+		defer mu.Unlock()
+		if projectID != g.f.project.ID || agent.ID != g.lead || !dflt {
+			t.Errorf("hook: %s %s %v", projectID, agent.Name, dflt)
+		}
+		return chat.NextWork{Task: "bit_1", Title: "sửa popup", Open: 1, Sig: sig}, true
+	})
+	if got := g.sendAll(t, "chào"); len(got) != 2 || got[0] != g.leadNm || got[1] != g.leadNm {
+		t.Fatalf("authors = %v", got)
+	}
+	if a, in := call(t, g.dir, 2); !strings.Contains(a+in, "task_id bit_1") {
+		t.Fatalf("next turn's prompt: %q %q", a, in)
+	}
+	if got := g.sendAll(t, "tiếp"); len(got) != 1 { // the board did not move: not sent again
+		t.Fatalf("same board: authors = %v", got)
+	}
+	mu.Lock()
+	sig = "b"
+	mu.Unlock()
+	if got := g.sendAll(t, "xong"); len(got) != 2 {
+		t.Fatalf("board moved: authors = %v", got)
+	}
+}
+
+// ADR-221: a hand-off given to an agent still busy with an earlier one in the
+// chat waits for it and starts once it is done, instead of being dropped.
+func TestHandoffWaitsForBusyAgent(t *testing.T) {
+	g := newGroup(t)
+	os.WriteFile(filepath.Join(g.dir, "sleep-lead"), []byte("0.5"), 0o644)
+	os.WriteFile(filepath.Join(g.dir, "sleep-dev"), []byte("2"), 0o644)
+	hand := func(text, task string) {
+		t.Helper()
+		if _, _, err := g.engine.Send(g.context, g.conv.ID, text, nil); err != nil {
+			t.Fatal(err)
+		}
+		for deadline := time.Now().Add(5 * time.Second); ; time.Sleep(20 * time.Millisecond) {
+			if turn, ok := g.engine.Active(g.conv.ID); ok {
+				if _, err := g.engine.Delegate(g.context, officetools.Scope{ProjectID: g.f.project.ID, ConversationID: g.conv.ID, RunRef: turn.ID, Agent: g.leadNm}, "Dev", task, ""); err != nil {
+					t.Fatal(err)
+				}
+				return
+			}
+			if time.Now().After(deadline) {
+				t.Fatal("no answer in progress")
+			}
+		}
+	}
+	hand("giao 1", "việc một")
+	for deadline := time.Now().Add(5 * time.Second); ; time.Sleep(20 * time.Millisecond) {
+		if r := g.engine.Running(g.conv.ID); len(r) == 1 && r[0].Background {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("Dev did not start alone")
+		}
+	}
+	hand("giao 2", "việc hai")
+	got := g.waitAuthors(t, 6) // lead, lead, the note, Dev, lead's report, Dev again (and its report)
+	devs := 0
+	for _, a := range got {
+		if a == "Dev" {
+			devs++
+		}
+	}
+	if devs != 2 {
+		t.Fatalf("authors = %v", got)
+	}
+	var second bool
+	calls, _ := filepath.Glob(filepath.Join(g.dir, "call*.in"))
+	for _, c := range calls {
+		b, _ := os.ReadFile(c)
+		second = second || strings.Contains(string(b), "việc hai")
+	}
+	if !second {
+		t.Fatal("the waiting hand-off never ran")
+	}
+}

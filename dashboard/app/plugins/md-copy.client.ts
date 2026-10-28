@@ -5,10 +5,9 @@ export default defineNuxtPlugin(() => {
     const btn = (e.target as HTMLElement | null)?.closest<HTMLElement>('[data-md-act="copy"]')
     const code = btn?.closest('.md-code')?.querySelector('code')
     if (!btn || !code) return
-    try {
-      await navigator.clipboard.writeText(code.textContent ?? '')
-      btn.classList.add('md-copied')
-      setTimeout(() => btn.classList.remove('md-copied'), 1500)
-    } catch { /* no clipboard (http): the text can still be selected */ }
+    // copyText falls back to execCommand over plain HTTP (no navigator.clipboard)
+    if (!await copyText(code.textContent ?? '')) return
+    btn.classList.add('md-copied')
+    setTimeout(() => btn.classList.remove('md-copied'), 1500)
   })
 })

@@ -1148,13 +1148,15 @@ func (s *Service) peerRecheck(ctx context.Context, a *storage.Action) (string, e
 	if a.Args.Peer == "" {
 		return "", nil
 	}
-	return s.peerAccess(ctx, a, a.TargetID, a.ConversationID, a.ProjectID == assistant.ID(ctx, s.store)) // Target is now its label
+	// Target is now its label; the run's administrator access, as it ran
+	j, _ := s.store.Jobs().Get(ctx, a.JobID)
+	return s.peerAccess(ctx, a, a.TargetID, a.ConversationID, a.ProjectID == assistant.ID(ctx, s.store), j.FullAccess)
 }
 
 // checkPeerSend checks a send to a project in another office (peerAccess);
 // Target becomes "<office>/<project> · …".
 func (s *Service) checkPeerSend(ctx context.Context, sc Scope, a *storage.Action) error {
-	label, err := s.peerAccess(ctx, a, chatRef(a.Target), sc.ConversationID, sc.Office)
+	label, err := s.peerAccess(ctx, a, chatRef(a.Target), sc.ConversationID, sc.Office, sc.Admin)
 	if err != nil {
 		return err
 	}
@@ -1169,10 +1171,11 @@ func (s *Service) checkPeerSend(ctx context.Context, sc Scope, a *storage.Action
 // peerAccess: a send to another office may go, when proposed and again when
 // approved (a link removed meanwhile stops it): the office is still paired; a
 // new chat goes to a project it opens to this one that the project links to
-// (the assistant: any), a chat on to one this conversation handed work to (or
-// of such a project). It fills the chat's project from that hand-over, and
+// (the assistant: any; an administrator's run: also the other office's
+// assistant), a chat on to one this conversation handed work to (or of such a
+// project). It fills the chat's project from that hand-over, and
 // returns "<office>/<project>" (or the office's name).
-func (s *Service) peerAccess(ctx context.Context, a *storage.Action, id, conversationID string, office bool) (string, error) {
+func (s *Service) peerAccess(ctx context.Context, a *storage.Action, id, conversationID string, office, admin bool) (string, error) {
 	if s.peers == nil {
 		return "", errors.New("không có office liên kết")
 	}
@@ -1187,7 +1190,7 @@ func (s *Service) peerAccess(ctx context.Context, a *storage.Action, id, convers
 			a.Args.Project = prior.Args.Project // the chat's project, as handed over
 		}
 	}
-	reach := peer.Reach(ctx, s.store, s.peers, a.ProjectID, office)
+	reach := peer.Reach(ctx, s.store, s.peers, a.ProjectID, office, admin)
 	i := slices.IndexFunc(reach, func(l peer.Link) bool { return l.Peer.ID == p.ID && l.Project.ID == a.Args.Project })
 	switch {
 	case i >= 0:

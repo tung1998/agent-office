@@ -18,7 +18,10 @@ export async function copyText(text: string): Promise<boolean> {
     ta.setAttribute('readonly', '')
     // off-screen, but focusable: iOS needs it in the document and visible-ish
     ta.style.cssText = 'position:fixed;top:0;left:-9999px;opacity:0'
-    document.body.appendChild(ta)
+    // inside the open dialog: its focus trap takes the focus back from anything
+    // outside it, the selection goes and nothing is copied
+    const host = back?.closest('[role="dialog"]') ?? document.querySelector('[role="dialog"][data-state="open"]') ?? document.body
+    host.appendChild(ta)
     // focused, or a menu's focus trap keeps the focus and the selection is lost
     ta.focus({ preventScroll: true })
     ta.select()

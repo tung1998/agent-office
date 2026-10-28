@@ -23,7 +23,7 @@ Mỗi vòng phải làm một con số trong `metrics` nhích lên. Vòng nào k
 | Soát | `kiem-soat` (model khác hãng) cho việc quan trọng | #kiem-tra |
 | Nghiệm thu | người điều phối | `git_diff`, `run_command`, `propose_action git_merge` |
 | Đo | người điều phối, script theo lịch | `metrics`, `goals.current`, `ledger` |
-| Học | mọi agent | ghi nhớ `bai-hoc`, `tay-nghe`, `loi-lap` |
+| Học | mọi agent | wiki `docs/wiki/` (điều đã biết, đã quyết, trạng thái thật; skill `tri-thuc`), ghi nhớ `bai-hoc`, `tay-nghe`, `loi-lap` (luật làm việc) |
 
 Burn không nằm trong vòng này: nó tự nhận việc, không phân công được. Người điều phối chỉ dùng khi chủ động muốn một agent làm liền một loạt việc cùng loại (mục Bảng việc bên dưới).
 
@@ -80,10 +80,10 @@ Mọi việc của project đi qua **bảng việc** (trang Việc trên dashboa
 3. Kết quả trở về chính lượt điều phối của bạn.
 
 ### Nghiệm thu
-1. Đọc câu trả lời của người làm; mở thay đổi (`git_diff`, file), chạy kiểm tra (`run_command`). Việc quan trọng (tiền, dữ liệu, công khai, dùng lâu dài): #kiem-tra để `kiem-soat` soát.
+1. Chạy lint wiki (skill `tri-thuc`). Đọc câu trả lời của người làm; mở thay đổi (`git_diff`, file), chạy kiểm tra (`run_command`). Việc quan trọng (tiền, dữ liệu, công khai, dùng lâu dài): #kiem-tra để `kiem-soat` soát.
 2. Đạt: commit đúng các file của việc đó (`propose_action git_commit`, liệt kê file, message nói việc gì). Thay đổi nằm trên một nhánh riêng thì soát rồi `propose_action git_merge`. Không để thay đổi của nhiều việc dồn lại chưa commit.
 3. Không đạt: thêm việc sửa lên bảng (`burn_quest`, nêu điều thiếu cụ thể) và giao lại cùng người hoặc người khác.
-4. Số đổi thì ghi `metrics`/`goals`.
+4. Số đổi thì ghi `metrics`/`goals`. Mốc xong (đã gộp, soát hai bên) thì ghi `docs/wiki/trang-thai.md` kèm commit; điều mới biết vào `docs/wiki/hieu-biet/`.
 
 ### Việc hỏng
 - Hỏng hai lần: việc viết chưa rõ hoặc quá to, hoặc giao sai người. Chia nhỏ, ghi rõ "Xong khi", đổi người.

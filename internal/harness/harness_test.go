@@ -10,6 +10,7 @@ import (
 	"github.com/tung1998/agent-office/internal/harness"
 	"github.com/tung1998/agent-office/internal/storage"
 	"github.com/tung1998/agent-office/internal/storage/sqlite"
+	"github.com/tung1998/agent-office/internal/verify"
 )
 
 // The bundle: assets from the folder; diffs split by who ended them; a merged
@@ -50,6 +51,8 @@ func TestCollect(t *testing.T) {
 	patch("rejected", "human:a@x.io", "không đúng ý")
 	patch("rejected", "office", "Thay bằng thay đổi mới hơn")
 	patch("failed", "", "Chưa gộp được: còn dấu xung đột ở a.go")
+	patch("rejected", "office", verify.Held+":\n`go vet ./...` lỗi\nThay bằng thay đổi mới hơn")
+	patch("applied", "auto:x", verify.Passed+" (go build ./...)\nĐã áp dụng vào a.go") // office checked it: a check ran
 	msg("user", "human:a@x.io", "sai rồi, làm lại đi")
 	msg("user", "human:a@x.io", "[office] a@x.io decided your proposals: sai")
 	msg("user", "burn:a@x.io", "vẫn lỗi")
@@ -63,10 +66,10 @@ func TestCollect(t *testing.T) {
 		t.Fatalf("assets = %+v", ev.Assets)
 	}
 	d := ev.Diffs
-	if d.Total != 5 || d.Merged != 2 || d.RejectedByPerson != 1 || d.Superseded != 1 || d.FailedToMerge != 1 || d.Rejected[0].Text != "không đúng ý" {
+	if d.Total != 7 || d.Merged != 3 || d.RejectedByPerson != 1 || d.Superseded != 2 || d.FailedToMerge != 1 || d.Rejected[0].Text != "không đúng ý" {
 		t.Fatalf("diffs = %+v", d)
 	}
-	if v := ev.Validation; v.MergedDiffs != 2 || v.WithCheck != 1 || len(v.WithoutCheck) != 1 || v.CheckCommands[0].Key != "go test" {
+	if v := ev.Validation; v.MergedDiffs != 3 || v.WithCheck != 2 || v.GatePassed != 1 || v.GateHeld != 1 || len(v.WithoutCheck) != 1 || v.CheckCommands[0].Key != "go test" {
 		t.Fatalf("validation = %+v", v)
 	}
 	if co := ev.Corrections; co.Messages != 1 || co.Count != 1 {

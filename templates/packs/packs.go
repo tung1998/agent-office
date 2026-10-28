@@ -150,11 +150,12 @@ func Write(ctx context.Context, ref, dir string, commit bool) ([]string, error) 
 	} else {
 		want["office.pack.json"] = path.Join(b.dir, e.File)
 		for _, s := range e.Skills {
-			src := path.Join(b.dir, ".claude/skills", s, "SKILL.md")
-			if _, err := fs.Stat(files, src); err != nil {
+			if _, err := fs.Stat(files, path.Join(b.dir, ".claude/skills", s, "SKILL.md")); err != nil {
 				return nil, fmt.Errorf("mẫu %s cần skill %s mà bộ không có", ref, s)
 			}
-			want[path.Join(".claude/skills", s, "SKILL.md")] = src
+			if err := skillFiles(b.dir, s, want); err != nil {
+				return nil, err
+			}
 		}
 	}
 	var paths []string
@@ -195,6 +196,19 @@ func Write(ctx context.Context, ref, dir string, commit bool) ([]string, error) 
 	return paths, git("commit", "-q", "-m", "Mẫu "+ref+" của agent-office")
 }
 
+// skillFiles puts every file of skill s of the bundle at dir into want
+// (dir's path → the bundle's): its SKILL.md and what it reads or runs.
+func skillFiles(dir, s string, want map[string]string) error {
+	root := path.Join(dir, ".claude/skills", s)
+	return fs.WalkDir(files, root, func(p string, d fs.DirEntry, err error) error {
+		if err != nil || d.IsDir() {
+			return err
+		}
+		want[strings.TrimPrefix(p, dir+"/")] = p
+		return nil
+	})
+}
+
 // SyncFiles brings dir's copy of pack ref's files up to the library (ADR-206):
 // its pack (office.pack.json) and its skills (.claude/), overwritten where
 // they differ; documents (docs/, README) are the project's own once written.
@@ -219,7 +233,9 @@ func SyncFiles(ctx context.Context, ref, dir string, dryRun bool) ([]string, err
 		}
 	} else {
 		for _, s := range e.Skills {
-			want[path.Join(".claude/skills", s, "SKILL.md")] = path.Join(b.dir, ".claude/skills", s, "SKILL.md")
+			if err := skillFiles(b.dir, s, want); err != nil {
+				return nil, err
+			}
 		}
 	}
 	var changed []string

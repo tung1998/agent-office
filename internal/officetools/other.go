@@ -31,7 +31,7 @@ func (t *Toolbox) otherLinks(ctx context.Context, sc Scope) []peer.Link {
 	if t.peers == nil {
 		return nil
 	}
-	return peer.Reach(ctx, t.store, t.peers, sc.ProjectID, sc.Office)
+	return peer.Reach(ctx, t.store, t.peers, sc.ProjectID, sc.Office, sc.Admin)
 }
 
 // OtherTools lists the other_office tools of sc: none when it reaches no

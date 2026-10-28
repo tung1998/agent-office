@@ -2,6 +2,7 @@ package perm
 
 import (
 	"context"
+	"os"
 	"path/filepath"
 	"slices"
 	"testing"
@@ -228,5 +229,23 @@ func TestUserMCPAtEveryLevel(t *testing.T) { // MCP servers are tools, like Read
 	a := storage.Agent{Permissions: storage.Permissions{ReadOnly: true}}
 	if acc := Resolve(a, Operate, Policy{MaxLevel: Operate}); !acc.Can(CapUserMCP) || acc.Level != Read {
 		t.Fatalf("a read-only lead = %+v", acc)
+	}
+}
+
+// ADR-220: a repo with the wiki skill gets its lint as a safe check; one without does not.
+func TestWikiLintPack(t *testing.T) {
+	root := t.TempDir()
+	_, safe := Catalog(ProjectPacks(root, nil))
+	if slices.Contains(safe, "node .claude/skills/tri-thuc/lint.mjs") {
+		t.Fatal("no skill: no wiki lint")
+	}
+	dir := filepath.Join(root, ".claude/skills/tri-thuc")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	os.WriteFile(filepath.Join(dir, "lint.mjs"), []byte(""), 0o644)
+	_, safe = Catalog(ProjectPacks(root, nil))
+	if !slices.Contains(safe, "node .claude/skills/tri-thuc/lint.mjs") || !slices.Contains(safe, "node .claude/skills/tri-thuc/lint.mjs *") {
+		t.Fatalf("wiki lint not safe: %v", safe)
 	}
 }

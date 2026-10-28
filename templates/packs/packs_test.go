@@ -81,6 +81,12 @@ func TestLibrary(t *testing.T) {
 	if !strings.Contains(string(raw), "Trưởng phòng Marketing") || !strings.Contains(strings.Join(paths, " "), ".claude/skills/phat-trien/SKILL.md") {
 		t.Fatalf("unit: %v", paths)
 	}
+	// a skill's other files (what it reads or runs) come with it
+	for _, f := range []string{".claude/skills/to-chuc/vai.md", ".claude/skills/tri-thuc/lint.mjs"} {
+		if _, err := os.Stat(filepath.Join(unit, f)); err != nil {
+			t.Fatalf("unit: %s missing", f)
+		}
+	}
 }
 
 // ADR-206: a project's copy of its template's files comes back to the

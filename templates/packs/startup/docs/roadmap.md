@@ -17,4 +17,4 @@ Kế hoạch của công ty, Tổng giám đốc giữ cho đúng. Người đi�
 -->
 
 ## Đã xong
-<!-- Bước đã xong, ngày và bằng chứng (nhánh đã gộp, số đo). -->
+<!-- Bước đã xong, ngày; bằng chứng (commit đã gộp, soát) ghi ở docs/wiki/trang-thai.md. -->

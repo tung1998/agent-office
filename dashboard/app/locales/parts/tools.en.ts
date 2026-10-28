@@ -105,6 +105,7 @@ const en: Record<keyof typeof vi, string> = {
   'cli.loginBtn': 'Sign in to {name}',
   'cli.loggedIn': 'Signed in to {name}',
   'cli.openLoginPage': 'Open sign-in page',
+  'cli.copyLoginUrl': 'Copy link',
   'cli.loginHint': 'Sign in in the browser. If the page shows a code, paste it here.',
   'cli.pastePlaceholder': 'Paste the code from the browser',
   'cli.sendCode': 'Send code',

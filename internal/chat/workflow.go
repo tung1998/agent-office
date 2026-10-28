@@ -1558,14 +1558,20 @@ func fieldList(fs []workflow.Field) string {
 	return strings.Join(out, ", ")
 }
 
-// outputsText is a run's outputs as Markdown, after its summary.
+// outputsText is a run's outputs as Markdown, after its summary. An output
+// the summary already holds (a "summary" output that is the result itself)
+// is not said twice.
 func outputsText(rec storage.WorkflowRun) string {
-	if len(rec.Outputs) == 0 {
-		return ""
-	}
+	result := strings.TrimSpace(rec.Result)
 	keys := make([]string, 0, len(rec.Outputs))
-	for k := range rec.Outputs {
+	for k, v := range rec.Outputs {
+		if v = strings.TrimSpace(v); v != "" && result != "" && strings.Contains(result, v) {
+			continue
+		}
 		keys = append(keys, k)
+	}
+	if len(keys) == 0 {
+		return ""
 	}
 	slices.Sort(keys)
 	var b strings.Builder

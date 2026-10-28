@@ -22,6 +22,7 @@ import (
 	"github.com/tung1998/agent-office/internal/scan"
 	"github.com/tung1998/agent-office/internal/storage"
 	"github.com/tung1998/agent-office/internal/verdict"
+	"github.com/tung1998/agent-office/internal/verify"
 )
 
 // Evidence is the bundle, compact enough for an agent's prompt.
@@ -88,6 +89,10 @@ type Validation struct {
 	WithCheck     int      `json:"with_check"`
 	WithoutCheck  []string `json:"without_check_chats"` // chat ids, a sample
 	CheckCommands []Group  `json:"check_commands"`
+	// office's own check before merging a chat's diff (ADR-222): diffs it
+	// passed (counted in WithCheck too) and diffs it held back
+	GatePassed int `json:"gate_passed"`
+	GateHeld   int `json:"gate_held"`
 }
 
 // Corrections are the person's messages that look like correcting an agent.
@@ -330,11 +335,17 @@ func validation(f storage.HarnessFacts) Validation {
 	last := map[string]time.Time{} // a chat's previous merged diff: a check before it does not count again
 	missing := map[string]bool{}
 	for _, p := range f.Patches {
+		if strings.HasPrefix(p.Detail, verify.Held) {
+			v.GateHeld++
+		}
 		if p.Status != "applied" || p.ConversationID == "" {
 			continue
 		}
 		v.MergedDiffs++
-		ok := false
+		ok := strings.HasPrefix(p.Detail, verify.Passed)
+		if ok {
+			v.GatePassed++
+		}
 		for _, c := range byConv[p.ConversationID] {
 			if c.at.Before(p.CreatedAt) && !c.at.Before(last[p.ConversationID]) {
 				ok = true

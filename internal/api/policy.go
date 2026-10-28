@@ -12,6 +12,7 @@ import (
 	"github.com/tung1998/agent-office/internal/peer"
 	"github.com/tung1998/agent-office/internal/perm"
 	"github.com/tung1998/agent-office/internal/storage"
+	"github.com/tung1998/agent-office/internal/verify"
 )
 
 // allowedMode: members may only ask first; admins may pick any package
@@ -90,13 +91,18 @@ func (s *server) putPolicy(w http.ResponseWriter, r *http.Request) {
 	}
 	// a body without quick_check/linked_projects (an older client) keeps what is set
 	old, raw := perm.LoadPolicyRaw(r.Context(), s.cfg.Store, r.PathValue("id"))
-	body.QuickCheck, body.QuickChecks, body.LinkedProjects, body.Experts = old.QuickCheck, old.QuickChecks, old.LinkedProjects, old.Experts
+	body.QuickCheck, body.QuickChecks, body.MergeChecks, body.LinkedProjects, body.Experts = old.QuickCheck, old.QuickChecks, old.MergeChecks, old.LinkedProjects, old.Experts
 	if !decode(w, r, &body) {
 		return
 	}
 	in := body.Policy
 	in.QuickChecks = strings.TrimSpace(in.QuickChecks)
 	if _, err := perm.ParseQuickChecks(in.QuickChecks); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	in.MergeChecks = strings.TrimSpace(in.MergeChecks)
+	if _, err := verify.ParseRules(in.MergeChecks); err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}

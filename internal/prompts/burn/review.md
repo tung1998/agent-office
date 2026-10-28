@@ -40,7 +40,14 @@ What it changed (start from this; read more of a file only where the diff is not
 [[.Diff]]
 ```
 [[- end]]
-Review the RESULT in that worktree: does it do what the piece's detail asks, any bugs, missing tests or changes out of scope. A change of behaviour the detail asks for is in scope, not a reason to disagree; out of scope is only what the detail did not ask for. Run build/test to verify if your access allows. If you disagree, say exactly what must change, as a complete numbered list (passed to the agent to redo): list everything you find now, a later round is not the time for new nits.
+Review the RESULT in that worktree: does it do what the piece's detail asks, any bugs, missing tests or changes out of scope. A change of behaviour the detail asks for is in scope, not a reason to disagree; out of scope is only what the detail did not ask for.
+[[- if .Checked]]
+Office already ran these checks in the worktree and they passed: [[join .Checked ", "]]. Do not run them again; judge what they do not cover.
+[[- else]]
+No automatic check ran on this piece: run its build/test yourself if your access allows, and say so if you could not.
+[[- end]]
+Acceptance, with evidence: after the verdict line, list what the piece's detail asks, one line each, `- [x] <what it asks> — <evidence: file:line, a command and its result>` when it is done, `- [ ] <what it asks> — <what is missing>` when it is not. Agree only when every line is [x]: an open `- [ ]` counts as disagreeing. Follow-ups that do not block are written as `Follow-up: …`, not as checklist lines.
+If you disagree, say exactly what must change, as a complete numbered list (passed to the agent to redo): list everything you find now, a later round is not the time for new nits.
 [[- if and .ReviewNote (gt .Round 1)]]
 This is round [[.Round]] of at most [[.Rounds]]: an earlier review turned it down with the notes above. Judge it first against them: were they done? Disagree again only for what they asked that is still not done, or for a real bug or regression (including one the fix brought in). Smaller things noticed only now do not turn it down: agree and list them as follow-ups.
 [[- end]]

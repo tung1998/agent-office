@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/tung1998/agent-office/internal/llm"
+	"github.com/tung1998/agent-office/internal/perm"
 	"github.com/tung1998/agent-office/internal/provider"
 	"github.com/tung1998/agent-office/internal/storage"
 )
@@ -139,9 +140,20 @@ const RejectedCooldown = 5 * time.Minute
 // before doing anything (no tokens written, no tool; its text is then the
 // error, as the CLI reports it) — a run that already acted is not repeated
 // elsewhere — and not because it was stopped or its session outgrew the model.
-func tryNext(ctx context.Context, res RunResult, err error) bool {
-	return err != nil && ctx.Err() == nil && res.Usage.OutputTokens == 0 && len(res.Tools) == 0 &&
-		!strings.Contains(err.Error(), "Prompt is too long")
+// A read-only run (a review, a perspective of a workflow) changed nothing:
+// one that read files then ended with no answer (agy's quota or a tool that
+// broke) is asked again on the next connection, not lost.
+func tryNext(ctx context.Context, res RunResult, err error, readOnly bool) bool {
+	if err == nil || ctx.Err() != nil || strings.Contains(err.Error(), "Prompt is too long") {
+		return false
+	}
+	return (res.Usage.OutputTokens == 0 && len(res.Tools) == 0) || (readOnly && strings.TrimSpace(res.Text) == "")
+}
+
+// readOnly: a turn at level that can change nothing, files or proposals,
+// and not run with the machine's full access.
+func readOnly(level string, req RunRequest) bool {
+	return !perm.AtLeast(level, perm.Propose) && !req.Write && !req.FullAccess
 }
 
 // switchNote is the status line shown when a turn moves to the next connection.

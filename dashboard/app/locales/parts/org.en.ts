@@ -141,6 +141,8 @@ const en: Record<keyof typeof vi, string> = {
   'policy.quickCheckHelp': 'When on, right after an agent edits a file office checks that file itself (Go: gofmt, go vet; JSON, YAML: valid syntax) and reports errors right away so the agent can fix them, without waiting for you to run a separate build. Only works when the agent runs on Claude Code.',
   'policy.quickChecks': 'Project checks',
   'policy.quickChecksHelp': 'Extra, project-specific checks, run right after the built-in check above. One per line: file ending, a colon, then the check command, using {file} for the path of the file just edited. Example: go: gofmt -l {file}. All project checks together are capped at 20 seconds.',
+  'policy.mergeChecks': 'Checks before merging',
+  'policy.mergeChecksHelp': 'Before office merges an agent\'s diff on its own, it runs these in the agent\'s worktree. If one fails, the diff waits and the agent gets up to 2 turns to fix it. One command per line; to run a command only for some files, put file endings or folders first with a colon, e.g. dashboard/ .vue: pnpm --dir dashboard typecheck. Empty: go build and go vet when Go files change.',
   'policy.denyTitle': 'Forbidden files',
   'policy.denySupports': 'Paths from the project root. {star} stands for any part of a name (e.g. {star}.pem), {starstar} matches in any subfolder, ending with {slash} means the whole folder.',
   'policy.save': 'Save permissions',

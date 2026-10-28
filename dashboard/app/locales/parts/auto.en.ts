@@ -98,6 +98,8 @@ const en: Record<keyof typeof vi, string> = {
   'auto.savedIt': 'I saved it',
   'auto.rotate': 'Rotate secret',
   'auto.rotateConfirm': 'Rotate the secret? The old one stops working at once.',
+  'auto.newUrl': 'Get a new URL (with token)',
+  'auto.newUrlHelp': 'The token is stored hashed and cannot be shown again: this makes a new one, the old one stops working at once.',
   'auto.enable': 'Turn back on',
   'auto.on': 'On',
   'auto.off': 'Off',

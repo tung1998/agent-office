@@ -112,6 +112,10 @@ type Policy struct {
 	// QuickChecks: the project's own quick checks by file ending, one a line
 	// (".ts .vue: npx eslint {file}"), after the built-in ones (ADR-135).
 	QuickChecks string `json:"quick_checks"`
+	// MergeChecks: what office runs on a chat's diff before merging it on
+	// its own, one a line ("dashboard/ .vue: cmd" for those files only);
+	// empty = the build checks the project's files suggest (ADR-222).
+	MergeChecks string `json:"merge_checks"`
 	// LinkedProjects: ids of the projects this project's agents may open a
 	// chat in, send to and read (send_to_chat, read_link, search_history).
 	// One way: the other project links back on its own.

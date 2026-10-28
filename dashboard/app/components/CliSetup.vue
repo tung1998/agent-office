@@ -213,6 +213,11 @@ onBeforeUnmount(() => clearTimeout(timer))
             v-for="u in job.urls.slice(0, 1)" :key="u" :to="u" target="_blank" external
             icon="i-lucide-external-link" :label="t('cli.openLoginPage')" size="sm"
           />
+          <!-- the link to open in another browser or on another machine -->
+          <UButton
+            v-for="u in job.urls.slice(0, 1)" :key="`copy-${u}`" icon="i-lucide-copy" :label="t('cli.copyLoginUrl')"
+            size="sm" color="neutral" variant="outline" @click="copy(u)"
+          />
           <UButton
             v-for="c in job.codes" :key="c" icon="i-lucide-copy" :label="c" size="sm" color="neutral" variant="outline"
             class="font-mono" @click="copy(c)"

@@ -67,6 +67,70 @@ type BoardEvent struct {
 // SetBoardHook: fn hears of hand-offs tied to the work board.
 func (e *Engine) SetBoardHook(fn func(ctx context.Context, ev BoardEvent)) { e.boardHook = fn }
 
+// waitingHandoff is a hand-off given to an agent busy with an earlier one in
+// the same chat (ADR-221): it starts once that one is done, not dropped.
+type waitingHandoff struct {
+	conv    storage.Conversation
+	project storage.Repo
+	spec    turnSpec
+}
+
+// waitFor queues spec behind its agent's hand-off running in the chat; false
+// when the agent is free there.
+func (e *Engine) waitFor(conv storage.Conversation, project storage.Repo, spec turnSpec) bool {
+	k := conv.ID + "/" + spec.agent.ID
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if _, busy := e.bg[k]; !busy {
+		return false
+	}
+	e.held[k] = append(e.held[k], waitingHandoff{conv, project, spec})
+	return true
+}
+
+// startWaiting starts the first of the hand-offs that waited for an agent
+// now free; the others wait behind it. One whose board task was closed
+// meanwhile (dropped, done another way) is left out.
+func (e *Engine) startWaiting(list []waitingHandoff) {
+	for i, w := range list {
+		if w.spec.board != "" && e.boardOpen != nil && !e.boardOpen(context.Background(), w.conv.ProjectID, w.spec.board) {
+			continue
+		}
+		started, why := e.startTurn(w.conv, w.project, w.spec)
+		if started == nil {
+			e.note(w.conv, why)
+			continue
+		}
+		e.board(BoardEvent{ProjectID: w.conv.ProjectID, ConversationID: w.conv.ID, Task: w.spec.board, Agent: w.spec.agent.Name})
+		if rest := list[i+1:]; len(rest) > 0 {
+			k := w.conv.ID + "/" + w.spec.agent.ID
+			e.mu.Lock()
+			e.held[k] = append(rest, e.held[k]...)
+			e.mu.Unlock()
+		}
+		return
+	}
+}
+
+// SetBoardOpen: fn tells whether a task of the work board is still to do.
+func (e *Engine) SetBoardOpen(fn func(ctx context.Context, projectID, task string) bool) {
+	e.boardOpen = fn
+}
+
+// NextWork is the next task of the work board an agent follows up (ADR-221).
+type NextWork struct {
+	Task, Title, Detail string
+	Open                int    // the tasks waiting for it, this one included
+	Sig                 string // the board's open tasks as they stand: it changes when one moves
+}
+
+// SetNextHook: fn gives an agent whose turn ended its next task of the work
+// board (dflt: it is the project's default agent, the one following up a
+// task with no owner).
+func (e *Engine) SetNextHook(fn func(ctx context.Context, projectID string, agent storage.Agent, dflt bool) (NextWork, bool)) {
+	e.nextHook = fn
+}
+
 func (e *Engine) board(ev BoardEvent) {
 	if e.boardHook != nil && ev.Task != "" {
 		fn := e.boardHook
@@ -195,6 +259,7 @@ type turnSpec struct {
 	wfWatch       bool   // the run's supervisor checking it
 	wfStep        string // a step of a graph of steps (ADR-108)
 	board         string // a hand-off's work board task (ADR-210)
+	fixes         int    // turns opened so far to fix failed checks (ADR-222)
 }
 
 // startTurn starts an agent's answer; nil and why when it cannot: the agent
@@ -225,7 +290,7 @@ func (e *Engine) startTurn(conv storage.Conversation, project storage.Repo, s tu
 	t := &Turn{ID: turnID, ConversationID: conv.ID, wake: make(chan struct{}), cancel: cancel,
 		queue: s.queue, hops: s.hops, answered: s.answered, actor: s.actor, total: s.total, tier: s.tier, effort: s.effort, ceiling: s.ceiling, tree: s.tree, limit: limit,
 		agentID: s.agent.ID, agentName: s.agent.Name, background: s.background, delegator: s.delegator,
-		wfRun: s.wfRun, wfRole: s.wfRole, wfVote: s.wfVote, wfWatch: s.wfWatch, wfStep: s.wfStep, board: s.board}
+		wfRun: s.wfRun, wfRole: s.wfRole, wfVote: s.wfVote, wfWatch: s.wfWatch, wfStep: s.wfStep, board: s.board, fixes: s.fixes}
 	e.mu.Lock()
 	if e.stopping.Load() { // under e.mu, as in SendWithContext
 		e.mu.Unlock()
@@ -318,9 +383,15 @@ func (e *Engine) nextTurn(ctx context.Context, prev *Turn, conv storage.Conversa
 				notes = append(notes, fmt.Sprintf("Đã dừng giao việc cho %s: quá %d lượt agent giao việc cho nhau trong một tin nhắn. Hãy tag lại nếu cần.", d.agent.Name, most))
 				continue
 			}
-			started, why := e.startTurn(conv, project, turnSpec{agent: d.agent, effort: d.effort, background: true, delegator: agent.ID, hops: hops + 1, actor: prev.actor, total: prev.total, tier: prev.tier, ceiling: prev.ceiling, tree: prev.tree, limit: prev.limit, board: d.board,
+			spec := turnSpec{agent: d.agent, effort: d.effort, background: true, delegator: agent.ID, hops: hops + 1, actor: prev.actor, total: prev.total, tier: prev.tier, ceiling: prev.ceiling, tree: prev.tree, limit: prev.limit, board: d.board,
 				title:  agent.Name + " → " + d.agent.Name,
-				prompt: prompts.Handoff{From: agent.Name, Task: d.task}.String()})
+				prompt: prompts.Handoff{From: agent.Name, Task: d.task}.String()}
+			if e.waitFor(conv, project, spec) { // busy with an earlier hand-off here: this one goes once it is done
+				notes = append(notes, fmt.Sprintf("%s đang làm việc được giao trước trong chat này; việc %s vừa giao xếp hàng và tự bắt đầu khi xong.", d.agent.Name, agent.Name))
+				hops++
+				continue
+			}
+			started, why := e.startTurn(conv, project, spec)
 			if started == nil {
 				notes = append(notes, why)
 				continue
@@ -346,6 +417,17 @@ func (e *Engine) nextTurn(ctx context.Context, prev *Turn, conv storage.Conversa
 		}
 		return ""
 	}
+	// its diff failed the checks before merging: it fixes that first (ADR-222)
+	if prev.held != "" && prev.fixes < maxCheckFixes && prev.err == "" && prev.wfRun == "" && prev.wfStep == "" && !prev.wfWatch {
+		next, why := e.startTurn(conv, project, turnSpec{agent: agent, queue: prev.queue, hops: hops, answered: prev.answered + 1, actor: prev.actor,
+			replace: prev, total: prev.total, tier: prev.tier, ceiling: prev.ceiling, tree: prev.tree, limit: prev.limit, fixes: prev.fixes + 1,
+			title:  agent.Name + " → sửa cho qua kiểm tra",
+			prompt: prompts.Render("handoff/checks", map[string]any{"Failed": prev.held, "Last": prev.fixes+1 == maxCheckFixes})})
+		if next != nil {
+			return next.ID
+		}
+		e.note(conv, why)
+	}
 	// the next agent the person tagged; one that cannot answer is skipped with a note
 	for i, q := range prev.queue {
 		next, why := e.startTurn(conv, project, turnSpec{agent: q.agent, queue: prev.queue[i+1:], hops: hops, answered: prev.answered + 1, actor: prev.actor,
@@ -358,8 +440,54 @@ func (e *Engine) nextTurn(ctx context.Context, prev *Turn, conv storage.Conversa
 	}
 	if teamChat(conv) && len(given) == 0 { // the chat's work is over: a linked project's hand-off hears back
 		e.reportBack(conv, project, agent, reply)
+		return e.nextWork(conv, project, agent, prev)
 	}
 	return ""
+}
+
+// nextWork starts the agent's next task of the work board when its turn ends and
+// nothing else goes on in the chat (ADR-221): the work moves on by itself, not
+// on a schedule's next run. An agent is sent once on a board as it stands: one
+// that leaves it as it was (on hold, waiting on someone) is not sent again
+// until a task on it moves. The turn it starts ("" = none) takes the chat
+// from prev, as the next agent tagged does.
+func (e *Engine) nextWork(conv storage.Conversation, project storage.Repo, agent storage.Agent, prev *Turn) string {
+	if e.nextHook == nil || prev.err != "" {
+		return ""
+	}
+	e.mu.Lock()
+	busy := false
+	for k := range e.bg {
+		busy = busy || strings.HasPrefix(k, conv.ID+"/")
+	}
+	e.mu.Unlock()
+	if busy { // a hand-off still runs: its report ends the chain, and looks again
+		return ""
+	}
+	ctx := context.Background()
+	d, _ := e.DefaultAgent(ctx, conv.ProjectID)
+	next, ok := e.nextHook(ctx, conv.ProjectID, agent, d.ID == agent.ID)
+	if !ok {
+		return ""
+	}
+	key := conv.ProjectID + "/" + agent.ID
+	e.mu.Lock()
+	seen := e.nextSeen[key] == next.Sig
+	e.nextSeen[key] = next.Sig
+	e.mu.Unlock()
+	if seen {
+		return ""
+	}
+	started, _ := e.startTurn(conv, project, turnSpec{agent: agent, actor: prev.actor, replace: prev, total: &atomic.Int32{}, tier: prev.tier, ceiling: prev.ceiling, tree: prev.tree, limit: prev.limit,
+		title:  agent.Name + " → việc tiếp theo",
+		prompt: prompts.Render("handoff/next", next)})
+	if started == nil {
+		e.mu.Lock()
+		delete(e.nextSeen, key) // the chat was busy: its next turn's end tries again
+		e.mu.Unlock()
+		return ""
+	}
+	return started.ID
 }
 
 // member is the agent's place in a chat (ADR-044): its own session there and
@@ -452,6 +580,11 @@ func (e *Engine) chatTree(ctx context.Context, conv storage.Conversation, agent 
 func (e *Engine) StopAll(conversationID string) int {
 	e.stopRun(conversationID) // its workflow ends first: nothing calls the coordinator back
 	e.mu.Lock()
+	for k := range e.held { // hand-offs waiting their turn end too
+		if strings.HasPrefix(k, conversationID+"/") {
+			delete(e.held, k)
+		}
+	}
 	var stop []*Turn
 	if t, ok := e.active[conversationID]; ok {
 		stop = append(stop, t)

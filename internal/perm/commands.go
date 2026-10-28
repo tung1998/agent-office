@@ -235,6 +235,8 @@ var BuiltinPacks = []Pack{
 	{ID: "python", Label: "Python", Icon: "i-simple-icons-python", Commands: []string{"pytest", "pytest *", "ruff check .", "mypy ."}},
 	{ID: "rust", Label: "Rust", Icon: "i-simple-icons-rust", Commands: []string{"cargo check", "cargo test", "cargo clippy", "cargo fmt --check"}},
 	{ID: "docker-read", Label: "Docker (đọc)", Icon: "i-simple-icons-docker", Commands: []string{"docker compose ps", "docker compose logs *", "docker ps"}},
+	// the wiki lint of the startup template's skill tri-thuc (ADR-220): a check, like npm test
+	{ID: "wiki", Label: "Wiki (lint)", Icon: "i-lucide-book-open", Commands: []string{"node .claude/skills/tri-thuc/lint.mjs", "node .claude/skills/tri-thuc/lint.mjs *"}},
 }
 
 // safeScript: package.json scripts that only check or build.
@@ -298,6 +300,7 @@ func ProjectPacks(root string, custom []Pack) []Pack {
 		"python":      has("pyproject.toml") || has("requirements.txt") || has("setup.py"),
 		"rust":        has("Cargo.toml"),
 		"docker-read": has("docker-compose.yml") || has("compose.yaml") || has("docker-compose.yaml") || has("compose.yml"),
+		"wiki":        has(".claude/skills/tri-thuc/lint.mjs"),
 	}
 	out := []Pack{}
 	if p, ok := scriptsPack(root, has); ok {

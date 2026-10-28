@@ -147,6 +147,8 @@ export default {
   'policy.quickCheckHelp': 'Bật thì ngay sau khi agent sửa xong một file, office tự kiểm tra file đó (Go: gofmt, go vet; JSON, YAML: đúng cú pháp) và báo lỗi ngay để agent tự sửa tiếp, không cần đợi bạn chạy build riêng. Chỉ hoạt động khi agent chạy bằng Claude Code.',
   'policy.quickChecks': 'Kiểm tra riêng của project',
   'policy.quickChecksHelp': 'Thêm kiểm tra riêng của project, chạy ngay sau kiểm tra có sẵn ở trên. Mỗi dòng viết: đuôi file, dấu hai chấm, rồi lệnh kiểm tra, dùng {file} thay cho đường dẫn file vừa sửa. Ví dụ: go: gofmt -l {file}. Tổng thời gian cho mọi kiểm tra riêng tối đa 20 giây.',
+  'policy.mergeChecks': 'Kiểm tra trước khi gộp',
+  'policy.mergeChecksHelp': 'Trước khi office tự gộp diff của agent, office chạy các lệnh này trong worktree của agent. Lệnh nào lỗi thì diff chờ lại và agent được tối đa 2 lượt để sửa. Mỗi dòng một lệnh; chỉ chạy cho một số file thì ghi đuôi file hoặc thư mục trước dấu hai chấm, vd: dashboard/ .vue: pnpm --dir dashboard typecheck. Để trống: go build và go vet khi đổi file Go.',
   'policy.denyTitle': 'File cấm sửa',
   'policy.denySupports': 'Đường dẫn tính từ gốc project. {star} thay cho phần tên bất kỳ (vd: {star}.pem), {starstar} khớp ở mọi thư mục con, kết thúc bằng {slash} là cả thư mục.',
   'policy.save': 'Lưu quyền',

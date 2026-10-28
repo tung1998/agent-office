@@ -264,6 +264,8 @@ func serveCmd() *cobra.Command {
 			// a project's agent running on its own, finding work (spec 2026-10-01-burn-design)
 			burner := burn.New(a.store, chatEngine, trees)
 			chatEngine.SetBoardHook(burner.OnBoard) // a task handed with delegate follows on the board (ADR-210)
+			chatEngine.SetNextHook(burner.Next)     // a turn that ends takes on the agent's next task (ADR-221)
+			chatEngine.SetBoardOpen(burner.Open)    // a hand-off waiting for its agent skips a task closed meanwhile
 			office.SetBurn(func(ctx context.Context, sc officetools.Scope, name string, in officetools.BurnInput) (string, error) {
 				return burner.Tool(ctx, sc, name, burn.ToolInput{Title: in.Title, Kind: in.Kind, Detail: in.Detail, Item: in.Item, Summary: in.Summary, Reason: in.Reason, What: in.What, Scanned: in.Scanned, Map: in.Map, Priority: in.Priority, Lessons: in.Lessons, Coverage: in.Coverage, Owner: in.Owner, From: in.From})
 			})
