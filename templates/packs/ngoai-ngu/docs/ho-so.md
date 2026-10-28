@@ -6,6 +6,7 @@ Giáo viên điền ở buổi đầu và cập nhật khi thay đổi.
 - Mã ngôn ngữ (trường `language`):
 - Trình độ hiện tại (A1…C2, N5…N1, HSK1…6, TOPIK1…6):
 - Mục tiêu:
+- Kiểu lộ trình (thi, can-bang, giao-tiep, doc-hieu):
 - Kỳ thi và ngày thi (nếu có):
 - Thời gian mỗi ngày:
 - Số ngày học mỗi tuần:
