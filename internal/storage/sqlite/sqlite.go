@@ -574,6 +574,8 @@ func (s *Store) Backup(ctx context.Context, dest string) error {
 	if _, err := os.Stat(dest); err == nil {
 		return fmt.Errorf("sqlite: %s đã tồn tại", dest)
 	}
-	_, err := s.db.ExecContext(ctx, `VACUUM INTO ?`, dest)
-	return err
+	if _, err := s.db.ExecContext(ctx, `VACUUM INTO ?`, dest); err != nil {
+		return err
+	}
+	return os.Chmod(dest, 0o600) // the copy holds what the database does: only its owner reads it
 }

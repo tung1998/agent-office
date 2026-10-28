@@ -14,21 +14,31 @@ import (
 var secretRules = []struct {
 	name string
 	re   *regexp.Regexp
+	fake func(m []string) bool // an example value, not a secret
 }{
-	{"khóa riêng (private key)", regexp.MustCompile(`-----BEGIN (?:[A-Z]+ )?PRIVATE KEY(?: BLOCK)?-----`)},
-	{"AWS access key", regexp.MustCompile(`\b(?:AKIA|ASIA)[0-9A-Z]{16}\b`)},
-	{"GitHub token", regexp.MustCompile(`\b(?:gh[pousr]_[A-Za-z0-9]{36,}|github_pat_[A-Za-z0-9_]{50,})\b`)},
-	{"GitLab token", regexp.MustCompile(`\bglpat-[A-Za-z0-9_-]{20,}\b`)},
-	{"Bitbucket token", regexp.MustCompile(`\bATBB[A-Za-z0-9_=-]{28,}\b`)},
-	{"Atlassian token", regexp.MustCompile(`\bATATT3[A-Za-z0-9_=-]{40,}\b`)},
-	{"Slack token", regexp.MustCompile(`\bxox[abposr]-[A-Za-z0-9-]{10,}\b`)},
-	{"Anthropic key", regexp.MustCompile(`\bsk-ant-[A-Za-z0-9_-]{20,}\b`)},
-	{"OpenAI key", regexp.MustCompile(`\bsk-(?:proj-|svcacct-)?[A-Za-z0-9_-]{20}T3BlbkFJ[A-Za-z0-9_-]{20,}\b`)},
-	{"Google API key", regexp.MustCompile(`\bAIza[0-9A-Za-z_-]{35}\b`)},
-	{"Stripe key", regexp.MustCompile(`\b[sr]k_live_[0-9A-Za-z]{20,}\b`)},
-	{"Telegram bot token", regexp.MustCompile(`\b[0-9]{8,10}:AA[0-9A-Za-z_-]{33}\b`)},
-	{"Discord bot token", regexp.MustCompile(`\b[MNO][A-Za-z0-9_-]{23,25}\.[A-Za-z0-9_-]{6}\.[A-Za-z0-9_-]{27,38}\b`)},
-	{"chuỗi kết nối có mật khẩu", regexp.MustCompile(`\b(?:postgres(?:ql)?|mysql|mongodb(?:\+srv)?|redis|amqps?)://[^\s:/@'"]+:[^\s@'"$<{]{6,}@`)},
+	{"khóa riêng (private key)", regexp.MustCompile(`-----BEGIN (?:[A-Z]+ )?PRIVATE KEY(?: BLOCK)?-----`), nil},
+	{"AWS access key", regexp.MustCompile(`\b(?:AKIA|ASIA)[0-9A-Z]{16}\b`), nil},
+	{"GitHub token", regexp.MustCompile(`\b(?:gh[pousr]_[A-Za-z0-9]{36,}|github_pat_[A-Za-z0-9_]{50,})\b`), nil},
+	{"GitLab token", regexp.MustCompile(`\bglpat-[A-Za-z0-9_-]{20,}\b`), nil},
+	{"Bitbucket token", regexp.MustCompile(`\bATBB[A-Za-z0-9_=-]{28,}\b`), nil},
+	{"Atlassian token", regexp.MustCompile(`\bATATT3[A-Za-z0-9_=-]{40,}\b`), nil},
+	{"Slack token", regexp.MustCompile(`\bxox[abposr]-[A-Za-z0-9-]{10,}\b`), nil},
+	{"Anthropic key", regexp.MustCompile(`\bsk-ant-[A-Za-z0-9_-]{20,}\b`), nil},
+	{"OpenAI key", regexp.MustCompile(`\bsk-(?:proj-|svcacct-)?[A-Za-z0-9_-]{20}T3BlbkFJ[A-Za-z0-9_-]{20,}\b`), nil},
+	{"Google API key", regexp.MustCompile(`\bAIza[0-9A-Za-z_-]{35}\b`), nil},
+	{"Stripe key", regexp.MustCompile(`\b[sr]k_live_[0-9A-Za-z]{20,}\b`), nil},
+	{"Telegram bot token", regexp.MustCompile(`\b[0-9]{8,10}:AA[0-9A-Za-z_-]{33}\b`), nil},
+	{"Discord bot token", regexp.MustCompile(`\b[MNO][A-Za-z0-9_-]{23,25}\.[A-Za-z0-9_-]{6}\.[A-Za-z0-9_-]{27,38}\b`), nil},
+	{"chuỗi kết nối có mật khẩu", regexp.MustCompile(`\b(?:postgres(?:ql)?|mysql|mongodb(?:\+srv)?|redis|amqps?)://[^\s:/@'"]+:([^\s@'"$<{]{6,})@`), placeholder},
+}
+
+// placeholder: the passwords docs and tests use as examples.
+func placeholder(m []string) bool {
+	switch strings.ToLower(m[len(m)-1]) {
+	case "password", "postgres", "secret", "changeme", "example", "passw0rd", "mysql", "redis", "test", "testpass", "testing":
+		return true
+	}
+	return false
 }
 
 // maxScan caps the bytes read of one file (a minified bundle, a dump).
@@ -57,7 +67,7 @@ func Secrets(dir string, files []string) string {
 				continue
 			}
 			for _, r := range secretRules {
-				if r.re.MatchString(line) {
+				if m := r.re.FindStringSubmatch(line); m != nil && (r.fake == nil || !r.fake(m)) {
 					found = append(found, fmt.Sprintf("- `%s:%d`: %s", f, n, r.name))
 					break
 				}

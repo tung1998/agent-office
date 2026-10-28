@@ -21,7 +21,7 @@ func TestSecrets(t *testing.T) {
 	write("a/config.go", "package a\n\nconst k = \""+aws+"\"\n")
 	write("deploy.sh", "x\n"+pk+"\n")
 	write("README.md", "token "+gh+" gitleaks:allow\nurl postgres://user:${PASS}@db/x\n")
-	write("app.yml", "db: "+db+"\n")
+	write("app.yml", "db: "+db+"\nexample: postgres://user:password@localhost/x\n")
 	got := Secrets(dir, []string{"a/config.go", "deploy.sh", "README.md", "app.yml", "gone.txt"})
 	for _, want := range []string{"`a/config.go:3`: AWS", "`deploy.sh:2`: khóa riêng", "`app.yml:1`: chuỗi kết nối"} {
 		if !strings.Contains(got, want) {
