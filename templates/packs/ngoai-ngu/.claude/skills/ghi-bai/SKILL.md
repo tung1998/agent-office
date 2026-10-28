@@ -22,7 +22,7 @@ The notebook has two parts: **data tables** (one record per word or grammar patt
 | `language` | Language code: `en`, `ja`, `zh`, `ko`, `fr`, `de`… |
 | `reading` | Pronunciation: IPA, pinyin with tones, furigana, romaja |
 | `meaning` | Meaning in the learner's language, short; numbered when several |
-| `part_of_speech` | `noun`, `verb`, `adj`, `adv`, `phrase`, `idiom`, `other` |
+| `part_of_speech` | `noun`, `verb`, `adj`, `adv`, `phrase`, `idiom`, `character` (one kanji/hanzi, skill `luyen-ky-nang`), `other` |
 | `example` / `example_meaning` | One natural example sentence at the learner's level, and its meaning |
 | `notes` | Collocations, synonyms/antonyms, nuance, irregular forms, easily confused with… |
 | `level` | The word's level: `A1`…`C2`, `N5`…`N1`, `HSK1`…`HSK6`, `TOPIK1`…`TOPIK6` |
@@ -43,8 +43,8 @@ Tags are lowercase ASCII, words joined by `-`. Two fields:
   - `bai:<YYYY-MM-DD>` the session that recorded it (required)
   - `nguon:<sach|phim|bao|podcast|hoi-thoai|de-thi>` kind of source (book, film, news, podcast, conversation, exam)
   - `ky-thi:<ielts|toeic|jlpt|hsk|topik|delf|…>` when the item is in the target exam's scope
-  - `ky-nang:<nghe|noi|doc|viet>` when tied to a skill (listening, speaking, reading, writing)
-  - `loi:<kind>` added by the grader when the learner gets it wrong: `loi:nghia` (meaning), `loi:chinh-ta` (spelling), `loi:cach-doc` (pronunciation), `loi:chia-dong-tu` (conjugation), `loi:gioi-tu` (preposition/particle), `loi:trat-tu` (word order), `loi:nham-tu-gan` (confused with a close word)
+  - `ky-nang:<nghe|noi|doc|viet>` when tied to a skill (listening, speaking, reading, writing); `chu` for a character
+  - `loi:<kind>` added by the grader when the learner gets it wrong: `loi:nghia` (meaning), `loi:chinh-ta` (spelling), `loi:cach-doc` (pronunciation), `loi:chia-dong-tu` (conjugation), `loi:gioi-tu` (preposition/particle), `loi:trat-tu` (word order), `loi:nham-tu-gan` (confused with a close word), `loi:nghe-nham` (misheard)
   - `can-kiem` when the meaning or example is uncertain (the reviewer checks it, then removes the tag)
   - `uu-tien` when the learner wants it reviewed more
 

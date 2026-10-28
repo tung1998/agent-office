@@ -21,20 +21,29 @@ Each item has a `box` 1-5 and a `next_review`.
 - Nearly right (a small spelling slip, a missing tone mark): keep the box, review again in 1 day.
 - Always update `last_review` and `correct` or `wrong`.
 
+## Hard items (leeches)
+An item wrong 3 times or more (`status` `kho`) is not learned by asking it again the same way. Before it comes back: give it a new hook (a mnemonic, a picture in words, the character's parts), a fresh example close to the learner's life, and when it is confused with another item, a contrast pair asked together. Note what was tried in `notes`.
+
 ## Picking the items
 1. Due: `data_query` `tu_vung` with `next_review` `lte` today and `status` `ne` `thuoc`, sorted by `next_review`. Same for `ngu_phap`.
 2. First: tag `uu-tien`, `status` `kho`, tags `loi:*`.
 3. The learner picks a scope ("review travel", "review last week"): filter by `topics` (`contains`), tag `bai:<date>`, `level`.
 4. One session is 15-25 items (by the daily time in `docs/ho-so.md`); too many due: the longest overdue first, the rest tomorrow.
+5. A busy day (the learner says so, or the day's time is under 10 minutes): the short session, the 10 most overdue items only, so the habit holds; a short day beats a skipped one.
+6. Mix them (interleaving): words and grammar, topics and sessions in one exercise, never one topic in a block.
 
 ## Exercise types
-Mix them so it sticks, one question per item:
+Recall, not recognition, whenever the item allows: the learner produces the answer. Mix them so it sticks, one question per item, harder as the box goes up (boxes 1-2: recognise and choose; 3-5: produce, use in a sentence, explain):
 - Meaning → word (type the word, with its reading), word → meaning
 - Fill the gap in a new sentence (never reuse the stored example)
 - Multiple choice (4 options, distractors close in meaning or form)
 - Conjugate / pick the right form for a grammar pattern
 - Correct a wrong sentence; translate a short sentence into the target language
-- Listening/speaking: a sentence to read aloud, or a dictation (marked as self-assessed)
+- Explain it back: "when do you use X rather than Y?", "make a sentence about your day with X" (grammar, boxes 3-5)
+- Listening, speaking, reading, writing practice: the skill `luyen-ky-nang`
+
+## Difficulty
+Aim for about 70-85% right in a session: some forgetting between reviews is what makes it stick. Under 60%: next session more recognition questions and fewer new items; over 90% twice in a row: more production questions and sentences.
 
 ## Files and tables
 - Exercise: `bai-tap/<YYYY-MM-DD>-on-tap.md`; answers: `bai-tap/<YYYY-MM-DD>-on-tap-dap-an.md`. In the answer file, each question names the item it tests: `(tu_vung: <word>)` or `(ngu_phap: <pattern>)`.
