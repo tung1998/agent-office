@@ -929,6 +929,7 @@ onBeforeUnmount(() => {
 
 <template>
   <div
+    :data-project="projectId"
     class="@container/chat flex overflow-hidden rounded-lg border border-(--ui-border)"
     :class="compact || purpose ? 'h-full min-h-0' : 'min-h-[24rem] flex-1 @max-sm/chat:-m-3 @max-sm/chat:rounded-none @max-sm/chat:border-0'"
   >

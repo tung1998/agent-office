@@ -260,6 +260,18 @@ const view = computed<'files' | 'changes'>({
   get: () => route.query.view === 'changes' ? 'changes' : 'files',
   set: v => navigateTo({ query: { ...route.query, view: v === 'changes' ? 'changes' : undefined } }, { replace: true })
 })
+// ?file=<path>: a file named in a chat (plugins/md-file) opens here, its folders expanded
+watch(() => route.query.file, async (f) => {
+  if (typeof f !== 'string' || !f) return
+  const parts = f.split('/').slice(0, -1)
+  for (let i = 1; i <= parts.length; i++) {
+    const dir = parts.slice(0, i).join('/')
+    expanded.value.add(dir)
+    if (!dirs.value[dir]) loadDir(dir)
+  }
+  if (view.value === 'changes') view.value = 'files'
+  await openFile(f)
+}, { immediate: true })
 interface Change { path: string, status: string }
 const changes = ref<Change[] | null>(null)
 const picked = ref('')

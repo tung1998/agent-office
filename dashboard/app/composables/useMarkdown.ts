@@ -24,6 +24,16 @@ function codeBars(html: string, copy: string, apply: string): string {
   }).replace(/<\/pre>/g, '</pre></div>')
 }
 
+// a project file the text names (`internal/x.go:12`, or a relative link to it)
+// opens in the Files tab (plugins/md-file): marked here, the click goes there
+const FILE_REF = /^(?:\.\/)?[\w@-][\w.@-]*(?:\/[\w.@[\]-]+)*\.[A-Za-z][\w-]{0,9}(?::\d+(?:-\d+)?)?$/
+const fileAttrs = (path: string) => `data-md-act="file" data-path="${path.replace(/^\.\//, '').replace(/:\d+(?:-\d+)?$/, '')}"`
+function fileRefs(html: string): string {
+  return html
+    .replace(/(?<!<pre>)<code>([^<]+)<\/code>/g, (m, p: string) => FILE_REF.test(p) && p.includes('/') ? `<code class="md-file" ${fileAttrs(p)}>${p}</code>` : m)
+    .replace(/<a href="([^"]+)"/g, (m, h: string) => FILE_REF.test(h) ? `<a href="${h}" ${fileAttrs(h)}` : m)
+}
+
 export function renderMarkdown(text: string, hideDiffs = true): string {
   const { t, lang } = useLang()
   const key = lang.value + (hideDiffs ? '1' : '0') + text
@@ -33,7 +43,7 @@ export function renderMarkdown(text: string, hideDiffs = true): string {
   if (hideDiffs) {
     src = src.replace(/```(?:diff|patch)[ \t]*\n[\s\S]*?```/g, t('md.diffHidden'))
   }
-  const html = codeBars(DOMPurify.sanitize(marked.parse(src, { async: false }) as string), t('md.copy'), t('md.apply'))
+  const html = fileRefs(codeBars(DOMPurify.sanitize(marked.parse(src, { async: false }) as string), t('md.copy'), t('md.apply')))
   if (cache.size >= MAX) cache.delete(cache.keys().next().value!)
   cache.set(key, html)
   return html
