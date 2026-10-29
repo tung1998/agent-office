@@ -55,7 +55,8 @@ const composeOpen = ref(false)
 const iconOnPhone = { base: '@max-sm/chat:!w-7 @max-sm/chat:!px-0', leading: '@max-sm/chat:!ps-1.5', value: '@max-sm/chat:hidden', trailing: '@max-sm/chat:hidden' }
 const toast = useToast()
 const { t, when } = useLang()
-const { user: me, manages } = useAuth()
+const { user: me, manages, isOfficeAdmin } = useAuth()
+const NuxtLink = resolveComponent('NuxtLink')
 const isAdmin = computed(() => manages(props.projectId)) // its cards: the project's admin or manager, on any page (ADR-224)
 
 const _f1 = useLiveFetch<{ agents: Agent[], default_agent_id: string }>(() => `/api/projects/${props.projectId}/chat/agents`, { lazy: true })
@@ -1218,10 +1219,10 @@ onBeforeUnmount(() => {
           : '@max-sm/chat:hidden')]"
         @submit.prevent="send"
       >
-        <NuxtLink v-if="pickedBroken" to="/providers" class="mb-1.5 flex items-center gap-1.5 px-1 text-xs text-(--ui-error) hover:underline" :title="pickedBroken.status_detail">
+        <component :is="isOfficeAdmin ? NuxtLink : 'p'" v-if="pickedBroken" :to="isOfficeAdmin ? '/providers' : undefined" class="mb-1.5 flex items-center gap-1.5 px-1 text-xs text-(--ui-error) hover:underline" :title="pickedBroken.status_detail">
           <UIcon name="i-lucide-plug-zap" class="size-3.5 shrink-0" />
           <span class="truncate">{{ t('chat.providerBroken', { name: pickedBroken.name, detail: pickedBroken.status_detail }) }}</span>
-        </NuxtLink>
+        </component>
         <PromptInput
           ref="prompt" v-model="draft" v-model:attachments="draftFiles" :project-id="projectId"
           :placeholder="picked ? t('chat.placeholderWithAgent', { agent: picked.name }) : t('chat.placeholderNoAgent')"

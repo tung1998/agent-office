@@ -343,20 +343,6 @@ Worker trả đúng schema sau. `data` là dữ liệu đã cắt gọn cho LLM 
 
 Option có `side_effect=true` tạo `approval_request`. Director output cho `ask` và báo cáo sáng dùng schema tương tự, bỏ `options` bắt buộc.
 
-## API token cá nhân
-
-Token `ofc_…` cho Claude Code CLI của chính người dùng gọi MCP của office (ADR-047, ADR-094). Đều cần đăng nhập; mỗi người chỉ thấy token của mình.
-
-| Lệnh | Vào | Ra |
-|---|---|---|
-| `GET /api/me/tokens` | | `{"tokens":[{"id","name","created_at","last_used_at","expires_at","expired"}]}` |
-| `POST /api/me/tokens` | `{"name"?: string, "days"?: 30\|90\|365\|0}` | `201 {"id","name","token","expires_at"}`; `token` chỉ hiện lần này |
-| `DELETE /api/me/tokens/{id}` | | `204` |
-
-- `days` mặc định 90; `0` là không hạn (`expires_at: null`); giá trị khác trả `400`.
-- `expires_at` là thời điểm hết hạn (RFC 3339, UTC) hoặc `null`. `expired: true` khi đã quá hạn; token hết hạn hoặc đã thu hồi bị từ chối.
-- Quyền theo role của người tạo, đọc lại ở mỗi lần gọi: ai cũng được đề xuất, chỉ admin gọi thẳng tool MCP có ghi qua cổng.
-
 ## Plugin
 
 ```go

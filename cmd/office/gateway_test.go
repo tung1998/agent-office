@@ -210,7 +210,7 @@ func TestToolboxPreservesMCPContentAndCaller(t *testing.T) {
 	if upstreamCalls.Load() != 4 {
 		t.Fatalf("tool was repeated: %d calls", upstreamCalls.Load())
 	}
-	for _, sc := range []officetools.Scope{{ClientKind: "claude"}, {ClientKind: "antigravity"}, {RunRef: "cli-person"}, {Consult: true}} {
+	for _, sc := range []officetools.Scope{{ClientKind: "claude"}, {ClientKind: "antigravity"}, {Consult: true}} {
 		if box.Has(sc, "find_tool") || box.Has(sc, "call_tool") {
 			t.Fatalf("duplicate or forbidden toolbox: %+v", sc)
 		}

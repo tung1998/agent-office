@@ -197,10 +197,13 @@ const items = computed<NavigationMenuItem[][]>(() => {
       ]
     },
     { value: 'watch', label: t('watch.title'), icon: 'i-lucide-layout-grid', to: '/watch', children: watchBoards.value },
-    {
-      label: t('nav.providers'), icon: 'i-lucide-plug', to: '/providers',
-      badge: brokenProviders.value ? { label: String(brokenProviders.value), color: 'error' as const, variant: 'solid' as const } : undefined
-    }
+    // the office's AI connections: an admin's
+    ...(isOfficeAdmin.value
+      ? [{
+          label: t('nav.providers'), icon: 'i-lucide-plug', to: '/providers',
+          badge: brokenProviders.value ? { label: String(brokenProviders.value), color: 'error' as const, variant: 'solid' as const } : undefined
+        }]
+      : [])
   ]
   const admin: NavigationMenuItem[] = isOfficeAdmin.value
     ? [
@@ -235,7 +238,7 @@ const userMenu = computed<DropdownMenuItem[][]>(() => [
   [{ label: user.value?.email ?? '', type: 'label' }],
   ...(viewedBy.value ? [[{ label: t('user.viewingAsEnd'), icon: 'i-lucide-undo-2', onSelect: () => endViewAs() }]] : []),
   [{ label: t('settings.title'), icon: 'i-lucide-settings', onSelect: () => { settingsOpen.value = true } }],
-  [{ label: t('user.changePassword'), icon: 'i-lucide-key-round', to: '/account' }, { label: t('cli.title'), icon: 'i-lucide-terminal', to: '/account' }],
+  [{ label: t('user.changePassword'), icon: 'i-lucide-key-round', to: '/account' }],
   // the office's records and backups: an admin's, from its own menu
   ...(isOfficeAdmin.value
     ? [[
@@ -268,13 +271,12 @@ const userMenu = computed<DropdownMenuItem[][]>(() => [
 
       <template #footer="{ collapsed }">
         <div class="flex w-full min-w-0 flex-col gap-1">
-          <div v-if="buildLabel && !collapsed" class="flex min-w-0 items-center gap-1 px-2.5 text-xs text-(--ui-text-dimmed)">
-            <!-- the update page is admin-only: members just read the line -->
-            <NuxtLink v-if="isOfficeAdmin" to="/admin/update" class="flex min-w-0 items-center gap-1 hover:text-(--ui-text-muted)">
+          <div v-if="isOfficeAdmin && buildLabel && !collapsed" class="flex min-w-0 items-center gap-1 px-2.5 text-xs text-(--ui-text-dimmed)">
+            <!-- the running build, and the update page: an admin's -->
+            <NuxtLink to="/admin/update" class="flex min-w-0 items-center gap-1 hover:text-(--ui-text-muted)">
               <span v-if="hasUpdate" class="size-1.5 shrink-0 rounded-full bg-primary" :title="t('build.hasUpdate')" />
               <span class="truncate">{{ buildText }}</span>
             </NuxtLink>
-            <span v-else class="min-w-0 truncate">{{ buildText }}</span>
             <UTooltip v-model:open="buildInfoOpen" :content="{ side: 'top' }">
               <button type="button" class="shrink-0" :aria-label="build?.subject || t('build.noSubject')" @click="buildInfoOpen = !buildInfoOpen">
                 <UIcon name="i-lucide-info" class="size-3.5" />

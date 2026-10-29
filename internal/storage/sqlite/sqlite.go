@@ -95,7 +95,6 @@ func (s *Store) Migrate(ctx context.Context) error {
 func (s *Store) Close() error { return s.db.Close() }
 
 func (s *Store) Users() storage.UserRepo             { return userRepo{s.q} }
-func (s *Store) Tokens() storage.TokenRepo           { return tokenRepo{s.q} }
 func (s *Store) Channels() storage.ChannelRepo       { return channelRepo{s.q} }
 func (s *Store) Sessions() storage.SessionRepo       { return sessionRepo{s.q} }
 func (s *Store) Passkeys() storage.PasskeyRepo       { return passkeyRepo{s.q} }

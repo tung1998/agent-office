@@ -111,8 +111,6 @@ type Store interface {
 	Close() error
 
 	Users() UserRepo
-	// Tokens are personal tokens for a person's own CLI (ADR-047).
-	Tokens() TokenRepo
 	// Channels are two-way Telegram/Discord bots (ADR-048).
 	Channels() ChannelRepo
 	Sessions() SessionRepo
@@ -227,29 +225,6 @@ type AuditRepo interface {
 	List(ctx context.Context, f AuditFilter) ([]AuditEntry, error)
 	// Count groups by "day" (UTC), "kind", "actor" (kind:name), "resource", "via" or "project".
 	Count(ctx context.Context, f AuditFilter, by string) ([]AuditCount, error)
-}
-
-// UserToken is a personal token (its hash) for a person's own Claude Code CLI.
-type UserToken struct {
-	ID, UserID, Name, TokenHash string
-	CreatedAt                   time.Time
-	LastUsedAt                  *time.Time
-	ExpiresAt                   *time.Time // nil: never
-	Revoked                     bool
-}
-
-// Expired reports whether the token can no longer be used at now.
-func (t UserToken) Expired(now time.Time) bool {
-	return t.ExpiresAt != nil && !now.Before(*t.ExpiresAt)
-}
-
-// TokenRepo stores personal tokens.
-type TokenRepo interface {
-	Create(ctx context.Context, t UserToken) (UserToken, error)
-	List(ctx context.Context, userID string) ([]UserToken, error)
-	GetByHash(ctx context.Context, hash string) (UserToken, error)
-	Touch(ctx context.Context, id string, at time.Time) error
-	Revoke(ctx context.Context, id, userID string) error
 }
 
 // Channel is a Telegram or Discord bot an agent of the project answers.

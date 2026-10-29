@@ -226,11 +226,10 @@ flowchart TD
 
 ### Mô hình quyền của cổng MCP
 
-Cổng `/mcp/s/<tên>` (ADR-091–094) giữ secret và token OAuth của từng MCP server. Agent và CLI không bao giờ thấy chúng.
+Cổng `/mcp/s/<tên>` (ADR-091–094) giữ secret và token OAuth của từng MCP server. Agent không bao giờ thấy chúng.
 
 - **Người gọi** (`mcpgateway.Caller`), office xác định từ token mỗi lần gọi (`Identify`):
-  - lượt chạy của agent (`claude`, `codex`, `api`), kèm agent, project, cuộc chat;
-  - người dùng qua token cá nhân `ofc_…` (`person`).
+  - lượt chạy của agent (`claude`, `codex`, `api`), kèm agent, project, cuộc chat (token cá nhân cho CLI đã bỏ, ADR-241).
 - **Thấy server nào:** server bật, phạm vi máy. Server có danh sách `agents` thì chỉ các agent đó (và trợ lý office) thấy; agent khác nhận 404. Người dùng thấy mọi server.
 - **Tool được gọi thế nào** (`decide`):
   - **Đọc:** tool có `readOnlyHint` hoặc nằm trong `trusted_tools` thì chạy ngay, với mọi người gọi.

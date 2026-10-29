@@ -243,6 +243,7 @@ export default {
   'setup.back': 'Về project',
   'setup.needProvider': 'Cần kết nối AI trước',
   'setup.needProviderDesc': 'Thêm và kiểm tra một kết nối, sau đó bạn sẽ quay lại bước thiết lập.',
+  'setup.needProviderAdmin': 'Office chưa có kết nối AI chạy được: nhờ admin của office thêm hoặc sửa',
   'setup.step1': 'Quét project',
   'setup.rescan': 'Quét lại',
   'setup.machineNoScan': 'Project này không gắn với một thư mục mã nguồn cụ thể, nên không có code để quét tìm stack hay agent có sẵn. Hãy mô tả ở ô bên dưới bạn muốn agent của project này làm việc gì, ví dụ: theo dõi hệ thống, trả lời câu hỏi, chạy lệnh trên máy.',

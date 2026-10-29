@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // The work tab of Tổng quan: what needs a person, the last day, and every job.
 // an admin acts on every item, a manager on its own projects' (ADR-224)
-const { manages } = useAuth()
+const { manages, isOfficeAdmin } = useAuth()
 const { t, when } = useLang()
 
 const _f2 = useLiveFetch<{ providers: Provider[] }>('/api/providers', { lazy: true })
@@ -252,7 +252,7 @@ const steps = computed(() => [
       </NuxtLink>
     </div>
 
-    <UCard v-if="prov && proj && !setupDone">
+    <UCard v-if="isOfficeAdmin && prov && proj && !setupDone">
       <template #header>
         <p class="font-medium">{{ t('home.setupTitle') }}</p>
         <p class="text-sm text-(--ui-text-muted)">{{ t('home.setupDesc') }}</p>

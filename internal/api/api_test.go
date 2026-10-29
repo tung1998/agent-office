@@ -13,7 +13,6 @@ import (
 	"net/http/httptest"
 	"net/netip"
 	"path/filepath"
-	"strings"
 	"testing"
 	"time"
 
@@ -54,6 +53,7 @@ type env struct {
 	chat   *chat.Engine
 	peers  *peer.Service
 	office *officetools.Toolbox
+	mcp    *mcpserver.Server
 }
 
 // idleExec is an automation executor that does nothing (API tests only queue).
@@ -138,7 +138,7 @@ func setupWithStore(t *testing.T, proxies []netip.Prefix, wrap func(storage.Stor
 	if _, err := svc.CreateUser(ctx, auth.NewUser{Email: "member@x.io", Role: storage.RoleMember, Password: "member-password"}, "system"); err != nil {
 		t.Fatal(err)
 	}
-	return &env{srv: srv, auth: svc, st: st, acts: acts, provs: provs, chat: chatEng, peers: peers, office: office}
+	return &env{srv: srv, auth: svc, st: st, acts: acts, provs: provs, chat: chatEng, peers: peers, office: office, mcp: mcp}
 }
 
 // testIdentify says who calls the gateway from the token's scope, the way
@@ -151,7 +151,7 @@ func testIdentify(mcp *mcpserver.Server) func(r *http.Request) (mcpgateway.Calle
 		}
 		c := mcpgateway.Caller{Kind: "claude", Agent: sc.Agent, ProjectID: sc.ProjectID, Scope: sc,
 			CanWrite: sc.Access.Can(perm.CapMCPWrite), CanPropose: sc.Access.Can(perm.CapPropose)}
-		if strings.HasPrefix(sc.RunRef, "cli-") {
+		if sc.RunRef == "person" { // a person, not an agent (the tests' own grant)
 			c.Kind = "person"
 		}
 		return c, true
@@ -398,4 +398,9 @@ func testAutomation(t *testing.T, st storage.Store) *automation.Service {
 			}
 			return out
 		}}
+}
+
+func mustJSON(v any) string {
+	b, _ := json.Marshal(v)
+	return string(b)
 }

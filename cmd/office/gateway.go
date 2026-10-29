@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
-	"strings"
 
 	"github.com/tung1998/agent-office/internal/actions"
 	"github.com/tung1998/agent-office/internal/chat"
@@ -28,8 +27,6 @@ func gatewayCaller(ctx context.Context, st storage.Store, sc officetools.Scope, 
 		CanWrite:   sc.Access.Can(perm.CapMCPWrite),
 		CanPropose: sc.Access.Can(perm.CapPropose) && !sc.AnswerOnly}
 	switch {
-	case strings.HasPrefix(sc.RunRef, "cli-"): // a person's own Claude Code (ADR-047)
-		c.Kind, c.Agent = "person", ""
 	case sc.Office:
 		c.AgentID = mcpgateway.AssistantID
 	default:
@@ -128,7 +125,7 @@ type gatewayDiscovery struct {
 }
 
 func (p gatewayDiscovery) Tools(sc officetools.Scope) []officetools.Tool {
-	if sc.Consult || sc.ClientKind == "claude" || sc.ClientKind == "antigravity" || strings.HasPrefix(sc.RunRef, "cli-") {
+	if sc.Consult || sc.ClientKind == "claude" || sc.ClientKind == "antigravity" {
 		return nil
 	}
 	return []officetools.Tool{

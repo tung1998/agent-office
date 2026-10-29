@@ -182,11 +182,6 @@ func New(cfg Config) http.Handler {
 	if cfg.Office != nil {
 		cfg.Office.SetConfig(s)
 	}
-	if m, ok := cfg.MCP.(interface {
-		SetTokenAuth(func(context.Context, string) (officetools.Scope, bool))
-	}); ok {
-		m.SetTokenAuth(s.tokenScope) // people's own CLIs (ADR-047)
-	}
 	for _, o := range cfg.AllowedOrigins {
 		s.origins[strings.TrimRight(strings.ToLower(o), "/")] = true
 	}

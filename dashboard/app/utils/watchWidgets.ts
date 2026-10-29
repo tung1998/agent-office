@@ -98,7 +98,7 @@ export const widgetDefs: WidgetDef[] = [
   },
   // an AI connection like the header's mark (or all of them), shown by its room
   {
-    kind: 'provider', group: 'ai', grid: { w: 1, h: 1, minW: 1, minH: 1, maxW: 4, maxH: 2 }, icon: 'i-lucide-plug-zap', project: 'none',
+    kind: 'provider', group: 'ai', grid: { w: 1, h: 1, minW: 1, minH: 1, maxW: 4, maxH: 2 }, icon: 'i-lucide-plug-zap', project: 'none', admin: true,
     fields: [{ key: 'providerId', type: 'select', source: 'providers' }],
     defaults: { providerId: '' }
   },

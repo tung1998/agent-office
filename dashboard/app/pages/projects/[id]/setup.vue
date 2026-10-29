@@ -70,7 +70,12 @@ const project = computed(() => projData.value?.project)
 const readyProvider = computed(() => provData.value?.providers.find(p => p.is_default && p.status === 'ok')
   ?? provData.value?.providers.find(p => p.status === 'ok'))
 
+const { isOfficeAdmin } = useAuth()
 function goConnect() {
+  if (!isOfficeAdmin.value) { // the connections are an admin's
+    toast.add({ title: t('setup.needProvider'), description: t('setup.needProviderAdmin'), color: 'warning' })
+    return
+  }
   toast.add({ title: t('setup.needProvider'), description: t('setup.needProviderDesc'), color: 'warning' })
   return navigateTo({ path: '/providers', query: { next: here.value } })
 }

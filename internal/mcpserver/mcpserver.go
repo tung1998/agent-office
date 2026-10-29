@@ -6,7 +6,6 @@
 package mcpserver
 
 import (
-	"context"
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/hex"
@@ -40,13 +39,6 @@ type Server struct {
 
 	mu     sync.Mutex
 	grants map[string]grant
-	// personal tokens of people's own CLIs (ADR-047)
-	tokenAuth func(ctx context.Context, token string) (officetools.Scope, bool)
-}
-
-// SetTokenAuth accepts personal tokens besides the per-run grants.
-func (s *Server) SetTokenAuth(fn func(ctx context.Context, token string) (officetools.Scope, bool)) {
-	s.tokenAuth = fn
 }
 
 // New builds a Server.
@@ -76,8 +68,7 @@ func (s *Server) Grant(scope officetools.Scope, ttl time.Duration) (token string
 	}
 }
 
-// Authorized reports whether r carries a run's token or a personal token:
-// the MCP gateway (/mcp/s/<name>) takes the same ones (ADR-091).
+// Authorized reports whether r carries a run's token: the MCP gateway (/mcp/s/<name>) takes the same ones (ADR-091).
 func (s *Server) Authorized(r *http.Request) bool {
 	_, ok := s.scope(r)
 	return ok
@@ -97,9 +88,6 @@ func (s *Server) scope(r *http.Request) (officetools.Scope, bool) {
 	s.mu.Unlock()
 	if ok && time.Now().Before(g.expires) {
 		return g.scope, true
-	}
-	if s.tokenAuth != nil {
-		return s.tokenAuth(r.Context(), tok)
 	}
 	return officetools.Scope{}, false
 }

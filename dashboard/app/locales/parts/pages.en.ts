@@ -244,6 +244,7 @@ const en: Record<keyof typeof vi, string> = {
   'setup.back': 'Back to project',
   'setup.needProvider': 'An AI connection is needed first',
   'setup.needProviderDesc': 'Add and test a connection, then you will return to the setup step.',
+  'setup.needProviderAdmin': 'The office has no working AI connection: ask an admin of the office to add or fix one',
   'setup.step1': 'Scan project',
   'setup.rescan': 'Rescan',
   'setup.machineNoScan': 'This project has no source folder attached, so there is no code to scan for a stack or existing agents. Describe below what you want this project\'s agents to do, e.g. monitor systems, answer questions, run commands on the machine.',

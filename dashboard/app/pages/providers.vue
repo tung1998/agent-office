@@ -1,4 +1,6 @@
 <script setup lang="ts">
+// the office's AI connections: an admin's (a manager or member uses them, sets none)
+definePageMeta({ admin: true })
 const toast = useToast()
 const route = useRoute()
 const { isAdmin } = useAuth()

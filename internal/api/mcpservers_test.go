@@ -10,8 +10,11 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/tung1998/agent-office/internal/assistant"
+	"github.com/tung1998/agent-office/internal/officetools"
+	"github.com/tung1998/agent-office/internal/perm"
 )
 
 const mcpSecret = "Bearer sk-upstream-very-secret-9876"
@@ -131,7 +134,7 @@ func TestMCPServersAPI(t *testing.T) {
 		t.Fatalf("no change log: %s", mustJSON(logs))
 	}
 
-	// the gateway: a wrong token is refused, a personal token (ADR-047) goes through
+	// the gateway: a wrong token is refused, a run's goes through
 	callTool := func(token, tool string) (int, string) {
 		req, _ := http.NewRequest("POST", e.srv.URL+"/mcp/s/context7", bytes.NewBufferString(`{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"`+tool+`","arguments":{}}}`))
 		req.Header.Set("Content-Type", "application/json")
@@ -151,18 +154,16 @@ func TestMCPServersAPI(t *testing.T) {
 	if _, err := assistant.Ensure(context.Background(), e.st, t.TempDir()); err != nil {
 		t.Fatal(err)
 	}
-	_, tb := do(t, admin, "POST", e.srv.URL+"/api/me/tokens", map[string]any{"name": "cli"}, nil)
+	tok, revoke := e.mcp.Grant(officetools.Scope{ProjectID: assistant.ID(context.Background(), e.st), Office: true, RunRef: "person",
+		Level: perm.Propose, Access: perm.Access{Level: perm.Propose, Caps: []string{perm.CapPropose, perm.CapMCPWrite}}}, time.Minute)
+	defer revoke()
+	tb := map[string]any{"token": tok}
 	if code, out := call(tb["token"].(string)); code != 200 || !strings.Contains(out, "ok from upstream") {
-		t.Fatalf("personal token = %d %s", code, out)
+		t.Fatalf("run token = %d %s", code, out)
 	}
-	// a tool not known to only read: an admin's token calls it
+	// a tool not known to only read: a run that may write through calls it
 	if code, out := callTool(tb["token"].(string), "write-thing"); code != 200 || !strings.Contains(out, "ok from upstream") {
-		t.Fatalf("admin token writes = %d %s", code, out)
-	}
-	// a personal token reads the whole office: an admin's alone (ADR-224)
-	_, mt := do(t, member, "POST", e.srv.URL+"/api/me/tokens", map[string]any{"name": "cli"}, nil)
-	if code, _ := call(mt["token"].(string)); code != 401 {
-		t.Fatalf("member token = %d", code)
+		t.Fatalf("run token writes = %d %s", code, out)
 	}
 
 	if resp, _ := do(t, admin, "DELETE", base+"/"+id, nil, nil); resp.StatusCode != 204 {
