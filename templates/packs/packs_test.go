@@ -83,12 +83,12 @@ func TestLibrary(t *testing.T) {
 	}
 	// the investor's bundle: its skills and the paper desk's folders
 	desk := repo()
-	if _, err := packs.Write(ctx, "@agentoffice/dau-tu", desk, true); err != nil {
+	if _, err := packs.Write(ctx, "@agentoffice/trading", desk, true); err != nil {
 		t.Fatal(err)
 	}
-	for _, f := range []string{"office.pack.json", ".claude/skills/phan-tich/SKILL.md", ".claude/skills/tranh-bien/SKILL.md", ".claude/skills/rui-ro/SKILL.md", ".claude/skills/danh-gia/SKILL.md", "docs/ho-so.md", "docs/quy-tac-rui-ro.md", "phan-tich/README.md", "nhat-ky/README.md"} {
+	for _, f := range []string{"office.pack.json", ".claude/skills/analysis/SKILL.md", ".claude/skills/debate/SKILL.md", ".claude/skills/risk/SKILL.md", ".claude/skills/review/SKILL.md", "docs/profile.md", "docs/risk-rules.md", "analysis/README.md", "journal/README.md"} {
 		if _, err := os.Stat(filepath.Join(desk, f)); err != nil {
-			t.Fatalf("dau-tu: %s missing", f)
+			t.Fatalf("trading: %s missing", f)
 		}
 	}
 	if _, e, err := packs.Find("@agentoffice/company/marketing"); err != nil || e.Ref != "@agentoffice/startup/marketing" {

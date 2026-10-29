@@ -109,10 +109,10 @@ func TestLibraryPacksImport(t *testing.T) {
 				}
 			}
 			// an investor: watchlist, signals, paper trades, lessons; four workflows, three schedules off
-			if b.Name == "@agentoffice/dau-tu" {
+			if b.Name == "@agentoffice/trading" {
 				cols, _ := o.st.Collections().List(ctx, repo.ID)
 				if len(agents) != 3 || len(wfs) != 4 || len(autos) != 3 || len(cols) != 4 {
-					t.Fatalf("dau-tu: %d agents, %d workflows, %d schedules, %d tables", len(agents), len(wfs), len(autos), len(cols))
+					t.Fatalf("trading: %d agents, %d workflows, %d schedules, %d tables", len(agents), len(wfs), len(autos), len(cols))
 				}
 			}
 			if e.Key == "cskh" {

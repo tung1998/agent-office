@@ -21,7 +21,7 @@ import (
 	"strings"
 )
 
-//go:embed all:startup all:ngoai-ngu all:dau-tu
+//go:embed all:startup all:ngoai-ngu all:trading
 var files embed.FS
 
 // Scope prefixes every pack name of the library.

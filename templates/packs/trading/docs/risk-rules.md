@@ -1,6 +1,6 @@
 # Quy tắc rủi ro
 
-Quy tắc riêng của nhà đầu tư, thắng mặc định ở skill `rui-ro`. Bài học thành quy tắc (skill `danh-gia`) được thêm vào đây khi nhà đầu tư đồng ý.
+Quy tắc riêng của nhà đầu tư, thắng mặc định ở skill `risk`. Bài học thành quy tắc (skill `review`) được thêm vào đây khi nhà đầu tư đồng ý.
 
 - Rủi ro mỗi lệnh (% vốn): 1
 - Tối đa một mã (% vốn): 20

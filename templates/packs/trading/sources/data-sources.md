@@ -1,6 +1,6 @@
 # Nguồn dữ liệu
 
-Phân tích viên ghi nguồn đã dùng ở đây (skill `phan-tich`): loại dữ liệu, trang, độ trễ, ngày kiểm. Không cần API key; có key thì để ở biến môi trường, không ghi vào repo.
+Phân tích viên ghi nguồn đã dùng ở đây (skill `analysis`): loại dữ liệu, trang, độ trễ, ngày kiểm. Không cần API key; có key thì để ở biến môi trường, không ghi vào repo.
 
 | Dữ liệu | Việt Nam | Mỹ | Crypto |
 |---|---|---|---|
