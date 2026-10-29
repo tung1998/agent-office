@@ -1,1 +1,3 @@
 *.sh text eol=lf
+# ADRs are only appended: when two chats add one at the end at once, keep both
+docs/DECISIONS.md merge=union
