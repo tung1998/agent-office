@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// A company's office map: the startup pack's own app (ban-do/, run as one of
+// A company's office map: the startup pack's own app (office-map/, run as one of
 // the project's processes) in the box, without its header. Office only shows
 // it: the app reads the company's agents and departments itself.
 interface Proc { id: string, name: string, command: string, state: { status: string, port?: number } }
@@ -8,7 +8,7 @@ const { isAdmin } = useAuth()
 const toast = useToast()
 const { projectId } = useWatchBox()
 const { data, error, refresh } = useLiveFetch<{ processes: Proc[] }>(() => `/api/projects/${projectId.value}/processes`, { lazy: true, server: false })
-const proc = computed(() => data.value?.processes.find(p => /ban-do\/server\.mjs/.test(p.command)))
+const proc = computed(() => data.value?.processes.find(p => /(office-map|ban-do)\/server\.mjs/.test(p.command)))
 const url = computed(() => {
   const port = proc.value?.state.status === 'running' && proc.value.state.port
   return port && import.meta.client ? `${location.protocol}//${location.hostname}:${port}/?embed` : ''

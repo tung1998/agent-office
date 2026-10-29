@@ -110,7 +110,7 @@ func TestAdminCreatesSubProject(t *testing.T) {
 	// agents at Vận hành run as administrator in the name of the same admin
 	boss := admin
 	boss.AdminBy = "boss@x.io"
-	if out, isErr := tb.Call(ctx, boss, "propose_create_project", []byte(`{"name":"Ops","pack":"@agentoffice/startup/don-vi","reason":"r"}`)); isErr {
+	if out, isErr := tb.Call(ctx, boss, "propose_create_project", []byte(`{"name":"Ops","pack":"@agentoffice/startup/unit","reason":"r"}`)); isErr {
 		t.Fatal(out)
 	}
 	list, _ = st.Repos().List(ctx)

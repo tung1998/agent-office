@@ -251,7 +251,7 @@ export default {
   'watchW.changes.none': 'Chưa có thay đổi cài đặt',
   'watchW.kind.officemap': 'Bản đồ văn phòng',
   'watchW.desc.officemap': 'Phòng Giám đốc và các phòng ban, agent ở bàn: rảnh thì ngủ gật, làm thì gõ phím, giao việc và trao đổi có hiệu ứng',
-  'watchW.officemap.none': 'Project chưa có tiến trình bản đồ (node ban-do/server.mjs của mẫu Startup): thêm ở Vận hành',
+  'watchW.officemap.none': 'Project chưa có tiến trình bản đồ (node office-map/server.mjs của mẫu Startup): thêm ở Vận hành',
   'watchW.officemap.stopped': 'Tiến trình Bản đồ văn phòng đang tắt',
   'watchW.officemap.noPort': 'Bản đồ đang khởi động',
   'watchW.officemap.start': 'Chạy bản đồ'

@@ -43,7 +43,7 @@ Hai chế độ cài đặt:
   office init ~/code/acme                   # thư mục có ` + transfer.RepoPackFile + `: nhập gói (agent, quy trình, lịch, ghi nhớ)
   office init ~/code/acme --from ~/packs/company.pack.json
   office init ~/code/acme --template @agentoffice/startup        # công ty mới từ thư viện mẫu (ADR-199)
-  office init ~/code/shop --template @agentoffice/startup/san-pham`,
+  office init ~/code/shop --template @agentoffice/startup/product`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := cmd.Context()

@@ -10,40 +10,40 @@
       "root": true
     },
     {
-      "key": "giam-sat",
+      "key": "oversight",
       "title": "Văn phòng giám sát",
       "description": "Như Startup nhưng có sẵn đội: Tổng giám đốc điều phối, Thực thi, Kiểm soát (model khác hãng), Nghiên cứu, Burn đặt sẵn mà tắt.",
-      "file": "packs/giam-sat.pack.json",
+      "file": "packs/oversight.pack.json",
       "root": true
     },
     {
-      "key": "san-pham",
+      "key": "product",
       "title": "Sản phẩm",
       "description": "Một sản phẩm: repo code riêng, bảng việc riêng; đội có Dùng thử, đi từ vấn đề thật của người dùng tới bản dùng được, rồi tới bản khách trả tiền.",
-      "file": "packs/san-pham.pack.json",
+      "file": "packs/product.pack.json",
       "skills": [
-        "van-hanh",
-        "quyet-dinh",
-        "y-dinh",
-        "to-chuc",
-        "nang-luc",
-        "phat-trien",
-        "tri-thuc"
+        "operations",
+        "decisions",
+        "intent",
+        "organization",
+        "capabilities",
+        "growth",
+        "knowledge"
       ]
     },
     {
-      "key": "ky-thuat",
+      "key": "engineering",
       "title": "Phòng Kỹ thuật",
       "description": "Hạ tầng, CI, giám sát, bảo mật, chi phí chạy cho mọi sản phẩm.",
-      "file": "packs/ky-thuat.pack.json",
+      "file": "packs/engineering.pack.json",
       "skills": [
-        "van-hanh",
-        "quyet-dinh",
-        "y-dinh",
-        "to-chuc",
-        "nang-luc",
-        "phat-trien",
-        "tri-thuc"
+        "operations",
+        "decisions",
+        "intent",
+        "organization",
+        "capabilities",
+        "growth",
+        "knowledge"
       ]
     },
     {
@@ -52,58 +52,58 @@
       "description": "Chân dung khách hàng, thông điệp, lịch nội dung, kênh; đăng ra ngoài chờ duyệt.",
       "file": "packs/marketing.pack.json",
       "skills": [
-        "van-hanh",
-        "quyet-dinh",
-        "y-dinh",
-        "to-chuc",
-        "nang-luc",
-        "phat-trien",
-        "tri-thuc"
+        "operations",
+        "decisions",
+        "intent",
+        "organization",
+        "capabilities",
+        "growth",
+        "knowledge"
       ]
     },
     {
-      "key": "ban-hang",
+      "key": "sales",
       "title": "Phòng Bán hàng",
       "description": "Khách tiềm năng, kịch bản, theo dõi cơ hội tới khi chốt; liên hệ lần đầu chờ duyệt.",
-      "file": "packs/ban-hang.pack.json",
+      "file": "packs/sales.pack.json",
       "skills": [
-        "van-hanh",
-        "quyet-dinh",
-        "y-dinh",
-        "to-chuc",
-        "nang-luc",
-        "phat-trien",
-        "tri-thuc"
+        "operations",
+        "decisions",
+        "intent",
+        "organization",
+        "capabilities",
+        "growth",
+        "knowledge"
       ]
     },
     {
-      "key": "cskh",
+      "key": "support",
       "title": "Chăm sóc khách hàng",
       "description": "Ticket theo SLA, kho câu trả lời, đưa phản hồi về sản phẩm; bật sẵn gói Chăm sóc khách hàng.",
-      "file": "packs/cskh.pack.json",
+      "file": "packs/support.pack.json",
       "skills": [
-        "van-hanh",
-        "quyet-dinh",
-        "y-dinh",
-        "to-chuc",
-        "nang-luc",
-        "phat-trien",
-        "tri-thuc"
+        "operations",
+        "decisions",
+        "intent",
+        "organization",
+        "capabilities",
+        "growth",
+        "knowledge"
       ]
     },
     {
-      "key": "don-vi",
+      "key": "unit",
       "title": "Đơn vị chung",
       "description": "Khung đơn vị trống: Trưởng đơn vị điều phối, Thực thi, Kiểm soát, bảng việc; dùng khi không mẫu nào hợp.",
-      "file": "packs/don-vi.pack.json",
+      "file": "packs/unit.pack.json",
       "skills": [
-        "van-hanh",
-        "quyet-dinh",
-        "y-dinh",
-        "to-chuc",
-        "nang-luc",
-        "phat-trien",
-        "tri-thuc"
+        "operations",
+        "decisions",
+        "intent",
+        "organization",
+        "capabilities",
+        "growth",
+        "knowledge"
       ]
     }
   ]

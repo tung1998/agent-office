@@ -21,7 +21,7 @@ import (
 	"strings"
 )
 
-//go:embed all:startup all:ngoai-ngu all:trading
+//go:embed all:startup all:languages all:trading
 var files embed.FS
 
 // Scope prefixes every pack name of the library.
@@ -84,16 +84,31 @@ func Bundles() ([]Bundle, error) {
 	return out, nil
 }
 
-// Renamed are bundles' old names: a ref by one still finds its pack.
-var Renamed = map[string]string{Scope + "/company": Scope + "/startup"}
+// Renamed are packs' old names: a ref by one still finds its pack. A whole
+// bundle's old name also renames its packs; a pack's is checked after it.
+var Renamed = map[string]string{
+	Scope + "/company":   Scope + "/startup",
+	Scope + "/ngoai-ngu": Scope + "/languages",
+	Scope + "/dau-tu":    Scope + "/trading",
+	// ADR-230: unit packs with English keys
+	Scope + "/startup/giam-sat": Scope + "/startup/oversight",
+	Scope + "/startup/san-pham": Scope + "/startup/product",
+	Scope + "/startup/ky-thuat": Scope + "/startup/engineering",
+	Scope + "/startup/ban-hang": Scope + "/startup/sales",
+	Scope + "/startup/cskh":     Scope + "/startup/support",
+	Scope + "/startup/don-vi":   Scope + "/startup/unit",
+}
 
 // Find is the pack ref names.
 func Find(ref string) (Bundle, Entry, error) {
 	ref = strings.TrimSpace(ref)
-	for old, now := range Renamed {
+	for _, old := range []string{Scope + "/company", Scope + "/ngoai-ngu", Scope + "/dau-tu"} { // bundles first
 		if ref == old || strings.HasPrefix(ref, old+"/") {
-			ref = now + strings.TrimPrefix(ref, old)
+			ref = Renamed[old] + strings.TrimPrefix(ref, old)
 		}
+	}
+	if now, ok := Renamed[ref]; ok {
+		ref = now
 	}
 	list, err := Bundles()
 	if err != nil {

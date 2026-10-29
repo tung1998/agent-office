@@ -316,7 +316,7 @@ func TestNewCompanyAPI(t *testing.T) {
 	}
 	ctx := context.Background()
 	pid := body["project"].(map[string]any)["id"].(string)
-	if _, err := os.Stat(filepath.Join(parent, "acme", ".claude", "skills", "van-hanh", "SKILL.md")); err != nil {
+	if _, err := os.Stat(filepath.Join(parent, "acme", ".claude", "skills", "operations", "SKILL.md")); err != nil {
 		t.Fatal("the template is not in the repo")
 	}
 	agents, _ := e.st.Agents().List(ctx, pid)
@@ -338,13 +338,13 @@ func TestNewCompanyAPI(t *testing.T) {
 	var sent bool
 	for _, c := range convs {
 		msgs, _ := e.st.Chat().ListMessages(ctx, c.ID)
-		sent = sent || c.Mode == perm.Operate && len(msgs) > 0 && msgs[0].Content == "#nhan-viec Doanh thu 1.000 USD/tháng trong 90 ngày" // ADR-213: through its workflow
+		sent = sent || c.Mode == perm.Operate && len(msgs) > 0 && msgs[0].Content == "#intake Doanh thu 1.000 USD/tháng trong 90 ngày" // ADR-213: through its workflow
 	}
 	if !sent {
 		t.Fatalf("the goal never reached the CEO: %+v", convs)
 	}
 	// a unit pack of the library, by name
-	resp, body = do(t, admin, "POST", e.srv.URL+"/api/projects/new", map[string]any{"template": "@agentoffice/startup/cskh", "name": "CSKH", "dir": "cskh", "parent": parent}, nil)
+	resp, body = do(t, admin, "POST", e.srv.URL+"/api/projects/new", map[string]any{"template": "@agentoffice/startup/support", "name": "CSKH", "dir": "cskh", "parent": parent}, nil)
 	if resp.StatusCode != 201 {
 		t.Fatalf("new unit = %d %v", resp.StatusCode, body)
 	}

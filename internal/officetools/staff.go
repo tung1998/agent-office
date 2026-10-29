@@ -101,7 +101,7 @@ func (t *Toolbox) staffLoad(ctx context.Context, sc Scope, days int) (string, er
 			s.Jobs, s.Failed, s.CostUSD, share, schedules[a.ID], core, len(topics), compactions, quests[a.Key], tasks[a.ID])
 	}
 	sb.WriteString("Open tasks: rows of the project's tasks table not done or cancelled whose assignee is that agent (key or name).\n")
-	sb.WriteString("Signals to weigh (the to-chuc skill): one agent carrying most of the cost and turns, its core notes near the limit or compacted often, many failed turns, many quests to follow up; an agent idle for the whole period may be merged back.")
+	sb.WriteString("Signals to weigh (the organization skill): one agent carrying most of the cost and turns, its core notes near the limit or compacted often, many failed turns, many quests to follow up; an agent idle for the whole period may be merged back.")
 	return sb.String(), nil
 }
 

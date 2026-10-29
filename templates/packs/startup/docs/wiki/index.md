@@ -1,10 +1,10 @@
 # Wiki
 
-Mục lục: mỗi trang một dòng. Đọc trang này, `trang-thai.md` và các quyết định liên quan trước khi quyết (skill `tri-thuc`).
+Mục lục: mỗi trang một dòng. Đọc trang này, `status.md` và các quyết định liên quan trước khi quyết (skill `knowledge`).
 
-- [Trạng thái](trang-thai.md): mốc đang làm, đã xong (commit đã gộp), hỏng
-- [Quyết định](quyet-dinh.md): quyết định nào thay quyết định nào, vì sao
+- [Trạng thái](status.md): mốc đang làm, đã xong (commit đã gộp), hỏng
+- [Quyết định](decisions.md): quyết định nào thay quyết định nào, vì sao
 - [Nhật ký](log.md): dòng thời gian của wiki
 
 ## Hiểu biết
-<!-- - [Chủ đề](hieu-biet/chu-de.md): một câu -->
+<!-- - [Chủ đề](knowledge/topic.md): một câu -->

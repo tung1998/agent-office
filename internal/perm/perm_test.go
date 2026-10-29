@@ -236,16 +236,16 @@ func TestUserMCPAtEveryLevel(t *testing.T) { // MCP servers are tools, like Read
 func TestWikiLintPack(t *testing.T) {
 	root := t.TempDir()
 	_, safe := Catalog(ProjectPacks(root, nil))
-	if slices.Contains(safe, "node .claude/skills/tri-thuc/lint.mjs") {
+	if slices.Contains(safe, "node .claude/skills/knowledge/lint.mjs") {
 		t.Fatal("no skill: no wiki lint")
 	}
-	dir := filepath.Join(root, ".claude/skills/tri-thuc")
+	dir := filepath.Join(root, ".claude/skills/knowledge")
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		t.Fatal(err)
 	}
 	os.WriteFile(filepath.Join(dir, "lint.mjs"), []byte(""), 0o644)
 	_, safe = Catalog(ProjectPacks(root, nil))
-	if !slices.Contains(safe, "node .claude/skills/tri-thuc/lint.mjs") || !slices.Contains(safe, "node .claude/skills/tri-thuc/lint.mjs *") {
+	if !slices.Contains(safe, "node .claude/skills/knowledge/lint.mjs") || !slices.Contains(safe, "node .claude/skills/knowledge/lint.mjs *") {
 		t.Fatalf("wiki lint not safe: %v", safe)
 	}
 }

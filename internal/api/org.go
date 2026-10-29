@@ -1222,7 +1222,7 @@ func (s *server) companyGoal(r *http.Request, x storage.Repo, goal string) {
 	}
 	// request keeps the person's words as they are: its head plans under
 	// them, never in their place (ADR-213)
-	_, _, _ = s.coll().Upsert(r.Context(), x.ID, "goals", "", map[string]any{"title": title, "detail": goal, "request": goal, "status": "dang-lam", "owner": "ceo"}, userFrom(r).Email)
+	_, _, _ = s.coll().Upsert(r.Context(), x.ID, "goals", "", map[string]any{"title": title, "detail": goal, "request": goal, "status": "active", "owner": "ceo"}, userFrom(r).Email)
 	// the goal is the one message the organisation needs (ADR-209): its head
 	// gets it now, in a chat that runs at Vận hành, as the person sending it;
 	// through its workflow for new work when the pack has one (ADR-213)
@@ -1232,8 +1232,11 @@ func (s *server) companyGoal(r *http.Request, x storage.Repo, goal string) {
 	}
 	_ = s.cfg.Chat.SetMode(r.Context(), c.ID, perm.Operate)
 	msg := goal
-	if wf, err := s.cfg.Store.Workflows().GetByKey(r.Context(), x.ID, "nhan-viec"); err == nil && wf.Enabled {
-		msg = workflow.Call(wf.Key, goal)
+	for _, key := range []string{"intake", "nhan-viec"} { // nhan-viec: packs made before ADR-230
+		if wf, err := s.cfg.Store.Workflows().GetByKey(r.Context(), x.ID, key); err == nil && wf.Enabled {
+			msg = workflow.Call(wf.Key, goal)
+			break
+		}
 	}
 	_, _, _ = s.cfg.Chat.Send(r.Context(), c.ID, msg, nil)
 }

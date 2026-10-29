@@ -252,7 +252,7 @@ const en: Record<keyof typeof vi, string> = {
   'watchW.changes.none': 'No setup changes yet',
   'watchW.kind.officemap': 'Office map',
   'watchW.desc.officemap': 'The board room and the departments, agents at their desks: idle ones doze off, busy ones type, hand-offs and talk fly across',
-  'watchW.officemap.none': 'The project has no map process (the Startup pack\'s node ban-do/server.mjs): add it in Operations',
+  'watchW.officemap.none': 'The project has no map process (the Startup pack\'s node office-map/server.mjs): add it in Operations',
   'watchW.officemap.stopped': 'The office map process is stopped',
   'watchW.officemap.noPort': 'The map is starting',
   'watchW.officemap.start': 'Start the map'

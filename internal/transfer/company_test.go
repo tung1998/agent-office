@@ -56,7 +56,7 @@ func TestLibraryPacksImport(t *testing.T) {
 			wfs, _ := o.st.Workflows().List(ctx, repo.ID)
 			autos, _ := o.st.Automations().List(ctx, repo.ID)
 			// the rules of an organisation (coordination, Burn) are the startup's;
-			// another bundle (a learner's, ngoai-ngu) only imports whole, off
+			// another bundle (a learner's, languages) only imports whole, off
 			company := b.Name == "@agentoffice/startup"
 			// ADR-204: the startup starts with its CEO alone, it makes the rest
 			alone := e.Ref == "@agentoffice/startup"
@@ -80,7 +80,7 @@ func TestLibraryPacksImport(t *testing.T) {
 			// up the work (project, team, workflow) and keeps it in check
 			for _, a := range agents {
 				// the CEO directs a project, the project runs itself (its own team, workflows)
-				want := map[string]string{"ceo": "#nhan-viec", "truong-don-vi": "#nhan-viec"}[a.Key]
+				want := map[string]string{"ceo": "#intake", "unit-head": "#intake"}[a.Key]
 				if want != "" && (!strings.Contains(a.Instructions, "## Bạn là ai") || !strings.Contains(a.Instructions, want)) {
 					t.Fatalf("%s: %s does not know what it is", e.Ref, a.Key)
 				}
@@ -102,10 +102,10 @@ func TestLibraryPacksImport(t *testing.T) {
 				t.Fatalf("%s: burn %+v %v", e.Ref, bs, err)
 			}
 			// a learner: notebook tables, its five workflows, three schedules off
-			if b.Name == "@agentoffice/ngoai-ngu" {
+			if b.Name == "@agentoffice/languages" {
 				cols, _ := o.st.Collections().List(ctx, repo.ID)
 				if len(agents) != 3 || len(wfs) != 5 || len(autos) != 3 || len(cols) < 5 {
-					t.Fatalf("ngoai-ngu: %d agents, %d workflows, %d schedules, %d tables", len(agents), len(wfs), len(autos), len(cols))
+					t.Fatalf("languages: %d agents, %d workflows, %d schedules, %d tables", len(agents), len(wfs), len(autos), len(cols))
 				}
 			}
 			// an investor: watchlist, signals, paper trades, lessons; four workflows, three schedules off
@@ -145,7 +145,7 @@ func TestCreateUnitFromLibrary(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := os.Stat(filepath.Join(r.Path, ".claude/skills/van-hanh/SKILL.md")); err != nil {
+	if _, err := os.Stat(filepath.Join(r.Path, ".claude/skills/operations/SKILL.md")); err != nil {
 		t.Fatal("the unit's skills are not in its repo")
 	}
 	agents, _ := o.st.Agents().List(ctx, r.ID)
@@ -174,7 +174,7 @@ func capsOf(p storage.Permissions) []string {
 // state of its schedules stay; a second sync has nothing left to do.
 func TestSyncPack(t *testing.T) {
 	ctx := context.Background()
-	raw, err := packs.Read("@agentoffice/startup/giam-sat")
+	raw, err := packs.Read("@agentoffice/startup/oversight")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -195,7 +195,7 @@ func TestSyncPack(t *testing.T) {
 		case "ceo": // drifted, and made administrator by a person
 			a.Instructions, a.Permissions.FullAccess, a.Permissions.FullAccessBy = "cũ", true, "boss@x.io"
 			o.st.Agents().Update(ctx, a)
-		case "nghien-cuu": // deleted by the person
+		case "researcher": // deleted by the person
 			o.st.Agents().Delete(ctx, a.ID)
 		}
 	}
@@ -233,7 +233,7 @@ func TestSyncPack(t *testing.T) {
 	for _, a := range after {
 		keys[a.Key] = a
 	}
-	if keys["ceo"].Instructions == "cũ" || !keys["ceo"].Permissions.FullAccess || keys["nghien-cuu"].ID == "" || keys["rieng"].ID == "" {
+	if keys["ceo"].Instructions == "cũ" || !keys["ceo"].Permissions.FullAccess || keys["researcher"].ID == "" || keys["rieng"].ID == "" {
 		t.Fatalf("after: %+v", keys)
 	}
 	if a, _ := o.st.Automations().Get(ctx, autos[0].ID); a.Prompt == "cũ" || !a.Enabled {

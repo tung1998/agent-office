@@ -124,7 +124,7 @@ export const widgetDefs: WidgetDef[] = [
     kind: 'team', group: 'agents', grid: { w: 3, h: 3, minW: 2, minH: 2, maxW: 6, maxH: 8 }, icon: 'i-lucide-users', project: 'optional',
     fields: [{ key: 'days', type: 'select', options: [1, 7, 30] }], defaults: { days: 1 }
   },
-  // a company's office map: the startup pack's own app (ban-do/), shown in the box
+  // a company's office map: the startup pack's own app (office-map/), shown in the box
   { kind: 'officemap', group: 'agents', grid: { w: 8, h: 5, minW: 3, minH: 3, maxW: 12, maxH: 12 }, icon: 'i-lucide-map', project: 'required', fields: [], defaults: {} },
   {
     kind: 'changes', group: 'other', grid: { w: 4, h: 4, minW: 2, minH: 2, maxW: 8, maxH: 10 }, icon: 'i-lucide-history', project: 'optional',

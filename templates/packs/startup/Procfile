@@ -1,1 +1,1 @@
-ban-do: node ban-do/server.mjs
+office-map: node office-map/server.mjs

@@ -19,7 +19,7 @@ import (
 func TestLibrary(t *testing.T) {
 	list, err := packs.Bundles()
 	if err != nil || !slices.ContainsFunc(list, func(b packs.Bundle) bool { return b.Name == "@agentoffice/startup" }) ||
-		!slices.ContainsFunc(list, func(b packs.Bundle) bool { return b.Name == "@agentoffice/ngoai-ngu" }) {
+		!slices.ContainsFunc(list, func(b packs.Bundle) bool { return b.Name == "@agentoffice/languages" }) {
 		t.Fatalf("bundles: %+v %v", list, err)
 	}
 	if _, e, err := packs.Find("@agentoffice/startup"); err != nil || !e.Root {
@@ -44,7 +44,7 @@ func TestLibrary(t *testing.T) {
 	if _, err := packs.Write(ctx, "@agentoffice/startup", hq, true); err != nil {
 		t.Fatal(err)
 	}
-	for _, f := range []string{"office.pack.json", ".claude/skills/van-hanh/SKILL.md", "docs/roadmap.md"} {
+	for _, f := range []string{"office.pack.json", ".claude/skills/operations/SKILL.md", "docs/roadmap.md"} {
 		if _, err := os.Stat(filepath.Join(hq, f)); err != nil {
 			t.Fatalf("root: %s missing", f)
 		}
@@ -62,23 +62,23 @@ func TestLibrary(t *testing.T) {
 	}
 	// a second root writes the same bundle with its own pack (ADR-204)
 	sup := repo()
-	if _, err := packs.Write(ctx, "@agentoffice/startup/giam-sat", sup, true); err != nil {
+	if _, err := packs.Write(ctx, "@agentoffice/startup/oversight", sup, true); err != nil {
 		t.Fatal(err)
 	}
 	if raw, _ := os.ReadFile(filepath.Join(sup, "office.pack.json")); !strings.Contains(string(raw), "Văn phòng giám sát") {
-		t.Fatal("giam-sat: not its own pack")
+		t.Fatal("oversight: not its own pack")
 	}
-	if _, err := os.Stat(filepath.Join(sup, ".claude/skills/to-chuc/vai.md")); err != nil {
-		t.Fatal("giam-sat: the bundle's skills missing")
+	if _, err := os.Stat(filepath.Join(sup, ".claude/skills/organization/roles.md")); err != nil {
+		t.Fatal("oversight: the bundle's skills missing")
 	}
 	// the learner's bundle: its skills and notebook folders come with it
 	learn := repo()
-	if _, err := packs.Write(ctx, "@agentoffice/ngoai-ngu", learn, true); err != nil {
+	if _, err := packs.Write(ctx, "@agentoffice/languages", learn, true); err != nil {
 		t.Fatal(err)
 	}
-	for _, f := range []string{"office.pack.json", ".claude/skills/ghi-bai/SKILL.md", ".claude/skills/on-tap/SKILL.md", ".claude/skills/ra-de/SKILL.md", ".claude/skills/lo-trinh/SKILL.md", ".claude/skills/luyen-ky-nang/SKILL.md", "docs/ho-so.md", "bai-hoc/README.md", "lo-trinh/README.md"} {
+	for _, f := range []string{"office.pack.json", ".claude/skills/notes/SKILL.md", ".claude/skills/review/SKILL.md", ".claude/skills/mock-test/SKILL.md", ".claude/skills/roadmap/SKILL.md", ".claude/skills/skills-practice/SKILL.md", "docs/profile.md", "lessons/README.md", "roadmap/README.md"} {
 		if _, err := os.Stat(filepath.Join(learn, f)); err != nil {
-			t.Fatalf("ngoai-ngu: %s missing", f)
+			t.Fatalf("languages: %s missing", f)
 		}
 	}
 	// the investor's bundle: its skills and the paper desk's folders
@@ -94,17 +94,24 @@ func TestLibrary(t *testing.T) {
 	if _, e, err := packs.Find("@agentoffice/company/marketing"); err != nil || e.Ref != "@agentoffice/startup/marketing" {
 		t.Fatalf("old name: %+v %v", e, err)
 	}
+	// ADR-230: the keys before English still find their packs
+	for old, now := range map[string]string{"@agentoffice/company/cskh": "@agentoffice/startup/support", "@agentoffice/startup/san-pham": "@agentoffice/startup/product",
+		"@agentoffice/ngoai-ngu": "@agentoffice/languages", "@agentoffice/dau-tu": "@agentoffice/trading"} {
+		if _, e, err := packs.Find(old); err != nil || e.Ref != now {
+			t.Fatalf("old name %s: %+v %v", old, e, err)
+		}
+	}
 	unit := repo()
 	paths, err := packs.Write(ctx, "@agentoffice/startup/marketing", unit, true)
 	if err != nil {
 		t.Fatal(err)
 	}
 	raw, _ := os.ReadFile(filepath.Join(unit, "office.pack.json"))
-	if !strings.Contains(string(raw), "Trưởng phòng Marketing") || !strings.Contains(strings.Join(paths, " "), ".claude/skills/phat-trien/SKILL.md") {
+	if !strings.Contains(string(raw), "Trưởng phòng Marketing") || !strings.Contains(strings.Join(paths, " "), ".claude/skills/growth/SKILL.md") {
 		t.Fatalf("unit: %v", paths)
 	}
 	// a skill's other files (what it reads or runs) come with it
-	for _, f := range []string{".claude/skills/to-chuc/vai.md", ".claude/skills/tri-thuc/lint.mjs"} {
+	for _, f := range []string{".claude/skills/organization/roles.md", ".claude/skills/knowledge/lint.mjs"} {
 		if _, err := os.Stat(filepath.Join(unit, f)); err != nil {
 			t.Fatalf("unit: %s missing", f)
 		}
@@ -123,13 +130,13 @@ func TestSyncFiles(t *testing.T) {
 	if _, err := packs.Write(ctx, "@agentoffice/startup", dir, true); err != nil {
 		t.Fatal(err)
 	}
-	skill := filepath.Join(dir, ".claude/skills/to-chuc/SKILL.md")
+	skill := filepath.Join(dir, ".claude/skills/organization/SKILL.md")
 	os.WriteFile(skill, []byte("cũ"), 0o644) // the template as it was when the project was made
 	exec.Command("git", "-C", dir, "-c", "user.name=t", "-c", "user.email=t@x", "commit", "-qam", "old").Run()
 	os.WriteFile(filepath.Join(dir, "docs/roadmap.md"), []byte("kế hoạch của project"), 0o644)
 	exec.Command("git", "-C", dir, "add", "docs/roadmap.md").Run()      // the project's own work, staged
 	got, err := packs.SyncFiles(ctx, "@agentoffice/company", dir, true) // the old name finds it too
-	if err != nil || strings.Join(got, ",") != ".claude/skills/to-chuc/SKILL.md" {
+	if err != nil || strings.Join(got, ",") != ".claude/skills/organization/SKILL.md" {
 		t.Fatalf("preview: %v %v", got, err)
 	}
 	if b, _ := os.ReadFile(skill); string(b) != "cũ" {
