@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -120,6 +121,12 @@ func TestPolicy(t *testing.T) {
 	}
 	if names := gw.NamesFor(ctx, mcpgateway.Caller{Kind: "claude", AgentID: "agt_other"}); strings.Join(names, ",") != "c7,mine" {
 		t.Fatalf("NamesFor other = %v", names)
+	}
+	if names := gw.NotFor(ctx, mcpgateway.Caller{Kind: "claude", AgentID: "agt_other"}); len(names) != 0 {
+		t.Fatalf("NotFor other = %v", names)
+	}
+	if names := gw.NotFor(ctx, callers["reader"]); len(names) == 0 || slices.Contains(names, "c7") {
+		t.Fatalf("NotFor reader = %v", names)
 	}
 	_ = only
 

@@ -95,6 +95,22 @@ func (g *Gateway) NamesFor(ctx context.Context, c Caller) []string {
 	return out
 }
 
+// NotFor lists the enabled servers of the machine c's run does not get: they
+// exist in office, only given to other agents.
+func (g *Gateway) NotFor(ctx context.Context, c Caller) []string {
+	list, err := g.Store.MCPServers().List(ctx)
+	if err != nil {
+		return nil
+	}
+	var out []string
+	for _, m := range list {
+		if m.Enabled && (m.Kind == "http" || m.Kind == "stdio") && m.Scope == "machine" && !Assigned(m, c) {
+			out = append(out, m.Name)
+		}
+	}
+	return out
+}
+
 // caller authenticates r and says who it is.
 func (g *Gateway) caller(r *http.Request) (Caller, bool) {
 	if g.Identify != nil {

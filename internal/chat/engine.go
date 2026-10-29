@@ -390,15 +390,16 @@ func (e *Engine) officeAccess(ctx context.Context, sc officetools.Scope) (*Offic
 	token, revoke := e.mcp.Grant(sc, 30*time.Minute)
 	oa := &OfficeAccess{MCPURL: e.mcpURL, Token: token, Scope: sc, Tools: e.office, Other: len(e.office.OtherTools(ctx, sc)) > 0}
 	if e.gateway != nil && !sc.Consult { // an expert: its project's knowledge only (ADR-177)
-		oa.Gateway, oa.GatewayTools = e.gateway(ctx, sc)
+		oa.Gateway, oa.GatewayOthers, oa.GatewayTools = e.gateway(ctx, sc)
 	}
 	return oa, revoke
 }
 
 // GatewayFor gives a run the MCP servers office manages, behind its gateway:
 // their names (Claude Code, Codex) and their tools for an API run (ADR-091,
-// ADR-093), those given to the run's agent.
-type GatewayFor func(ctx context.Context, sc officetools.Scope) ([]string, GatewayTools)
+// ADR-093), those given to the run's agent; then the names of the servers
+// given only to other agents (ADR-230).
+type GatewayFor func(ctx context.Context, sc officetools.Scope) ([]string, []string, GatewayTools)
 
 // SetGateway gives runs the MCP servers office manages.
 func (e *Engine) SetGateway(fn GatewayFor) { e.gateway = fn }
@@ -1244,6 +1245,9 @@ func (e *Engine) run(ctx context.Context, turn *Turn, conv storage.Conversation,
 		office, revoke := e.officeAccess(ctx, sc)
 		defer revoke()
 		req.Office = office
+		if office != nil && len(office.GatewayOthers) > 0 { // so it asks for one, not says it is missing (ADR-230)
+			req.System += "\n\n" + prompts.Render("chat/mcp-others", map[string]any{"Names": strings.Join(office.GatewayOthers, ", ")})
+		}
 	}
 	// the agent's own session in this chat (ADR-044); coming back, it gets
 	// what the others said since its last answer

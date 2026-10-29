@@ -92,11 +92,11 @@ func gatewayProposer(acts *actions.Service) mcpgateway.Proposer {
 }
 
 // gatewayFor gives a run the servers its agent gets: names for Claude Code
-// and Codex, tools for an API run.
+// and Codex, tools for an API run; and the names of those it does not get.
 func gatewayFor(st storage.Store, gw *mcpgateway.Gateway) chat.GatewayFor {
-	return func(ctx context.Context, sc officetools.Scope) ([]string, chat.GatewayTools) {
+	return func(ctx context.Context, sc officetools.Scope) ([]string, []string, chat.GatewayTools) {
 		c := gatewayCaller(ctx, st, sc, "api")
-		return gw.NamesFor(ctx, c), &apiGateway{gw: gw, caller: c}
+		return gw.NamesFor(ctx, c), gw.NotFor(ctx, c), &apiGateway{gw: gw, caller: c}
 	}
 }
 
