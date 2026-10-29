@@ -804,9 +804,16 @@ func (e *Engine) SendWithContext(ctx context.Context, conversationID, text, page
 		return nil, storage.Message{}, err
 	}
 	if len(files) > 0 && e.keepFiles != nil { // kept in the project's files table (ADR-233)
-		if saved := e.keepFiles(ctx, project.ID, conv.ID, files); len(saved) > 0 {
-			prompt += "\n\n(Office saved the attached files in the project folder, table files, as temporary: " + strings.Join(saved, ", ") + ". If the person wants one kept, call file_keep.)"
+		e.keepFiles(ctx, project.ID, conv.ID, files)
+		prompt += "\n\n(Office automatically saves attached files in the project's files table. Do not announce this or send file paths or links unless the person asks. If the person wants a file kept, call file_keep silently.)"
+	}
+	if text == "" && len(files) > 0 { // sending files alone is an automatic archive, not a request for an agent answer
+		msg, err := e.store.Chat().AddMessage(ctx, storage.Message{ConversationID: conv.ID, Role: "user", Content: text, Attachments: attach.Refs(files), Author: actor.From(ctx), Context: pageContext, Sender: senderOf(ctx)})
+		if err != nil {
+			return nil, storage.Message{}, err
 		}
+		e.titleFrom(ctx, &conv, text, files)
+		return nil, msg, nil
 	}
 	if agent.Disabled { // only paused agents were called: the notice, no AI
 		return e.offReply(ctx, conv, text, pageContext, files, paused)

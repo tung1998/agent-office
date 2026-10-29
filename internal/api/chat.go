@@ -375,7 +375,11 @@ func (s *server) sendMessage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	_ = s.cfg.Store.Chat().MarkSeen(r.Context(), userFrom(r).ID, r.PathValue("id"), true) // writing in it: seen
-	writeJSON(w, http.StatusAccepted, map[string]any{"turn_id": turn.ID, "message": plainMessageDTO(msg)})
+	turnID := ""
+	if turn != nil {
+		turnID = turn.ID
+	}
+	writeJSON(w, http.StatusAccepted, map[string]any{"turn_id": turnID, "message": plainMessageDTO(msg)})
 }
 
 // queueMessage keeps a message written while the chat answers (202, queued).
