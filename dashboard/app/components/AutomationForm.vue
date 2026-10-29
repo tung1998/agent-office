@@ -305,7 +305,7 @@ async function testRun() {
             <InfoTip :text="t('auto.stopWhenHint')" />
           </div>
         </UFormField>
-        <p v-if="form.source === 'event' && form.config.event_from === 'self' && !form.config.ends_at && !form.config.stop_when?.trim()" class="text-xs text-(--ui-warning)">{{ t('auto.selfNeedsStop') }}</p>
+        <p v-if="form.source === 'event' && form.config.event_from === 'self'" class="text-xs text-(--ui-text-muted)">{{ t('auto.selfHint') }}</p>
       </template>
     </section>
 

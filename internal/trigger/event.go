@@ -59,7 +59,6 @@ func (r *Runner) Emit(ctx context.Context, projectID, id string, ev EventPayload
 	queued := false
 	for _, a := range list {
 		c := a.Config
-		self := strings.HasPrefix(ev.Event, "automation.") && ev.From == a.ID
 		from := c.EventFrom
 		if from == storage.EventSelf {
 			from = a.ID
@@ -67,8 +66,8 @@ func (r *Runner) Emit(ctx context.Context, projectID, id string, ev EventPayload
 		if !a.Enabled || a.Source != eventTriggerSource || c.Event != ev.Event || (from != "" && from != ev.From) {
 			continue
 		}
-		if self && !c.CanRepeat() {
-			continue // on its own end only with a stop condition (ADR-244)
+		if ev.From == a.ID && c.EventFrom != storage.EventSelf {
+			continue // on its own end only when it says so: "any" means the others (ADR-244)
 		}
 		if end := c.EndsAt; end != nil && !r.now().Before(*end) { // its stop time, as a schedule's
 			_ = r.store.Automations().Disable(ctx, a.ID, "ended", "đã tới giờ dừng "+end.In(time.Local).Format("15:04 02/01/2006"), nil)

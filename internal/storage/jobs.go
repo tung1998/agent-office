@@ -274,9 +274,7 @@ type AutomationConfig struct {
 	// EndsAt: a schedule or event automation stops (turns itself off) at
 	// this time, as a Burn does (nil = runs until turned off).
 	EndsAt *time.Time `json:"ends_at,omitempty"`
-	// StopWhen: a run whose answer contains this text turns it off ("" = none).
-	// With EndsAt it is a stop condition: an event automation may then follow
-	// its own end and run again and again (ADR-244).
+	// StopWhen: a run whose answer contains this text turns it off ("" = none, ADR-244).
 	StopWhen string `json:"stop_when,omitempty"`
 	// Goal: action chat/workflow runs until it is reached (ADR-132; nil = one turn).
 	Goal *AutomationGoal `json:"goal,omitempty"`
@@ -297,9 +295,6 @@ type AutomationConfig struct {
 
 // EventSelf: event_from naming the automation itself, so it repeats (ADR-244).
 const EventSelf = "self"
-
-// CanRepeat: it has a stop condition, so it may follow its own end (ADR-244).
-func (c AutomationConfig) CanRepeat() bool { return c.EndsAt != nil || c.StopWhen != "" }
 
 // AutomationCondition lets a frequent schedule cost nothing when there is
 // nothing to do: it runs when a record of Collection matches Where, or (with

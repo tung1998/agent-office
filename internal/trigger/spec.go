@@ -79,9 +79,6 @@ func (s *Spec) Check() error {
 	if s.EndsAt != nil && !s.EndsAt.After(time.Now()) {
 		return errors.New("giờ dừng đã qua")
 	}
-	if s.Source == "event" && s.EventFrom == storage.EventSelf && s.EndsAt == nil && strings.TrimSpace(s.StopWhen) == "" && s.AutomationID == "" {
-		return errors.New("tự chạy lại theo chính nó cần điều kiện dừng: giờ dừng (ends_at) hoặc stop_when")
-	}
 	if s.Source == "schedule" {
 		if err := Validate(s.config()); err != nil {
 			return err

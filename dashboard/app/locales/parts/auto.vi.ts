@@ -381,7 +381,7 @@ export default {
   'auto.eventFromSelf': 'Chính nó (chạy lại mỗi khi xong)',
   'auto.stopWhen': 'Dừng khi câu trả lời có',
   'auto.stopWhenHint': 'Câu trả lời của một lượt chứa chuỗi này thì tự tắt. Dặn agent trong lời nhắn viết chuỗi này khi xong việc.',
-  'auto.selfNeedsStop': 'Chạy lại theo chính nó cần giờ tự tắt hoặc chuỗi dừng. Bấm Chạy ngay một lần để bắt đầu.',
+  'auto.selfHint': 'Chạy liền lượt này sang lượt khác như Burn, tới khi bạn tắt, tới giờ tự tắt hoặc gặp chuỗi dừng. Bấm Chạy ngay một lần để bắt đầu.',
   'auto.eventSameChat': 'Chạy tiếp trong chat đó',
   'auto.eventSameChatHint': 'Gửi tiếp vào chính chat vừa xong lượt, thay vì mở chat riêng',
   'auto.eventHint': 'Kết quả việc vừa xong nằm trong {{payload.text}}. Chuỗi tối đa 5 bước, mỗi tự động hóa tối đa 30 lần/giờ.',

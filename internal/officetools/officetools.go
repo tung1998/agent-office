@@ -323,7 +323,7 @@ func (t *Toolbox) Tools() []Tool {
 				"name":            str("Short name"),
 				"source":          map[string]any{"type": "string", "enum": []string{"schedule", "webhook", "event"}},
 				"event":           map[string]any{"type": "string", "enum": trigger.Events, "description": "source event: runs when this ends in the project (turn.* = a person's chat turn; automation.* = another automation's run, so automations chain; workflow.*). The payload ({{payload.text}}, {{payload.status}}, {{payload.from_name}}…) carries what ended"},
-				"event_from":      str("source event: only this one's end (agent id for turn.*, automation id for automation.*, workflow key for workflow.*); empty = any; \"self\" with automation.done = run again each time it ends (needs ends_at or stop_when; start it once by hand)"),
+				"event_from":      str("source event: only this one's end (agent id for turn.*, automation id for automation.*, workflow key for workflow.*); empty = any; \"self\" with automation.done = run again each time it ends, as a Burn, until turned off, ends_at or stop_when (start it once by hand)"),
 				"event_same_chat": map[string]any{"type": "boolean", "description": "source event, turn.*: go on in the chat that turn ended in"},
 				"every_minutes":   map[string]any{"type": "integer"},
 				"cron":            str("5-field cron, e.g. 0 8 * * 1-5"),

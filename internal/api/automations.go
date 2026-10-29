@@ -313,9 +313,6 @@ func (s *server) applyAutomation(r *http.Request, in automationInput, a *storage
 			cfg.EndsAt = &end
 		}
 		cfg.StopWhen = strings.TrimSpace(in.Config.StopWhen) // ADR-244
-		if cfg.EventFrom == storage.EventSelf && !cfg.CanRepeat() {
-			return errors.New("tự chạy lại theo chính nó cần điều kiện dừng: giờ dừng hoặc chuỗi dừng")
-		}
 	}
 	if !trigger.IsChannel(in.Source) && strings.TrimSpace(in.Config.NotifyChannelID) != "" { // its answers go to a bot's chat too: the project's, or one borrowed from another
 		ch, err := s.cfg.Store.Channels().Get(r.Context(), strings.TrimSpace(in.Config.NotifyChannelID))

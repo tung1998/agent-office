@@ -80,8 +80,8 @@ func TestSpecEvent(t *testing.T) {
 	}
 }
 
-// ADR-244: an automation follows its own end only with a stop condition,
-// and runs again and again until it is met (no chain depth on itself).
+// ADR-244: event_from "self" runs again and again (no chain depth on
+// itself) until its stop text; with none, until its hourly cap.
 func TestEventRepeatsItselfUntilStop(t *testing.T) {
 	ctx := context.Background()
 	st, p := openStore(t)
@@ -102,27 +102,38 @@ func TestEventRepeatsItselfUntilStop(t *testing.T) {
 		t.Fatalf("still on after its stop: %+v", a)
 	}
 
-	// no stop condition: never on its own end
+	// no stop condition: it goes on, held only by its hourly cap
 	ex2 := &fakeExec{}
 	r2 := trigger.New(st, ex2)
-	once, _ := st.Automations().Create(ctx, storage.Automation{ProjectID: p.ID, Name: "Một lần", Source: "event", Action: "chat", Enabled: true, AgentID: ag.ID,
+	free, _ := st.Automations().Create(ctx, storage.Automation{ProjectID: p.ID, Name: "Không dừng", Source: "event", Action: "chat", Enabled: true, AgentID: ag.ID,
 		Prompt: "x", Config: storage.AutomationConfig{Event: "automation.done", EventFrom: storage.EventSelf}})
-	if _, _, err := r2.Enqueue(ctx, once, "manual", "", "", ""); err != nil {
+	if _, _, err := r2.Enqueue(ctx, free, "manual", "", "", ""); err != nil {
 		t.Fatal(err)
 	}
 	r2.StartReady(ctx, time.Now().UTC())
 	r2.Wait()
-	if len(ex2.chats) != 1 {
-		t.Fatalf("repeated with no stop condition: %d runs", len(ex2.chats))
+	if len(ex2.chats) != 31 { // the manual start, then 30 an hour
+		t.Fatalf("ran %d times with no stop condition, want 31", len(ex2.chats))
+	}
+
+	// "any" is the others: not its own end
+	ex3 := &fakeExec{}
+	r3 := trigger.New(st, ex3)
+	_ = st.Automations().Disable(ctx, free.ID, "off", "", nil)
+	anyA, _ := st.Automations().Create(ctx, storage.Automation{ProjectID: p.ID, Name: "Bất kỳ", Source: "event", Action: "chat", Enabled: true, AgentID: ag.ID,
+		Prompt: "x", Config: storage.AutomationConfig{Event: "automation.done"}})
+	if _, _, err := r3.Enqueue(ctx, anyA, "manual", "", "", ""); err != nil {
+		t.Fatal(err)
+	}
+	r3.StartReady(ctx, time.Now().UTC())
+	r3.Wait()
+	if len(ex3.chats) != 1 {
+		t.Fatalf("\"any\" followed its own end: %d runs", len(ex3.chats))
 	}
 }
 
-func TestSpecSelfNeedsStop(t *testing.T) {
-	s := trigger.Spec{Name: "x", Source: "event", Action: "chat", Event: "automation.done", EventFrom: storage.EventSelf}
-	if s.Check() == nil {
-		t.Fatal("repeating itself with no stop condition passed")
-	}
-	s.StopWhen = "XONG"
+func TestSpecSelf(t *testing.T) {
+	s := trigger.Spec{Name: "x", Source: "event", Action: "chat", Event: "automation.done", EventFrom: storage.EventSelf, StopWhen: "XONG"}
 	if err := s.Check(); err != nil {
 		t.Fatal(err)
 	}

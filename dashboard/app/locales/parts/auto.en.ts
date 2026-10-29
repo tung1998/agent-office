@@ -382,7 +382,7 @@ const en: Record<keyof typeof vi, string> = {
   'auto.eventFromSelf': 'Itself (runs again each time it ends)',
   'auto.stopWhen': 'Stop when the answer has',
   'auto.stopWhenHint': 'A run whose answer contains this text turns it off. Tell the agent in the prompt to write it when the work is done.',
-  'auto.selfNeedsStop': 'Running again on its own end needs a stop time or a stop text. Press Run now once to start it.',
+  'auto.selfHint': 'Runs one run after another, as a Burn, until you turn it off, its stop time or its stop text. Press Run now once to start it.',
   'auto.eventSameChat': 'Go on in that chat',
   'auto.eventSameChatHint': 'Send it on in the chat whose turn just ended, not a chat of its own',
   'auto.eventHint': 'What just ended is in {{payload.text}}. A chain goes at most 5 steps, each automation at most 30 runs an hour.',
