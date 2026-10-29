@@ -13,3 +13,6 @@ bin/
 
 # Claude Code agent worktrees
 .claude/worktrees/
+
+# Playwright MCP logs and screenshots
+.playwright-mcp/
