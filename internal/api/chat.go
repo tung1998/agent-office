@@ -640,7 +640,7 @@ func (s *server) mayOpen(r *http.Request, conversationID string) bool {
 		return true // the handler reports it
 	}
 	helper := assistant.ID(r.Context(), s.cfg.Store)
-	if u := userFrom(r); u.Role != storage.RoleAdmin && (c.ProjectID == helper || !s.sees(r, c.ProjectID)) {
+	if u := userFrom(r); u.Role != storage.RoleAdmin && c.ProjectID != helper && !s.sees(r, c.ProjectID) {
 		return false // ADR-224
 	}
 	return c.ProjectID != helper || c.CreatedBy == "human:"+userFrom(r).Email

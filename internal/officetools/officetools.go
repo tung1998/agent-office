@@ -529,6 +529,9 @@ func (t *Toolbox) ToolsFor(sc Scope) []Tool {
 		if (x.Name == "use_skill" || x.Name == "my_skills") && sc.Office {
 			continue // the assistant works across projects: no skills of its own (ADR-185)
 		}
+		if sc.Limited && (x.Name == "remember" || x.Name == "forget" || x.Name == "recall") {
+			continue // its notes are the whole office's (ADR-240)
+		}
 		if questTool(x.Name) {
 			if t.burnChat(sc) || (x.Name != "burn_quests" && !perm.AtLeast(sc.Level, perm.Propose)) {
 				continue // a Burn records its own work with burn_add
@@ -581,6 +584,9 @@ func (t *Toolbox) ToolsFor(sc Scope) []Tool {
 	}
 	if sc.Office { // the office assistant (ADR-046)
 		for _, x := range t.officeTools() {
+			if sc.Limited && (x.Name == "propose_create_project" || x.Name == "propose_import_project") {
+				continue // an admin's (ADR-240)
+			}
 			if !sc.AnswerOnly || !proposes(x.Name) {
 				out = append(out, x)
 			}
@@ -714,7 +720,7 @@ func (t *Toolbox) Call(ctx context.Context, sc Scope, name string, raw json.RawM
 			return out, isErr
 		}
 		if in.Project != "" {
-			p, err := t.findProject(ctx, in.Project)
+			p, err := t.findProject(ctx, sc, in.Project)
 			if err != nil {
 				return err.Error(), true
 			}
@@ -1209,8 +1215,11 @@ func (t *Toolbox) searchHistory(ctx context.Context, sc Scope, query string, day
 		if err != nil {
 			return "", err
 		}
+		f.ProjectIDs = []string{}
 		for _, r := range repos {
-			f.ProjectIDs = append(f.ProjectIDs, r.ID)
+			if sc.Sees(r.ID) { // the person's own (ADR-240)
+				f.ProjectIDs = append(f.ProjectIDs, r.ID)
+			}
 		}
 	} else if project != "" && project != sc.ProjectID { // a linked project's
 		p, err := perm.LinkedProject(ctx, t.store, sc.ProjectID, project)

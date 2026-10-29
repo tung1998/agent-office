@@ -47,11 +47,11 @@ func (s *server) canSee(c storage.Conversation) func(events.Viewer, map[string]b
 	ctx := context.Background()
 	private := c.ProjectID == assistant.ID(ctx, s.cfg.Store)
 	return func(v events.Viewer, _ map[string]bool) bool {
-		if v.Admin {
-			return !private || c.CreatedBy == "human:"+v.Email
+		if private { // its maker's, whoever they are (ADR-240)
+			return c.CreatedBy == "human:"+v.Email
 		}
-		if private {
-			return false
+		if v.Admin {
+			return true
 		}
 		sc, err := s.scopeOf(ctx, storage.User{ID: v.UserID, Role: storage.RoleMember})
 		return err == nil && sc.has(c.ProjectID)

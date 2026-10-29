@@ -179,8 +179,8 @@ const items = computed<NavigationMenuItem[][]>(() => {
   // office-wide pages: the day's work, then how office is set up
   const office: NavigationMenuItem[] = [
     { label: t('nav.work'), type: 'label' },
-    // the assistant reads the whole office: an admin's (ADR-224)
-    ...(isOfficeAdmin.value ? [{ label: t('assistant.title'), icon: 'i-lucide-sparkles', to: '/assistant' }] : []),
+    // everyone's: it reaches the projects of the person asking (ADR-240)
+    { label: t('assistant.title'), icon: 'i-lucide-sparkles', to: '/assistant' },
     ...(showsGroup('library') ? [library] : []),
     // one place to follow the office: what needs a person is counted here; its tabs under it
     {

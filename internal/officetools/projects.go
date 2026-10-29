@@ -66,7 +66,7 @@ func (t *Toolbox) projectCall(ctx context.Context, sc Scope, name string, raw js
 	)
 	switch name {
 	case "export_project":
-		out, err = t.exportProject(ctx, in.Project, in.Include)
+		out, err = t.exportProject(ctx, sc, in.Project, in.Include)
 	case "propose_create_project":
 		out, err = t.proposeProject(ctx, sc, "create_project", storage.NewProject{Name: in.Name, Description: in.Description, URL: in.URL, Path: in.Path, Dir: in.Dir}, in.Reason)
 	case "propose_import_project":
@@ -81,8 +81,8 @@ func (t *Toolbox) projectCall(ctx context.Context, sc Scope, name string, raw js
 	return out, false, true
 }
 
-func (t *Toolbox) exportProject(ctx context.Context, ref string, include []string) (string, error) {
-	p, err := t.findProject(ctx, ref)
+func (t *Toolbox) exportProject(ctx context.Context, sc Scope, ref string, include []string) (string, error) {
+	p, err := t.findProject(ctx, sc, ref)
 	if err != nil {
 		return "", err
 	}

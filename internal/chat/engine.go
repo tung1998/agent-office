@@ -320,6 +320,31 @@ func (e *Engine) isAdminEmail(ctx context.Context, email string) bool {
 	return err == nil && u.Role == storage.RoleAdmin && !u.Disabled
 }
 
+// askerScope: whom the office assistant answers when not an admin (ADR-240).
+type askerScope struct {
+	projects []string // the projects they see
+	manages  bool     // a manager: proposes changes to those; else it only answers
+}
+
+// askerOf is the reach of the person who (human:<email>) asks the
+// assistant; anyone else (a bot, an automation) reaches nothing.
+func (e *Engine) askerOf(ctx context.Context, who string) *askerScope {
+	out := &askerScope{projects: []string{}}
+	email, ok := strings.CutPrefix(who, "human:")
+	if !ok {
+		return out
+	}
+	u, err := e.store.Users().GetByEmail(ctx, email)
+	if err != nil || u.Disabled {
+		return out
+	}
+	if ids, err := e.store.Users().Projects(ctx, u.ID); err == nil {
+		out.projects = ids
+	}
+	out.manages = u.Role == storage.RoleManager
+	return out
+}
+
 // assistantID is the office assistant's project ("" = none).
 func (e *Engine) assistantID(ctx context.Context) string {
 	if e.assistant == nil {
@@ -393,7 +418,7 @@ func (e *Engine) officeAccess(ctx context.Context, sc officetools.Scope) (*Offic
 	}
 	token, revoke := e.mcp.Grant(sc, 30*time.Minute)
 	oa := &OfficeAccess{MCPURL: e.mcpURL, Token: token, Scope: sc, Tools: e.office, Other: len(e.office.OtherTools(ctx, sc)) > 0}
-	if e.gateway != nil && !sc.Consult { // an expert: its project's knowledge only (ADR-177)
+	if e.gateway != nil && !sc.Consult && !sc.Limited { // an expert: its project's knowledge only (ADR-177); the assistant of a non-admin: no office MCP (ADR-240)
 		oa.Gateway, oa.GatewayOthers, oa.GatewayTools = e.gateway(ctx, sc)
 	}
 	return oa, revoke
@@ -1101,6 +1126,15 @@ func (e *Engine) run(ctx context.Context, turn *Turn, conv storage.Conversation,
 			}
 		}
 	}
+	// someone not an admin of the office: the assistant reaches their
+	// projects only, and only answers a member (ADR-240)
+	var asker *askerScope
+	if power != "" && power != assistant.ModeAdmin && !e.isAdmin(ctx, turn.actor) {
+		asker = e.askerOf(ctx, turn.actor)
+		if !asker.manages {
+			power = assistant.ModeAnswer
+		}
+	}
 	// job.FullAccess/FullAccessBy/ExtraDirs (ADR-074 security fix): computed
 	// once, when the job started, from who/what triggered it — never
 	// re-derived here from the agent's configuration alone (every message to
@@ -1258,7 +1292,9 @@ func (e *Engine) run(ctx context.Context, turn *Turn, conv storage.Conversation,
 		req.System += "\n\n" + prompts.Render("chat/administrator", map[string]any{"Via": "agent"})
 	}
 	// what changes from turn to turn comes last, after what a prompt cache keeps
-	req.System += memory.Block(ctx, e.store, project.ID, agent.ID) // what it keeps from before (ADR-068), core and the topics (ADR-134)
+	if asker == nil { // the assistant's notes are the whole office's (ADR-240)
+		req.System += memory.Block(ctx, e.store, project.ID, agent.ID) // what it keeps from before (ADR-068), core and the topics (ADR-134)
+	}
 	if clash != "" {
 		req.System += "\n\n" + prompts.Render("chat/conflicts", map[string]any{"Files": clash})
 	}
@@ -1267,6 +1303,9 @@ func (e *Engine) run(ctx context.Context, turn *Turn, conv storage.Conversation,
 		req.NoTools, req.UserMCP, req.Web, req.Write, req.FullAccess = true, false, false, false, false
 	} else {
 		sc := officetools.Scope{ProjectID: project.ID, ConversationID: conv.ID, TaskID: conv.TaskID, RunRef: turn.ID, JobID: turn.JobID, Office: e.isAssistant(ctx, project.ID) && !consult, AnswerOnly: power == assistant.ModeAnswer, Consult: consult, ClientKind: clientKind(p.Kind), Agent: agent.Name, Level: level, Access: acc, Dir: treeDir(pl)}
+		if asker != nil {
+			sc.Limited, sc.Projects = true, asker.projects
+		}
 		if req.FullAccess && !consult { // administrator: its office tools act at once too (ADR-188)
 			sc.Admin, sc.Access = true, perm.Admin(acc)
 			sc.AdminBy = agentFullBy

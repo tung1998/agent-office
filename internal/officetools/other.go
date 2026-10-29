@@ -31,7 +31,7 @@ func (t *Toolbox) otherLinks(ctx context.Context, sc Scope) []peer.Link {
 	if t.peers == nil {
 		return nil
 	}
-	return peer.Reach(ctx, t.store, t.peers, sc.ProjectID, sc.Office, sc.Admin)
+	return peer.Reach(ctx, t.store, t.peers, sc.ProjectID, sc.OfficeWide(), sc.Admin) // an admin's assistant: every office (ADR-240)
 }
 
 // OtherTools lists the other_office tools of sc: none when it reaches no
@@ -77,7 +77,7 @@ func (t *Toolbox) OtherTools(ctx context.Context, sc Scope) []Tool {
 				"text":   str("Message text, clear enough for the agent there to act without asking back"),
 				"reason": str("Why it needs sending")}, "text", "reason")})
 	}
-	if linked && sc.Office && sc.ConversationID != "" && t.transfer != nil { // the office assistant (ADR-170)
+	if linked && sc.OfficeWide() && sc.ConversationID != "" && t.transfer != nil { // the office assistant (ADR-170)
 		list = append(list, Tool{Name: "import", Description: "PROPOSE copying a project of another office here (the person approves on a card): its pack (config: agents, permissions, workflows; memory: agents' notes; chats: only those between the two offices) into a new project that clones its git remote (see offices), else url/path/a new empty repo. Code goes by git only.",
 			Schema: obj(map[string]any{"office": office, "project": project,
 				"include": map[string]any{"type": "array", "items": map[string]any{"type": "string", "enum": transfer.Includes}, "description": "What to take (default config)"},
@@ -244,7 +244,7 @@ func (t *Toolbox) otherChat(ctx context.Context, sc Scope, links []peer.Link, of
 	}
 	// the other office checks the chat is of project (ADR-169)
 	switch {
-	case sc.Office:
+	case sc.OfficeWide():
 	case sent:
 	case project != "" && slices.ContainsFunc(links, func(l peer.Link) bool { return l.Peer.ID == p.ID && l.Project.ID == project }):
 		verify = true

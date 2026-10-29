@@ -117,3 +117,45 @@ func TestAssistantChatsPaginateOwnOnly(t *testing.T) {
 		t.Fatalf("admin should see all 3 of their own chats across pages, got %d", len(seen))
 	}
 }
+
+// ADR-240: a member (and a manager) has the assistant too: its own chats
+// there, never another's, and none of the assistant's settings or notes.
+func TestAssistantForEveryone(t *testing.T) {
+	e := setup(t)
+	ctx := context.Background()
+	id, _ := assistant.Ensure(ctx, e.st, t.TempDir())
+	m := e.client(t)
+	login(t, e, m, "member@x.io", "member-password")
+	resp, body := do(t, m, "GET", e.srv.URL+"/api/assistant", nil, nil)
+	if resp.StatusCode != 200 || body["project_id"] != id {
+		t.Fatalf("assistant = %d %v", resp.StatusCode, body)
+	}
+	resp, body = do(t, m, "POST", e.srv.URL+"/api/projects/"+id+"/conversations", map[string]any{}, nil)
+	if resp.StatusCode != 201 {
+		t.Fatalf("member opens a chat = %d %v", resp.StatusCode, body)
+	}
+	mine := body["conversation"].(map[string]any)["id"].(string)
+	theirs, _ := e.st.Chat().CreateConversation(ctx, storage.Conversation{ProjectID: id, Title: "của admin", CreatedBy: "human:admin@x.io"})
+	_, body = do(t, m, "GET", e.srv.URL+"/api/projects/"+id+"/conversations", nil, nil)
+	if list := body["conversations"].([]any); len(list) != 1 || list[0].(map[string]any)["id"] != mine {
+		t.Fatalf("member's assistant chats = %v", list)
+	}
+	for _, c := range []struct {
+		method, path string
+		want         int
+	}{
+		{"GET", "/api/conversations/" + mine, 200},
+		{"GET", "/api/conversations/" + theirs.ID, 404},
+		{"POST", "/api/conversations/" + theirs.ID + "/messages", 404},
+		{"GET", "/api/projects/" + id, 404},             // its project page
+		{"GET", "/api/projects/" + id + "/policy", 404}, // its settings
+		{"GET", "/api/memories?project=" + id, 404},     // its notes, the whole office's
+	} {
+		if resp, _ := do(t, m, c.method, e.srv.URL+c.path, map[string]any{"text": "x"}, nil); resp.StatusCode != c.want && !(c.want == 404 && resp.StatusCode == 403) {
+			t.Fatalf("%s %s = %d", c.method, c.path, resp.StatusCode)
+		}
+	}
+	if resp, _ := do(t, m, "PUT", e.srv.URL+"/api/assistant/mode", map[string]any{"mode": "admin"}, nil); resp.StatusCode != 403 {
+		t.Fatalf("member sets the assistant's mode = %d", resp.StatusCode)
+	}
+}

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"slices"
 	"strings"
 	"time"
 
@@ -31,8 +32,8 @@ func (t *Toolbox) officeTools() []Tool {
 }
 
 // findProject is a project by id or name (case does not matter), never the
-// assistant's own.
-func (t *Toolbox) findProject(ctx context.Context, ref string) (storage.Repo, error) {
+// assistant's own, and only one the person asking sees (ADR-240).
+func (t *Toolbox) findProject(ctx context.Context, sc Scope, ref string) (storage.Repo, error) {
 	ref = strings.TrimSpace(ref)
 	list, err := t.store.Repos().List(ctx)
 	if err != nil {
@@ -44,7 +45,7 @@ func (t *Toolbox) findProject(ctx context.Context, ref string) (storage.Repo, er
 	}
 	var names []string
 	for _, p := range list {
-		if p.ID == own {
+		if p.ID == own || !sc.Sees(p.ID) {
 			continue
 		}
 		if p.ID == ref || strings.EqualFold(p.Name, ref) {
@@ -81,7 +82,7 @@ func (t *Toolbox) officeCall(ctx context.Context, sc Scope, name string, raw jso
 		if in.Project == "" {
 			return storage.Repo{}, errors.New("hãy chỉ rõ project (xem projects)")
 		}
-		return t.findProject(ctx, in.Project)
+		return t.findProject(ctx, sc, in.Project)
 	}
 	var (
 		out string
@@ -97,7 +98,7 @@ func (t *Toolbox) officeCall(ctx context.Context, sc Scope, name string, raw jso
 			}
 			rows := []map[string]any{}
 			for _, p := range list {
-				if p.ID != own {
+				if p.ID != own && sc.Sees(p.ID) {
 					rows = append(rows, map[string]any{"id": p.ID, "name": p.Name, "description": p.Description, "path": p.Path})
 				}
 			}
@@ -114,6 +115,9 @@ func (t *Toolbox) officeCall(ctx context.Context, sc Scope, name string, raw jso
 		}
 		if t.assistant != nil {
 			f.ExcludeProjectID = t.assistant(ctx) // the assistant's chats are each person's own
+		}
+		if sc.Limited { // the person's projects only (ADR-240)
+			f.ProjectIDs = append([]string{}, sc.Projects...)
 		}
 		if in.Project != "" {
 			var p storage.Repo
@@ -142,7 +146,11 @@ func (t *Toolbox) officeCall(ctx context.Context, sc Scope, name string, raw jso
 			by = "project"
 		}
 		var rows []storage.UsageRow
+		if sc.Limited { // by day or model sums every project: the person's own, by project (ADR-240)
+			by = "project"
+		}
 		if rows, err = t.store.Runs().Aggregate(ctx, time.Now().Add(-time.Duration(days)*24*time.Hour), by, time.Local); err == nil {
+			rows = slices.DeleteFunc(rows, func(r storage.UsageRow) bool { return !sc.Sees(r.Key) })
 			b, _ := json.MarshalIndent(rows, "", "  ")
 			out = fmt.Sprintf("Cost over %d days, by %s:\n%s", days, by, b)
 		}

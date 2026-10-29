@@ -29,6 +29,9 @@ func (t *Toolbox) readLink(ctx context.Context, sc Scope, link string) (string, 
 	if t.assistant != nil && projectID == t.assistant(ctx) {
 		return "", errors.New("chat của trợ lý office là riêng của từng người, không đọc được bằng liên kết")
 	}
+	if sc.Office && !sc.Sees(projectID) { // the assistant reads the person's projects (ADR-240)
+		return "", errors.New("liên kết thuộc project bạn không thấy")
+	}
 	if projectID != sc.ProjectID && !sc.Office { // the assistant reads any project's
 		if _, err := perm.LinkedProject(ctx, t.store, sc.ProjectID, projectID); err != nil {
 			return "", errors.New("liên kết thuộc project khác chưa liên kết; bạn chỉ đọc được chat và Việc của project này hay project liên kết")

@@ -1,10 +1,10 @@
 <script setup lang="ts">
 // The office assistant (ADR-046): one chat across projects — figures,
 // reports, settings through approval cards, work handed to a project's chat.
-// It reads the whole office: an admin's (ADR-224).
-definePageMeta({ admin: true })
+// Everyone's: each person's own chats, about the projects they see; a
+// member's only answers (ADR-240).
 const { t } = useLang()
-const { isAdmin } = useAuth()
+const { isOfficeAdmin: isAdmin } = useAuth()
 const { data, error } = await useLiveFetch<{ project_id: string }>('/api/assistant')
 </script>
 

@@ -172,7 +172,21 @@ type Scope struct {
 	// there, and the project's allowed commands run without asking since
 	// nothing there touches the project until a person merges it.
 	Dir string
+	// Limited: the office assistant answers someone who is not an admin of
+	// the office (ADR-240): it reaches only Projects, the ones they see.
+	Limited  bool
+	Projects []string
 }
+
+// Sees reports whether the run may reach project id across projects: any,
+// unless the office assistant answers a person who sees only some (ADR-240).
+func (sc Scope) Sees(id string) bool {
+	return !sc.Limited || slices.Contains(sc.Projects, id)
+}
+
+// OfficeWide: the office assistant answering an admin of the office, who
+// reaches every project and every other office.
+func (sc Scope) OfficeWide() bool { return sc.Office && !sc.Limited }
 
 // Service proposes and decides actions.
 type Service struct {
@@ -283,7 +297,7 @@ func (s *Service) Propose(ctx context.Context, sc Scope, kind, target, reason st
 			return a, errors.New("cổng quy trình cần cuộc chat, tên cổng và điều cần duyệt")
 		}
 	} else if kind == "create_project" || kind == "import_project" { // the office assistant (ADR-170), or an administrator under its project (ADR-191)
-		if !(sc.Office || sc.Admin) || s.projects == nil || a.Args.NewProject == nil {
+		if !(sc.Office || sc.Admin) || sc.Limited || s.projects == nil || a.Args.NewProject == nil {
 			return a, errors.New("chỉ trợ lý office hay agent chạy như administrator tạo hay nhập project")
 		}
 		if np := a.Args.NewProject; !sc.Office {
@@ -1084,7 +1098,7 @@ func (s *Service) checkSend(ctx context.Context, sc Scope, a *storage.Action) er
 			return perm.LinkedProject(ctx, s.store, a.ProjectID, ref)
 		}
 		p, err := s.store.Repos().Get(ctx, ref)
-		if err != nil {
+		if err != nil || !sc.Sees(p.ID) { // the person's own projects (ADR-240)
 			return p, fmt.Errorf("không có project %q", ref)
 		}
 		return p, nil
@@ -1114,6 +1128,9 @@ func (s *Service) checkSend(ctx context.Context, sc Scope, a *storage.Action) er
 	}
 	if c.ID == sc.ConversationID {
 		return errors.New("đây là chính cuộc chat đang nói")
+	}
+	if sc.Limited && c.ProjectID == a.ProjectID { // another person's assistant chat (ADR-240)
+		return errors.New("chat của trợ lý office là riêng của từng người")
 	}
 	switch {
 	case a.Args.Project != "" && c.ProjectID != a.Args.Project:
@@ -1157,7 +1174,7 @@ func (s *Service) peerRecheck(ctx context.Context, a *storage.Action) (string, e
 // checkPeerSend checks a send to a project in another office (peerAccess);
 // Target becomes "<office>/<project> · …".
 func (s *Service) checkPeerSend(ctx context.Context, sc Scope, a *storage.Action) error {
-	label, err := s.peerAccess(ctx, a, chatRef(a.Target), sc.ConversationID, sc.Office, sc.Admin)
+	label, err := s.peerAccess(ctx, a, chatRef(a.Target), sc.ConversationID, sc.OfficeWide(), sc.Admin)
 	if err != nil {
 		return err
 	}

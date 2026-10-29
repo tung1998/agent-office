@@ -276,3 +276,51 @@ func TestOfficeReachesEveryProject(t *testing.T) {
 		t.Fatalf("send = %+v", a)
 	}
 }
+
+// ADR-240: the assistant answering someone not an admin reaches only the
+// projects they see: listed, named, read by link, its figures; no notes of
+// its own, no new projects.
+func TestOfficeScopeLimited(t *testing.T) {
+	ctx := context.Background()
+	st, _ := sqlite.Open(filepath.Join(t.TempDir(), "o.db"))
+	defer st.Close()
+	st.Migrate(ctx)
+	office, _ := st.Repos().Create(ctx, storage.Repo{Name: "Office"})
+	shop, _ := st.Repos().Create(ctx, storage.Repo{Name: "Storefront"})
+	secret, _ := st.Repos().Create(ctx, storage.Repo{Name: "Secret"})
+	st.Jobs().Create(ctx, storage.Job{ProjectID: shop.ID, Kind: "chat_turn", Origin: "user", Trigger: "ui", Title: "việc shop", Status: "done"})
+	st.Jobs().Create(ctx, storage.Job{ProjectID: secret.ID, Kind: "chat_turn", Origin: "user", Trigger: "ui", Title: "việc bí mật", Status: "done"})
+	acts := actions.New(st, nil)
+	acts.SetRunner(fakeRunner{})
+	box := New(st, nil, acts)
+	box.SetOffice(func(ctx context.Context) string { return office.ID })
+	sc := Scope{ProjectID: office.ID, Office: true, Agent: "Trợ lý office", Level: "propose", Limited: true, Projects: []string{shop.ID}}
+	call := func(name string, args map[string]any) (string, bool) {
+		raw, _ := json.Marshal(args)
+		return box.Call(ctx, sc, name, raw)
+	}
+	if out, isErr := call("projects", nil); isErr || !strings.Contains(out, "Storefront") || strings.Contains(out, "Secret") {
+		t.Fatalf("projects = %v %s", isErr, out)
+	}
+	if out, isErr := call("jobs_query", nil); isErr || !strings.Contains(out, "việc shop") || strings.Contains(out, "bí mật") {
+		t.Fatalf("jobs_query = %v %s", isErr, out)
+	}
+	for _, c := range []struct {
+		name string
+		args map[string]any
+	}{
+		{"jobs_query", map[string]any{"project": "Secret"}},
+		{"handoff", map[string]any{"project": "Secret", "message": "x"}},
+		{"ops_overview", map[string]any{"project": secret.ID}},
+		{"read_link", map[string]any{"url": "/projects/" + secret.ID + "?tab=chat&c=cnv_x"}},
+	} {
+		if out, isErr := call(c.name, c.args); !isErr {
+			t.Fatalf("%s reached another's project: %s", c.name, out)
+		}
+	}
+	for _, tl := range box.ToolsFor(sc) {
+		if slices.Contains([]string{"remember", "recall", "forget", "propose_create_project", "propose_import_project"}, tl.Name) {
+			t.Errorf("limited assistant has %s", tl.Name)
+		}
+	}
+}

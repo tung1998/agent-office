@@ -203,8 +203,8 @@ func (s *server) gate(w http.ResponseWriter, r *http.Request, adminOnly bool) bo
 		return false
 	}
 	if pid != "" {
-		// the office assistant's chats are an admin's: it reads the whole office
-		if !s.sees(r, pid) || pid == assistant.ID(r.Context(), s.cfg.Store) {
+		// the office assistant: everyone's, each person their own chats (ADR-240)
+		if helper := assistant.ID(r.Context(), s.cfg.Store); pid == helper && !s.assistantMay(r) || pid != helper && !s.sees(r, pid) {
 			writeError(w, http.StatusNotFound, "không tìm thấy project")
 			return false
 		}
@@ -216,6 +216,41 @@ func (s *server) gate(w http.ResponseWriter, r *http.Request, adminOnly bool) bo
 		return true
 	}
 	writeError(w, http.StatusForbidden, "forbidden")
+	return false
+}
+
+// assistantMay: what of the office assistant's project someone other than
+// an admin reaches (ADR-240): its chat page, and the chats they opened there
+// (their messages, answers, cards, files); not its agent, memory or settings.
+func (s *server) assistantMay(r *http.Request) bool {
+	switch r.Pattern {
+	case "GET /api/projects/{id}/chat/agents", "GET /api/projects/{id}/conversations", "POST /api/projects/{id}/conversations",
+		"GET /api/projects/{id}/editor-chat", "POST /api/projects/{id}/attachments", "GET /api/projects/{id}/chat-tags",
+		"GET /api/projects/{id}/workflow-runs": // each person's own (the handlers filter)
+		return true
+	}
+	ctx, st, me := r.Context(), s.cfg.Store, "human:"+userFrom(r).Email
+	mine := func(conversationID string) bool {
+		c, err := st.Chat().GetConversation(ctx, conversationID)
+		return err == nil && c.CreatedBy == me
+	}
+	pattern := r.Pattern[strings.IndexByte(r.Pattern, ' ')+1:]
+	switch {
+	case strings.HasPrefix(pattern, "/api/conversations/{id}"):
+		return mine(r.PathValue("id"))
+	case strings.HasPrefix(pattern, "/api/chat/turns/{id}"):
+		t, ok := s.cfg.Chat.Turn(r.PathValue("id"))
+		return ok && mine(t.ConversationID)
+	case strings.HasPrefix(pattern, "/api/actions/{id}"):
+		a, err := st.Actions().Get(ctx, r.PathValue("id"))
+		return err == nil && mine(a.ConversationID)
+	case strings.HasPrefix(pattern, "/api/patches/{id}"):
+		p, err := st.Chat().GetPatch(ctx, r.PathValue("id"))
+		return err == nil && mine(p.ConversationID)
+	case strings.HasPrefix(pattern, "/api/attachments/{id}"):
+		m, _, err := s.cfg.Chat.Attachments().Get(r.PathValue("id"))
+		return err == nil && m.CreatedBy == userFrom(r).Email // saved by email
+	}
 	return false
 }
 
