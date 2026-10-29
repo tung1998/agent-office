@@ -59,11 +59,20 @@ func (r *Runner) Emit(ctx context.Context, projectID, id string, ev EventPayload
 	queued := false
 	for _, a := range list {
 		c := a.Config
-		if !a.Enabled || a.Source != eventTriggerSource || c.Event != ev.Event || (c.EventFrom != "" && c.EventFrom != ev.From) {
+		self := strings.HasPrefix(ev.Event, "automation.") && ev.From == a.ID
+		from := c.EventFrom
+		if from == storage.EventSelf {
+			from = a.ID
+		}
+		if !a.Enabled || a.Source != eventTriggerSource || c.Event != ev.Event || (from != "" && from != ev.From) {
 			continue
 		}
-		if strings.HasPrefix(ev.Event, "automation.") && ev.From == a.ID {
-			continue // never on its own end
+		if self && !c.CanRepeat() {
+			continue // on its own end only with a stop condition (ADR-244)
+		}
+		if end := c.EndsAt; end != nil && !r.now().Before(*end) { // its stop time, as a schedule's
+			_ = r.store.Automations().Disable(ctx, a.ID, "ended", "đã tới giờ dừng "+end.In(time.Local).Format("15:04 02/01/2006"), nil)
+			continue
 		}
 		if r.eventRunsLastHour(ctx, a.ID) >= maxEventRunsPerHr {
 			slog.Warn("trigger: event automation over its hourly runs", "automation", a.ID, "event", ev.Event)
@@ -109,8 +118,16 @@ func (r *Runner) emitDone(ctx context.Context, a storage.Automation, j storage.J
 	default:
 		return // skipped, cancelled, waiting: nothing ended
 	}
+	out := firstNonEmpty(text, j.Output)
+	if stop := a.Config.StopWhen; stop != "" && strings.Contains(out, stop) { // its stop condition met: no more runs (ADR-244)
+		_ = r.store.Automations().Disable(ctx, a.ID, "ended", "đã gặp điều kiện dừng: "+stop, nil)
+	}
 	prev := eventOf(j)
+	depth := prev.Depth + 1
+	if prev.From == a.ID {
+		depth = prev.Depth // repeating itself is not a deeper chain: its stop condition ends it (ADR-244)
+	}
 	r.Emit(ctx, a.ProjectID, j.ID, EventPayload{Event: name, From: a.ID, FromName: a.Name, ConversationID: j.ConversationID,
-		Status: j.Status, Error: j.Error, Text: firstNonEmpty(text, j.Output), Depth: prev.Depth + 1,
+		Status: j.Status, Error: j.Error, Text: out, Depth: depth,
 		Untrusted: prev.Untrusted || j.Trigger == "webhook" || IsChannel(j.Trigger)})
 }

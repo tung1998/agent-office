@@ -271,9 +271,13 @@ type AutomationConfig struct {
 	NotifyChatID    string `json:"notify_chat_id,omitempty"`
 	// Tags go on the chat each run talks in (added to its own; at most 10 a chat).
 	Tags []string `json:"tags,omitempty"`
-	// EndsAt: a schedule stops (turns itself off) at this time, as a Burn
-	// does (nil = runs until turned off).
+	// EndsAt: a schedule or event automation stops (turns itself off) at
+	// this time, as a Burn does (nil = runs until turned off).
 	EndsAt *time.Time `json:"ends_at,omitempty"`
+	// StopWhen: a run whose answer contains this text turns it off ("" = none).
+	// With EndsAt it is a stop condition: an event automation may then follow
+	// its own end and run again and again (ADR-244).
+	StopWhen string `json:"stop_when,omitempty"`
 	// Goal: action chat/workflow runs until it is reached (ADR-132; nil = one turn).
 	Goal *AutomationGoal `json:"goal,omitempty"`
 	// OnlyIf: a schedule runs only when its data says there is work (ADR-194; nil = always).
@@ -284,12 +288,18 @@ type AutomationConfig struct {
 	// Event: source "event" runs when this happens in the project (ADR-243):
 	// turn.done | turn.failed | automation.done | automation.failed | workflow.done | workflow.failed.
 	// EventFrom narrows it to one agent (turn.*), automation (automation.*)
-	// or workflow key (workflow.*); "" = any. EventSameChat: a turn.* event
+	// or workflow key (workflow.*); "" = any, "self" = its own (ADR-244). EventSameChat: a turn.* event
 	// goes on in the chat that turn ended in, not a chat of its own.
 	Event         string `json:"event,omitempty"`
 	EventFrom     string `json:"event_from,omitempty"`
 	EventSameChat bool   `json:"event_same_chat,omitempty"`
 }
+
+// EventSelf: event_from naming the automation itself, so it repeats (ADR-244).
+const EventSelf = "self"
+
+// CanRepeat: it has a stop condition, so it may follow its own end (ADR-244).
+func (c AutomationConfig) CanRepeat() bool { return c.EndsAt != nil || c.StopWhen != "" }
 
 // AutomationCondition lets a frequent schedule cost nothing when there is
 // nothing to do: it runs when a record of Collection matches Where, or (with

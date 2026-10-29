@@ -34,17 +34,18 @@ func openStore(t *testing.T) (storage.Store, storage.Repo) {
 }
 
 type fakeExec struct {
-	mu     sync.Mutex
-	chats  []string
-	tasks  []string // "agent|goal"
-	tiers  []string // model tier each run was asked to use
-	busy   int      // return ErrBusy this many times first
-	fail   bool
-	taskID string     // what RunTask returns ("" = tsk_x)
-	actors []string   // who each task was asked by
-	goals  []string   // each task's goal
-	tags   [][]string // the chat tags each run was given
-	convs  []string   // the chat each run was sent to ("" = a new one)
+	mu      sync.Mutex
+	chats   []string
+	tasks   []string // "agent|goal"
+	tiers   []string // model tier each run was asked to use
+	busy    int      // return ErrBusy this many times first
+	fail    bool
+	taskID  string     // what RunTask returns ("" = tsk_x)
+	actors  []string   // who each task was asked by
+	goals   []string   // each task's goal
+	tags    [][]string // the chat tags each run was given
+	convs   []string   // the chat each run was sent to ("" = a new one)
+	answers []string   // what the runs answer, in order (none = "")
 }
 
 func (f *fakeExec) RunChat(ctx context.Context, projectID, agentID, conv, prompt, edit string) (string, string, error) {
@@ -61,6 +62,9 @@ func (f *fakeExec) RunChat(ctx context.Context, projectID, agentID, conv, prompt
 	f.actors = append(f.actors, actor.From(ctx))
 	if f.fail {
 		return "cnv_x", "", errors.New("HTTP 529")
+	}
+	if n := len(f.chats) - 1; n < len(f.answers) {
+		return "cnv_x", f.answers[n], nil
 	}
 	return "cnv_x", "", nil
 }

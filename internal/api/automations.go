@@ -83,7 +83,7 @@ type automationDTO struct {
 func (s *server) toAutomationDTO(r *http.Request, a storage.Automation) automationDTO {
 	c := a.Config
 	cfg := map[string]any{"every_minutes": c.EveryMinutes, "cron": c.Cron, "timezone": c.Timezone, "auth": c.Auth, "auth_name": c.AuthName,
-		"pull_request": c.PullRequest, "notify_channel_id": c.NotifyChannelID, "notify_chat_id": c.NotifyChatID, "ends_at": c.EndsAt, "goal": c.Goal,
+		"pull_request": c.PullRequest, "notify_channel_id": c.NotifyChannelID, "notify_chat_id": c.NotifyChatID, "ends_at": c.EndsAt, "stop_when": c.StopWhen, "goal": c.Goal,
 		"only_if": c.OnlyIf} // read back as it is saved: an edit that sends the config back keeps it (ADR-219)
 	if trigger.IsChannel(a.Source) {
 		keywords := c.Keywords
@@ -247,17 +247,6 @@ func (s *server) applyAutomation(r *http.Request, in automationInput, a *storage
 		if err := trigger.Validate(cfg); err != nil {
 			return err
 		}
-		if in.Config.EndsAt != nil { // its stop time, as a Burn's
-			end := in.Config.EndsAt.UTC()
-			on := a.Enabled
-			if in.Enabled != nil {
-				on = *in.Enabled
-			}
-			if on && !end.After(time.Now()) {
-				return errors.New("giờ dừng đã qua: hãy đặt giờ dừng mới hoặc bỏ giờ dừng")
-			}
-			cfg.EndsAt = &end
-		}
 	} else if trigger.IsChannel(in.Source) { // ADR-049
 		ch, err := s.cfg.Store.Channels().Get(r.Context(), in.Config.ChannelID)
 		if err != nil || ch.ProjectID != a.ProjectID {
@@ -310,6 +299,23 @@ func (s *server) applyAutomation(r *http.Request, in automationInput, a *storage
 			cfg.Auth = "bearer"
 		}
 		cfg.PullRequest = in.Config.PullRequest // a GitHub/Bitbucket PR webhook
+	}
+	if in.Source == "schedule" || in.Source == "event" {
+		if in.Config.EndsAt != nil { // its stop time, as a Burn's
+			end := in.Config.EndsAt.UTC()
+			on := a.Enabled
+			if in.Enabled != nil {
+				on = *in.Enabled
+			}
+			if on && !end.After(time.Now()) {
+				return errors.New("giờ dừng đã qua: hãy đặt giờ dừng mới hoặc bỏ giờ dừng")
+			}
+			cfg.EndsAt = &end
+		}
+		cfg.StopWhen = strings.TrimSpace(in.Config.StopWhen) // ADR-244
+		if cfg.EventFrom == storage.EventSelf && !cfg.CanRepeat() {
+			return errors.New("tự chạy lại theo chính nó cần điều kiện dừng: giờ dừng hoặc chuỗi dừng")
+		}
 	}
 	if !trigger.IsChannel(in.Source) && strings.TrimSpace(in.Config.NotifyChannelID) != "" { // its answers go to a bot's chat too: the project's, or one borrowed from another
 		ch, err := s.cfg.Store.Channels().Get(r.Context(), strings.TrimSpace(in.Config.NotifyChannelID))

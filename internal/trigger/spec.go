@@ -33,7 +33,9 @@ type Spec struct {
 	Escalate      storage.AutomationEscalate `json:"escalate"`          // gone (ADR-057): read, never kept
 	Goal          *storage.AutomationGoal    `json:"goal,omitempty"`    // chat/workflow: run until it is reached (ADR-132)
 	Tags          []string                   `json:"tags,omitempty"`    // on each run's chat (none = the ones it has)
-	EndsAt        *time.Time                 `json:"ends_at,omitempty"` // schedule: it stops then (none = the one it has)
+	EndsAt        *time.Time                 `json:"ends_at,omitempty"` // schedule/event: it stops then (none = the one it has)
+	// StopWhen: a run whose answer contains it turns it off (none = the one it has; "-" = none, ADR-244)
+	StopWhen string `json:"stop_when,omitempty"`
 	// OnlyIf: a schedule runs only when its data says there is work (ADR-194)
 	OnlyIf *storage.AutomationCondition `json:"only_if,omitempty"`
 	// Limits: its guards (none = the ones it has)
@@ -76,6 +78,9 @@ func (s *Spec) Check() error {
 	s.Goal = goal
 	if s.EndsAt != nil && !s.EndsAt.After(time.Now()) {
 		return errors.New("giờ dừng đã qua")
+	}
+	if s.Source == "event" && s.EventFrom == storage.EventSelf && s.EndsAt == nil && strings.TrimSpace(s.StopWhen) == "" && s.AutomationID == "" {
+		return errors.New("tự chạy lại theo chính nó cần điều kiện dừng: giờ dừng (ends_at) hoặc stop_when")
 	}
 	if s.Source == "schedule" {
 		if err := Validate(s.config()); err != nil {
@@ -146,6 +151,12 @@ func (s Spec) Apply(a *storage.Automation, now time.Time) {
 	if s.EndsAt != nil {
 		end := s.EndsAt.UTC()
 		cfg.EndsAt = &end
+	}
+	cfg.StopWhen = a.Config.StopWhen
+	if w := strings.TrimSpace(s.StopWhen); w == "-" {
+		cfg.StopWhen = ""
+	} else if w != "" {
+		cfg.StopWhen = w
 	}
 	if s.Source == "event" {
 		cfg.Event, cfg.EventFrom, cfg.EventSameChat = s.Event, strings.TrimSpace(s.EventFrom), s.EventSameChat && strings.HasPrefix(s.Event, "turn.")

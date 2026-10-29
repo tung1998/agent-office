@@ -79,3 +79,56 @@ func TestSpecEvent(t *testing.T) {
 		t.Fatalf("applied %+v", a.Config)
 	}
 }
+
+// ADR-244: an automation follows its own end only with a stop condition,
+// and runs again and again until it is met (no chain depth on itself).
+func TestEventRepeatsItselfUntilStop(t *testing.T) {
+	ctx := context.Background()
+	st, p := openStore(t)
+	ex := &fakeExec{answers: []string{"thử 1", "thử 2", "thử 3", "thử 4", "thử 5", "thử 6", "XONG"}}
+	r := trigger.New(st, ex)
+	ag, _ := st.Agents().Create(ctx, storage.Agent{ProjectID: p.ID, Key: "dev", Name: "Dev", ModelTier: "fast"})
+	loop, _ := st.Automations().Create(ctx, storage.Automation{ProjectID: p.ID, Name: "Lặp", Source: "event", Action: "chat", Enabled: true, AgentID: ag.ID,
+		Prompt: "thêm một thử nghiệm", Config: storage.AutomationConfig{Event: "automation.done", EventFrom: storage.EventSelf, StopWhen: "XONG"}})
+	if _, _, err := r.Enqueue(ctx, loop, "manual", "", "", ""); err != nil {
+		t.Fatal(err)
+	}
+	r.StartReady(ctx, time.Now().UTC())
+	r.Wait()
+	if len(ex.chats) != 7 {
+		t.Fatalf("ran %d times, want 7 (past the chain depth, up to its stop)", len(ex.chats))
+	}
+	if a, _ := st.Automations().Get(ctx, loop.ID); a.Enabled || a.DisabledCode != "ended" {
+		t.Fatalf("still on after its stop: %+v", a)
+	}
+
+	// no stop condition: never on its own end
+	ex2 := &fakeExec{}
+	r2 := trigger.New(st, ex2)
+	once, _ := st.Automations().Create(ctx, storage.Automation{ProjectID: p.ID, Name: "Một lần", Source: "event", Action: "chat", Enabled: true, AgentID: ag.ID,
+		Prompt: "x", Config: storage.AutomationConfig{Event: "automation.done", EventFrom: storage.EventSelf}})
+	if _, _, err := r2.Enqueue(ctx, once, "manual", "", "", ""); err != nil {
+		t.Fatal(err)
+	}
+	r2.StartReady(ctx, time.Now().UTC())
+	r2.Wait()
+	if len(ex2.chats) != 1 {
+		t.Fatalf("repeated with no stop condition: %d runs", len(ex2.chats))
+	}
+}
+
+func TestSpecSelfNeedsStop(t *testing.T) {
+	s := trigger.Spec{Name: "x", Source: "event", Action: "chat", Event: "automation.done", EventFrom: storage.EventSelf}
+	if s.Check() == nil {
+		t.Fatal("repeating itself with no stop condition passed")
+	}
+	s.StopWhen = "XONG"
+	if err := s.Check(); err != nil {
+		t.Fatal(err)
+	}
+	var a storage.Automation
+	s.Apply(&a, time.Now().UTC())
+	if a.Config.StopWhen != "XONG" || a.Config.EventFrom != storage.EventSelf {
+		t.Fatalf("applied %+v", a.Config)
+	}
+}

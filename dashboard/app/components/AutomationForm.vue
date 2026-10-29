@@ -93,7 +93,7 @@ const ANY = '__any'
 const eventItems = computed(() => automationEvents.map(e => ({ label: t(`auto.ev.${e}`), value: e })))
 const { data: autosData } = useLiveFetch<{ automations: Automation[] }>(() => `/api/projects/${props.projectId}/automations`, { lazy: true, immediate: form.source === 'event' })
 const eventKind = computed(() => (form.config.event ?? 'turn.done').split('.')[0])
-const eventFromItems = computed(() => [{ label: t('auto.eventFromAny'), value: ANY }, ...(eventKind.value === 'turn'
+const eventFromItems = computed(() => [{ label: t('auto.eventFromAny'), value: ANY }, ...(eventKind.value === 'automation' ? [{ label: t('auto.eventFromSelf'), value: 'self' }] : []), ...(eventKind.value === 'turn'
   ? (agentsData.value?.agents ?? []).map(a => ({ label: a.name, value: a.id }))
   : eventKind.value === 'automation'
     ? (autosData.value?.automations ?? []).filter(a => a.name !== form.name).map(a => ({ label: a.name, value: a.id }))
@@ -252,18 +252,6 @@ async function testRun() {
             <USelectMenu v-model="tz" :items="tzItems" :search-input="{ placeholder: t('auto.tzSearch') }" class="w-full" />
           </UFormField>
         </div>
-        <!-- it stops on its own, as a Burn -->
-        <UFormField :label="t('burn.endLabel')" :class="hl('config')">
-          <div class="flex flex-wrap items-center gap-2">
-            <USelect v-model="endMode" :items="endItems" class="min-w-56" />
-            <template v-if="endMode === 'hours'">
-              <UInputNumber v-model="endHours" :min="1" :max="720" class="w-28" />
-              <span class="text-sm text-(--ui-text-muted)">{{ t('auto.unitHours') }}</span>
-            </template>
-            <UInput v-else-if="endMode === 'at'" v-model="endAt" type="datetime-local" class="w-60" />
-            <span v-if="form.config.ends_at" class="text-xs text-(--ui-text-muted)">{{ t('auto.endsAt', { at: fmt(form.config.ends_at) }) }}</span>
-          </div>
-        </UFormField>
         <div class="flex flex-wrap items-center gap-1.5 text-xs">
           <span class="me-1 text-(--ui-text-muted)">{{ t('auto.nextRuns') }}</span>
           <span v-if="preview.error" class="text-(--ui-error)">{{ preview.error }}</span>
@@ -297,6 +285,27 @@ async function testRun() {
           </UFormField>
         </div>
         <p class="text-xs text-(--ui-text-muted)">{{ t('auto.tunnelHint') }}</p>
+      </template>
+      <!-- a schedule or event stops on its own: at a time, or when a run says so (ADR-244) -->
+      <template v-if="form.source === 'schedule' || form.source === 'event'">
+        <UFormField :label="t('burn.endLabel')" :class="hl('config')">
+          <div class="flex flex-wrap items-center gap-2">
+            <USelect v-model="endMode" :items="endItems" class="min-w-56" />
+            <template v-if="endMode === 'hours'">
+              <UInputNumber v-model="endHours" :min="1" :max="720" class="w-28" />
+              <span class="text-sm text-(--ui-text-muted)">{{ t('auto.unitHours') }}</span>
+            </template>
+            <UInput v-else-if="endMode === 'at'" v-model="endAt" type="datetime-local" class="w-60" />
+            <span v-if="form.config.ends_at" class="text-xs text-(--ui-text-muted)">{{ t('auto.endsAt', { at: fmt(form.config.ends_at) }) }}</span>
+          </div>
+        </UFormField>
+        <UFormField :label="t('auto.stopWhen')">
+          <div class="flex items-center gap-2">
+            <UInput v-model="form.config.stop_when" class="w-full font-mono" placeholder="XONG" />
+            <InfoTip :text="t('auto.stopWhenHint')" />
+          </div>
+        </UFormField>
+        <p v-if="form.source === 'event' && form.config.event_from === 'self' && !form.config.ends_at && !form.config.stop_when?.trim()" class="text-xs text-(--ui-warning)">{{ t('auto.selfNeedsStop') }}</p>
       </template>
     </section>
 

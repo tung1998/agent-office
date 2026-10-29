@@ -48,9 +48,10 @@ export interface AutomationConfig {
   pull_request?: boolean // a GitHub/Bitbucket PR webhook: runs on a PR opened or updated, with {{diff}}
   notify_channel_id?: string, notify_chat_id?: string // what a run answers goes to this bot's chat too
   tags?: string[] // put on the chat of each run
-  ends_at?: string | null // a schedule turns itself off then (as a Burn); none = runs until turned off
+  ends_at?: string | null // a schedule or event automation turns itself off then (as a Burn); none = runs until turned off
+  stop_when?: string // a run whose answer contains it turns it off (ADR-244)
   goal?: AutomationGoal | null // chat/workflow: runs until it is reached (ADR-132)
-  // source event (ADR-243): runs when this ends in the project; from: one agent / automation / workflow key ('' = any);
+  // source event (ADR-243): runs when this ends in the project; from: one agent / automation / workflow key ('' = any, 'self' = itself, ADR-244);
   // same_chat: a turn.* run goes on in the chat that turn ended in
   event?: AutomationEvent, event_from?: string, event_same_chat?: boolean
 }

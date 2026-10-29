@@ -88,7 +88,7 @@ func (s *Service) saveAutomation(ctx context.Context, a storage.Action) error {
 		// chat…) is not the spec's: it stays as it was
 		cfg := old.Config
 		cfg.EveryMinutes, cfg.Cron, cfg.Timezone, cfg.Workflow, cfg.Goal, cfg.OnlyIf = x.Config.EveryMinutes, x.Config.Cron, x.Config.Timezone, x.Config.Workflow, x.Config.Goal, x.Config.OnlyIf
-		cfg.Tags, cfg.EndsAt, cfg.Auth = x.Config.Tags, x.Config.EndsAt, x.Config.Auth
+		cfg.Tags, cfg.EndsAt, cfg.StopWhen, cfg.Auth = x.Config.Tags, x.Config.EndsAt, x.Config.StopWhen, x.Config.Auth
 		cfg.Event, cfg.EventFrom, cfg.EventSameChat = x.Config.Event, x.Config.EventFrom, x.Config.EventSameChat
 		x.Config = cfg
 		err = s.store.Automations().UpdateSpec(ctx, x)
