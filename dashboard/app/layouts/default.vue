@@ -154,6 +154,8 @@ const watchBoards = computed<NavigationMenuItem[]>(() => [
     : [])
 ])
 
+const overviewTab = (tab: string) => ({ path: '/', query: { tab } })
+
 const items = computed<NavigationMenuItem[][]>(() => {
   // what projects pick from: agents (ADR-153), skills, MCP servers, workflows;
   // one entry of the work group, its pages under it
@@ -177,24 +179,34 @@ const items = computed<NavigationMenuItem[][]>(() => {
   // office-wide pages: the day's work, then how office is set up
   const office: NavigationMenuItem[] = [
     { label: t('nav.work'), type: 'label' },
-    // one place to follow the office: what needs a person is counted here
     // the assistant reads the whole office: an admin's (ADR-224)
     ...(isOfficeAdmin.value ? [{ label: t('assistant.title'), icon: 'i-lucide-sparkles', to: '/assistant' }] : []),
+    ...(showsGroup('library') ? [library] : []),
+    // one place to follow the office: what needs a person is counted here; its tabs under it
+    {
+      value: 'overview', label: t('nav.overview'), icon: 'i-lucide-layout-dashboard', to: '/', badge: attention.value || undefined,
+      children: [
+        { label: t('home.tabWork'), icon: 'i-lucide-list-checks', to: overviewTab('work'), exactQuery: 'partial' as const },
+        { label: t('home.tabStats'), icon: 'i-lucide-chart-column', to: overviewTab('stats'), exactQuery: 'partial' as const },
+        ...(isOfficeAdmin.value
+          ? [
+              { label: t('home.tabMachine'), icon: 'i-lucide-cpu', to: overviewTab('machine'), exactQuery: 'partial' as const },
+              { label: t('nav.data'), icon: 'i-lucide-database', to: overviewTab('data'), exactQuery: 'partial' as const }
+            ]
+          : [])
+      ]
+    },
     { value: 'watch', label: t('watch.title'), icon: 'i-lucide-layout-grid', to: '/watch', children: watchBoards.value },
-    { label: t('nav.overview'), icon: 'i-lucide-layout-dashboard', to: '/', badge: attention.value || undefined },
-    { label: t('nav.jobs'), icon: 'i-lucide-list-checks', to: '/jobs' },
     {
       label: t('nav.providers'), icon: 'i-lucide-plug', to: '/providers',
       badge: brokenProviders.value ? { label: String(brokenProviders.value), color: 'error' as const, variant: 'solid' as const } : undefined
-    },
-    ...(showsGroup('library') ? [library] : [])
+    }
   ]
   const admin: NavigationMenuItem[] = isOfficeAdmin.value
     ? [
         { label: t('nav.admin'), type: 'label' },
         { label: t('nav.users'), icon: 'i-lucide-users', to: '/admin/users' },
         { label: t('nav.peers'), icon: 'i-lucide-building-2', to: '/admin/peers' },
-        { label: t('nav.data'), icon: 'i-lucide-database', to: '/admin/data' },
         { label: t('nav.update'), icon: 'i-lucide-package', to: '/admin/update' }
       ]
     : []
