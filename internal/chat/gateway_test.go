@@ -3,10 +3,17 @@ package chat
 import (
 	"context"
 	"encoding/json"
+	"net/http/httptest"
 	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
+
+	"github.com/tung1998/agent-office/internal/fakebin"
+	"github.com/tung1998/agent-office/internal/mcpserver"
+	"github.com/tung1998/agent-office/internal/officetools"
+	"github.com/tung1998/agent-office/internal/storage"
 )
 
 // A run gets the gateway's servers next to office's own, each at
@@ -70,6 +77,107 @@ func TestMCPConfigGateway(t *testing.T) {
 	a = claudeRunner{}.args(RunRequest{Write: true, Office: o}, false)
 	if s := a[slices.Index(a, "--settings")+1]; strings.Contains(s, "other_office") {
 		t.Fatalf("guard lets other_office through for a run without it: %s", s)
+	}
+}
+
+func TestResumedCLIReceivesGatewayBrief(t *testing.T) {
+	dir := t.TempDir()
+	stdinFile := filepath.Join(dir, "stdin")
+	t.Setenv("TOOLBOX_TEST_STDIN", stdinFile)
+	t.Setenv("GEMINI_CLI_HOME", dir)
+	bin := filepath.Join(dir, "cli")
+	if err := fakebin.Write(bin, []byte(`#!/bin/sh
+cat > "$TOOLBOX_TEST_STDIN"
+echo '{"type":"item.completed","item":{"type":"agent_message","text":"ok"}}'
+echo '{"type":"message","role":"assistant","content":"ok","delta":true}'
+echo '{"type":"result","status":"success"}'
+`)); err != nil {
+		t.Fatal(err)
+	}
+	box := officetools.New(nil, nil, nil)
+	box.SetMCPTools(discoveryTools{})
+	for _, runner := range []Runner{codexRunner{}, geminiRunner{}} {
+		req := RunRequest{Bin: bin, WorkDir: dir, Prompt: "NEW_MESSAGE", SessionID: "saved", Office: &OfficeAccess{Tools: box, Gateway: []string{"figma"}, GatewayOthers: []string{"restricted"}}}
+		if _, err := runner.Run(context.Background(), req, func(Event) {}); err != nil {
+			t.Fatal(err)
+		}
+		data, err := os.ReadFile(stdinFile)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, text := range []string{"figma", "restricted", "find_tool", "NEW_MESSAGE"} {
+			if !strings.Contains(string(data), text) {
+				t.Fatalf("%T resumed without %q: %s", runner, text, data)
+			}
+		}
+	}
+}
+
+func TestGatewayBriefAndFallbackScope(t *testing.T) {
+	box := officetools.New(nil, nil, nil)
+	box.SetMCPTools(discoveryTools{})
+	server := mcpserver.New(box, "test")
+	e := &Engine{office: box, mcp: server}
+	o := &OfficeAccess{Tools: box, Scope: officetools.Scope{ClientKind: "api"}, Gateway: []string{"figma"}, GatewayOthers: []string{"private"}}
+	brief := gatewayBrief(o)
+	for _, word := range []string{"figma", "private", "find_tool", "call_tool"} {
+		if !strings.Contains(brief, word) {
+			t.Fatalf("brief lacks %s: %s", word, brief)
+		}
+	}
+	for _, kind := range []storage.ProviderKind{storage.ProviderCodexCLI, storage.ProviderGeminiCLI, storage.ProviderAnthropic, storage.ProviderClaudeCLI} {
+		next, revoke := e.officeForClient(context.Background(), o, kind)
+		if next == nil || next.Scope.ClientKind != clientKind(kind) {
+			t.Fatalf("fallback lost runner: %+v", next)
+		}
+		req := httptest.NewRequest("POST", "/mcp", nil)
+		req.Header.Set("Authorization", "Bearer "+next.Token)
+		sc, ok := server.ScopeOf(req)
+		if !ok || sc.ClientKind != clientKind(kind) {
+			t.Fatalf("token not bound to runner: %+v %t", sc, ok)
+		}
+		revoke()
+		o = next
+	}
+	if got := gatewayBrief(&OfficeAccess{Tools: box, Scope: officetools.Scope{Consult: true}, Gateway: []string{"figma"}}); got != "" {
+		t.Fatalf("expert got gateway brief: %s", got)
+	}
+}
+
+type discoveryTools struct{}
+
+func (discoveryTools) Tools(officetools.Scope) []officetools.Tool {
+	return []officetools.Tool{{Name: "find_tool"}, {Name: "call_tool"}}
+}
+func (discoveryTools) Call(context.Context, officetools.Scope, string, json.RawMessage) (string, bool) {
+	return "", false
+}
+
+func TestCLIUsesDiscoveryWithoutConnectingEveryGateway(t *testing.T) {
+	box := officetools.New(nil, nil, nil)
+	box.SetMCPTools(discoveryTools{})
+	o := &OfficeAccess{MCPURL: "http://127.0.0.1:1/mcp", Gateway: []string{"figma", "context7"}, Tools: box}
+	req := RunRequest{Office: o}
+	args := strings.Join(codexMCPArgs(req), " ")
+	if !strings.Contains(args, "mcp_servers.office.url") || strings.Contains(args, "/s/") {
+		t.Fatalf("Codex still connects to external servers: %s", args)
+	}
+	if servers := geminiMCP(req); len(servers) != 1 || servers["office"] == nil {
+		t.Fatalf("Gemini still connects to external servers: %+v", servers)
+	}
+	req.NoTools = true
+	if _, failed := dispatchTool(context.Background(), req, Workspace{}, "call_tool", json.RawMessage(`{}`)); !failed {
+		t.Fatal("NoTools run called the office gateway")
+	}
+	// Claude retains its native server connections and discovery behavior.
+	path, err := writeMCPConfig(o)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(path)
+	raw, _ := os.ReadFile(path)
+	if !strings.Contains(string(raw), "/s/figma") || !strings.Contains(string(raw), "/s/context7") {
+		t.Fatalf("Claude native MCP connections changed: %s", raw)
 	}
 }
 

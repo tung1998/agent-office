@@ -399,6 +399,17 @@ func (e *Engine) officeAccess(ctx context.Context, sc officetools.Scope) (*Offic
 	return oa, revoke
 }
 
+// A fallback connection may use a different runner. Rebind the token so tool
+// visibility and audit attribution reflect the runner that actually executes.
+func (e *Engine) officeForClient(ctx context.Context, o *OfficeAccess, kind storage.ProviderKind) (*OfficeAccess, func()) {
+	if o == nil || o.Scope.ClientKind == clientKind(kind) {
+		return o, func() {}
+	}
+	sc := o.Scope
+	sc.ClientKind = clientKind(kind)
+	return e.officeAccess(ctx, sc)
+}
+
 // GatewayFor gives a run the MCP servers office manages, behind its gateway:
 // their names (Claude Code, Codex) and their tools for an API run (ADR-091,
 // ADR-093), those given to the run's agent; then the names of the servers
@@ -1255,7 +1266,7 @@ func (e *Engine) run(ctx context.Context, turn *Turn, conv storage.Conversation,
 		// a bot's chats are not this: they run with their agent's own rights, as chosen
 		req.NoTools, req.UserMCP, req.Web, req.Write, req.FullAccess = true, false, false, false, false
 	} else {
-		sc := officetools.Scope{ProjectID: project.ID, ConversationID: conv.ID, TaskID: conv.TaskID, RunRef: turn.ID, JobID: turn.JobID, Office: e.isAssistant(ctx, project.ID) && !consult, AnswerOnly: power == assistant.ModeAnswer, Consult: consult, Agent: agent.Name, Level: level, Access: acc, Dir: treeDir(pl)}
+		sc := officetools.Scope{ProjectID: project.ID, ConversationID: conv.ID, TaskID: conv.TaskID, RunRef: turn.ID, JobID: turn.JobID, Office: e.isAssistant(ctx, project.ID) && !consult, AnswerOnly: power == assistant.ModeAnswer, Consult: consult, ClientKind: clientKind(p.Kind), Agent: agent.Name, Level: level, Access: acc, Dir: treeDir(pl)}
 		if req.FullAccess && !consult { // administrator: its office tools act at once too (ADR-188)
 			sc.Admin, sc.Access = true, perm.Admin(acc)
 			sc.AdminBy = agentFullBy
@@ -1267,9 +1278,6 @@ func (e *Engine) run(ctx context.Context, turn *Turn, conv storage.Conversation,
 		office, revoke := e.officeAccess(ctx, sc)
 		defer revoke()
 		req.Office = office
-		if office != nil && len(office.GatewayOthers) > 0 { // so it asks for one, not says it is missing (ADR-231)
-			req.System += "\n\n" + prompts.Render("chat/mcp-others", map[string]any{"Names": strings.Join(office.GatewayOthers, ", ")})
-		}
 	}
 	// the agent's own session in this chat (ADR-044); coming back, it gets
 	// what the others said since its last answer
@@ -1299,10 +1307,15 @@ func (e *Engine) run(ctx context.Context, turn *Turn, conv storage.Conversation,
 		key, kerr := e.providers.APIKey(p)
 		if kerr == nil {
 			req.Provider, req.APIKey, req.Bin, req.Model = p, key, e.providers.CLIBin(p), model
+			req.System = adminSystem
 			if power == assistant.ModeAdmin {
 				req.FullAccess = machineAccess(p.Kind)
 				req.System = map[bool]string{true: adminSystem, false: manageSystem}[req.FullAccess]
 			}
+			office, revoke := e.officeForClient(ctx, req.Office, p.Kind)
+			defer revoke()
+			req.Office = office
+			req.System += gatewayBrief(office)
 			req.Prompt, req.SessionID = prompt, ""
 			if s, rt := e.wfSession(turn, conv.ID); s != "" && rt == string(p.Kind) {
 				req.SessionID = s // a workflow's role goes on in its own session
@@ -1708,7 +1721,7 @@ func (e *Engine) Invoke(ctx context.Context, project storage.Repo, agent storage
 	if noTools(ctx) { // untrusted text (a channel's scope filter): a plain answer
 		req.NoTools, req.UserMCP, req.Web, req.Write, req.Effort = true, false, false, false, "" // a YES/NO needs no deep thought
 	} else {
-		office, revoke := e.officeAccess(ctx, officetools.Scope{ProjectID: project.ID, RunRef: fmt.Sprintf("inv-%d", time.Now().UnixNano()), JobID: usage.JobFrom(ctx), Agent: agent.Name, Level: acc.Level, Access: acc, Dir: treeDir(pl)})
+		office, revoke := e.officeAccess(ctx, officetools.Scope{ProjectID: project.ID, RunRef: fmt.Sprintf("inv-%d", time.Now().UnixNano()), JobID: usage.JobFrom(ctx), ClientKind: clientKind(cands[0].Provider.Kind), Agent: agent.Name, Level: acc.Level, Access: acc, Dir: treeDir(pl)})
 		defer revoke()
 		req.Office = office
 	}
@@ -1717,12 +1730,17 @@ func (e *Engine) Invoke(ctx context.Context, project storage.Repo, agent storage
 		runErr error
 		out    InvokeResult
 	)
+	baseSystem := req.System
 	for i, c := range cands { // its connections top to bottom until one answers
 		p, model := c.Provider, c.Model
 		out = InvokeResult{Provider: p.Name, Model: model, Dir: treeDir(pl), Wrote: pl.write}
 		key, kerr := e.providers.APIKey(p)
 		if kerr == nil {
 			req.Provider, req.APIKey, req.Bin, req.Model = p, key, e.providers.CLIBin(p), model
+			office, revoke := e.officeForClient(ctx, req.Office, p.Kind)
+			defer revoke()
+			req.Office = office
+			req.System = baseSystem + gatewayBrief(office)
 			res, runErr = runnerFor(p.Kind).Run(ctx, req, emit)
 			res.Usage.CostUSD = e.turnCost(ctx, p.Kind, req.SessionID, res.SessionID, res.Usage.CostUSD)
 			e.keepLimits(p, res.Limits)

@@ -157,6 +157,7 @@ type Scope struct {
 	Office         bool   // the office assistant: tools across projects (ADR-046)
 	AnswerOnly     bool   // the office assistant only answers: no proposals (ADR-059)
 	Consult        bool   // an expert answering a question: reads only (ADR-177)
+	ClientKind     string // runner bound to this grant: claude | codex | gemini | antigravity | api
 	Agent          string
 	Level          string      // what the agent may do in this run (internal/perm)
 	Access         perm.Access // its capabilities and commands in this run

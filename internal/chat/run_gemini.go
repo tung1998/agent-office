@@ -49,7 +49,7 @@ func geminiMCP(req RunRequest) map[string]any {
 	if req.Office.Other {
 		add(officetools.OtherServer, req.Office.MCPURL+mcpserver.OtherPath, false)
 	}
-	for _, n := range req.Office.Gateway {
+	for _, n := range directGateway(req.Office) {
 		add(n, req.Office.MCPURL+"/s/"+n, true)
 	}
 	return out
@@ -212,6 +212,8 @@ func (geminiRunner) run(ctx context.Context, req RunRequest, emit func(Event)) (
 	// resumed session already has the instructions and the earlier turns.
 	if req.SessionID == "" {
 		prompt = req.System + "\n\n" + transcript(req.History, prompt)
+	} else if brief := gatewayBrief(req.Office); !req.NoTools && brief != "" {
+		prompt = strings.TrimSpace(brief) + "\n\n" + prompt
 	}
 	cmd.Stdin = strings.NewReader(strings.ToValidUTF8(prompt, "�")) // a stray cut byte must not make the CLI refuse the whole turn
 	var stderr bytes.Buffer

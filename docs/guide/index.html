@@ -491,6 +491,7 @@
     <li>Assign servers to agents and set a permission per tool: allowed, ask, or blocked. Tools that write ask by default.</li>
     <li>Every call is logged. Claude Code, Codex and API agents all go through the same gateway.</li>
   </ol>
+  <p>API agents, Codex and Gemini CLI discover tools when needed with <code>find_tool</code>, then invoke them with <code>call_tool</code>. A short initial hint names assigned and unassigned servers; search returns at most 5 schemas per page. An empty query lists servers, access and catalog status; unassigned servers expose no schemas and cannot be called. The catalog uses the last check and identifies unchecked, empty or stale catalogs; check the server again in office when needed. Search ignores Vietnamese accents but does not translate: agents use English keywords for English descriptions, or retry with the server name. MCP results for Codex/Gemini preserve images and resources; API results currently remain text. Claude Code keeps its direct connections without duplicate toolbox tools. Antigravity does not currently receive MCP configuration from office.</p>
   <figure><img src="images/25-library.png" alt="Library" loading="lazy"><figcaption>Library (admin): installed everywhere, your library, popular MCP servers, and search in the MCP Registry.</figcaption></figure>
 </section>
 

@@ -52,7 +52,7 @@ func codexMCPArgs(req RunRequest) []string {
 	if req.Office.Other {
 		add(officetools.OtherServer, req.Office.MCPURL+mcpserver.OtherPath, false)
 	}
-	for _, n := range req.Office.Gateway {
+	for _, n := range directGateway(req.Office) {
 		add(n, req.Office.MCPURL+"/s/"+n, true)
 	}
 	return out
@@ -105,6 +105,9 @@ func (codexRunner) run(ctx context.Context, req RunRequest, emit func(Event)) (R
 	if req.SessionID != "" {
 		// exec's options stay before the subcommand
 		args = append(args, "resume", req.SessionID)
+		if brief := gatewayBrief(req.Office); !req.NoTools && brief != "" {
+			prompt = strings.TrimSpace(brief) + "\n\n" + prompt
+		}
 	} else {
 		// a resumed session already has the instructions and earlier turns
 		prompt = req.System + "\n\n" + transcript(req.History, prompt)

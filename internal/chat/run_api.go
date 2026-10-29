@@ -89,7 +89,7 @@ func dispatchTool(ctx context.Context, req RunRequest, w Workspace, name string,
 	if other, ok := strings.CutPrefix(name, otherPrefix); ok && req.Office != nil && req.Office.Tools != nil && !req.NoTools {
 		return req.Office.Tools.CallOther(ctx, req.Office.Scope, other, raw)
 	}
-	if req.Office != nil && req.Office.Tools != nil && req.Office.Tools.Has(req.Office.Scope, name) {
+	if req.Office != nil && req.Office.Tools != nil && !req.NoTools && req.Office.Tools.Has(req.Office.Scope, name) {
 		return req.Office.Tools.Call(ctx, req.Office.Scope, name, raw)
 	}
 	if strings.HasPrefix(name, "mcp__") && req.Office != nil && req.Office.GatewayTools != nil && !req.NoTools {

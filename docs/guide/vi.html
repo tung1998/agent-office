@@ -492,6 +492,7 @@
     <li>Gán MCP cho agent và đặt quyền cho từng tool: cho phép, hỏi, hoặc chặn. Tool có ghi dữ liệu mặc định phải hỏi.</li>
     <li>Mọi lần gọi đều được ghi lại. Agent Claude Code, Codex và API đều đi qua cùng một cổng.</li>
   </ol>
+  <p>Agent API, Codex và Gemini CLI tìm công cụ khi cần bằng <code>find_tool</code>, rồi gọi bằng <code>call_tool</code>. Đầu lượt chỉ có lời nhắc ngắn nêu tên MCP đã cấp/chưa cấp; tìm kiếm trả tối đa 5 schema mỗi trang. Truy vấn trống liệt kê MCP, quyền và trạng thái danh mục; MCP chưa cấp không lộ schema và không gọi được. Danh mục dùng lần kiểm tra gần nhất, báo rõ chưa kiểm tra, rỗng hoặc cũ; hãy kiểm tra lại MCP trong office nếu cần. Tìm kiếm bỏ dấu tiếng Việt nhưng không tự dịch: agent dùng từ khóa tiếng Anh cho mô tả tiếng Anh, hoặc thử tên server. Kết quả qua MCP cho Codex/Gemini giữ ảnh và resource; đường API hiện trả kết quả dạng chữ. Claude Code giữ kết nối trực tiếp và không nhận thêm toolbox. Antigravity hiện chưa nhận cấu hình MCP từ office.</p>
   <figure><img src="images/vi/25-library.png" alt="Thư viện" loading="lazy"><figcaption>Thư viện (admin): đã cài ở mọi nơi, thư viện của bạn, MCP phổ biến, và tìm trong MCP Registry.</figcaption></figure>
 </section>
 

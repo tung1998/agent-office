@@ -185,9 +185,20 @@ func batchCalls(body []byte) bool {
 // CallTool calls one tool of the server named server, as office (an API
 // run, or a call a person approved). It applies no policy: callers do.
 func (g *Gateway) CallTool(ctx context.Context, server, tool string, args json.RawMessage) (string, bool, error) {
+	raw, err := g.callToolResult(ctx, server, tool, args)
+	if err != nil {
+		return "", true, err
+	}
+	text, isErr := resultText(raw)
+	return text, isErr, nil
+}
+
+// callToolResult preserves all MCP content blocks and structured output.
+// Like CallTool, it applies no policy: callers must do so first.
+func (g *Gateway) callToolResult(ctx context.Context, server, tool string, args json.RawMessage) (json.RawMessage, error) {
 	m, err := g.Store.MCPServers().GetByName(ctx, server)
 	if err != nil || !m.Enabled {
-		return "", true, fmt.Errorf("office không có MCP %s đang bật", server)
+		return nil, fmt.Errorf("office không có MCP %s đang bật", server)
 	}
 	ctx, cancel := context.WithTimeout(ctx, CallTimeout)
 	defer cancel()
@@ -195,17 +206,17 @@ func (g *Gateway) CallTool(ctx context.Context, server, tool string, args json.R
 	if m.Kind == "stdio" {
 		p, perr := g.stdio(ctx, m)
 		if perr != nil {
-			return "", true, perr
+			return nil, perr
 		}
 		raw, err = p.call(ctx, "tools/call", toolParams(tool, args))
 	} else {
 		headers, herr := OpenMap(g.Box, m.HeadersEnc)
 		if herr != nil {
-			return "", true, errors.New("không mở được bí mật đã lưu: nhập lại header")
+			return nil, errors.New("không mở được bí mật đã lưu: nhập lại header")
 		}
 		tok, berr := g.bearer(ctx, &m, false)
 		if berr != nil {
-			return "", true, berr
+			return nil, berr
 		}
 		if tok != "" {
 			headers["Authorization"] = "Bearer " + tok
@@ -214,17 +225,13 @@ func (g *Gateway) CallTool(ctx context.Context, server, tool string, args json.R
 		var se *StatusError
 		if errors.As(err, &se) && se.Code == 401 && tok != "" {
 			if tok, berr = g.bearer(ctx, &m, true); berr != nil {
-				return "", true, berr
+				return nil, berr
 			}
 			headers["Authorization"] = "Bearer " + tok
 			raw, err = callHTTP(ctx, g.client(), m.URL, headers, tool, args)
 		}
 	}
-	if err != nil {
-		return "", true, err
-	}
-	text, isErr := resultText(raw)
-	return text, isErr, nil
+	return raw, err
 }
 
 // resultText flattens a tools/call result into text: its text parts, and a
@@ -264,40 +271,61 @@ func resultText(raw json.RawMessage) (string, bool) {
 // /mcp/s/<name>, then office calls the tool itself. The text is what the
 // model gets back.
 func (g *Gateway) Invoke(ctx context.Context, c Caller, server, tool string, args json.RawMessage) (string, bool) {
+	return resultText(g.invoke(ctx, c, server, tool, args, false))
+}
+
+// InvokeResult shares Invoke's policy and logging, retaining native MCP content
+// (images, resources, structuredContent) for clients connected through office.
+func (g *Gateway) InvokeResult(ctx context.Context, c Caller, server, tool string, args json.RawMessage) json.RawMessage {
+	return g.invoke(ctx, c, server, tool, args, true)
+}
+
+func (g *Gateway) invoke(ctx context.Context, c Caller, server, tool string, args json.RawMessage, rich bool) json.RawMessage {
 	m, err := g.Store.MCPServers().GetByName(ctx, server)
 	if err != nil || !m.Enabled || !Assigned(m, c) {
-		return "office không có MCP " + server + " cho agent này", true
+		return toolResult("office không có MCP "+server+" cho agent này", true)
 	}
 	switch decide(m, c, tool, g.Propose != nil) {
 	case deny:
 		g.logCall(ctx, m, c, tool, "denied", "", 0, "", callSize{})
-		return denyText(m, tool), true
+		return toolResult(denyText(m, tool), true)
 	case propose:
 		p, err := g.Propose(ctx, c, m.Name, tool, args)
 		if err != nil {
 			g.logCall(ctx, m, c, tool, "error", err.Error(), 0, "", callSize{})
-			return "office không tạo được đề xuất: " + err.Error(), true
+			return toolResult("office không tạo được đề xuất: "+err.Error(), true)
 		}
 		g.logCall(ctx, m, c, tool, "proposed", "", 0, p.ActionID, callSize{})
-		return proposalText(m, tool, p)
+		text, isErr := proposalText(m, tool, p)
+		return toolResult(text, isErr)
 	}
 	start := time.Now()
-	text, isErr, err := g.CallTool(ctx, server, tool, args)
+	raw, err := g.callToolResult(ctx, server, tool, args)
 	ms := time.Since(start).Milliseconds()
 	size := callSize{in: int64(len(args))}
 	if err != nil {
 		g.logCall(ctx, m, c, tool, "error", err.Error(), ms, "", size)
-		return "MCP " + server + ": " + err.Error(), true
+		return toolResult("MCP "+server+": "+err.Error(), true)
 	}
+	text, isErr := resultText(raw)
 	status, msg := "ok", ""
 	if isErr {
 		status, msg = "error", text
 	}
 	var n int
-	text, n = g.cutText(c, server, tool, text)
-	size.out, size.cut = int64(len(text)), int64(n)
+	if rich {
+		raw, n = g.cutResult(c, server, tool, raw)
+		size.out = int64(len(raw))
+	} else {
+		// API callers keep the previous bound on all flattened text, including
+		// embedded resources; MCP callers retain native non-text content.
+		text, n = g.cutText(c, server, tool, text)
+		raw = toolResult(text, isErr)
+		size.out = int64(len(text))
+	}
+	size.cut = int64(n)
 	g.logCall(ctx, m, c, tool, status, msg, ms, "", size)
-	return text, isErr
+	return raw
 }
 
 // APITool is one gateway tool offered to an API run, named as Claude Code

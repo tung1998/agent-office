@@ -9,11 +9,13 @@ import (
 	"github.com/tung1998/agent-office/internal/officetools"
 	"io"
 	"os/exec"
+	"strings"
 	"sync/atomic"
 	"syscall"
 	"time"
 
 	"github.com/tung1998/agent-office/internal/llm"
+	"github.com/tung1998/agent-office/internal/prompts"
 	"github.com/tung1998/agent-office/internal/storage"
 )
 
@@ -106,6 +108,45 @@ type OfficeAccess struct {
 	// Other: the run reaches projects in other offices, through the MCP
 	// other_office at MCPURL/other_office (ADR-169)
 	Other bool
+}
+
+// directGateway keeps the native per-server connections for integrations that
+// do not yet supply office's discovery tools. Claude keeps its native search.
+func directGateway(o *OfficeAccess) []string {
+	if o.Tools != nil && o.Tools.Has(o.Scope, "find_tool") && o.Tools.Has(o.Scope, "call_tool") {
+		return nil
+	}
+	return o.Gateway
+}
+
+func clientKind(kind storage.ProviderKind) string {
+	switch kind {
+	case storage.ProviderClaudeCLI:
+		return "claude"
+	case storage.ProviderCodexCLI:
+		return "codex"
+	case storage.ProviderGeminiCLI:
+		return "gemini"
+	case storage.ProviderAntigravityCLI:
+		return "antigravity"
+	default:
+		return "api"
+	}
+}
+
+func gatewayBrief(o *OfficeAccess) string {
+	if o == nil || o.Scope.Consult {
+		return ""
+	}
+	if o.Tools != nil && o.Tools.Has(o.Scope, "find_tool") && o.Tools.Has(o.Scope, "call_tool") {
+		return "\n\n" + prompts.Render("chat/mcp-toolbox", map[string]any{
+			"Available": strings.Join(o.Gateway, ", "), "Unavailable": strings.Join(o.GatewayOthers, ", "),
+		})
+	}
+	if len(o.GatewayOthers) > 0 {
+		return "\n\n" + prompts.Render("chat/mcp-others", map[string]any{"Names": strings.Join(o.GatewayOthers, ", ")})
+	}
+	return ""
 }
 
 // ClientHeader tells the gateway which AI calls (claude | codex | gemini).

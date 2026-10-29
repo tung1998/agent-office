@@ -344,6 +344,7 @@ func serveCmd() *cobra.Command {
 			// an approved mcp_call runs through it
 			acts.SetMCP(gateway)
 			office.AddProvider(gatewayRest{st: a.store, gw: gateway}) // mcp_result: what office cut of a long result (ADR-183)
+			office.SetMCPTools(gatewayDiscovery{st: a.store, gw: gateway})
 			chatEngine.SetGateway(gatewayFor(a.store, gateway))
 			handler := api.New(api.Config{
 				Office: office, Channels: bots, Memory: mem, Events: liveBus,

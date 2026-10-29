@@ -300,8 +300,12 @@ func (s *Server) handle(r *http.Request, sc officetools.Scope, q request, other 
 			res.Error = &rpcError{Code: -32602, Message: "unknown tool"}
 			return res, http.StatusOK
 		}
-		text, isErr := call(r.Context(), sc, cp.Name, cp.Arguments)
-		result = map[string]any{"content": []map[string]any{{"type": "text", "text": text}}, "isError": isErr}
+		if other {
+			text, isErr := call(r.Context(), sc, cp.Name, cp.Arguments)
+			result = map[string]any{"content": []map[string]any{{"type": "text", "text": text}}, "isError": isErr}
+		} else {
+			result = s.tools.CallMCP(r.Context(), sc, cp.Name, cp.Arguments)
+		}
 	default:
 		res.Error = &rpcError{Code: -32601, Message: "method not found: " + q.Method}
 		if modern {
@@ -311,7 +315,12 @@ func (s *Server) handle(r *http.Request, sc officetools.Scope, q request, other 
 	}
 	if modern || q.Method == "server/discover" {
 		result["resultType"] = "complete"
-		result["_meta"] = map[string]any{metaServerInfo: info}
+		meta, _ := result["_meta"].(map[string]any)
+		if meta == nil {
+			meta = map[string]any{}
+		}
+		meta[metaServerInfo] = info
+		result["_meta"] = meta
 	}
 	res.Result = result
 	return res, http.StatusOK

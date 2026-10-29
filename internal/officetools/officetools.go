@@ -68,6 +68,8 @@ type Toolbox struct {
 	home     string
 	// providers: feature packs' tools (support, ADR-171)
 	providers []Provider
+	// mcpTools discovers and calls office MCP tools without loading their schemas.
+	mcpTools Provider
 	// related: the project's notes nearest a query by meaning (Cognee,
 	// ADR-195; nil = keywords only)
 	related func(ctx context.Context, projectID, query, skip string, n int) ([]string, error)
@@ -82,6 +84,27 @@ type Provider interface {
 
 // AddProvider adds a feature pack's tools.
 func (t *Toolbox) AddProvider(p Provider) { t.providers = append(t.providers, p) }
+
+// SetMCPTools supplies the gateway's discovery tools, including for the office
+// assistant. Experts keep their existing knowledge-only tools.
+func (t *Toolbox) SetMCPTools(p Provider) { t.mcpTools = p }
+
+// CallMCP preserves rich content when the gateway supplies it. Ordinary office
+// tools retain their text result. Visibility and scope are checked by the MCP
+// server before dispatch, and again for this optional gateway path.
+func (t *Toolbox) CallMCP(ctx context.Context, sc Scope, name string, raw json.RawMessage) map[string]any {
+	if p, ok := t.mcpTools.(interface {
+		CallMCP(context.Context, Scope, string, json.RawMessage) map[string]any
+	}); ok && !sc.Consult {
+		for _, tool := range t.mcpTools.Tools(sc) {
+			if tool.Name == name {
+				return p.CallMCP(ctx, sc, name, raw)
+			}
+		}
+	}
+	text, failed := t.Call(ctx, sc, name, raw)
+	return map[string]any{"content": []map[string]any{{"type": "text", "text": text}}, "isError": failed}
+}
 
 // provider: the pack whose tool name is, for sc.
 func (t *Toolbox) provider(sc Scope, name string) Provider {
@@ -562,6 +585,9 @@ func (t *Toolbox) ToolsFor(sc Scope) []Tool {
 			}
 		}
 	}
+	if t.mcpTools != nil {
+		out = append(out, t.mcpTools.Tools(sc)...)
+	}
 	return out
 }
 
@@ -607,6 +633,13 @@ func (t *Toolbox) Has(sc Scope, name string) bool {
 
 // Call runs a tool for a project and returns text (and whether it failed).
 func (t *Toolbox) Call(ctx context.Context, sc Scope, name string, raw json.RawMessage) (string, bool) {
+	if t.mcpTools != nil && !sc.Consult {
+		for _, tool := range t.mcpTools.Tools(sc) {
+			if tool.Name == name {
+				return t.mcpTools.Call(ctx, sc, name, raw)
+			}
+		}
+	}
 	if p := t.provider(sc, name); p != nil && !sc.Office {
 		return p.Call(ctx, sc, name, raw)
 	}

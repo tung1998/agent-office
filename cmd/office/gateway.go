@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -95,7 +96,7 @@ func gatewayProposer(acts *actions.Service) mcpgateway.Proposer {
 // and Codex, tools for an API run; and the names of those it does not get.
 func gatewayFor(st storage.Store, gw *mcpgateway.Gateway) chat.GatewayFor {
 	return func(ctx context.Context, sc officetools.Scope) ([]string, []string, chat.GatewayTools) {
-		c := gatewayCaller(ctx, st, sc, "api")
+		c := gatewayCaller(ctx, st, sc, gatewayClient(sc))
 		return gw.NamesFor(ctx, c), gw.NotFor(ctx, c), &apiGateway{gw: gw, caller: c}
 	}
 }
@@ -104,26 +105,119 @@ func gatewayFor(st storage.Store, gw *mcpgateway.Gateway) chat.GatewayFor {
 type apiGateway struct {
 	gw     *mcpgateway.Gateway
 	caller mcpgateway.Caller
-	tools  map[string]mcpgateway.APITool
 }
 
-func (a *apiGateway) List(ctx context.Context) []chat.GatewayTool {
-	list := a.gw.APITools(ctx, a.caller)
-	a.tools = map[string]mcpgateway.APITool{}
-	out := make([]chat.GatewayTool, 0, len(list))
-	for _, t := range list {
-		a.tools[t.Name] = t
-		out = append(out, chat.GatewayTool{Name: t.Name, Description: t.Description, Schema: t.Schema})
+// Discovery is supplied by office's find_tool/call_tool instead of sending
+// every external schema with each model request.
+func (a *apiGateway) List(context.Context) []chat.GatewayTool { return nil }
+
+func (a *apiGateway) Call(ctx context.Context, name string, args json.RawMessage) (string, bool) {
+	// Keep old calls in an existing session working, rechecking today's catalog.
+	for _, t := range a.gw.APITools(ctx, a.caller) {
+		if t.Name == name {
+			return a.gw.Invoke(ctx, a.caller, t.Server, t.Tool, args)
+		}
+	}
+	return "không có tool " + name, true
+}
+
+// gatewayDiscovery is shared by CLI and API runs, under their original scope.
+type gatewayDiscovery struct {
+	st storage.Store
+	gw *mcpgateway.Gateway
+}
+
+func (p gatewayDiscovery) Tools(sc officetools.Scope) []officetools.Tool {
+	if sc.Consult || sc.ClientKind == "claude" || sc.ClientKind == "antigravity" || strings.HasPrefix(sc.RunRef, "cli-") {
+		return nil
+	}
+	return []officetools.Tool{
+		{Name: "find_tool", ReadOnly: true,
+			Description: "Find external MCP tools in office when needed. Empty query lists servers, access and catalog status; keywords or a server/tool name return up to 5 matching tools with input schemas. Search English descriptions with English keywords, even for a Vietnamese request; if no match, retry with the server name. Use offset for the next page. Finding does not run tools or grant access.",
+			Schema: map[string]any{"type": "object", "properties": map[string]any{
+				"query": map[string]any{"type": "string"}, "offset": map[string]any{"type": "integer", "minimum": 0},
+			}}},
+		{Name: "call_tool",
+			Description: "Call an external MCP tool found with find_tool. Pass the exact server, tool and arguments matching its input schema. Office checks current access, asks approval when required, and logs the call.",
+			Schema: map[string]any{"type": "object", "required": []string{"server", "tool", "arguments"}, "properties": map[string]any{
+				"server": map[string]any{"type": "string"}, "tool": map[string]any{"type": "string"},
+				"arguments": map[string]any{"type": "object", "additionalProperties": true},
+			}}},
+	}
+}
+
+func (p gatewayDiscovery) Call(ctx context.Context, sc officetools.Scope, name string, raw json.RawMessage) (string, bool) {
+	if len(p.Tools(sc)) == 0 {
+		return "lượt này không được dùng toolbox MCP", true
+	}
+	var in struct {
+		Query     string          `json:"query"`
+		Offset    int             `json:"offset"`
+		Server    string          `json:"server"`
+		Tool      string          `json:"tool"`
+		Arguments json.RawMessage `json:"arguments"`
+	}
+	if json.Unmarshal(raw, &in) != nil {
+		return "tham số không hợp lệ", true
+	}
+	c := gatewayCaller(ctx, p.st, sc, gatewayClient(sc))
+	switch name {
+	case "find_tool":
+		out, err := p.gw.FindTools(ctx, c, in.Query, in.Offset)
+		if err != nil {
+			return err.Error(), true
+		}
+		data, err := json.Marshal(out)
+		if err != nil {
+			return err.Error(), true
+		}
+		return string(data), false
+	case "call_tool":
+		if in.Server == "" || in.Tool == "" || len(in.Arguments) == 0 || in.Arguments[0] != '{' {
+			return "cần server, tool và arguments dạng object từ find_tool", true
+		}
+		return p.gw.InvokeFound(ctx, c, in.Server, in.Tool, in.Arguments)
+	default:
+		return "không có tool " + name, true
+	}
+}
+
+// CallMCP retains native image/resource blocks for Codex and Gemini. The API
+// runners use Call's existing text representation instead.
+func (p gatewayDiscovery) CallMCP(ctx context.Context, sc officetools.Scope, name string, raw json.RawMessage) map[string]any {
+	textResult := func(text string, failed bool) map[string]any {
+		return map[string]any{"content": []map[string]any{{"type": "text", "text": text}}, "isError": failed}
+	}
+	if name != "call_tool" || len(p.Tools(sc)) == 0 {
+		text, failed := p.Call(ctx, sc, name, raw)
+		return textResult(text, failed)
+	}
+	var in struct {
+		Server    string          `json:"server"`
+		Tool      string          `json:"tool"`
+		Arguments json.RawMessage `json:"arguments"`
+	}
+	if json.Unmarshal(raw, &in) != nil || in.Server == "" || in.Tool == "" || len(in.Arguments) == 0 || in.Arguments[0] != '{' {
+		return textResult("cần server, tool và arguments dạng object từ find_tool", true)
+	}
+	result := p.gw.InvokeFoundResult(ctx, gatewayCaller(ctx, p.st, sc, gatewayClient(sc)), in.Server, in.Tool, in.Arguments)
+	var out map[string]any
+	decoder := json.NewDecoder(bytes.NewReader(result))
+	decoder.UseNumber() // preserve large integers in structuredContent and resources
+	if decoder.Decode(&out) != nil || out == nil {
+		return textResult("MCP trả kết quả không hợp lệ", true)
 	}
 	return out
 }
 
-func (a *apiGateway) Call(ctx context.Context, name string, args json.RawMessage) (string, bool) {
-	t, ok := a.tools[name]
-	if !ok {
-		return "không có tool " + name, true
+// The runner kind comes from the run's bound scope, not tool arguments.
+func gatewayClient(sc officetools.Scope) string {
+	switch sc.ClientKind {
+	case "claude", "codex", "gemini", "antigravity":
+		return sc.ClientKind
+	default:
+		return "api"
 	}
-	return a.gw.Invoke(ctx, a.caller, t.Server, t.Tool, args)
 }
 
 // gatewayRest is the office tool mcp_result (ADR-183): the part of a long
