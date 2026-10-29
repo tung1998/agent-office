@@ -9,8 +9,9 @@ interface View { docker: { available: boolean, error?: string }, file: string, s
 
 const { t } = useLang()
 const toast = useToast()
-const { isAdmin } = useAuth()
 const { projectId, config, set, size, narrow, tiny, short } = useWatchBox()
+const { manages } = useAuth()
+const isAdmin = computed(() => manages(projectId.value)) // its project's admin or manager (ADR-224)
 
 const { data, error, refresh } = useLiveFetch<View>(() => `/api/projects/${projectId.value}/compose`, { query: { stats: 1 }, lazy: true, server: false })
 const services = computed(() => data.value?.services ?? [])

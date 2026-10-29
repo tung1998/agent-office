@@ -21,7 +21,8 @@ const props = defineProps<{ projectId: string, type: 'process' | 'container', ta
 const emit = defineEmits<{ changed: [] }>()
 const { t, when: fmtWhen } = useLang()
 const toast = useToast()
-const { isAdmin } = useAuth()
+const { manages } = useAuth()
+const isAdmin = computed(() => manages(props.projectId)) // its project's admin or manager, on any page (ADR-224)
 
 const statusMeta = computed(() => ({
   up: { label: t('monitor.status.up'), color: 'success' as const },

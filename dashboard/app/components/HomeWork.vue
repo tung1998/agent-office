@@ -1,6 +1,7 @@
 <script setup lang="ts">
 // The work tab of Tổng quan: what needs a person, the last day, and every job.
-const { isAdmin } = useAuth()
+// an admin acts on every item, a manager on its own projects' (ADR-224)
+const { manages } = useAuth()
 const { t, when } = useLang()
 
 const _f2 = useLiveFetch<{ providers: Provider[] }>('/api/providers', { lazy: true })
@@ -63,7 +64,7 @@ async function act(x: Incident, what: 'approve' | 'reject' | 'skip' | 'retry' | 
   }
 }
 // Bỏ qua tất cả: every card waiting, rejected at once (no agent goes on)
-const proposalsN = computed(() => incidents.value.filter(x => x.kind === 'approval' || x.kind === 'patch').length)
+const proposalsN = computed(() => incidents.value.filter(x => (x.kind === 'approval' || x.kind === 'patch') && manages(x.project_id)).length)
 const skipAllOpen = ref(false)
 const skippingAll = ref(false)
 async function skipAll() {
@@ -81,7 +82,7 @@ async function skipAll() {
 }
 // Bỏ qua N mục: every item that can be let go (not a card to decide, not a
 // chat to read), let go at once
-const dismissable = computed(() => incidents.value.filter(x => !['approval', 'patch', 'unread', 'stalled'].includes(x.kind)))
+const dismissable = computed(() => incidents.value.filter(x => !['approval', 'patch', 'unread', 'stalled'].includes(x.kind) && manages(x.project_id)))
 const dismissingAll = ref(false)
 async function dismissAll() {
   const keys = dismissable.value.map(x => x.key)
@@ -169,7 +170,7 @@ const steps = computed(() => [
             {{ t('home.attention') }}
             <UBadge v-if="incData?.count" :label="String(incData.count)" color="error" variant="subtle" size="sm" />
           </p>
-          <div v-if="isAdmin" class="flex items-center gap-1">
+          <div class="flex items-center gap-1">
             <UButton v-if="dismissable.length >= 2" size="xs" color="neutral" variant="ghost" icon="i-lucide-eye-off" :label="t('home.dismissAll', { n: dismissable.length })" :loading="dismissingAll" @click="dismissAll" />
             <UTooltip v-if="proposalsN >= 2" :text="t('action.skipInfo')">
               <UButton size="xs" color="neutral" variant="outline" icon="i-lucide-skip-forward" :label="t('home.skipAll')" @click="skipAllOpen = true" />
@@ -207,10 +208,10 @@ const steps = computed(() => [
               <UButton size="xs" icon="i-lucide-play" :label="t('home.continue')" :loading="acting.has(x.key + 'continue')" @click="act(x, 'continue')" />
             </UTooltip>
             <UButton size="xs" color="neutral" variant="outline" icon="i-lucide-eye" :label="t('home.view')" :to="x.link" />
-            <UButton v-if="isAdmin" size="xs" color="neutral" variant="ghost" :label="t('home.dismiss')" :loading="acting.has(x.key + 'dismiss')" @click="act(x, 'dismiss')" />
+            <UButton v-if="manages(x.project_id)" size="xs" color="neutral" variant="ghost" :label="t('home.dismiss')" :loading="acting.has(x.key + 'dismiss')" @click="act(x, 'dismiss')" />
           </div>
           <!-- what to do about it, right here -->
-          <div v-else-if="isAdmin" class="flex shrink-0 flex-wrap items-center gap-1 max-sm:w-full max-sm:ps-7">
+          <div v-else-if="manages(x.project_id)" class="flex shrink-0 flex-wrap items-center gap-1 max-sm:w-full max-sm:ps-7">
             <template v-if="x.kind === 'approval' || x.kind === 'patch'">
               <UButton size="xs" icon="i-lucide-check" :label="t('home.approve')" :loading="acting.has(x.key + 'approve')" @click="act(x, 'approve')" />
               <UButton size="xs" color="neutral" variant="ghost" :label="t('home.reject')" :loading="acting.has(x.key + 'reject')" @click="act(x, 'reject')" />
@@ -305,7 +306,7 @@ const steps = computed(() => [
     </div>
     <template #actions>
       <UButton color="neutral" variant="outline" icon="i-lucide-eye" :label="t('home.view')" :to="shown.link" />
-      <template v-if="isAdmin">
+      <template v-if="manages(shown.project_id)">
         <UButton v-if="canRetry(shown.kind)" color="neutral" variant="outline" icon="i-lucide-rotate-cw" :label="t('home.retry')" :loading="acting.has(shown.key + 'retry')" @click="act(shown, 'retry')" />
         <UButton color="neutral" variant="outline" icon="i-lucide-search-check" :label="t('home.investigate')" @click="investigate(shown)" />
         <UButton color="neutral" variant="ghost" :label="t('home.dismiss')" :loading="acting.has(shown.key + 'dismiss')" @click="act(shown, 'dismiss').then((ok) => { if (ok) shown = null })" />

@@ -3,7 +3,7 @@
 // actions: open the chat or task, stop, run again (ADR-040).
 const props = defineProps<{ filter?: { project?: string, origin_id?: string, origin_ids?: string[], kind?: string }, showFilters?: boolean, projects?: { id: string, name: string }[] }>()
 const toast = useToast()
-const { isAdmin } = useAuth()
+const { manages } = useAuth() // each job: its project's admin or manager (ADR-224)
 const { t, when } = useLang()
 
 const kind = ref(props.filter?.kind ?? '')
@@ -162,8 +162,8 @@ useLive(['jobs'], () => load())
               <td class="whitespace-nowrap px-2 py-2 text-xs text-(--ui-text-muted) max-sm:hidden">{{ when(j.created_at) }}</td>
               <td class="whitespace-nowrap px-4 py-2 text-right">
                 <UButton v-if="j.conversation_id || j.task_id || j.kind === 'script'" size="xs" color="neutral" variant="ghost" icon="i-lucide-external-link" :title="t('job.open')" :aria-label="t('job.open')" @click="openJob(j)" />
-                <UButton v-if="isAdmin && (j.status === 'pending' || j.status === 'running')" size="xs" color="neutral" variant="ghost" icon="i-lucide-square" :title="t('job.cancel')" :aria-label="t('job.cancel')" @click="act(j, 'cancel')" />
-                <UButton v-if="isAdmin && ['failed', 'cancelled', 'skipped'].includes(j.status) && (j.origin === 'automation' || j.kind === 'task')" size="xs" color="neutral" variant="ghost" icon="i-lucide-rotate-ccw" :title="t('job.retry')" :aria-label="t('job.retry')" @click="act(j, 'retry')" />
+                <UButton v-if="manages(j.project_id) && (j.status === 'pending' || j.status === 'running')" size="xs" color="neutral" variant="ghost" icon="i-lucide-square" :title="t('job.cancel')" :aria-label="t('job.cancel')" @click="act(j, 'cancel')" />
+                <UButton v-if="manages(j.project_id) && ['failed', 'cancelled', 'skipped'].includes(j.status) && (j.origin === 'automation' || j.kind === 'task')" size="xs" color="neutral" variant="ghost" icon="i-lucide-rotate-ccw" :title="t('job.retry')" :aria-label="t('job.retry')" @click="act(j, 'retry')" />
               </td>
             </tr>
           </tbody>

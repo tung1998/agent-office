@@ -36,6 +36,15 @@ func (s *server) skipAllProposals(w http.ResponseWriter, r *http.Request) {
 	}
 	ctx := r.Context()
 	u := userFrom(r)
+	sc, err := s.scopeOf(ctx, u) // a manager skips only its projects' cards (ADR-224)
+	if err != nil {
+		s.internal(w, r, err)
+		return
+	}
+	if in.ProjectID != "" && !sc.has(in.ProjectID) {
+		writeError(w, http.StatusNotFound, "không tìm thấy project")
+		return
+	}
 	hidden := assistant.ID(ctx, s.cfg.Store)
 	convs := map[string]bool{}
 	actionsN, patchesN := 0, 0
@@ -44,7 +53,7 @@ func (s *server) skipAllProposals(w http.ResponseWriter, r *http.Request) {
 		progress := false
 		if acts, err := s.cfg.Store.Actions().Pending(ctx, 100); err == nil {
 			for _, a := range acts {
-				if tried[a.ID] || in.ProjectID != "" && a.ProjectID != in.ProjectID {
+				if tried[a.ID] || in.ProjectID != "" && a.ProjectID != in.ProjectID || !sc.has(a.ProjectID) {
 					continue
 				}
 				tried[a.ID], progress = true, true
@@ -62,7 +71,7 @@ func (s *server) skipAllProposals(w http.ResponseWriter, r *http.Request) {
 						continue
 					}
 					c, err := s.cfg.Store.Chat().GetConversation(ctx, p.ConversationID)
-					if err != nil || c.ProjectID == hidden || in.ProjectID != "" && c.ProjectID != in.ProjectID {
+					if err != nil || c.ProjectID == hidden || in.ProjectID != "" && c.ProjectID != in.ProjectID || !sc.has(c.ProjectID) {
 						continue
 					}
 					tried[p.ID], progress = true, true

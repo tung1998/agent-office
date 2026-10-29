@@ -18,10 +18,11 @@ export interface Patch {
 }
 
 // stale: from an older answer of its agent
-const props = defineProps<{ patch: Patch, stale?: boolean }>()
+const props = defineProps<{ patch: Patch, projectId?: string, stale?: boolean }>()
 const emit = defineEmits<{ updated: [Patch] }>()
 const toast = useToast()
-const { isAdmin } = useAuth()
+const auth = useAuth()
+const isAdmin = computed(() => props.projectId ? auth.manages(props.projectId) : auth.isAdmin.value) // on any page (ADR-224)
 const { t } = useLang()
 const busy = ref<'' | 'approve' | 'reject' | 'skip'>('')
 const open = ref(props.patch.status === 'pending' || props.patch.status === 'failed')

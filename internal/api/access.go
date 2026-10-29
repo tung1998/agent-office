@@ -220,11 +220,14 @@ func (s *server) gate(w http.ResponseWriter, r *http.Request, adminOnly bool) bo
 }
 
 // managerMay: an admin's route about no one project that a manager may use
-// (making a project of its own, its approval inbox).
+// (making a project of its own, its approval inbox, what needs it on the
+// overview: the handlers keep these to its projects).
 func (s *server) managerMay(r *http.Request) bool {
 	switch r.Pattern {
 	case "POST /api/projects", "POST /api/projects/new", "POST /api/projects/clone", "GET /api/fs/dirs",
-		"GET /api/actions/pending": // filtered to its projects
+		"GET /api/actions/pending", "GET /api/bots", "POST /api/incidents/dismiss", "POST /api/incidents/retry",
+		"POST /api/proposals/skip-all",
+		"GET /api/users", "POST /api/users", "PATCH /api/users/{id}", "POST /api/users/{id}/reset-password": // its members (ADR-239)
 		return true
 	}
 	return false

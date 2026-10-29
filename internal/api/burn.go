@@ -215,7 +215,7 @@ func (s *server) applyBurn(r *http.Request, in burnInput, b *storage.BurnSession
 	if in.NotifyChannelID != nil {
 		b.NotifyChannelID = strings.TrimSpace(*in.NotifyChannelID)
 		if b.NotifyChannelID != "" {
-			if _, err := s.cfg.Store.Channels().Get(r.Context(), b.NotifyChannelID); err != nil {
+			if ch, err := s.cfg.Store.Channels().Get(r.Context(), b.NotifyChannelID); err != nil || !s.sees(r, ch.ProjectID) {
 				return errors.New("không có bot này")
 			}
 		}

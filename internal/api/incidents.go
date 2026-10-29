@@ -289,6 +289,24 @@ func (s *server) dismissIncident(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	// a manager lets go only what its own list shows (its projects', ADR-224)
+	if u := userFrom(r); u.Role != storage.RoleAdmin {
+		mine, err := s.incidentsFor(r.Context(), u)
+		if err != nil {
+			s.internal(w, r, err)
+			return
+		}
+		shown := map[string]bool{}
+		for _, it := range mine {
+			shown[it.Key] = true
+		}
+		for _, k := range keys {
+			if !shown[k] {
+				writeError(w, http.StatusNotFound, "không tìm thấy")
+				return
+			}
+		}
+	}
 	now := time.Now().UTC()
 	for _, k := range keys {
 		if err := s.cfg.Store.Settings().Set(r.Context(), dismissKey(k), now); err != nil {
@@ -298,6 +316,26 @@ func (s *server) dismissIncident(w http.ResponseWriter, r *http.Request) {
 		s.auditAction(r, "incident.dismiss", k, nil)
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// incidentProject is the project of what an incident is about.
+func (s *server) incidentProject(ctx context.Context, kind, id string) (string, error) {
+	st := s.cfg.Store
+	switch kind {
+	case "monitor":
+		m, err := st.Monitors().Get(ctx, id)
+		return m.ProjectID, err
+	case "process":
+		p, err := st.Processes().Get(ctx, id)
+		return p.ProjectID, err
+	case "automation":
+		a, err := st.Automations().Get(ctx, id)
+		return a.ProjectID, err
+	case "bot":
+		c, err := st.Channels().Get(ctx, id)
+		return c.ProjectID, err
+	}
+	return "", errNoProject
 }
 
 // retryIncident tries again what an incident is about: checks a monitor now,
@@ -312,6 +350,12 @@ func (s *server) retryIncident(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	ctx := r.Context()
+	if u := userFrom(r); u.Role != storage.RoleAdmin {
+		if pid, err := s.incidentProject(ctx, in.Kind, in.ID); err != nil || !s.sees(r, pid) {
+			writeError(w, http.StatusNotFound, "không tìm thấy")
+			return
+		}
+	}
 	var err error
 	switch in.Kind {
 	case "monitor":

@@ -46,8 +46,21 @@ func (s *server) allBots(ctx context.Context) []alertBot {
 	return bots
 }
 
+// listAllBots: the bots a notice may go out by, of the projects the person
+// sees (a manager borrows only from its own, ADR-224).
 func (s *server) listAllBots(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, http.StatusOK, map[string]any{"bots": s.allBots(r.Context())})
+	sc, err := s.scope(r)
+	if err != nil {
+		s.internal(w, r, err)
+		return
+	}
+	bots := []alertBot{}
+	for _, b := range s.allBots(r.Context()) {
+		if sc.has(b.ProjectID) {
+			bots = append(bots, b)
+		}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"bots": bots})
 }
 
 func (s *server) getLimitAlert(w http.ResponseWriter, r *http.Request) {

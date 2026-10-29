@@ -55,7 +55,8 @@ const composeOpen = ref(false)
 const iconOnPhone = { base: '@max-sm/chat:!w-7 @max-sm/chat:!px-0', leading: '@max-sm/chat:!ps-1.5', value: '@max-sm/chat:hidden', trailing: '@max-sm/chat:hidden' }
 const toast = useToast()
 const { t, when } = useLang()
-const { user: me, isAdmin } = useAuth()
+const { user: me, manages } = useAuth()
+const isAdmin = computed(() => manages(props.projectId)) // its cards: the project's admin or manager, on any page (ADR-224)
 
 const _f1 = useLiveFetch<{ agents: Agent[], default_agent_id: string }>(() => `/api/projects/${props.projectId}/chat/agents`, { lazy: true })
 const { data: agentsData } = _f1
@@ -1146,7 +1147,7 @@ onBeforeUnmount(() => {
               v-for="a in (m.actions ?? []).filter(x => !x.after_diff)" :key="a.id" :action="a" :project-id="projectId" :stale="staleCards[a.id]"
               @updated="(na: ProposedAction) => m.actions = (m.actions ?? []).map(x => x.id === na.id ? { ...na, seq: x.seq } : x)"
             />
-            <PatchCard v-for="p in m.patches" :key="p.id" :patch="p" :stale="staleCards[p.id]" @updated="(np: Patch) => onPatchUpdated(m, np)" />
+            <PatchCard v-for="p in m.patches" :key="p.id" :patch="p" :project-id="projectId" :stale="staleCards[p.id]" @updated="(np: Patch) => onPatchUpdated(m, np)" />
             <!-- a commit asked with the edits comes after their diff (ADR-189) -->
             <ActionCard
               v-for="a in (m.actions ?? []).filter(x => x.after_diff)" :key="a.id" :action="a" :project-id="projectId" :stale="staleCards[a.id]"
@@ -1166,7 +1167,7 @@ onBeforeUnmount(() => {
             v-for="a in lp.actions" :key="a.id" :action="a" :project-id="lp.project_id"
             @updated="(na: ProposedAction) => lp.actions = lp.actions.map(x => x.id === na.id ? na : x)"
           />
-          <PatchCard v-for="p in lp.patches" :key="p.id" :patch="p" @updated="(np: Patch) => lp.patches = lp.patches.map(x => x.id === np.id ? np : x)" />
+          <PatchCard v-for="p in lp.patches" :key="p.id" :patch="p" :project-id="lp.project_id" @updated="(np: Patch) => lp.patches = lp.patches.map(x => x.id === np.id ? np : x)" />
         </div>
 
         <div v-if="streaming && !runs.some(r => r.status === 'running' && r.caller_conversation_id === current?.id)" class="space-y-2">

@@ -6,14 +6,14 @@ const props = defineProps<{ projects: Project[], current?: WidgetKind }>()
 const open = defineModel<boolean>('open', { default: false })
 const emit = defineEmits<{ select: [kind: WidgetKind] }>()
 const { t } = useLang()
-const { isAdmin } = useAuth()
+const { isOfficeAdmin, canCreateProject } = useAuth()
 const query = ref('')
 
 const someHas = (feature: FeatureId) => props.projects.some(p => hasFeature(p, feature))
 const gallery = computed(() => widgetGroups.map(group => {
   const kinds: WidgetKind[] = [
     ...(group === 'agents' ? ['chat' as const] : []),
-    ...groupWidgets(group, isAdmin.value, someHas).map(w => w.kind)
+    ...groupWidgets(group, isOfficeAdmin.value, someHas, canCreateProject.value).map(w => w.kind)
   ]
   const widgets = kinds.map(kind => widgetDef(kind)).filter(w => {
     const term = query.value.trim().toLocaleLowerCase()

@@ -67,16 +67,18 @@ func (s *server) getPolicy(w http.ResponseWriter, r *http.Request) {
 }
 
 // officeProjects are the projects other offices open to this one, to link
-// to (ADR-167): their ref and "<office>/<project>".
+// to (ADR-167): their ref and "<office>/<project>"; those the person reaches
+// (ADR-239).
 func (s *server) officeProjects(r *http.Request) []map[string]string {
 	out := []map[string]string{}
 	if s.cfg.Peers == nil {
 		return out
 	}
+	by := s.officesOf(r.Context(), userFrom(r))
 	list, _ := s.cfg.Peers.List(r.Context())
 	for _, p := range list {
 		for _, rp := range p.Remote {
-			if rp.Assistant { // its machine: only the office assistant reaches it
+			if rp.Assistant || !by.allows(p.ID, rp.ID) { // its machine: only the office assistant reaches it
 				continue
 			}
 			out = append(out, map[string]string{"value": peer.RefPrefix + p.ID + "/" + rp.ID, "label": p.Name + "/" + rp.Name, "description": rp.Description})
@@ -92,7 +94,8 @@ func (s *server) putPolicy(w http.ResponseWriter, r *http.Request) {
 	}
 	// a body without quick_check/linked_projects (an older client) keeps what is set
 	old, raw := perm.LoadPolicyRaw(r.Context(), s.cfg.Store, r.PathValue("id"))
-	body.QuickCheck, body.QuickChecks, body.MergeChecks, body.LinkedProjects, body.Experts = old.QuickCheck, old.QuickChecks, old.MergeChecks, old.LinkedProjects, old.Experts
+	// (a copy: decoding reuses the slice, and old is read after)
+	body.QuickCheck, body.QuickChecks, body.MergeChecks, body.LinkedProjects, body.Experts = old.QuickCheck, old.QuickChecks, old.MergeChecks, slices.Clone(old.LinkedProjects), old.Experts
 	if !decode(w, r, &body) {
 		return
 	}
@@ -137,9 +140,17 @@ func (s *server) putPolicy(w http.ResponseWriter, r *http.Request) {
 	}
 	in.WorktreeLinks = links
 	linked := []string{}
+	by := s.officesOf(r.Context(), userFrom(r))
 	for _, id := range clean(in.LinkedProjects) {
 		if id == projectID || slices.Contains(linked, id) {
 			continue
+		}
+		// a new link only to what the person reaches; one already there stays (ADR-239)
+		if !slices.Contains(old.LinkedProjects, id) {
+			if peerID, rid, ok := peer.SplitRef(id); ok && !by.allows(peerID, rid) || !ok && !s.sees(r, id) {
+				writeError(w, http.StatusBadRequest, fmt.Sprintf("bạn không được liên kết tới %q", id))
+				return
+			}
 		}
 		if peerID, _, ok := peer.SplitRef(id); ok { // in another office (ADR-167): a paired one
 			if s.cfg.Peers == nil {

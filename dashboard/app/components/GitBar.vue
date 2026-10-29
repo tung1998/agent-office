@@ -7,7 +7,8 @@ interface GitStatus { branch: string, upstream?: string, ahead: number, behind: 
 
 const props = defineProps<{ projectId: string }>()
 const toast = useToast()
-const { isAdmin } = useAuth()
+const { manages } = useAuth()
+const isAdmin = computed(() => manages(props.projectId)) // its project's admin or manager, on any page (ADR-224)
 const { t } = useLang()
 const Dropdown = resolveComponent('UDropdownMenu')
 

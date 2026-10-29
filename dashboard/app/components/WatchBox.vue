@@ -9,7 +9,7 @@ import type { WidgetKind } from '~/utils/watchWidgets'
 const props = defineProps<{ item: WatchItem, projects: Project[], movable?: boolean }>()
 const emit = defineEmits<{ grip: [e: PointerEvent] }>()
 const { t } = useLang()
-const { isAdmin } = useAuth()
+const { isOfficeAdmin, manages } = useAuth()
 const { setPane, setConfig } = useWatchLayout()
 
 const kind = computed(() => props.item.widget)
@@ -17,7 +17,8 @@ const def = computed(() => widgetDef(kind.value))
 const project = computed(() => props.projects.find(p => p.id === props.item.projectId))
 // what it needs before it can show anything
 const needsProject = computed(() => def.value.project === 'required' && !project.value)
-const forbidden = computed(() => !!def.value.admin && !isAdmin.value)
+// a project's widget: its admin or manager (ADR-224); one of the machine: the office admin
+const forbidden = computed(() => !!def.value.admin && (def.value.project === 'required' ? !!project.value && !manages(project.value.id) : !isOfficeAdmin.value))
 // the project turned off the feature the widget shows (feature packs)
 const featureOff = computed(() => !!def.value.feature && !!project.value && !hasFeature(project.value, def.value.feature))
 

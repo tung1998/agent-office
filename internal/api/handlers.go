@@ -24,6 +24,8 @@ type userDTO struct {
 	LastLoginAt *time.Time `json:"last_login_at"`
 	// Projects: the projects it sees, when not an admin (ADR-224)
 	Projects []string `json:"projects,omitempty"`
+	// Offices: the other offices it reaches, when not an admin (ADR-239)
+	Offices officeAccess `json:"offices,omitempty"`
 }
 
 // withProjects adds the projects an account other than an admin sees.
@@ -34,6 +36,7 @@ func (s *server) withProjects(ctx context.Context, u storage.User) (userDTO, err
 	}
 	ids, err := s.cfg.Store.Users().Projects(ctx, u.ID)
 	d.Projects = ids
+	d.Offices = s.officesOf(ctx, u).acc
 	return d, err
 }
 
@@ -215,27 +218,64 @@ func (s *server) listUsers(w http.ResponseWriter, r *http.Request) {
 		s.internal(w, r, err)
 		return
 	}
+	me := userFrom(r)
+	sc, err := s.scope(r)
+	if err != nil {
+		s.internal(w, r, err)
+		return
+	}
+	oc := s.officesOf(r.Context(), me)
 	out := make([]userDTO, 0, len(users))
 	for _, u := range users {
+		if me.Role != storage.RoleAdmin && u.Role != storage.RoleMember { // a manager runs the members (ADR-239)
+			continue
+		}
 		d, err := s.withProjects(r.Context(), u)
 		if err != nil {
 			s.internal(w, r, err)
 			return
 		}
+		if me.Role != storage.RoleAdmin { // only what it gives them shows
+			d.Projects, d.Offices = shownProjects(d.Projects, sc), shownOffices(d.Offices, oc)
+		}
 		out = append(out, d)
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"users": out})
+	writeJSON(w, http.StatusOK, map[string]any{"users": out, "offices": s.officeChoices(r)})
 }
 
 func (s *server) createUser(w http.ResponseWriter, r *http.Request) {
 	var in struct {
-		Email    string   `json:"email"`
-		Name     string   `json:"name"`
-		Role     string   `json:"role"`
-		Password string   `json:"password"`
-		Projects []string `json:"projects"` // what a manager or member sees (ADR-224)
+		Email    string       `json:"email"`
+		Name     string       `json:"name"`
+		Role     string       `json:"role"`
+		Password string       `json:"password"`
+		Projects []string     `json:"projects"` // what a manager or member sees (ADR-224)
+		Offices  officeAccess `json:"offices"`  // the other offices it reaches (ADR-239)
 	}
 	if !decode(w, r, &in) {
+		return
+	}
+	me := userFrom(r)
+	if me.Role != storage.RoleAdmin {
+		if in.Role != string(storage.RoleMember) {
+			writeError(w, http.StatusForbidden, "chỉ tạo được tài khoản member")
+			return
+		}
+		sc, err := s.scope(r)
+		if err != nil {
+			s.internal(w, r, err)
+			return
+		}
+		for _, id := range in.Projects {
+			if !sc.has(id) {
+				writeError(w, http.StatusBadRequest, errNotYours.Error())
+				return
+			}
+		}
+	}
+	offices, err := s.cleanOffices(r.Context(), s.officesOf(r.Context(), me), in.Offices)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 	u, err := s.cfg.Auth.CreateUser(r.Context(), auth.NewUser{Email: in.Email, Name: in.Name, Role: storage.Role(in.Role), Password: in.Password}, "human:"+userFrom(r).Email)
@@ -245,6 +285,9 @@ func (s *server) createUser(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusBadRequest, "project không tồn tại")
 			return
 		}
+	}
+	if err == nil && len(offices) > 0 && u.Role != storage.RoleAdmin {
+		err = s.cfg.Store.Settings().Set(r.Context(), officesKey(u.ID), offices)
 	}
 	switch {
 	case errors.Is(err, auth.ErrEmailTaken):
@@ -266,16 +309,66 @@ func (s *server) createUser(w http.ResponseWriter, r *http.Request) {
 func (s *server) updateUser(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	var in struct {
-		Disabled   *bool     `json:"disabled"`
-		DiscordID  *string   `json:"discord_id"`
-		TelegramID *string   `json:"telegram_id"`
-		Role       *string   `json:"role"`
-		Projects   *[]string `json:"projects"` // what a manager or member sees (ADR-224)
+		Disabled   *bool         `json:"disabled"`
+		DiscordID  *string       `json:"discord_id"`
+		TelegramID *string       `json:"telegram_id"`
+		Role       *string       `json:"role"`
+		Projects   *[]string     `json:"projects"` // what a manager or member sees (ADR-224)
+		Offices    *officeAccess `json:"offices"`  // the other offices it reaches (ADR-239)
 	}
 	if !decode(w, r, &in) {
 		return
 	}
 	actor := "human:" + userFrom(r).Email
+	// a manager runs members only, and gives only what it has (ADR-239);
+	// all is checked before anything changes
+	target, ok := s.memberTarget(w, r, id)
+	if !ok {
+		return
+	}
+	by := s.officesOf(r.Context(), userFrom(r))
+	var offices officeAccess
+	if in.Offices != nil {
+		set, err := s.cleanOffices(r.Context(), by, *in.Offices)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		offices = mergeOffices(s.officesOf(r.Context(), target).acc, set, by)
+	}
+	if userFrom(r).Role != storage.RoleAdmin {
+		if in.Role != nil && *in.Role != string(storage.RoleMember) {
+			writeError(w, http.StatusForbidden, "chỉ admin đổi được vai trò")
+			return
+		}
+		in.Role = nil
+		if in.Projects != nil {
+			sc, err := s.scope(r)
+			if err != nil {
+				s.internal(w, r, err)
+				return
+			}
+			for _, pid := range *in.Projects {
+				if !sc.has(pid) {
+					writeError(w, http.StatusBadRequest, errNotYours.Error())
+					return
+				}
+			}
+			old, err := s.cfg.Store.Users().Projects(r.Context(), id)
+			if err != nil {
+				s.internal(w, r, err)
+				return
+			}
+			merged := mergeProjects(old, *in.Projects, sc)
+			in.Projects = &merged
+		}
+	}
+	if offices != nil {
+		if err := s.cfg.Store.Settings().Set(r.Context(), officesKey(id), offices); err != nil {
+			s.internal(w, r, err)
+			return
+		}
+	}
 	if in.Role != nil {
 		if id == userFrom(r).ID && storage.Role(*in.Role) != storage.RoleAdmin {
 			writeError(w, http.StatusBadRequest, "Không thể tự hạ quyền tài khoản của mình")
@@ -372,6 +465,9 @@ func (s *server) resetPassword(w http.ResponseWriter, r *http.Request) {
 		Password string `json:"password"`
 	}
 	if !decode(w, r, &in) {
+		return
+	}
+	if _, ok := s.memberTarget(w, r, r.PathValue("id")); !ok {
 		return
 	}
 	err := s.cfg.Auth.ResetPassword(r.Context(), r.PathValue("id"), in.Password, "human:"+userFrom(r).Email)

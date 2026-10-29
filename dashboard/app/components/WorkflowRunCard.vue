@@ -5,7 +5,8 @@
 import type { MessageKey } from '~/locales/vi'
 
 const props = defineProps<{ run: WorkflowRun, detail?: boolean }>()
-const { isAdmin } = useAuth()
+const { manages } = useAuth()
+const isAdmin = computed(() => manages(props.run.project_id)) // on any page (ADR-224)
 const emit = defineEmits<{ updated: [WorkflowRun] }>()
 const toast = useToast()
 const { t, dateLocale } = useLang()

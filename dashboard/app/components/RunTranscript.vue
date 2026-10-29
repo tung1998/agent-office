@@ -56,7 +56,7 @@ const when = (d: string) => new Date(d).toLocaleTimeString(dateLocale.value, { h
           </details>
           <!-- eslint-disable-next-line vue/no-v-html -->
           <div class="markdown min-w-0 text-sm" v-html="renderMarkdown(m.content)" />
-          <PatchCard v-for="p in m.patches" :key="p.id" :patch="p" @updated="(np: Patch) => m.patches = m.patches.map(x => x.id === np.id ? np : x)" />
+          <PatchCard v-for="p in m.patches" :key="p.id" :patch="p" :project-id="projectId" @updated="(np: Patch) => m.patches = m.patches.map(x => x.id === np.id ? np : x)" />
           <ActionCard
             v-for="a in m.actions ?? []" :key="a.id" :action="a" :project-id="projectId"
             @updated="(na: ProposedAction) => m.actions = (m.actions ?? []).map(x => x.id === na.id ? na : x)"

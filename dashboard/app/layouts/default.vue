@@ -2,7 +2,7 @@
 import type { DropdownMenuItem, NavigationMenuItem } from '@nuxt/ui'
 
 const route = useRoute()
-const { user, build, viewedBy, isOfficeAdmin, manages, logout, endViewAs } = useAuth()
+const { user, build, viewedBy, isOfficeAdmin, canCreateProject, manages, logout, endViewAs } = useAuth()
 const { t, when: fmtWhen } = useLang()
 
 // which office is running, above the user (from /api/auth/me)
@@ -209,7 +209,9 @@ const items = computed<NavigationMenuItem[][]>(() => {
         { label: t('nav.peers'), icon: 'i-lucide-building-2', to: '/admin/peers' },
         { label: t('nav.update'), icon: 'i-lucide-package', to: '/admin/update' }
       ]
-    : []
+    : canCreateProject.value // a manager: its members (ADR-239)
+      ? [{ label: t('nav.admin'), type: 'label' }, { label: t('nav.users'), icon: 'i-lucide-users', to: '/admin/users' }]
+      : []
   // projects: a title, the most used ones, then a link to all of them
   const projects: NavigationMenuItem[] = [
     { label: t('nav.projects'), type: 'label' },

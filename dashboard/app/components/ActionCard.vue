@@ -33,7 +33,8 @@ const props = defineProps<{ action: ProposedAction, projectId?: string, stale?: 
 const num = computed(() => props.action.seq)
 const emit = defineEmits<{ updated: [ProposedAction] }>()
 const toast = useToast()
-const { isAdmin } = useAuth()
+const auth = useAuth()
+const isAdmin = computed(() => props.projectId ? auth.manages(props.projectId) : auth.isAdmin.value) // on any page (ADR-224)
 const { t } = useLang()
 const busy = ref<'' | 'approve' | 'always' | 'reject' | 'skip'>('')
 

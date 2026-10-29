@@ -1,22 +1,41 @@
 <script setup lang="ts">
 import type { TableColumn } from '@nuxt/ui'
 
-definePageMeta({ admin: true })
+definePageMeta({ admin: true, manager: true }) // a manager runs the members (ADR-239)
 
 const toast = useToast()
-const { user: me } = useAuth()
+const { user: me, isOfficeAdmin } = useAuth()
 const { t, when: fmtWhen } = useLang()
-const { data, refresh, status } = await useLiveFetch<{ users: OfficeUser[] }>('/api/users')
+// offices: the other offices (whole, or projects of them) this account may give (ADR-239)
+interface OfficeChoice { id: string, name: string, whole: boolean, projects: { id: string, name: string }[] }
+const { data, refresh, status } = await useLiveFetch<{ users: OfficeUser[], offices: OfficeChoice[] }>('/api/users')
 const users = computed(() => data.value?.users ?? [])
 // the projects an account other than an admin sees (ADR-224)
 const { data: projData } = useLiveFetch<{ projects: Project[] }>('/api/projects', { lazy: true })
 const projectItems = computed(() => (projData.value?.projects ?? []).map(p => ({ label: p.name, value: p.id })))
 const projectName = (id: string) => projData.value?.projects.find(p => p.id === id)?.name ?? id
+// a manager makes members only
 const roleItems = computed(() => [
   { label: t('admin.usersRoleMember'), value: 'member' },
-  { label: t('admin.usersRoleManager'), value: 'manager' },
-  { label: t('admin.usersRoleAdmin'), value: 'admin' }
+  ...(isOfficeAdmin.value
+    ? [{ label: t('admin.usersRoleManager'), value: 'manager' }, { label: t('admin.usersRoleAdmin'), value: 'admin' }]
+    : [])
 ])
+// one list for the offices: "<peer>/*" an office whole, "<peer>/<project>" one of its projects
+const officeItems = computed(() => (data.value?.offices ?? []).flatMap(o => [
+  ...(o.whole ? [{ label: t('admin.usersOfficeWhole', { office: o.name }), value: `${o.id}/*` }] : []),
+  ...o.projects.map(p => ({ label: `${o.name}/${p.name}`, value: `${o.id}/${p.id}` }))
+]))
+const toOfficeList = (o?: Record<string, string[]>) => Object.entries(o ?? {}).flatMap(([peer, list]) => list.map(p => `${peer}/${p}`))
+function toOffices(list: string[]) {
+  const out: Record<string, string[]> = {}
+  for (const v of list) {
+    const i = v.indexOf('/')
+    ;(out[v.slice(0, i)] ??= []).push(v.slice(i + 1))
+  }
+  return out
+}
+const officeLabel = (peer: string, p: string) => officeItems.value.find(x => x.value === `${peer}/${p}`)?.label ?? `${peer}/${p}`
 const roleColor = (r: string) => r === 'admin' ? 'primary' : r === 'manager' ? 'info' : 'neutral'
 
 const columns = computed<TableColumn<OfficeUser>[]>(() => [
@@ -35,7 +54,7 @@ function fmt(d: string | null) {
 
 // ---- create ----
 const createOpen = ref(false)
-const createState = reactive({ email: '', name: '', role: 'member', password: '', projects: [] as string[] })
+const createState = reactive({ email: '', name: '', role: 'member', password: '', projects: [] as string[], offices: [] as string[] })
 const createError = ref('')
 const creating = ref(false)
 
@@ -43,9 +62,9 @@ async function createUser() {
   createError.value = ''
   creating.value = true
   try {
-    await $fetch('/api/users', { method: 'POST', body: { ...createState } })
+    await $fetch('/api/users', { method: 'POST', body: { ...createState, offices: toOffices(createState.offices) } })
     toast.add({ title: t('admin.usersCreated', { email: createState.email }), color: 'success' })
-    Object.assign(createState, { email: '', name: '', role: 'member', password: '', projects: [] })
+    Object.assign(createState, { email: '', name: '', role: 'member', password: '', projects: [], offices: [] })
     createOpen.value = false
     await refresh()
   } catch (e) {
@@ -124,12 +143,12 @@ async function saveLink() {
 
 // ---- role and projects ----
 const accessTarget = ref<OfficeUser | null>(null)
-const accessState = reactive({ role: 'member' as OfficeUser['role'], projects: [] as string[] })
+const accessState = reactive({ role: 'member' as OfficeUser['role'], projects: [] as string[], offices: [] as string[] })
 const accessError = ref('')
 const savingAccess = ref(false)
 
 function openAccess(u: OfficeUser) {
-  Object.assign(accessState, { role: u.role, projects: [...(u.projects ?? [])] })
+  Object.assign(accessState, { role: u.role, projects: [...(u.projects ?? [])], offices: toOfficeList(u.offices) })
   accessError.value = ''
   accessTarget.value = u
 }
@@ -140,7 +159,8 @@ async function saveAccess() {
   accessError.value = ''
   savingAccess.value = true
   try {
-    const body: { role?: string, projects?: string[] } = { projects: accessState.role === 'admin' ? [] : accessState.projects }
+    const admin = accessState.role === 'admin'
+    const body: { role?: string, projects?: string[], offices?: Record<string, string[]> } = { projects: admin ? [] : accessState.projects, offices: admin ? {} : toOffices(accessState.offices) }
     if (accessState.role !== u.role) body.role = accessState.role
     await $fetch(`/api/users/${u.id}`, { method: 'PATCH', body })
     toast.add({ title: t('admin.usersAccessSaved', { email: u.email }), color: 'success' })
@@ -169,7 +189,7 @@ function rowActions(u: OfficeUser) {
     { label: t('admin.usersResetPassword'), icon: 'i-lucide-key-round', onSelect: () => { resetTarget.value = u } },
     { label: t('admin.usersChatIdsEdit'), icon: 'i-lucide-link', onSelect: () => openLink(u) },
     // read-only, as that account sees the office: not another admin
-    ...(u.role !== 'admin' && !u.disabled && !u.must_change ? [{ label: t('admin.usersViewAs'), icon: 'i-lucide-eye', onSelect: () => startViewAs(u) }] : [])
+    ...(isOfficeAdmin.value && u.role !== 'admin' && !u.disabled && !u.must_change ? [{ label: t('admin.usersViewAs'), icon: 'i-lucide-eye', onSelect: () => startViewAs(u) }] : [])
   ]]
   if (u.id !== me.value?.id) {
     items.push([u.disabled
@@ -192,6 +212,10 @@ function rowActions(u: OfficeUser) {
           <UBadge :label="row.original.role" :color="roleColor(row.original.role)" variant="subtle" />
           <span class="text-xs text-(--ui-text-muted)">
             {{ row.original.role === 'admin' ? t('admin.usersAllProjects') : row.original.projects?.length ? row.original.projects.map(projectName).join(', ') : t('admin.usersNoProject') }}
+          </span>
+          <span v-if="row.original.role !== 'admin' && toOfficeList(row.original.offices).length" class="flex items-center gap-1 text-xs text-(--ui-text-muted)">
+            <UIcon name="i-lucide-building-2" class="size-3.5 shrink-0" />
+            {{ Object.entries(row.original.offices ?? {}).flatMap(([peer, list]) => list.map(p => officeLabel(peer, p))).join(', ') }}
           </span>
         </div>
       </template>
@@ -230,11 +254,14 @@ function rowActions(u: OfficeUser) {
           <UFormField :label="t('admin.usersDisplayName')">
             <UInput v-model="createState.name" class="w-full" />
           </UFormField>
-          <UFormField :label="t('admin.usersRole')">
+          <UFormField v-if="roleItems.length > 1" :label="t('admin.usersRole')">
             <USelect v-model="createState.role" :items="roleItems" class="w-full" />
           </UFormField>
           <UFormField v-if="createState.role !== 'admin'" :label="t('admin.usersProjects')" :hint="createState.role === 'manager' ? t('admin.usersProjectsHint') : undefined">
             <USelectMenu v-model="createState.projects" :items="projectItems" value-key="value" multiple class="w-full" />
+          </UFormField>
+          <UFormField v-if="createState.role !== 'admin' && officeItems.length" :label="t('admin.usersOffices')" :hint="t('admin.usersOfficesHint')">
+            <USelectMenu v-model="createState.offices" :items="officeItems" value-key="value" multiple class="w-full" />
           </UFormField>
           <UFormField :label="t('admin.usersTempPassword')" :hint="t('admin.usersPasswordHint')" required>
             <UInput v-model="createState.password" type="password" autocomplete="new-password" class="w-full" />
@@ -253,11 +280,14 @@ function rowActions(u: OfficeUser) {
     <UModal :open="!!accessTarget" :title="t('admin.usersAccessModal', { email: accessTarget?.email ?? '' })" @update:open="v => { if (!v) accessTarget = null }">
       <template #body>
         <form id="user-access" class="space-y-4" @submit.prevent="saveAccess">
-          <UFormField :label="t('admin.usersRole')" :hint="accessTarget && accessState.role !== accessTarget.role ? t('admin.usersRoleChangeWarn') : undefined">
+          <UFormField v-if="isOfficeAdmin" :label="t('admin.usersRole')" :hint="accessTarget && accessState.role !== accessTarget.role ? t('admin.usersRoleChangeWarn') : undefined">
             <USelect v-model="accessState.role" :items="roleItems" class="w-full" />
           </UFormField>
           <UFormField v-if="accessState.role !== 'admin'" :label="t('admin.usersProjects')">
             <USelectMenu v-model="accessState.projects" :items="projectItems" value-key="value" multiple class="w-full" />
+          </UFormField>
+          <UFormField v-if="accessState.role !== 'admin' && officeItems.length" :label="t('admin.usersOffices')" :hint="t('admin.usersOfficesHint')">
+            <USelectMenu v-model="accessState.offices" :items="officeItems" value-key="value" multiple class="w-full" />
           </UFormField>
           <UAlert v-if="accessError" color="error" variant="subtle" :description="accessError" />
         </form>

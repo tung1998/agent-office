@@ -17,7 +17,8 @@ export default defineNuxtRouteMiddleware(async (to) => {
   if (to.path === '/setup-account') {
     return navigateTo('/')
   }
-  if (to.meta.admin && user.value.role !== 'admin') {
+  // meta.manager: a manager's too (its members, ADR-239)
+  if (to.meta.admin && user.value.role !== 'admin' && !(to.meta.manager && user.value.role === 'manager')) {
     return navigateTo('/')
   }
 })

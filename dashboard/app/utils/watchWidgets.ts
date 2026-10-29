@@ -139,8 +139,9 @@ export const widgetDefs: WidgetDef[] = [
 
 // a group's widgets, small first (chat is offered on its own); on: the
 // features some project has on (a widget of a feature none has is not offered)
-export const groupWidgets = (g: WidgetGroup, admin: boolean, on?: (f: FeatureId) => boolean) => widgetDefs
-  .filter(w => w.group === g && w.kind !== 'chat' && (!w.admin || admin) && (!w.feature || !on || on(w.feature)))
+// manager: a project's admin widgets too, for its own projects (ADR-224)
+export const groupWidgets = (g: WidgetGroup, admin: boolean, on?: (f: FeatureId) => boolean, manager = false) => widgetDefs
+  .filter(w => w.group === g && w.kind !== 'chat' && (!w.admin || admin || (manager && w.project === 'required')) && (!w.feature || !on || on(w.feature)))
   .sort((a, b) => a.grid.w * a.grid.h - b.grid.w * b.grid.h)
 export const groupIcon: Record<WidgetGroup, string> = { agents: 'i-lucide-bot', run: 'i-lucide-square-terminal', ai: 'i-lucide-sparkles', other: 'i-lucide-layout-grid' }
 

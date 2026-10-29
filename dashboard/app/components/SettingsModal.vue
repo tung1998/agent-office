@@ -6,9 +6,9 @@ const open = defineModel<boolean>('open', { default: false })
 const { t } = useLang()
 const toast = useToast()
 const { max, maxLimits, sort, single, setOptions, showsGroup, setGroup } = useProjectMenu()
-const { isOfficeAdmin } = useAuth()
+const { isOfficeAdmin, canCreateProject } = useAuth()
 // administration is only in an admin's menu
-const groups = computed(() => MENU_GROUPS.filter(g => g !== 'admin' || isOfficeAdmin.value))
+const groups = computed(() => MENU_GROUPS.filter(g => g !== 'admin' || isOfficeAdmin.value || canCreateProject.value)) // a manager has its members
 const sortItems = computed(() => (['manual', 'usage', 'name'] as const).map(v => ({ label: t(`projects.menuSort.${v}`), value: v })))
 async function save(o: Parameters<typeof setOptions>[0] | (() => Promise<void>)) {
   try {

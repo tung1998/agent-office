@@ -13,7 +13,8 @@ interface View { docker: { available: boolean, version?: string, error?: string 
 const props = defineProps<{ projectId: string }>()
 const emit = defineEmits<{ askAgent: [text: string, files: Attachment[], send?: boolean] }>()
 const toast = useToast()
-const { isAdmin } = useAuth()
+const { manages } = useAuth()
+const isAdmin = computed(() => manages(props.projectId)) // its project's admin or manager, on any page (ADR-224)
 const { t } = useLang()
 
 const file = ref('')

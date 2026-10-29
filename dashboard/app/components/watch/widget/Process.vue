@@ -10,8 +10,9 @@ interface Proc { id: string, name: string, command: string, cwd: string, kind: '
 
 const { t } = useLang()
 const toast = useToast()
-const { isAdmin } = useAuth()
 const { projectId, config, set, size, narrow, tiny, short } = useWatchBox()
+const { manages } = useAuth()
+const isAdmin = computed(() => manages(projectId.value)) // its project's admin or manager (ADR-224)
 
 const { data, error, refresh } = useLiveFetch<{ processes: Proc[] }>(() => `/api/projects/${projectId.value}/processes`, { lazy: true, server: false })
 const procs = computed(() => data.value?.processes ?? [])

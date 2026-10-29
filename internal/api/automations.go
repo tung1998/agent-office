@@ -307,7 +307,7 @@ func (s *server) applyAutomation(r *http.Request, in automationInput, a *storage
 	}
 	if !trigger.IsChannel(in.Source) && strings.TrimSpace(in.Config.NotifyChannelID) != "" { // its answers go to a bot's chat too: the project's, or one borrowed from another
 		ch, err := s.cfg.Store.Channels().Get(r.Context(), strings.TrimSpace(in.Config.NotifyChannelID))
-		if err != nil {
+		if err != nil || !s.sees(r, ch.ProjectID) { // a manager borrows only its own projects' bots
 			return errors.New("không có bot này")
 		}
 		cfg.NotifyChannelID, cfg.NotifyChatID = ch.ID, strings.TrimSpace(in.Config.NotifyChatID)

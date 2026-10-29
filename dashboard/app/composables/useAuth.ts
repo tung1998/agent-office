@@ -4,6 +4,7 @@ export interface OfficeUser {
   name: string
   role: 'admin' | 'manager' | 'member' // manager: manages its own projects (ADR-224)
   projects?: string[] // the projects a manager or member sees
+  offices?: Record<string, string[]> // other offices it reaches: peer id → its projects ('*' = all, ADR-239)
   disabled: boolean
   must_change?: boolean // the default admin, until it sets a real email and password
   discord_id?: string // its own ids on the bots' platforms: a message to a bot from one is shown as this account's
