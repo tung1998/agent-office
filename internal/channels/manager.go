@@ -520,7 +520,9 @@ func (m *Manager) remember(ctx context.Context, p trigger.ChannelPayload, origin
 		if p.ConversationID != "" {
 			_ = m.store.Channels().SetThread(ctx, p.ChannelID, "msg:"+p.ChatID+":"+id, p.ConversationID)
 			_ = m.store.Channels().SetThread(ctx, p.ChannelID, msgKey(id), p.ConversationID) // a thread from this answer
-			_ = m.store.Settings().Set(ctx, lastKey(p.ChannelID, p.ChatID), id)
+			if !m.beforeClose(ctx, p.ChannelID, p.ChatID, origin) {                          // an answer to a message from before /close-conversation is not the latest
+				_ = m.store.Settings().Set(ctx, lastKey(p.ChannelID, p.ChatID), id)
+			}
 		}
 	}
 }

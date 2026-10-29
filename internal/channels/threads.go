@@ -195,10 +195,23 @@ func (m *Manager) threaded(ctx context.Context, ch storage.Channel, msgID string
 }
 
 func closedKey(channelID, chatID string) string { return "channel_closed/" + channelID + "/" + chatID }
+func closedAtKey(channelID, chatID string) string {
+	return "channel_closed_at/" + channelID + "/" + chatID
+}
+
+// beforeClose: the job was asked before the chat's latest /close-conversation
+// (its answer came after it).
+func (m *Manager) beforeClose(ctx context.Context, channelID, chatID string, job storage.Job) bool {
+	var at time.Time
+	if ok, _ := m.store.Settings().Get(ctx, closedAtKey(channelID, chatID), &at); !ok || job.CreatedAt.IsZero() {
+		return false
+	}
+	return job.CreatedAt.Before(at)
+}
 
 // startKeep turns on a kept conversation: it goes on with the conversation of
-// the bot's latest answer here (tagging, then keeping: nothing lost), unless
-// that one was closed with /close-conversation (then a fresh one).
+// the bot's latest answer here (tagging, then keeping: nothing lost); right
+// after /close-conversation (no answer since) a fresh one.
 func (m *Manager) startKeep(ctx context.Context, ch storage.Channel, chatID string) string {
 	var out string
 	m.withThread(ch.ID, chatID, func() {
@@ -226,11 +239,13 @@ func (m *Manager) startKeep(ctx context.Context, ch storage.Channel, chatID stri
 	return out
 }
 
-// stopKeep ends it; the next /create-conversation starts afresh.
+// stopKeep ends it: the close is now the latest here, so a /create-conversation
+// right after it starts afresh; an answer after it is the latest again.
 func (m *Manager) stopKeep(ctx context.Context, ch storage.Channel, chatID string) string {
 	var last string
 	_, _ = m.store.Settings().Get(ctx, lastKey(ch.ID, chatID), &last)
 	_ = m.store.Settings().Set(ctx, closedKey(ch.ID, chatID), last)
+	_ = m.store.Settings().Set(ctx, closedAtKey(ch.ID, chatID), time.Now().UTC())
 	return m.setKeep(ctx, ch.ID, chatID, false)
 }
 

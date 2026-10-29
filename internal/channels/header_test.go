@@ -311,7 +311,8 @@ func TestThreadIsOneConversation(t *testing.T) {
 }
 
 // /create-conversation goes on with the latest answer's conversation (tagging,
-// then keeping: nothing lost); after /close-conversation it starts afresh.
+// then keeping: nothing lost); right after /close-conversation a fresh one;
+// an answer after the close is the latest again.
 func TestCreateConversationContinues(t *testing.T) {
 	ctx := context.Background()
 	tmp := t.TempDir()
@@ -358,9 +359,41 @@ func TestCreateConversationContinues(t *testing.T) {
 	bot.in <- channels.Incoming{ChatID: "c2", UserID: "8", Text: "/close-conversation", Addressed: true}
 	bot.wait(t, "c2", 3)
 	bot.in <- channels.Incoming{ChatID: "c2", UserID: "8", Text: "/create-conversation", Addressed: true}
-	bot.wait(t, "c2", 4)
-	if fresh, _ := m.ConversationFor(ctx, ch, channels.Incoming{ChatID: "c2"}); fresh == tagged || fresh == "" {
-		t.Fatalf("after close, a fresh one: %q", fresh)
+	if got := bot.wait(t, "c2", 4); strings.Contains(got[3], "tiếp tục") {
+		t.Fatalf("create right after close = %q", got[3])
+	}
+	fresh, _ := m.ConversationFor(ctx, ch, channels.Incoming{ChatID: "c2"})
+	if fresh == tagged || fresh == "" {
+		t.Fatalf("right after close, a fresh one: %q", fresh)
+	}
+	if msgs, _ := st.Chat().ListMessages(ctx, fresh); len(msgs) != 0 {
+		t.Fatalf("the fresh one holds %d messages", len(msgs))
+	}
+	// closed while an answer was on its way: that late answer is not the latest
+	bot.in <- channels.Incoming{ChatID: "c2", UserID: "8", Text: "/close-conversation", Addressed: true}
+	bot.wait(t, "c2", 5)
+	payload, _ = json.Marshal(trigger.ChannelPayload{ChannelID: ch.ID, ChatID: "c2", ConversationID: tagged})
+	m.Reply(ctx, storage.Job{ID: "job_late", Payload: string(payload), CreatedAt: time.Now().Add(-time.Minute)}, "Trả lời muộn", nil, false)
+	bot.wait(t, "c2", 6)
+	time.Sleep(200 * time.Millisecond)
+	bot.in <- channels.Incoming{ChatID: "c2", UserID: "8", Text: "/create-conversation", Addressed: true}
+	if got := bot.wait(t, "c2", 7); strings.Contains(got[6], "tiếp tục") {
+		t.Fatalf("create after a late answer = %q", got[6])
+	}
+	// closed again, then a tag answered: that answer is the latest, create goes on with it
+	bot.in <- channels.Incoming{ChatID: "c2", UserID: "8", Text: "/close-conversation", Addressed: true}
+	bot.wait(t, "c2", 8)
+	after, _ := m.ConversationFor(ctx, ch, channels.Incoming{ChatID: "c2", Addressed: true})
+	payload, _ = json.Marshal(trigger.ChannelPayload{ChannelID: ch.ID, ChatID: "c2", ConversationID: after})
+	m.Reply(ctx, storage.Job{ID: "job_2", Payload: string(payload)}, "Câu trả lời 2", nil, false)
+	bot.wait(t, "c2", 9)
+	time.Sleep(200 * time.Millisecond)
+	bot.in <- channels.Incoming{ChatID: "c2", UserID: "8", Text: "/create-conversation", Addressed: true}
+	if got := bot.wait(t, "c2", 10); !strings.Contains(got[9], "tiếp tục") {
+		t.Fatalf("create after an answer = %q", got[9])
+	}
+	if kept, _ := m.ConversationFor(ctx, ch, channels.Incoming{ChatID: "c2"}); kept != after {
+		t.Fatalf("kept %q, want the answer after the close's %q", kept, after)
 	}
 }
 
