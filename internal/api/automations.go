@@ -85,6 +85,9 @@ func (s *server) toAutomationDTO(r *http.Request, a storage.Automation) automati
 	cfg := map[string]any{"every_minutes": c.EveryMinutes, "cron": c.Cron, "timezone": c.Timezone, "auth": c.Auth, "auth_name": c.AuthName,
 		"pull_request": c.PullRequest, "notify_channel_id": c.NotifyChannelID, "notify_chat_id": c.NotifyChatID, "ends_at": c.EndsAt, "stop_when": c.StopWhen, "goal": c.Goal,
 		"only_if": c.OnlyIf} // read back as it is saved: an edit that sends the config back keeps it (ADR-219)
+	if a.Source == "event" { // its event too: a switch on the list sends the config back (ADR-243)
+		cfg["event"], cfg["event_from"], cfg["event_same_chat"] = c.Event, c.EventFrom, c.EventSameChat
+	}
 	if trigger.IsChannel(a.Source) {
 		keywords := c.Keywords
 		if keywords == nil {

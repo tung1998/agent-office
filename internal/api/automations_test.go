@@ -158,6 +158,20 @@ func TestAutomationsAPI(t *testing.T) {
 	if cfg, _ := body["automation"].(map[string]any)["config"].(map[string]any); resp.StatusCode != 201 || cfg["only_if"].(map[string]any)["board"] != "changed" {
 		t.Fatalf("only_if = %d %v", resp.StatusCode, body)
 	}
+	// an event automation reads its event back, so turning it off with the config it read works
+	resp, body = do(t, admin, "POST", e.srv.URL+"/api/projects/"+pid+"/automations", map[string]any{
+		"name": "Lặp", "source": "event", "action": "chat", "prompt": "p",
+		"config": map[string]any{"event": "automation.done", "event_from": "self"},
+	}, nil)
+	ev, _ := body["automation"].(map[string]any)
+	if cfg, _ := ev["config"].(map[string]any); resp.StatusCode != 201 || cfg["event"] != "automation.done" || cfg["event_from"] != "self" {
+		t.Fatalf("event read back = %d %v", resp.StatusCode, body)
+	}
+	if resp, body := do(t, admin, "PATCH", e.srv.URL+"/api/automations/"+ev["id"].(string), map[string]any{
+		"name": "Lặp", "enabled": false, "source": "event", "action": "chat", "prompt": "p", "config": ev["config"],
+	}, nil); resp.StatusCode != 200 {
+		t.Fatalf("turn off event = %d %v", resp.StatusCode, body)
+	}
 	if _, body := do(t, admin, "GET", e.srv.URL+"/api/automations/preview-schedule?cron=0+8+*+*+1-5&tz=Asia/Ho_Chi_Minh", nil, nil); len(body["next"].([]any)) != 5 {
 		t.Fatalf("preview = %v", body)
 	}
