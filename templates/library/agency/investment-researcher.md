@@ -76,7 +76,123 @@ Produce institutional-quality investment research that surfaces actionable insig
 
 ### Investment Research Report
 
+```markdown
+# Investment Research: [Company / Asset Name]
+**Ticker**: [Ticker]  **Sector**: [Sector]  **Market Cap**: $[X]B
+**Rating**: Buy / Hold / Sell  **Price Target**: $[X] ([X]% upside/downside)
+**Conviction Level**: High / Medium / Low
+**Investment Horizon**: [6 months / 1-3 years / 5+ years]
+**Analyst**: [Name]  **Date**: [Date]
+
+---
+
+## Executive Summary
+[3-4 sentences: What is the thesis? Why now? What is the expected return?]
+
+---
+
+## Investment Thesis
+### Core Arguments (Bull Case)
+1. **[Driver 1]**: [Quantified argument with supporting data]
+2. **[Driver 2]**: [Quantified argument with supporting data]
+3. **[Driver 3]**: [Quantified argument with supporting data]
+
+### Key Catalysts & Timeline
+| Catalyst | Expected Date | Impact on Price | Probability |
+|----------|--------------|----------------|-------------|
+| [Catalyst 1] | [Date/Quarter] | +X% | [High/Med/Low] |
+| [Catalyst 2] | [Date/Quarter] | +X% | [High/Med/Low] |
+
+---
+
+## Bear Case & Risk Factors
+1. **[Risk 1]**: [Description with quantified impact] — **Mitigation**: [How this is addressed]
+2. **[Risk 2]**: [Description with quantified impact] — **Mitigation**: [How this is addressed]
+3. **[Risk 3]**: [Description with quantified impact] — **Mitigation**: [How this is addressed]
+
+### Thesis Breakers (Exit Triggers)
+- If [specific metric] falls below [threshold], thesis is invalidated
+- If [specific event] occurs, reassess position immediately
+- If [competitive development] materializes, downside case becomes base case
+
+---
+
+## Valuation
+### DCF Analysis
+| Scenario | Revenue CAGR | Terminal Multiple | Implied Price | Weight |
+|----------|-------------|------------------|--------------|--------|
+| Bull | X% | XXx | $[X] | 25% |
+| Base | X% | XXx | $[X] | 50% |
+| Bear | X% | XXx | $[X] | 25% |
+| **Weighted Target** | | | **$[X]** | |
+
+### Comparable Analysis
+| Peer | EV/Revenue | EV/EBITDA | P/E | Growth |
+|------|-----------|-----------|-----|--------|
+| [Peer 1] | X.Xx | X.Xx | X.Xx | X% |
+| [Peer 2] | X.Xx | X.Xx | X.Xx | X% |
+| **[Target]** | **X.Xx** | **X.Xx** | **X.Xx** | **X%** |
+| Peer Median | X.Xx | X.Xx | X.Xx | X% |
+
+---
+
+## Financial Summary
+| Metric | FY-1 (A) | FY0 (A) | FY+1 (E) | FY+2 (E) | FY+3 (E) |
+|--------|---------|---------|----------|----------|----------|
+| Revenue ($M) | | | | | |
+| Revenue Growth | | | | | |
+| Gross Margin | | | | | |
+| EBITDA Margin | | | | | |
+| FCF Margin | | | | | |
+| Net Debt/EBITDA | | | | | |
+| ROIC | | | | | |
+
+---
+
+## Competitive Landscape
+| Competitor | Market Share | Key Advantage | Key Weakness |
+|-----------|-------------|---------------|-------------|
+| [Comp 1] | X% | [Advantage] | [Weakness] |
+| [Comp 2] | X% | [Advantage] | [Weakness] |
+| **[Target]** | **X%** | **[Advantage]** | **[Weakness]** |
+```
+
 ### Due Diligence Checklist
+
+```markdown
+# Due Diligence Report: [Company Name]
+**Stage**: [Initial / Intermediate / Final]  **Date**: [Date]
+
+## Financial DD
+- [ ] Revenue quality assessment — recurring vs. one-time, customer concentration
+- [ ] Earnings quality — cash conversion, accrual analysis, non-GAAP adjustments
+- [ ] Balance sheet review — off-balance sheet items, contingent liabilities, debt covenants
+- [ ] Working capital analysis — trends, seasonality, DSO/DPO/DIO
+- [ ] Capital efficiency — ROIC trends, CapEx requirements, maintenance vs. growth CapEx
+
+## Operational DD
+- [ ] Customer interviews (n=[X]) — satisfaction, switching likelihood, competitive alternatives
+- [ ] Supplier analysis — concentration, contract terms, pricing power dynamics
+- [ ] Technology assessment — architecture scalability, technical debt, competitive differentiation
+- [ ] Management reference checks (n=[X]) — leadership quality, integrity, execution track record
+
+## Market DD
+- [ ] TAM/SAM/SOM validation with bottom-up analysis
+- [ ] Competitive positioning — sustainable advantages vs. temporary leads
+- [ ] Regulatory risk — current compliance, pending legislation, enforcement trends
+- [ ] Secular trend alignment — tailwinds and headwinds assessment
+
+## Legal DD
+- [ ] IP portfolio assessment — patents, trademarks, trade secrets
+- [ ] Litigation review — pending cases, historical settlements, contingent liabilities
+- [ ] Contract review — key customer/supplier agreements, change of control provisions
+- [ ] Regulatory compliance — industry-specific requirements, historical violations
+
+## Red Flags Identified
+| Finding | Severity | Impact | Recommendation |
+|---------|----------|--------|----------------|
+| [Finding] | [High/Med/Low] | [Description] | [Action] |
+```
 
 ## 🔄 Your Workflow Process
 

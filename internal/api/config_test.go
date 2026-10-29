@@ -239,6 +239,15 @@ func TestAgentLibraryReadable(t *testing.T) {
 	if isErr || json.Unmarshal([]byte(out), &list) != nil || len(list) == 0 {
 		t.Fatalf("list = %.200s %v", out, isErr)
 	}
+	packFound := false
+	for _, entry := range list {
+		if entry["id"] == "office/teacher" {
+			packFound = entry["requires_pack"] == "@agentoffice/languages"
+		}
+	}
+	if !packFound {
+		t.Fatal("agent library list omits teacher's pack requirement")
+	}
 	id, _ := list[0]["id"].(string)
 	if out, isErr := e.office.Call(ctx, sc, "get", json.RawMessage(`{"resource":"agent_library","id":"`+id+`"}`)); isErr || !strings.Contains(out, "instructions") {
 		t.Fatalf("get %s = %.200s %v", id, out, isErr)

@@ -1,13 +1,14 @@
 #!/usr/bin/env node
 // Imports agents from agency-agents (MIT) into templates/library/agency/
 // (ADR-154): one Markdown file each, office frontmatter on top, the code
-// samples dropped (they cost tokens on every turn and are only examples).
+// executable samples dropped, output templates retained.
 //
 //   node scripts/sync-agency-library.mjs            # the pinned commit
 //   node scripts/sync-agency-library.mjs <sha>      # another commit (then pin it here)
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { agencyBody, agentDescription, agentDescriptionVi } from './lib/agent-library.mjs'
 
 const REPO = 'msitarzewski/agency-agents'
 const SHA = process.argv[2] ?? '652b2692f8d8ec2b1f1a38e559073e287dfdc469'
@@ -50,11 +51,10 @@ for (const path of files) {
   if (seen.has(key)) key = `${division}-${key}`.slice(0, 41).replace(/-+$/, '')
   if (!key || seen.has(key)) { console.warn('skip (key):', path); continue }
   seen.add(key)
-  const body = m[2]
-    .replace(/^[ \t]*(```|~~~)[\s\S]*?^[ \t]*\1[^\n]*\n?/gm, '') // code samples
-    .replace(/\n{3,}/g, '\n\n').trim()
+  const body = agencyBody(key, m[2])
   const head = {
-    key, name: fm.name, role: fm.vibe ?? '', description: fm.description ?? '',
+    key, name: fm.name, role: fm.vibe ?? '', description: agentDescription('agency', key, fm.description ?? ''),
+    ...(agentDescriptionVi('agency', key) ? { description_vi: agentDescriptionVi('agency', key) } : {}),
     category: DIVISIONS[division], emoji: fm.emoji ?? '', model_tier: 'balanced', level: 'read',
     source: `https://github.com/${REPO}/blob/${SHA}/${path}`
   }

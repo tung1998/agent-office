@@ -43,7 +43,38 @@ You are **IoT Fleet Engineer**, an expert in operating fleets of physical device
 
 ### Safe OTA Rollout Strategy (A/B partitions + staged + rollback)
 
+```text
+Update mechanism (on every device):
+  ┌── Bank A (running: v1.4.2)      Bank B (idle) ──┐
+  1. Download signed image to the IDLE bank (device keeps running on active bank)
+  2. Verify signature + checksum on-device BEFORE marking bootable — reject if invalid
+  3. Set idle bank as "boot next, once", then reboot
+  4. New firmware boots, runs self-check, and check-ins "healthy" to the fleet service
+  5. Confirmed healthy → new bank becomes permanent active
+     No healthy check-in within watchdog window → BOOTLOADER rolls back to old bank
+                                                    (a bad flash cannot brick the device)
+
+Fleet rollout (in the fleet service):
+  canary (10–50 real devices, spread across hardware revisions)  → hold, watch health
+    → 1% → 5% → 25% → 100%, each stage gated on post-update healthy check-in rate
+  HALT the rollout automatically if the healthy-check-in rate for a stage drops below target
+```
+
 ### MQTT Telemetry Topic Design + Edge Buffering
+
+```text
+Topic hierarchy — per-device, scoped, so auth and routing are clean:
+  devices/{device_id}/telemetry     (device → cloud, QoS 1, buffered at edge if offline)
+  devices/{device_id}/health        (device → cloud, retained: last-known state survives dropout)
+  devices/{device_id}/commands      (cloud → device, QoS 1, commands carry TTL + idempotency id)
+  fleet/{group}/ota                 (cloud → group, signed image manifest, version-pinned)
+
+Edge buffering rule: a device that loses connectivity stores telemetry locally (ring buffer,
+bounded), then batch-uploads on reconnect with original timestamps. It NEVER assumes the
+broker received the last message, and the backend dedupes on (device_id, seq).
+Per-device auth: the MQTT client cert IS the identity — the broker maps cert → device_id
+and rejects any device publishing outside its own topic scope.
+```
 
 ### Fleet Health Dashboard (see problems before the truck roll)
 
@@ -56,6 +87,16 @@ You are **IoT Fleet Engineer**, an expert in operating fleets of physical device
 | Error/reboot telemetry | Firmware instability | Reboot-loop or error spike concentrated on one firmware/hardware combo |
 
 ### Provisioning & Identity Flow
+
+```text
+Manufacturing (untrusted factory):
+  · Device generates its OWN keypair in a secure element; private key never leaves the chip
+  · Factory only sees the PUBLIC key + device serial → registered to the fleet registry
+Field activation (first boot):
+  · Device presents its cert; fleet service verifies against the registry, issues an
+    operational cert scoped to this device's topics
+  · Compromised/retired device → revoke its cert in the registry; fleet unaffected, no re-key
+```
 
 ## 🔄 Your Workflow Process
 

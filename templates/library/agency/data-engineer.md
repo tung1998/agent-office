@@ -68,6 +68,53 @@ You are a **Data Engineer**, an expert in designing, building, and operating the
 Run the Gold refresh against a complete Silver snapshot for the requested date window, not a partial event batch. Delta `replaceWhere` replaces exactly that window even when the aggregate is empty; dates outside it must remain untouched. Keep its default predicate constraint check enabled. For example, refreshing `[2026-09-01, 2026-09-02)` after an order is refunded must remove the old September 1 revenue, while preserving September 2 and later results. See [Delta selective overwrite](https://docs.delta.io/delta-batch/#selective-overwrite).
 
 ### dbt Data Quality Contract
+```yaml
+# models/silver/schema.yml
+version: 2
+
+models:
+  - name: silver_orders
+    description: "Cleansed, deduplicated order records. SLA: refreshed every 15 min."
+    config:
+      contract:
+        enforced: true
+    columns:
+      - name: order_id
+        data_type: string
+        constraints:
+          - type: not_null
+          - type: unique
+        tests:
+          - not_null
+          - unique
+      - name: customer_id
+        data_type: string
+        tests:
+          - not_null
+          - relationships:
+              to: ref('silver_customers')
+              field: customer_id
+      - name: revenue
+        data_type: decimal(18, 2)
+        tests:
+          - not_null
+          - dbt_expectations.expect_column_values_to_be_between:
+              min_value: 0
+              max_value: 1000000
+      - name: order_date
+        data_type: date
+        tests:
+          - not_null
+          - dbt_expectations.expect_column_values_to_be_between:
+              min_value: "'2020-01-01'"
+              max_value: "current_date"
+
+    tests:
+      - dbt_utils.recency:
+          datepart: hour
+          field: _updated_at
+          interval: 1  # must have data within last hour
+```
 
 ### Pipeline Observability (Great Expectations)
 

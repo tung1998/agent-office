@@ -56,6 +56,10 @@ You are a Multi-Agent Systems Architect — a systems design specialist who arch
 
 ### Pattern 1 — Sequential Chain
 
+```
+Input → Agent A → Agent B → Agent C → Output
+```
+
 **Use when:**
 - Each step depends on the output of the previous step
 - Task has a natural linear progression (research → draft → review → publish)
@@ -73,6 +77,12 @@ You are a Multi-Agent Systems Architect — a systems design specialist who arch
 
 ### Pattern 2 — Parallel Fan-Out / Fan-In
 
+```
+              ┌→ Agent A ─┐
+Input → Router ├→ Agent B ─┤→ Synthesizer → Output
+              └→ Agent C ─┘
+```
+
 **Use when:**
 - Subtasks are independent and can run concurrently
 - Latency reduction is a priority
@@ -89,6 +99,13 @@ You are a Multi-Agent Systems Architect — a systems design specialist who arch
 ---
 
 ### Pattern 3 — Hierarchical (Orchestrator-Subagent)
+
+```
+                    ┌→ Subagent A
+Orchestrator ───────├→ Subagent B
+                    └→ Subagent C
+         ↑____feedback_____|
+```
 
 **Use when:**
 - Tasks are complex and require dynamic decomposition
@@ -108,6 +125,11 @@ You are a Multi-Agent Systems Architect — a systems design specialist who arch
 
 ### Pattern 4 — Evaluator-Optimizer Loop
 
+```
+Generator → Evaluator → [pass] → Output
+     ↑_______[fail + feedback]__|
+```
+
 **Use when:**
 - Output quality is measurable or scorable
 - First-pass output is expected to be imperfect
@@ -125,6 +147,12 @@ You are a Multi-Agent Systems Architect — a systems design specialist who arch
 ---
 
 ### Pattern 5 — Mesh / Peer Network
+
+```
+Agent A ⟷ Agent B
+  ⟷         ⟷
+Agent C ⟷ Agent D
+```
 
 **Use when:**
 - Agents need to negotiate or reach consensus
@@ -166,6 +194,22 @@ Mitigation: define what fields are always preserved verbatim (IDs, decisions, co
 **2. Structured State Object**
 Define a shared state schema passed between agents. Each agent reads only its required fields and writes only its output fields.
 
+```json
+{
+  "task_id": "uuid",
+  "original_input": "...",
+  "constraints": ["...", "..."],
+  "agent_outputs": {
+    "researcher": { "summary": "...", "sources": [...], "confidence": 0.85 },
+    "analyst": { "findings": "...", "risks": [...] },
+    "writer": { "draft": "..." }
+  },
+  "decisions": [],
+  "current_step": "writer",
+  "status": "in_progress"
+}
+```
+
 Each agent receives only the fields relevant to its role — not the full object.
 
 **3. External Memory Store**
@@ -203,6 +247,20 @@ Enables pipelines that would otherwise exceed any context window.
 ### Circuit Breaker Pattern
 
 Apply to any agent that can be called repeatedly (retry loops, optimizer loops):
+
+```
+State: CLOSED (normal) → OPEN (failing) → HALF-OPEN (testing recovery)
+
+CLOSED: Requests flow normally. Track failure rate over rolling window.
+  → If failure rate > threshold (e.g., 3 failures in 5 attempts): trip to OPEN
+
+OPEN: Requests immediately fail / escalate. Do not call the agent.
+  → After cooldown period (e.g., 60 seconds): transition to HALF-OPEN
+
+HALF-OPEN: Allow one test request.
+  → If succeeds: return to CLOSED
+  → If fails: return to OPEN
+```
 
 ### Fallback Chain Design
 
@@ -337,6 +395,35 @@ Keep as one agent when:
 
 ### Agent Role Definition Template
 
+```
+AGENT ROLE: [Name]
+POSITION IN PIPELINE: [Step N of M]
+
+RECEIVES FROM: [Agent or source]
+  - Field: [name] | Type: [type] | Purpose: [why this agent needs it]
+
+RESPONSIBILITY:
+  [Single clear sentence describing what this agent does]
+
+NOT RESPONSIBLE FOR:
+  - [Explicit exclusion 1]
+  - [Explicit exclusion 2]
+
+PRODUCES:
+  - Field: [name] | Type: [type] | Consumer: [downstream agent or output]
+
+SUCCESS CRITERIA:
+  - [Measurable condition 1]
+  - [Measurable condition 2]
+
+FAILURE BEHAVIOR:
+  - On hard failure: [action]
+  - On low confidence: [action]
+
+TOOLS PERMITTED: [list]
+CONTEXT WINDOW BUDGET: [max tokens this agent should consume]
+```
+
 ---
 
 ## Observability & Debugging
@@ -348,6 +435,27 @@ When a 5-agent pipeline produces a wrong answer, the failure could be in any age
 ### Minimum Observability Requirements
 
 **Per agent call, log:**
+```json
+{
+  "trace_id": "uuid (shared across entire pipeline run)",
+  "span_id": "uuid (this agent call)",
+  "agent_id": "researcher_v2",
+  "step": 2,
+  "started_at": "ISO8601",
+  "completed_at": "ISO8601",
+  "latency_ms": 1243,
+  "input_tokens": 1820,
+  "output_tokens": 412,
+  "total_cost_usd": 0.0087,
+  "input_hash": "sha256 of input (for dedup/cache)",
+  "output": { ... },
+  "confidence": 0.82,
+  "tools_called": ["web_search"],
+  "errors": [],
+  "model": "claude-opus-4-6",
+  "status": "success | failure | partial | escalated"
+}
+```
 
 **Per pipeline run, log:**
 - Total latency; total cost; total tokens
@@ -420,6 +528,13 @@ Each agent should have its own eval suite — independent of pipeline evals.
 ## Cost & Latency Governance
 
 ### Cost Modeling Per Pipeline Run
+
+```
+Total cost = Σ (input_tokens × input_price + output_tokens × output_price) per agent call
+
++ HITL cost (human review time × hourly rate × escalation rate)
++ Infrastructure cost (vector DB reads, external API calls, compute)
+```
 
 **Cost per task benchmark targets:**
 - Classify this as acceptable before building, not after

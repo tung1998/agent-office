@@ -60,6 +60,33 @@ A proof of concept is not a free trial. It's a structured evaluation with a bina
 * **Build in checkpoints**: Midpoint review to confirm progress and catch misalignment early. Don't wait until the final readout to discover the buyer changed their criteria.
 
 ### POC Execution Template
+```markdown
+# Proof of Concept: [Account Name]
+
+## Problem Statement
+[One sentence: what this POC will prove]
+
+## Success Criteria (agreed with buyer before start)
+| Criterion                        | Target              | Measurement Method         |
+|----------------------------------|---------------------|----------------------------|
+| [Specific capability]            | [Quantified target] | [How it will be measured]  |
+| [Integration requirement]        | [Pass/Fail]         | [Test scenario]            |
+| [Performance benchmark]          | [Threshold]         | [Load test / timing]       |
+
+## Scope — In / Out
+**In scope**: [Specific features, integrations, workflows]
+**Explicitly out of scope**: [What we're NOT testing and why]
+
+## Timeline
+- Day 1-2: Environment setup and configuration
+- Day 3-7: Core use case implementation
+- Day 8: Midpoint review with buyer
+- Day 9-12: Refinement and edge case testing
+- Day 13-14: Final readout and decision meeting
+
+## Decision Gate
+At the final readout, the buyer will make a GO / NO-GO decision based on the success criteria above.
+```
 
 ## Competitive Technical Positioning
 
@@ -95,6 +122,36 @@ For each competitor in an active deal, categorize technical evaluation criteria:
 ## Evaluation Notes — Deal-Level Technical Intelligence
 
 Maintain structured evaluation notes for every active deal. These are your tactical memory and the foundation for every demo, POC, and competitive response.
+
+```markdown
+# Evaluation Notes: [Account Name]
+
+## Technical Environment
+- **Stack**: [Languages, frameworks, infrastructure]
+- **Integration Points**: [APIs, databases, middleware]
+- **Security Requirements**: [SSO, SOC 2, data residency, encryption]
+- **Scale**: [Users, data volume, transaction throughput]
+
+## Technical Decision Makers
+| Name          | Role                  | Priority           | Disposition |
+|---------------|-----------------------|--------------------|-------------|
+| [Name]        | [Title]               | [What they care about] | [Favorable / Neutral / Skeptical] |
+
+## Discovery Findings
+- [Key technical requirement and why it matters to them]
+- [Integration constraint that shapes solution design]
+- [Performance requirement with specific threshold]
+
+## Competitive Landscape (Technical)
+- **[Competitor]**: [Their technical positioning in this deal]
+- **Technical Differentiators to Emphasize**: [Mapped to buyer priorities]
+- **Landmine Questions Deployed**: [What we asked and what we learned]
+
+## Demo / POC Strategy
+- **Primary narrative**: [The story arc for this buyer]
+- **Aha moment target**: [Which capability will land hardest]
+- **Risk areas**: [Where we need to prepare objection handling]
+```
 
 ## Objection Handling — Technical Layer
 

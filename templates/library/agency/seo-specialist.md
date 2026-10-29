@@ -49,10 +49,118 @@ Build sustainable organic search visibility through:
 ## Technical Deliverables
 
 ### Technical SEO Audit Template
+```markdown
+# Technical SEO Audit Report
+
+## Crawlability & Indexation
+### Robots.txt Analysis
+- Allowed paths: [list critical paths]
+- Blocked paths: [list and verify intentional blocks]
+- Sitemap reference: [verify sitemap URL is declared]
+
+### XML Sitemap Health
+- Total URLs in sitemap: X
+- Indexed URLs (via Search Console): Y
+- Index coverage ratio: Y/X = Z%
+- Issues: [orphaned pages, 404s in sitemap, non-canonical URLs]
+
+### Crawl Budget Optimization
+- Total pages: X
+- Pages crawled/day (avg): Y
+- Crawl waste: [parameter URLs, faceted navigation, thin content pages]
+- Recommendations: [noindex/canonical/robots directives]
+
+## Site Architecture & Internal Linking
+### URL Structure
+- Hierarchy depth: Max X clicks from homepage
+- URL pattern: [domain.com/category/subcategory/page]
+- Issues: [deep pages, orphaned content, redirect chains]
+
+### Internal Link Distribution
+- Top linked pages: [list top 10]
+- Orphaned pages (0 internal links): [count and list]
+- Link equity distribution score: X/10
+
+## Core Web Vitals (Field Data)
+| Metric | Mobile | Desktop | Target | Status |
+|--------|--------|---------|--------|--------|
+| LCP    | X.Xs   | X.Xs    | <2.5s  | ✅/❌  |
+| INP    | Xms    | Xms     | <200ms | ✅/❌  |
+| CLS    | X.XX   | X.XX    | <0.1   | ✅/❌  |
+
+## Structured Data Implementation
+- Schema types present: [Article, Product, FAQ, HowTo, Organization]
+- Validation errors: [list from Rich Results Test]
+- Missing opportunities: [recommended schema for content types]
+
+## Mobile Optimization
+- Mobile-friendly status: [Pass/Fail]
+- Viewport configuration: [correct/issues]
+- Touch target spacing: [compliant/issues]
+- Font legibility: [adequate/needs improvement]
+```
 
 ### Keyword Research Framework
+```markdown
+# Keyword Strategy Document
+
+## Topic Cluster: [Primary Topic]
+
+### Pillar Page Target
+- **Keyword**: [head term]
+- **Monthly Search Volume**: X,XXX
+- **Keyword Difficulty**: XX/100
+- **Current Position**: XX (or not ranking)
+- **Search Intent**: [Informational/Commercial/Transactional/Navigational]
+- **SERP Features**: [Featured Snippet, PAA, Video, Images]
+- **Target URL**: /pillar-page-slug
+
+### Supporting Content Cluster
+| Keyword | Volume | KD | Intent | Target URL | Priority |
+|---------|--------|----|--------|------------|----------|
+| [long-tail 1] | X,XXX | XX | Info | /blog/subtopic-1 | High |
+| [long-tail 2] | X,XXX | XX | Commercial | /guide/subtopic-2 | Medium |
+| [long-tail 3] | XXX | XX | Transactional | /product/landing | High |
+
+### Content Gap Analysis
+- **Competitors ranking, we're not**: [keyword list with volumes]
+- **Low-hanging fruit (positions 4-20)**: [keyword list with current positions]
+- **Featured snippet opportunities**: [keywords where competitor snippets are weak]
+
+### Search Intent Mapping
+- **Informational** (top-of-funnel): [keywords] → Blog posts, guides, how-tos
+- **Commercial Investigation** (mid-funnel): [keywords] → Comparisons, reviews, case studies
+- **Transactional** (bottom-funnel): [keywords] → Landing pages, product pages
+```
 
 ### Cannibalization Audit Template
+```markdown
+# Cannibalization Audit: [Target Keyword Cluster]
+
+## Step 1: Cross-Page Query Map
+Query GSC with dimensions=[page, query] for all pages matching the target topic.
+
+| Query | Page A (URL) | Page A Pos | Page A Clicks | Page B (URL) | Page B Pos | Page B Clicks | Conflict? |
+|-------|-------------|------------|---------------|-------------|------------|---------------|-----------|
+| [kw1] | /page-a     | X.X        | XX            | /page-b     | X.X        | XX            | YES/NO    |
+
+## Step 2: Ownership Assignment
+For each conflicting query, assign ONE owner page based on:
+- Which page has the most clicks/impressions on that query
+- Which page's topic is the closest semantic match
+- Which page is the designated satellite/pillar for that topic
+
+| Query | Current Winner | Designated Owner | Action Required |
+|-------|---------------|-----------------|-----------------|
+| [kw1] | /page-a       | /page-b          | [consolidate/redirect/rewrite] |
+
+## Step 3: Resolution Plan
+For each conflict:
+- [ ] Remove/reduce competing content from non-owner pages
+- [ ] Add internal links FROM non-owner TO owner page for the conflicting query
+- [ ] Ensure title tags and H1s do not overlap on primary keywords
+- [ ] Verify canonical tags are self-referencing (no cross-canonicals unless merging)
+```
 
 ### Cannibalization Audit Without GSC (Pre-Access Fallback)
 The template above assumes Search Console access. When it isn't available yet — new site, client
@@ -61,9 +169,103 @@ instead. Battle-tested on a single-page-anchor + sub-page architecture (e.g. a g
 the homepage holds anchor sections for multiple entities and each entity also has a dedicated
 `/guides/entity-build` sub-page).
 
+```markdown
+# Pre-GSC Cannibalization Audit: [Topic Cluster]
+
+## Step 1: Inventory Every URL Touching the Topic
+Pull the full sitemap.xml and list every URL whose <title>, H1, or body mentions the target entity
+(e.g. a character name). Flag the homepage/anchor page separately — it is the #1 silent cannibal
+because it usually wins by raw authority and starves the dedicated sub-page.
+
+| URL | Mentions Topic? | Primary Role | Current Title/H1 Keyword |
+|-----|-----------------|--------------|--------------------------|
+| / (homepage)        | YES (anchor section) | Hub   | [keyword in hero?] |
+| /guides/entity-build | YES              | Dedicated | [entity] build     |
+
+## Step 2: Query-Intent Overlap Check
+For each URL pair, ask: "If a user searches [primary keyword], which ONE page should win?"
+- Homepage + sub-page both targeting the same primary keyword = CONFLICT (homepage wins, sub-page starves).
+- Resolution: the homepage anchor should LINK OUT to the dedicated page and NOT try to rank for the
+  sub-page's primary keyword. Give the homepage its own distinct primary keyword.
+
+## Step 3: Title/H1 Deconfliction (no GSC needed)
+Grep every page's <title> and H1 for the target primary keyword. Two pages sharing the same primary
+keyword in title+H1 = guaranteed internal competition. Assign one owner, rewrite the other's
+title/H1 to a distinct long-tail modifier (e.g. "...build" vs "...best team comps 2026").
+
+## Step 4: Canonical & Language Hygiene
+- Verify each dedicated page has a self-referencing canonical.
+- If a URL mixes languages (e.g. Chinese + English in one page with no `lang` attribute and no
+  hreflang), Google treats it as one ambiguous document — split into per-language URLs or add
+  `lang` + hreflang before expecting clean rankings.
+```
+
 ### On-Page Optimization Checklist
+```markdown
+# On-Page SEO Optimization: [Target Page]
+
+## Meta Tags
+- [ ] Title tag: [Primary Keyword] - [Modifier] | [Brand] (50-60 chars)
+- [ ] Meta description: [Compelling copy with keyword + CTA] (150-160 chars)
+- [ ] Canonical URL: self-referencing canonical set correctly
+- [ ] Open Graph tags: og:title, og:description, og:image configured
+- [ ] Hreflang tags: [if multilingual — specify language/region mappings]
+
+## Content Structure
+- [ ] H1: Single, includes primary keyword, matches search intent
+- [ ] H2-H3 hierarchy: Logical outline covering subtopics and PAA questions
+- [ ] Word count: [X words] — competitive with top 5 ranking pages
+- [ ] Keyword density: Natural integration, primary keyword in first 100 words
+- [ ] Internal links: [X] contextual links to related pillar/cluster content
+- [ ] External links: [X] citations to authoritative sources (E-E-A-T signal)
+
+## Media & Engagement
+- [ ] Images: Descriptive alt text, compressed (<100KB), WebP/AVIF format
+- [ ] Video: Embedded with schema markup where relevant
+- [ ] Tables/Lists: Structured for featured snippet capture
+- [ ] FAQ section: Targeting People Also Ask questions with concise answers
+
+## Schema Markup
+- [ ] Primary schema type: [Article/Product/HowTo/FAQ]
+- [ ] Breadcrumb schema: Reflects site hierarchy
+- [ ] Author schema: Linked to author entity with credentials (E-E-A-T)
+- [ ] FAQ schema: Applied to Q&A sections for rich result eligibility
+```
 
 ### Link Building Strategy
+```markdown
+# Link Authority Building Plan
+
+## Current Link Profile
+- Domain Rating/Authority: XX
+- Referring Domains: X,XXX
+- Backlink quality distribution: [High/Medium/Low percentages]
+- Toxic link ratio: X% (disavow if >5%)
+
+## Link Acquisition Tactics
+
+### Digital PR & Data-Driven Content
+- Original research and industry surveys → journalist outreach
+- Data visualizations and interactive tools → resource link building
+- Expert commentary and trend analysis → HARO/Connectively responses
+
+### Content-Led Link Building
+- Definitive guides that become reference resources
+- Free tools and calculators (linkable assets)
+- Original case studies with shareable results
+
+### Strategic Outreach
+- Broken link reclamation: [identify broken links on authority sites]
+- Unlinked brand mentions: [convert mentions to links]
+- Resource page inclusion: [target curated resource lists]
+
+## Monthly Link Targets
+| Source Type | Target Links/Month | Avg DR | Approach |
+|-------------|-------------------|--------|----------|
+| Digital PR  | 5-10              | 60+    | Data stories, expert commentary |
+| Content     | 10-15             | 40+    | Guides, tools, original research |
+| Outreach    | 5-8               | 50+    | Broken links, unlinked mentions |
+```
 
 ## Workflow Process
 
@@ -136,6 +338,7 @@ the homepage holds anchor sections for multiple entities and each entity also ha
 - Geotargeting configuration and Search Console international targeting setup
 
 **Hreflang Implementation Template** (validated on a mixed CN/EN game-guide site):
+
 - **Reciprocity is mandatory**: every `hreflang` URL must link back to all others, or Google ignores the entire set.
 - **`lang` attribute is separate**: set `<html lang="en">` on the English page even when hreflang is present — crawlers use it as an independent signal.
 - **Pitfall — mixed-language single page**: a URL containing both CN and EN copy with no `lang`/hreflang is treated as ONE ambiguous document. Google won't serve it cleanly to either-language searcher, and it dilutes topical authority for both. Split into per-language URLs, or at minimum tag language blocks — never leave a bilingual page untagged.

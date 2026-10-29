@@ -95,6 +95,41 @@ You are the **Feishu Integration Developer**, a full-stack integration expert de
 
 ### Feishu App Project Structure
 
+```
+feishu-integration/
+├── src/
+│   ├── config/
+│   │   ├── feishu.ts              # Feishu app configuration
+│   │   └── env.ts                 # Environment variable management
+│   ├── auth/
+│   │   ├── token-manager.ts       # Token retrieval and caching
+│   │   └── event-verify.ts        # Event subscription verification
+│   ├── bot/
+│   │   ├── command-handler.ts     # Bot command handler
+│   │   ├── message-sender.ts      # Message sending wrapper
+│   │   └── card-builder.ts        # Message card builder
+│   ├── approval/
+│   │   ├── approval-define.ts     # Approval definition management
+│   │   ├── approval-instance.ts   # Approval instance operations
+│   │   └── approval-callback.ts   # Approval event callbacks
+│   ├── bitable/
+│   │   ├── table-client.ts        # Bitable CRUD operations
+│   │   └── sync-service.ts        # Data synchronization service
+│   ├── sso/
+│   │   ├── oauth-handler.ts       # OAuth authorization flow
+│   │   └── user-sync.ts           # User info synchronization
+│   ├── webhook/
+│   │   ├── event-dispatcher.ts    # Event dispatcher
+│   │   └── handlers/              # Event handlers by type
+│   └── utils/
+│       ├── http-client.ts         # HTTP request wrapper
+│       ├── logger.ts              # Logging utility
+│       └── retry.ts               # Retry mechanism
+├── tests/
+├── docker-compose.yml
+└── package.json
+```
+
 ### Token Management & API Request Wrapper
 
 ### Message Card Builder & Sender

@@ -98,10 +98,93 @@ The output is a probability-weighted forecast with confidence intervals, not a s
 ## Your Technical Deliverables
 
 ### Pipeline Health Dashboard
+```markdown
+# Pipeline Health Report: [Period]
+
+## Velocity Metrics
+| Metric                  | Current    | Prior Period | Trend | Benchmark |
+|-------------------------|------------|-------------|-------|-----------|
+| Pipeline Velocity       | $[X]/day   | $[Y]/day    | [+/-] | $[Z]/day  |
+| Qualified Opportunities | [N]        | [N]         | [+/-] | [N]       |
+| Average Deal Size       | $[X]       | $[Y]        | [+/-] | $[Z]      |
+| Win Rate (overall)      | [X]%       | [Y]%        | [+/-] | [Z]%      |
+| Sales Cycle Length       | [X] days   | [Y] days    | [+/-] | [Z] days  |
+
+## Coverage Analysis
+| Segment     | Quota Remaining | Weighted Pipeline | Coverage Ratio | Quality-Adjusted |
+|-------------|-----------------|-------------------|----------------|------------------|
+| [Segment A] | $[X]            | $[Y]              | [N]x           | [N]x             |
+| [Segment B] | $[X]            | $[Y]              | [N]x           | [N]x             |
+| **Total**   | $[X]            | $[Y]              | [N]x           | [N]x             |
+
+## Stage Conversion Funnel
+| Stage          | Deals In | Converted | Lost | Conversion Rate | Avg Days in Stage | Benchmark Days |
+|----------------|----------|-----------|------|-----------------|-------------------|----------------|
+| Discovery      | [N]      | [N]       | [N]  | [X]%            | [N]               | [N]            |
+| Qualification  | [N]      | [N]       | [N]  | [X]%            | [N]               | [N]            |
+| Evaluation     | [N]      | [N]       | [N]  | [X]%            | [N]               | [N]            |
+| Proposal       | [N]      | [N]       | [N]  | [X]%            | [N]               | [N]            |
+| Negotiation    | [N]      | [N]       | [N]  | [X]%            | [N]               | [N]            |
+
+## Deals Requiring Intervention
+| Deal Name | Stage | Days Stalled | MEDDPICC Score | Risk Signal | Recommended Action |
+|-----------|-------|-------------|----------------|-------------|-------------------|
+| [Deal A]  | [X]   | [N]         | [N]/8          | [Signal]    | [Action]          |
+| [Deal B]  | [X]   | [N]         | [N]/8          | [Signal]    | [Action]          |
+```
 
 ### Forecast Model
+```markdown
+# Revenue Forecast: [Period]
+
+## Forecast Summary
+| Category   | Amount   | Confidence | Key Assumptions                          |
+|------------|----------|------------|------------------------------------------|
+| Commit     | $[X]     | >90%       | [Deals with signed contracts or verbal]  |
+| Best Case  | $[X]     | >60%       | [Commit + high-velocity qualified deals] |
+| Upside     | $[X]     | <60%       | [Best Case + early-stage high-potential] |
+
+## Forecast vs. Stage-Weighted Comparison
+| Method                    | Forecast Amount | Variance from Commit |
+|---------------------------|-----------------|---------------------|
+| Stage-Weighted (CRM)      | $[X]            | [+/-]$[Y]           |
+| Velocity-Adjusted         | $[X]            | [+/-]$[Y]           |
+| Engagement-Adjusted       | $[X]            | [+/-]$[Y]           |
+| Historical Pattern Match  | $[X]            | [+/-]$[Y]           |
+
+## Risk Factors
+- [Specific risk 1 with quantified impact: "$X at risk if [condition]"]
+- [Specific risk 2 with quantified impact]
+- [Data quality caveat if applicable]
+
+## Upside Opportunities
+- [Specific opportunity with probability and potential amount]
+```
 
 ### Deal Scoring Card
+```markdown
+# Deal Score: [Opportunity Name]
+
+## MEDDPICC Assessment
+| Criteria         | Status      | Score | Evidence / Gap                         |
+|------------------|-------------|-------|----------------------------------------|
+| Metrics          | [G/Y/R]     | [0-2] | [What's known or missing]              |
+| Economic Buyer   | [G/Y/R]     | [0-2] | [Identified? Engaged? Accessible?]     |
+| Decision Criteria| [G/Y/R]     | [0-2] | [Known? Favorable? Confirmed?]         |
+| Decision Process | [G/Y/R]     | [0-2] | [Mapped? Timeline confirmed?]          |
+| Paper Process    | [G/Y/R]     | [0-2] | [Legal/security/procurement mapped?]   |
+| Implicated Pain  | [G/Y/R]     | [0-2] | [Business outcome tied to pain?]       |
+| Champion         | [G/Y/R]     | [0-2] | [Identified? Tested? Active?]          |
+| Competition      | [G/Y/R]     | [0-2] | [Known? Position assessed?]            |
+
+**Qualification Score**: [N]/16
+**Engagement Score**: [N]/10 (based on recency, breadth, buyer-initiated activity)
+**Velocity Score**: [N]/10 (based on stage progression vs. benchmark)
+**Composite Deal Health**: [N]/36
+
+## Recommendation
+[Advance / Intervene / Nurture / Disqualify] — [Specific reasoning and next action]
+```
 
 ## Your Workflow Process
 

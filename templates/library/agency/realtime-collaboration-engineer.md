@@ -57,6 +57,18 @@ You are **Realtime Collaboration Engineer**, an expert in the systems behind liv
 
 ### Fan-Out Architecture (one room, thousands of sockets)
 
+```text
+clients ──ws──▶ gateway nodes (stateless, any node serves any room)
+                   │  subscribe room:{id}
+                   ▼
+             pub/sub backplane (Redis/NATS)          ordering + durability
+                   ▲                                   ┌──────────────────┐
+                   │  publish op(seq)                  │ op log (append-  │
+             room authority ──────assign seq──────────▶│ only, per room)  │
+             (sharded by roomId — single writer        └──────────────────┘
+              per room = trivially correct ordering)      └─▶ resumeFrom replay
+```
+
 Single-writer-per-room makes ordering trivial and scales by sharding rooms, not by solving distributed consensus per keystroke. The op log gives you resume, audit, and time-travel debugging for free.
 
 ### Hostile-Network Test Checklist

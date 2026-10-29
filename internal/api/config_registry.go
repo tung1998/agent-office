@@ -101,7 +101,7 @@ func cfgKinds() []cfgKind {
 				list, err := team.Library()
 				out := []map[string]any{}
 				for _, a := range list {
-					out = append(out, map[string]any{"id": a.ID, "name": a.Name, "category": a.Category, "description": a.Description})
+					out = append(out, map[string]any{"id": a.ID, "name": a.Name, "category": a.Category, "description": a.Description, "requires_pack": a.RequiresPack})
 				}
 				return out, err
 			}},
@@ -478,7 +478,7 @@ func (s *server) DescribeConfig(kind string) (string, error) {
 }
 
 // fromLibrary is how a new agent is made: from the library, tailored.
-const fromLibrary = "Thêm agent mới: tìm trong agent_library trước; có mẫu hợp thì get nó, rồi propose_change agent create từ mẫu đó (instructions, role, model_tier, permissions, skills) sửa theo project hiện tại (AGENTS.md, skill, lệnh, quy ước của repo) và nói rõ là dựa trên mẫu nào. Chỉ viết từ đầu khi thư viện không có mẫu hợp."
+const fromLibrary = "Thêm agent mới: tìm trong agent_library trước; có mẫu hợp thì get nó, rồi propose_change agent create từ mẫu đó (instructions, role, model_tier, permissions, skills) sửa theo project hiện tại (AGENTS.md, skill, lệnh, quy ước của repo) và nói rõ là dựa trên mẫu nào. Mẫu có requires_pack: kiểm tra workflow, skill và dữ liệu cần thiết đã có trong project; thêm lẻ agent không cài cả gói. Thiếu phụ thuộc thì chọn mẫu độc lập hoặc điều chỉnh hướng dẫn cho công việc hiện tại, không gọi workflow chưa có. Chỉ viết từ đầu khi thư viện không có mẫu hợp."
 
 // ListConfig lists the settings of a kind in a project.
 func (s *server) ListConfig(ctx context.Context, projectID, kind string) (string, error) {

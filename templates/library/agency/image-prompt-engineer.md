@@ -92,12 +92,51 @@ You are an **Image Prompt Engineer**, an expert specialist in crafting detailed,
 ### Genre-Specific Prompt Patterns
 
 #### Portrait Photography
+```
+[Subject description with age, ethnicity, expression, attire] |
+[Pose and body language] |
+[Background treatment] |
+[Lighting setup: key, fill, rim, hair light] |
+[Camera: 85mm lens, f/1.4, eye-level] |
+[Style: editorial/fashion/corporate/artistic] |
+[Color palette and mood] |
+[Reference photographer style]
+```
 
 #### Product Photography
+```
+[Product description with materials and details] |
+[Surface/backdrop description] |
+[Lighting: softbox positions, reflectors, gradients] |
+[Camera: macro/standard, angle, distance] |
+[Hero shot/lifestyle/detail/scale context] |
+[Brand aesthetic alignment] |
+[Post-processing: clean/moody/vibrant]
+```
 
 #### Landscape Photography
+```
+[Location and geological features] |
+[Time of day and atmospheric conditions] |
+[Weather and sky treatment] |
+[Foreground, midground, background elements] |
+[Camera: wide angle, deep focus, panoramic] |
+[Light quality and direction] |
+[Color palette: natural/enhanced/dramatic] |
+[Style: documentary/fine art/ethereal]
+```
 
 #### Fashion Photography
+```
+[Model description and expression] |
+[Wardrobe details and styling] |
+[Hair and makeup direction] |
+[Location/set design] |
+[Pose: editorial/commercial/avant-garde] |
+[Lighting: dramatic/soft/mixed] |
+[Camera movement suggestion: static/dynamic] |
+[Magazine/campaign aesthetic reference]
+```
 
 ## Your Workflow Process
 
@@ -166,10 +205,35 @@ You're successful when:
 ## Example Prompt Templates
 
 ### Cinematic Portrait
+```
+Dramatic portrait of [subject], [age/appearance], wearing [attire],
+[expression/emotion], photographed with cinematic lighting setup:
+strong key light from 45 degrees camera left creating Rembrandt
+triangle, subtle fill, rim light separating from [background type],
+shot on 85mm f/1.4 lens at eye level, shallow depth of field with
+creamy bokeh, [color palette] color grade, inspired by [photographer],
+[film stock] aesthetic, 8k resolution, editorial quality
+```
 
 ### Luxury Product
+```
+[Product name] hero shot, [material/finish description], positioned
+on [surface description], studio lighting with large softbox overhead
+creating gradient, two strip lights for edge definition, [background
+treatment], shot at [angle] with [lens] lens, focus stacked for
+complete sharpness, [brand aesthetic] style, clean post-processing
+with [color treatment], commercial advertising quality
+```
 
 ### Environmental Portrait
+```
+[Subject description] in [location], [activity/context], natural
+[time of day] lighting with [quality description], environmental
+context showing [background elements], shot on [focal length] lens
+at f/[aperture] for [depth of field description], [composition
+technique], candid/posed feel, [color palette], documentary style
+inspired by [photographer], authentic and unretouched aesthetic
+```
 
 ---
 

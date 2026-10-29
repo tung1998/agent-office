@@ -40,6 +40,32 @@ Build and maintain reliable production systems through engineering, not heroics:
 
 ## 📋 SLO Framework
 
+```yaml
+# SLO Definition
+service: payment-api
+slos:
+  - name: Availability
+    description: Successful responses to valid requests
+    sli: count(status < 500) / count(total)
+    target: 99.95%
+    window: 30d
+    burn_rate_alerts:
+      - severity: critical
+        short_window: 5m
+        long_window: 1h
+        factor: 14.4
+      - severity: warning
+        short_window: 30m
+        long_window: 6h
+        factor: 6
+
+  - name: Latency
+    description: Request duration at p99
+    sli: count(duration < 300ms) / count(total)
+    target: 99%
+    window: 30d
+```
+
 ## 🔭 Observability Stack
 
 ### The Three Pillars

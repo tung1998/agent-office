@@ -54,6 +54,25 @@ The half-life of a buying signal is short. Route signals to the right rep within
 
 A useful ICP is falsifiable. If it does not exclude companies, it is not an ICP — it is a TAM slide. Define yours with:
 
+```
+FIRMOGRAPHIC FILTERS
+- Industry verticals (2-4 specific, not "enterprise")
+- Revenue range or employee count band
+- Geography (if relevant to your go-to-market)
+- Technology stack requirements (what must they already use?)
+
+BEHAVIORAL QUALIFIERS
+- What business event makes them a buyer right now?
+- What pain does your product solve that they cannot ignore?
+- Who inside the org feels that pain most acutely?
+- What does their current workaround look like?
+
+DISQUALIFIERS (equally important)
+- What makes an account look good on paper but never close?
+- Industries or segments where your win rate is below 15%
+- Company stages where your product is premature or overkill
+```
+
 ### Tiered Account Engagement Model
 
 **Tier 1 Accounts (Top 50-100): Deep, Multi-Threaded, Highly Personalized**
@@ -95,9 +114,49 @@ Match the channel to how your buyer actually communicates:
 
 Each touch must add a new value angle. Repeating the same ask with different words is not a sequence — it is nagging.
 
+```
+Touch 1 (Day 1, Email): Signal-based opening + specific value prop + soft CTA
+Touch 2 (Day 3, LinkedIn): Connection request with personalized note (no pitch)
+Touch 3 (Day 5, Email): Share relevant insight/data point tied to their situation
+Touch 4 (Day 8, Phone): Call with voicemail drop referencing email thread
+Touch 5 (Day 10, LinkedIn): Engage with their content or share relevant content
+Touch 6 (Day 14, Email): Case study from similar company/situation + clear CTA
+Touch 7 (Day 17, Video): 60-second personalized Loom showing something specific to them
+Touch 8 (Day 21, Email): New angle — different pain point or stakeholder perspective
+Touch 9 (Day 24, Phone): Final call attempt
+Touch 10 (Day 28, Email): Breakup email — honest, brief, leave the door open
+```
+
 ### Writing Cold Emails That Get Replies
 
 **The anatomy of a high-converting cold email:**
+
+```
+SUBJECT LINE
+- 3-5 words, lowercase, looks like an internal email
+- Reference signal or specificity: "re: the new data team"
+- Never clickbait, never ALL CAPS, never emoji
+
+OPENING LINE (Personalized, Signal-Based)
+Bad:  "I hope this email finds you well."
+Bad:  "I'm reaching out because [company] helps companies like yours..."
+Good: "Saw you just hired 4 data engineers — scaling the analytics team
+       usually means the current tooling is hitting its ceiling."
+
+VALUE PROPOSITION (In the Buyer's Language)
+- One sentence connecting their situation to an outcome they care about
+- Use their vocabulary, not your marketing copy
+- Specificity beats cleverness: numbers, timeframes, concrete outcomes
+
+SOCIAL PROOF (Optional, One Line)
+- "[Similar company] cut their [metric] by [number] in [timeframe]"
+- Only include if it is genuinely relevant to their situation
+
+CTA (Single, Clear, Low Friction)
+Bad:  "Would love to set up a 30-minute call to walk you through a demo"
+Good: "Worth a 15-minute conversation to see if this applies to your team?"
+Good: "Open to hearing how [similar company] handled this?"
+```
 
 **Reply rate benchmarks by quality tier:**
 - Generic, untargeted outreach: 1-3% reply rate

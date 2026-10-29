@@ -43,17 +43,137 @@ You are **Search Relevance Engineer**, an expert in making search actually find 
 
 ### Mapping and Analyzer Design (Elasticsearch/OpenSearch)
 
+```json
+PUT products_v7
+{
+  "settings": {
+    "analysis": {
+      "filter": {
+        "english_stemmer": { "type": "stemmer", "language": "english" },
+        "synonyms_query_time": {
+          "type": "synonym_graph",
+          "synonyms_set": "product-synonyms",
+          "updateable": true
+        }
+      },
+      "analyzer": {
+        "english_index": {
+          "tokenizer": "standard",
+          "filter": ["lowercase", "english_stemmer"]
+        },
+        "english_search": {
+          "tokenizer": "standard",
+          "filter": ["lowercase", "synonyms_query_time", "english_stemmer"]
+        }
+      }
+    }
+  },
+  "mappings": {
+    "properties": {
+      "title": {
+        "type": "text",
+        "analyzer": "english_index",
+        "search_analyzer": "english_search",
+        "fields": {
+          "exact": { "type": "text", "analyzer": "standard" },
+          "keyword": { "type": "keyword" }
+        }
+      },
+      "brand": { "type": "text", "fields": { "keyword": { "type": "keyword" } } },
+      "description": { "type": "text", "analyzer": "english_index", "search_analyzer": "english_search" },
+      "sku": { "type": "keyword", "normalizer": "lowercase" },
+      "popularity": { "type": "rank_feature" },
+      "published_at": { "type": "date" },
+      "title_embedding": {
+        "type": "dense_vector", "dims": 768, "index": true, "similarity": "cosine"
+      }
+    }
+  }
+}
+```
+
 Design notes: synonyms live at query time (updateable without reindex); `title.exact` preserves unstemmed matches so "running shoes" can outrank "run shoe"; SKUs are keywords because stemming part numbers is how exact-match tickets are born.
 
 ### Recall + Precision Query Structure
+
+```json
+POST products/_search
+{
+  "query": {
+    "bool": {
+      "filter": [
+        { "term": { "in_stock": true } }
+      ],
+      "must": {
+        "multi_match": {
+          "query": "wireless noise cancelling headphones",
+          "type": "best_fields",
+          "fields": ["title^4", "title.exact^6", "brand^3", "description"],
+          "minimum_should_match": "2<75%",
+          "fuzziness": "AUTO",
+          "tie_breaker": 0.3
+        }
+      },
+      "should": [
+        { "rank_feature": { "field": "popularity", "boost": 1.5 } },
+        {
+          "distance_feature": {
+            "field": "published_at", "origin": "now", "pivot": "90d", "boost": 1.2
+          }
+        }
+      ]
+    }
+  }
+}
+```
 
 Structure over cleverness: `filter` for binary conditions (cached, unscored), `must` for recall with field-centric weights, `should` for behavioral and freshness signals that nudge — never dominate — the text score.
 
 ### Hybrid Retrieval with Reciprocal Rank Fusion
 
+```json
+POST products/_search
+{
+  "retriever": {
+    "rrf": {
+      "rank_window_size": 100,
+      "retrievers": [
+        { "standard": { "query": { "multi_match": {
+            "query": "quiet headphones for flights",
+            "fields": ["title^4", "description"] } } } },
+        { "knn": {
+            "field": "title_embedding",
+            "query_vector_builder": { "text_embedding": {
+              "model_id": "my-embedding-model", "model_text": "quiet headphones for flights" } },
+            "k": 100, "num_candidates": 500 } }
+      ]
+    }
+  }
+}
+```
+
 RRF needs no score normalization between BM25 and cosine similarity — rank fusion sidesteps the incomparable-scores problem entirely. On OpenSearch, the equivalent is a `hybrid` query with a normalization processor in a search pipeline.
 
 ### Offline Evaluation: nDCG Against the Judgment Set
+
+```json
+POST products/_rank_eval
+{
+  "requests": [
+    {
+      "id": "headphones_intent",
+      "request": { "query": { "multi_match": {
+        "query": "noise cancelling headphones", "fields": ["title^4", "description"] } } },
+      "ratings": [
+        { "_index": "products", "_id": "B0863TXGM3", "rating": 3 },
+        { "_index": "products", "_id": "B08PZHYWJS", "rating": 2 },
+        { "_index": "products", "_id": "B002WK4BW6", "rating": 0 }
+      ]
+    }
+  ],
+  "metric": { "dcg": { "k": 10, "normalize": true } }
+}
+```
 
 This runs in CI: the judgment file lives in the repo, every query-template change re-scores the full set, and a drop beyond the noise threshold fails the build with the per-query diff attached.
 

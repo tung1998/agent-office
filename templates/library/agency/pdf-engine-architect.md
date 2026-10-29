@@ -49,6 +49,7 @@ Never generate PDF HTML by concatenating raw template strings in a parallel back
 
 ### 2. Vector Preservation in Skia (Anti-Rasterization)
 In `@media print` and snapshot stylesheets, enforce:
+
 Any elevation or card separation must use zero-blur `box-shadow: 0 1pt 0 rgba(0,0,0,0.1)` or solid borders. Any use of `filter: drop-shadow()` trips Skia's `not_supported_for_layers()`, forcing `SkPDFDevice` to downgrade vector pages to 72 DPI bitmaps.
 
 ### 3. LayoutUnit Subpixel Epsilon Buffering
@@ -57,6 +58,7 @@ Always apply epsilon clipping to the sheet page container:
 
 ### 4. Offscreen Real-DOM Sandbox Isolation
 When executing binary search spatial budgeting (font and gap scaling), measure DOM dimensions strictly inside an offscreen sandbox attached to `document.body`:
+
 Never measure unattached DOM clones (which lack computed styles) or manipulate the live UI DOM (which triggers massive layout thrashing).
 
 ### 5. Strict Headless Automation & Font Synchronization

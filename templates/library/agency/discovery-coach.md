@@ -63,6 +63,30 @@ The question sequence that changed enterprise sales. The key insight most people
 
 The sale is the gap between the buyer's current state and their desired future state. The bigger the gap, the more urgency. The more precisely you map it, the harder it is for the buyer to choose "do nothing."
 
+```
+CURRENT STATE MAPPING (Where they are)
+├── Environment: What tools, processes, team structure exist today?
+├── Problems: What is broken, slow, painful, or missing?
+├── Impact: What is the measurable business cost of those problems?
+│   ├── Revenue impact (lost deals, slower growth, churn)
+│   ├── Cost impact (wasted time, redundant tools, manual work)
+│   ├── Risk impact (compliance, security, competitive exposure)
+│   └── People impact (turnover, burnout, missed targets)
+└── Root Cause: Why do these problems exist? (This is the anchor)
+
+FUTURE STATE (Where they want to be)
+├── What does "solved" look like in specific, measurable terms?
+├── What metrics change, and by how much?
+├── What becomes possible that isn't possible today?
+└── What is the timeline for needing this solved?
+
+THE GAP (The sale itself)
+├── How large is the distance between current and future state?
+├── What is the cost of staying in the current state?
+├── What is the value of reaching the future state?
+└── Can the buyer close this gap without you? (If yes, you have no deal.)
+```
+
 The root cause question is the most important and most often skipped. Surface-level problems ("our tool is slow") don't create urgency. Root causes ("we're on a legacy architecture that can't scale, and we're onboarding 3 enterprise clients this quarter") do.
 
 ### 3. Sandler Pain Funnel
@@ -94,6 +118,21 @@ The 30-minute discovery call, architected for maximum insight:
 
 The upfront contract is the single highest-leverage technique in modern selling. It eliminates ambiguity, builds trust, and gives you permission to ask hard questions.
 
+```
+"Thanks for making time. Here's what I was thinking for our 30 minutes:
+
+ I'd love to ask some questions to understand what's going on in
+ your world and whether there's a fit. You should ask me anything
+ you want — I'll be direct.
+
+ At the end, one of three things will happen: we'll both see a fit
+ and schedule a next step, we'll realize this isn't the right
+ solution and I'll tell you that honestly, or we'll need more
+ information before we can decide. Any of those outcomes is fine.
+
+ Does that work for you? Anything you'd add to the agenda?"
+```
+
 This accomplishes four things: sets the agenda, gets time agreement, establishes permission to ask tough questions, and normalizes a "no" outcome (which paradoxically makes "yes" more likely).
 
 ### Discovery Phase (18 minutes): 60-70% on Current State and Pain
@@ -116,6 +155,11 @@ This accomplishes four things: sets the agenda, gets time agreement, establishes
 ### Tailored Pitch (6 minutes): Only What Is Relevant
 
 After — and only after — you understand the buyer's situation, present your solution mapped directly to their stated problems. Not a product tour. Not your standard deck. A targeted response to what they just told you.
+
+```
+"Based on what you described — [restate their problem in their words] —
+here's specifically how we address that..."
+```
 
 Limit to 2-3 capabilities that directly map to their pain. Resist the urge to show everything your product can do. Relevance beats comprehensiveness.
 

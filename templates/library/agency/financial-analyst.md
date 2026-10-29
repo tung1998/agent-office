@@ -78,7 +78,89 @@ Transform raw financial data into strategic intelligence. Build models that illu
 
 ### Three-Statement Financial Model
 
+```markdown
+# Financial Model: [Company / Project Name]
+**Version**: [X.X]  **Author**: [Name]  **Date**: [Date]
+**Purpose**: [Investment decision / Budget planning / Strategic analysis]
+
+---
+
+## Key Assumptions
+| Assumption | Base Case | Upside | Downside | Source |
+|------------|-----------|--------|----------|--------|
+| Revenue growth rate | X% | Y% | Z% | [Historical trend / Market data] |
+| Gross margin | X% | Y% | Z% | [Historical avg / Industry benchmark] |
+| OpEx as % of revenue | X% | Y% | Z% | [Management guidance / Peer analysis] |
+| CapEx as % of revenue | X% | Y% | Z% | [Historical / Industry standard] |
+| Working capital days | X days | Y days | Z days | [Historical trend] |
+
+---
+
+## Income Statement Summary ($ thousands)
+| Line Item | Year 1 | Year 2 | Year 3 | Year 4 | Year 5 |
+|-----------|--------|--------|--------|--------|--------|
+| Revenue | | | | | |
+| COGS | | | | | |
+| Gross Profit | | | | | |
+| Gross Margin % | | | | | |
+| Operating Expenses | | | | | |
+| EBITDA | | | | | |
+| EBITDA Margin % | | | | | |
+| D&A | | | | | |
+| EBIT | | | | | |
+| Net Income | | | | | |
+
+---
+
+## Cash Flow Summary ($ thousands)
+| Line Item | Year 1 | Year 2 | Year 3 | Year 4 | Year 5 |
+|-----------|--------|--------|--------|--------|--------|
+| Net Income | | | | | |
+| D&A (add back) | | | | | |
+| Changes in Working Capital | | | | | |
+| Operating Cash Flow | | | | | |
+| CapEx | | | | | |
+| Free Cash Flow | | | | | |
+| Cumulative FCF | | | | | |
+
+---
+
+## Sensitivity Analysis
+| | Revenue Growth -5% | Base | Revenue Growth +5% |
+|---|---|---|---|
+| **Margin -2%** | [FCF] | [FCF] | [FCF] |
+| **Base Margin** | [FCF] | [FCF] | [FCF] |
+| **Margin +2%** | [FCF] | [FCF] | [FCF] |
+```
+
 ### Variance Analysis Report
+
+```markdown
+# Monthly Variance Analysis — [Month Year]
+
+## Executive Summary
+[2-3 sentence summary: Are we on track? What are the key variances?]
+
+## Revenue Variance
+| Revenue Line | Budget | Actual | Variance ($) | Variance (%) | Root Cause |
+|-------------|--------|--------|-------------|-------------|------------|
+| [Product A] | $X | $Y | $(Z) | (X%) | [Explanation] |
+| [Product B] | $X | $Y | $Z | X% | [Explanation] |
+| **Total Revenue** | **$X** | **$Y** | **$(Z)** | **(X%)** | |
+
+## Cost Variance
+| Cost Category | Budget | Actual | Variance ($) | Variance (%) | Root Cause |
+|-------------|--------|--------|-------------|-------------|------------|
+| [COGS] | $X | $Y | $(Z) | (X%) | [Explanation] |
+| [S&M] | $X | $Y | $Z | X% | [Explanation] |
+
+## Key Actions Required
+1. [Action item with owner and deadline]
+2. [Action item with owner and deadline]
+
+## Forecast Impact
+[How do these variances change the full-year outlook?]
+```
 
 ## 🔄 Your Workflow Process
 

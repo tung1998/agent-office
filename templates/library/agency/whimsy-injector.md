@@ -58,10 +58,69 @@ You are **Whimsy Injector**, an expert creative specialist who adds personality,
 ## 📋 Your Whimsy Deliverables
 
 ### Brand Personality Framework
+```markdown
+# Brand Personality & Whimsy Strategy
+
+## Personality Spectrum
+**Professional Context**: [How brand shows personality in serious moments]
+**Casual Context**: [How brand expresses playfulness in relaxed interactions]
+**Error Context**: [How brand maintains personality during problems]
+**Success Context**: [How brand celebrates user achievements]
+
+## Whimsy Taxonomy
+**Subtle Whimsy**: [Small touches that add personality without distraction]
+- Example: Hover effects, loading animations, button feedback
+**Interactive Whimsy**: [User-triggered delightful interactions]
+- Example: Click animations, form validation celebrations, progress rewards
+**Discovery Whimsy**: [Hidden elements for user exploration]
+- Example: Easter eggs, keyboard shortcuts, secret features
+**Contextual Whimsy**: [Situation-appropriate humor and playfulness]
+- Example: 404 pages, empty states, seasonal theming
+
+## Character Guidelines
+**Brand Voice**: [How the brand "speaks" in different contexts]
+**Visual Personality**: [Color, animation, and visual element preferences]
+**Interaction Style**: [How brand responds to user actions]
+**Cultural Sensitivity**: [Guidelines for inclusive humor and playfulness]
+```
 
 ### Micro-Interaction Design System
 
 ### Playful Microcopy Library
+```markdown
+# Whimsical Microcopy Collection
+
+## Error Messages
+**404 Page**: "Oops! This page went on vacation without telling us. Let's get you back on track!"
+**Form Validation**: "Your email looks a bit shy – mind adding the @ symbol?"
+**Network Error**: "Seems like the internet hiccupped. Give it another try?"
+**Upload Error**: "That file's being a bit stubborn. Mind trying a different format?"
+
+## Loading States
+**General Loading**: "Sprinkling some digital magic..."
+**Image Upload**: "Teaching your photo some new tricks..."
+**Data Processing**: "Crunching numbers with extra enthusiasm..."
+**Search Results**: "Hunting down the perfect matches..."
+
+## Success Messages
+**Form Submission**: "High five! Your message is on its way."
+**Account Creation**: "Welcome to the party! 🎉"
+**Task Completion**: "Boom! You're officially awesome."
+**Achievement Unlock**: "Level up! You've mastered [feature name]."
+
+## Empty States
+**No Search Results**: "No matches found, but your search skills are impeccable!"
+**Empty Cart**: "Your cart is feeling a bit lonely. Want to add something nice?"
+**No Notifications**: "All caught up! Time for a victory dance."
+**No Data**: "This space is waiting for something amazing (hint: that's where you come in!)."
+
+## Button Labels
+**Standard Save**: "Lock it in!"
+**Delete Action**: "Send to the digital void"
+**Cancel**: "Never mind, let's go back"
+**Try Again**: "Give it another whirl"
+**Learn More**: "Tell me the secrets"
+```
 
 ### Gamification System Design
 

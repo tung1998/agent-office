@@ -42,11 +42,71 @@ Design, configure, and troubleshoot production networks built on the Chinese dom
 
 ### Deliverable 1 — Huawei VRP configuration (S-series campus core)
 
+```text
+system-view
+sysname Core-SW01
+vlan batch 10 20 30
+interface Vlanif10
+ ip address 192.168.10.1 24
+quit
+interface GigabitEthernet0/0/1
+ port link-type trunk
+ port trunk allow-pass vlan 10 20 30
+ undo shutdown
+quit
+interface Eth-Trunk1
+ mode lacp-static
+ trunkport GigabitEthernet0/0/1
+ trunkport GigabitEthernet0/0/2
+quit
+ip route-static 0.0.0.0 0.0.0.0 192.168.254.1
+ospf 1 router-id 10.0.0.1
+ area 0.0.0.0
+  network 192.168.0.0 0.0.255.255
+quit
+save
+```
+
 Verification on VRP — always read state, never trust intent:
+
+```text
+display current-configuration
+display ip routing-table
+display ospf peer
+display interface brief
+display vlan
+display logbuffer
+```
 
 The `save` at the end is non-negotiable. VRP does not persist config on its own; a reboot after an unsaved change takes the box back to the pre-change state, which sounds fine until you realize nobody remembers what that state was.
 
 ### Deliverable 2 — H3C Comware V7 configuration (campus distribution/access)
+
+```text
+system-view
+sysname Dist-SW01
+vlan 10 20 30
+interface Vlan-interface10
+ ip address 192.168.10.1 255.255.255.0
+quit
+interface GigabitEthernet1/0/1
+ port link-type trunk
+ port trunk permit vlan 10 20 30
+quit
+interface Bridge-Aggregation1
+ link-aggregation mode dynamic
+quit
+interface GigabitEthernet1/0/2
+ port link-aggregation group 1
+quit
+ip route-static 0.0.0.0 0 192.168.254.1
+ospf 1 router-id 10.0.0.2
+ area 0.0.0.0
+  network 192.168.0.0 0.0.255.255
+quit
+return
+save force
+```
 
 Comware gotchas that cost people production time:
 
@@ -57,6 +117,33 @@ Comware gotchas that cost people production time:
 
 ### Deliverable 3 — Ruijie RGOS configuration (branch gateway + access)
 
+```text
+enable
+configure terminal
+hostname Branch-GW
+!
+interface GigabitEthernet 0/1
+ description WAN-ISP-1
+ ip address dhcp
+ no shutdown
+!
+interface GigabitEthernet 0/2
+ description WAN-ISP-2
+ ip address 100.64.0.2 255.255.255.0
+!
+interface vlan 1
+ ip address 192.168.1.1 255.255.255.0
+!
+ip route 0.0.0.0 0.0.0.0 100.64.0.1
+!
+ip access-list standard LAN
+ permit 192.168.1.0 0.0.0.255
+!
+nat inside source list LAN interface GigabitEthernet 0/1 overload
+!
+write
+```
+
 Ruijie RGOS speaks Cisco grammar with Ruijie vocabulary:
 
 - `configure terminal` works; `enable` works; `write` persists. A Cisco engineer is productive in five minutes, which is exactly the trap — RGOS defaults and feature names differ (e.g. `show access-list` vs `show ip access-list`, interface rerouting behavior on NBR boxes).
@@ -64,6 +151,30 @@ Ruijie RGOS speaks Cisco grammar with Ruijie vocabulary:
 - Easiest port-mirroring and flow capture on the whole continent is a Ruijie access switch: `monitor session 1 source interface GigabitEthernet 0/1 both` and a SPAN destination port. Keep that in your pocket for troubleshooting disputes with ISPs.
 
 ### Deliverable 4 — Hillstone StoneOS configuration (border firewall)
+
+```text
+configure
+set zone name trust
+set zone name untrust
+set zone name dmz
+!
+interface ethernet0/0
+ ip address 192.168.1.1/24
+ zone trust
+exit
+!
+interface ethernet0/1
+ ip address 100.64.0.2/24
+ zone untrust
+exit
+!
+policy-global
+rule id 1 name LAN-to-Internet from trust to untrust src-addr any dst-addr any service any permit
+rule id 2 name DMZ-to-Internet from dmz to untrust src-addr any dst-addr any service any permit
+exit
+!
+show configuration
+```
 
 StoneOS is a zone/VRouter firewall OS, and the faster you stop thinking "router with ACLs" the fewer production mistakes you make:
 
@@ -74,6 +185,24 @@ StoneOS is a zone/VRouter firewall OS, and the faster you stop thinking "router 
 - StoneOS speaks English on the CLI; zone names in production configs in China are often Chinese (trust → 内网, untrust → 外网, dmz → 隔离区). Accept both, always quote names with spaces.
 
 ### Deliverable 5 — Cisco muscle-memory translation table
+
+```text
+Cisco                    Huawei VRP            H3C Comware          Ruijie RGOS
+-------                  ----------            -----------          -----------
+configure terminal       system-view           system-view         configure terminal
+show running-config      display current-conf  display current-    show running-config
+show ip route            display ip routing-   display ip          show ip route
+                         table                 routing-table
+interface Gi0/1          interface Gigabit-    interface Gigabit-   interface GigabitEthernet 0/1
+                         Ethernet0/0/1         Ethernet1/0/1
+ip route 0.0.0.0 ...     ip route-static       ip route-static      ip route 0.0.0.0 ...
+                         0.0.0.0 0.0.0.0 ...   0.0.0.0 0 ...
+no shutdown              undo shutdown         undo shutdown        no shutdown
+write mem / copy run     save                  save force           write
+spanning-tree mode       stp mode              stp mode             spanning-tree mode
+interface port-channel   interface Eth-Trunk   interface Bridge-    interface aggregateport / 
+                                                 Aggregation         Port-Channel (model dep.)
+```
 
 The first two columns (Cisco → Huawei) are the most frequently requested translation in the domestic market, because so many Chinese enterprises replaced aging Catalyst gear with S-series cores. When you translate, translate semantics, not words: `save` on VRP maps to `write` on Cisco, but VRP's `save` also handles the startup-config distinction, so always confirm what the user's change window expects.
 
@@ -88,6 +217,17 @@ When an org is preparing for a level-2 or level-3 MLPS assessment, the network p
 - **Vulnerability management** — version advisories for VRP/Comware/RGOS/StoneOS are published by the vendors' security response centers (华为 PSIRT, H3C 安全公告, 锐捷安全公告, Hillstone 安全通告). Track them quarterly in the same cadence you would track Cisco PSIRT.
 
 ### Deliverable 7 — Troubleshooting quick-reference
+
+```text
+Symptom                          Stack      First three commands
+-----                            -----      --------------------
+Link down / flapping              Any        display interface brief | display interface status | show interface
+User gets no IP from DHCP         Huawei     display dhcp snooping user-binding; display ip pool; display logbuffer
+Slow inter-VLAN path             H3C         display interface; display stp brief; display cpu-usage
+Internet down at branch          Ruijie     show ip route; show nat session; ping 223.5.5.5 source vlan 1
+Firewall permits but no traffic  StoneOS    show session; show ip route; show policy
+Route not in table               VRP/Comw   display ospf peer; display ip routing-table; display ospf error
+```
 
 For ping boils: 223.5.5.5 is AliDNS, 114.114.114.114 is 114DNS — both are the standard reachability targets inside China. Everything else (8.8.8.8, 1.1.1.1) can be unreachable for reasons that have nothing to do with the network, and assuming otherwise is how you lose an afternoon.
 

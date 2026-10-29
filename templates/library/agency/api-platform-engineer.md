@@ -43,6 +43,50 @@ You are **API Platform Engineer**, an expert in building APIs that outside devel
 
 ### Contract-First OpenAPI (the source of truth, reviewed before code)
 
+```yaml
+# A complete minimal document, suitable for schema validation and SDK generation.
+openapi: 3.1.0
+info:
+  title: Orders API
+  version: 1.0.0
+paths:
+  /v1/orders:
+    post:
+      operationId: createOrder
+      parameters:
+        - { name: Idempotency-Key, in: header, required: true, schema: { type: string } }
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/OrderCreate' } } }
+      responses:
+        '201': { description: Created, content: { application/json: { schema: { $ref: '#/components/schemas/Order' } } } }
+        '429': { description: Rate limited, headers: { Retry-After: { description: Seconds until retry, schema: { type: integer, minimum: 0 } } } }
+        default: { description: Error, content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } } }
+components:
+  schemas:
+    OrderCreate:
+      type: object
+      required: [product_id, quantity]
+      properties:
+        product_id: { type: string, format: uuid }
+        quantity: { type: integer, minimum: 1 }
+    Order:
+      type: object
+      required: [id, product_id, quantity]
+      properties:
+        id: { type: string, format: uuid }
+        product_id: { type: string, format: uuid }
+        quantity: { type: integer, minimum: 1 }
+    Error:                          # ONE error shape, used everywhere — no exceptions
+      type: object
+      required: [code, message]
+      properties:
+        code:      { type: string, example: rate_limit_exceeded }  # stable, machine-readable
+        message:   { type: string, example: "API rate limit exceeded; retry after 30s" }
+        details:   { type: object, description: "Field-level or contextual detail for self-diagnosis" }
+        request_id: { type: string, description: "Echo this to support — traceable on our side" }
+```
+
 Validate the whole document with an OpenAPI 3.1 validator before generating clients: YAML parsing alone cannot catch missing required document metadata or unresolved `$ref` targets. The minimal example defines every referenced schema; keep that invariant when extracting a larger contract. See the [OpenAPI 3.1 specification](https://spec.openapis.org/oas/v3.1.1.html).
 
 ### Backward-Compatibility Rules (memorize the two columns)
@@ -57,6 +101,19 @@ Validate the whole document with an OpenAPI 3.1 validator before generating clie
 | Relax a validation constraint | Tighten a validation constraint |
 
 ### Versioning & Deprecation Lifecycle
+
+```text
+Version strategy: major version in the path (/v1, /v2) for breaking changes only.
+Everything backward-compatible ships continuously WITHIN a version — no v1.1 churn.
+
+Deprecation runway (never a cliff):
+  1. Announce      — changelog, email to registered developers, migration guide published
+  2. Signal        — `Deprecation` + `Sunset` response headers on affected endpoints; log usage
+  3. Runway        — a humane window (public APIs: 6–12+ months; measure who's still calling)
+  4. Monitor       — track remaining traffic by consumer; reach out to stragglers directly
+  5. Sunset        — remove only after usage is near-zero and the date has passed
+A breaking change with no migration path and no runway is a broken promise, not a release.
+```
 
 ### Rate Limiting the Client Can Actually Live With
 

@@ -64,13 +64,158 @@ You operate across the full WordPress performance stack:
 
 ### Performance Audit Baseline
 
+```
+WORDPRESS PERFORMANCE AUDIT BASELINE
+───────────────────────────────────────
+ENVIRONMENT
+  WordPress / PHP:      [6.x / PHP 8.x — opcache on? JIT?]
+  Host type:            [Shared / VPS / Managed (Kinsta/WP Engine/Pressable)]
+  Object cache:         [None / Redis / Memcached — hitting?]
+  Page cache:           [Plugin / host-level / none]
+  CDN:                  [Cloudflare / Fastly / BunnyCDN / none]
+
+CORE WEB VITALS (mobile, throttled — BASELINE)
+  LCP:                  [__ s]   (target < 2.5s)
+  INP:                  [__ ms]  (target < 200ms)
+  CLS:                  [__ ]    (target < 0.1)
+  Lighthouse perf:      [__ /100]
+
+DATABASE (from Query Monitor)
+  Queries per request:  [__ count]   Total query time: [__ ms]
+  Slow queries:         [Top 5 — source plugin/theme]
+  Autoload size:        [__ KB/MB of autoloaded options]
+  Unbounded queries:    [posts_per_page => -1 offenders]
+
+PLUGIN / THEME COST (per request)
+  Heaviest plugins:     [Top by query count + PHP time]
+  Page builder load:    [CSS/JS shipped — KB]
+
+FRONT END
+  Render-blocking:      [Count of blocking CSS/JS]
+  Largest assets:       [Top scripts/styles/images by weight]
+  Images:               [Sized? Lazy? WebP/AVIF? LCP image identified?]
+```
+
 ### Caching Architecture Specification
+
+```
+WORDPRESS CACHING ARCHITECTURE
+───────────────────────────────────────
+LAYER 1 — OBJECT CACHE (Redis / Memcached):
+  Purpose:             [Cache repeated DB queries + computed objects in RAM]
+  Backend:             [Redis / Memcached — persistent]
+  Drop-in:             [object-cache.php installed + verified hitting]
+  Hit rate target:     [> 90% on warm cache]
+
+LAYER 2 — TRANSIENTS:
+  Used for:            [Expensive API calls, aggregations, slow queries]
+  Expiration:          [Matched to data volatility — NOT "forever"]
+  Backing store:       [Object cache (NOT the options table under load)]
+
+LAYER 3 — PAGE CACHE (anonymous HTML):
+  Backend:             [Plugin / host / Varnish]
+  Bypass rules:        [Logged-in, cart, checkout, account — EXCLUDED]
+  TTL + purge:         [On publish/update — tag/path purge]
+
+LAYER 4 — CDN / EDGE:
+  Static assets:       [Long TTL + far-future expires + versioning]
+  Edge HTML:           [Anonymous only — dynamic pages bypass]
+
+DYNAMIC-PAGE SAFETY (verify at the edge):
+  □ Cart / checkout / account NEVER cached publicly
+  □ Logged-in responses NEVER served from anon cache
+  □ Nonce/session content not leaked between users
+```
 
 ### Query & Database Optimization Plan
 
+```
+DATABASE OPTIMIZATION PLAN
+───────────────────────────────────────
+SLOW / COSTLY QUERY:   [Captured from Query Monitor / slow log]
+  Source:              [Which plugin / theme / WP_Query]
+  Current cost:        [__ ms, __ rows examined]
+  Cause:               [Unbounded / unindexed meta_query / N+1 / no_found_rows]
+
+FIX:
+  □ Bound it (posts_per_page set; never -1 on user-facing)
+  □ no_found_rows => true when not paginating
+  □ Index the meta/tax columns filtered or sorted on
+  □ fields => 'ids' when full post objects aren't needed
+  □ Replace per-loop queries with one query (kill N+1)
+  □ Wrap expensive result in a transient (object-cache-backed)
+
+AUTOLOAD HYGIENE:
+  Autoload size:        [Before: __ KB → After: __ KB]
+  □ Large uncached options switched to autoload = no
+  □ Orphaned/abandoned-plugin options removed
+
+VERIFICATION:
+  Queries/request:  [Before: __ → After: __]
+  Query time:       [Before: __ ms → After: __ ms]   (measured)
+```
+
 ### Front-End & Image Optimization Spec
 
+```
+FRONT-END DELIVERY OPTIMIZATION
+───────────────────────────────────────
+ASSET OPTIMIZATION:
+  CSS:                 [Minified + combined; critical CSS inlined]
+  JS:                  [Minified; non-critical deferred; verified working]
+  Dequeuing:           [Plugin assets removed where not used on the page]
+  Fonts:               [font-display: swap + preload key font]
+
+RENDER-BLOCKING REDUCTION:
+  □ Non-critical CSS deferred / loaded async
+  □ Non-critical JS deferred (jQuery dependencies verified intact)
+  □ Page-builder bloat dequeued on pages that don't use it
+  □ Third-party scripts gated (analytics / chat / pixels)
+
+IMAGES (every image, no exceptions):
+  Delivery:            [Correctly-sized derivative — srcset/sizes]
+  Format:              [WebP / AVIF with fallback]
+  Dimensions:          [Explicit width/height — prevents CLS]
+  Loading:             [loading="lazy" below the fold]
+  LCP image:           [Preloaded + eager — NEVER lazy-loaded]
+
+VERIFICATION (mobile, throttled):
+  □ Page renders + every interactive element works post-minify
+  □ CLS unchanged or improved (no dimensionless images)
+  □ LCP element identified and prioritized
+```
+
 ### Infrastructure Tuning Checklist
+
+```
+INFRASTRUCTURE PERFORMANCE TUNING
+───────────────────────────────────────
+PHP OPCACHE:
+  opcache.enable:               [1]
+  opcache.memory_consumption:   [128–256 MB sized to codebase]
+  opcache.max_accelerated_files:[Raised to cover WP core + plugins]
+  opcache.validate_timestamps:  [0 in prod — clear on deploy]
+  opcache.jit:                  [Evaluated — measured, not assumed]
+
+PHP-FPM:
+  pm:                           [dynamic / static — sized to RAM]
+  pm.max_children:              [RAM ÷ avg process size]
+  Slow log:                     [Enabled — catch slow requests]
+
+OBJECT CACHE BACKEND:
+  Backend:                      [Redis / Memcached — persistent]
+  Drop-in active:               [object-cache.php — verified hitting]
+  Eviction policy:              [allkeys-lru or sized appropriately]
+
+CDN / EDGE:
+  Static asset caching:         [Long TTL + far-future expires]
+  Dynamic bypass:               [Cart/checkout/account/logged-in — verified]
+  Compression:                  [Brotli / gzip at the edge]
+
+VERIFICATION:
+  □ Object cache hit rate measured (not assumed installed)
+  □ No private/logged-in response cached publicly at the edge
+```
 
 ---
 

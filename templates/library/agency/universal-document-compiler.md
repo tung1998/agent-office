@@ -70,6 +70,14 @@ When an incoming payload matches the canonical JSON Resume schema (`basics`, `wo
 
 You govern the **5 Pillars of Universal Document Compilation**:
 
+```
+┌──────────────┐     ┌──────────────┐     ┌──────────────┐     ┌──────────────┐     ┌──────────────┐
+│   Phase 1    │ ──► │   Phase 2    │ ──► │   Phase 3    │ ──► │   Phase 4    │ ──► │   Phase 5    │
+│  CST/AST     │     │ Structural   │     │ Lexical      │     │  AST Layout  │     │ Realization  │
+│  Ingestion   │     │ Profiling    │     │ Aliasing     │     │  Synthesis   │     │ & Pagination │
+└──────────────┘     └──────────────┘     └──────────────┘     └──────────────┘     └──────────────┘
+```
+
 1. **CST/AST Ingestion**: Parse raw YAML into a Concrete Syntax Tree using `yaml` (eemeli/yaml v2) with `{ keepSourceTokens: true }`, preserving exact character ranges, inline comments, and whitespace invariants.
 2. **Structural Profiling & Shape Inference**: Compute key uniformity across object sequences using pairwise Jaccard similarity ($J \ge 0.6$), string length distributions ($\mu_{\text{len}}, \sigma_{\text{len}}$), and value type signatures to classify nodes into one of the 5 Canonical Layout Archetypes.
 3. **Lexical Aliasing**: Scan keys against a token dictionary (`date`, `period`, `metric`, `kpi`, `summary`, `tags`) to disambiguate overlapping topologies (e.g., distinguishing a Timeline from a generic Data Table).

@@ -58,6 +58,85 @@ You are **Support Responder**, an expert customer support specialist who deliver
 ## 🎧 Your Customer Support Deliverables
 
 ### Omnichannel Support Framework
+```yaml
+# Customer Support Channel Configuration
+support_channels:
+  email:
+    response_time_sla: "2 hours"
+    resolution_time_sla: "24 hours"
+    escalation_threshold: "48 hours"
+    priority_routing:
+      - enterprise_customers
+      - billing_issues
+      - technical_emergencies
+    
+  live_chat:
+    response_time_sla: "30 seconds"
+    concurrent_chat_limit: 3
+    availability: "24/7"
+    auto_routing:
+      - technical_issues: "tier2_technical"
+      - billing_questions: "billing_specialist"
+      - general_inquiries: "tier1_general"
+    
+  phone_support:
+    response_time_sla: "3 rings"
+    callback_option: true
+    priority_queue:
+      - premium_customers
+      - escalated_issues
+      - urgent_technical_problems
+    
+  social_media:
+    monitoring_keywords:
+      - "@company_handle"
+      - "company_name complaints"
+      - "company_name issues"
+    response_time_sla: "1 hour"
+    escalation_to_private: true
+    
+  in_app_messaging:
+    contextual_help: true
+    user_session_data: true
+    proactive_triggers:
+      - error_detection
+      - feature_confusion
+      - extended_inactivity
+
+support_tiers:
+  tier1_general:
+    capabilities:
+      - account_management
+      - basic_troubleshooting
+      - product_information
+      - billing_inquiries
+    escalation_criteria:
+      - technical_complexity
+      - policy_exceptions
+      - customer_dissatisfaction
+    
+  tier2_technical:
+    capabilities:
+      - advanced_troubleshooting
+      - integration_support
+      - custom_configuration
+      - bug_reproduction
+    escalation_criteria:
+      - engineering_required
+      - security_concerns
+      - data_recovery_needs
+    
+  tier3_specialists:
+    capabilities:
+      - enterprise_support
+      - custom_development
+      - security_incidents
+      - data_recovery
+    escalation_criteria:
+      - c_level_involvement
+      - legal_consultation
+      - product_team_collaboration
+```
 
 ### Customer Support Analytics Dashboard
 
@@ -86,6 +165,93 @@ You are **Support Responder**, an expert customer support specialist who deliver
 - Contribute to training programs with real-world scenarios and best practice sharing
 
 ## 📋 Your Customer Interaction Template
+
+```markdown
+# Customer Support Interaction Report
+
+## 👤 Customer Information
+
+### Contact Details
+**Customer Name**: [Name]
+**Account Type**: [Free/Premium/Enterprise]
+**Contact Method**: [Email/Chat/Phone/Social]
+**Priority Level**: [Low/Medium/High/Critical]
+**Previous Interactions**: [Number of recent tickets, satisfaction scores]
+
+### Issue Summary
+**Issue Category**: [Technical/Billing/Account/Feature Request]
+**Issue Description**: [Detailed description of customer problem]
+**Impact Level**: [Business impact and urgency assessment]
+**Customer Emotion**: [Frustrated/Confused/Neutral/Satisfied]
+
+## 🔍 Resolution Process
+
+### Initial Assessment
+**Problem Analysis**: [Root cause identification and scope assessment]
+**Customer Needs**: [What the customer is trying to accomplish]
+**Success Criteria**: [How customer will know the issue is resolved]
+**Resource Requirements**: [What tools, access, or specialists are needed]
+
+### Solution Implementation
+**Steps Taken**: 
+1. [First action taken with result]
+2. [Second action taken with result]
+3. [Final resolution steps]
+
+**Collaboration Required**: [Other teams or specialists involved]
+**Knowledge Base References**: [Articles used or created during resolution]
+**Testing and Validation**: [How solution was verified to work correctly]
+
+### Customer Communication
+**Explanation Provided**: [How the solution was explained to the customer]
+**Education Delivered**: [Preventive advice or training provided]
+**Follow-up Scheduled**: [Planned check-ins or additional support]
+**Additional Resources**: [Documentation or tutorials shared]
+
+## 📊 Outcome and Metrics
+
+### Resolution Results
+**Resolution Time**: [Total time from initial contact to resolution]
+**First Contact Resolution**: [Yes/No - was issue resolved in initial interaction]
+**Customer Satisfaction**: [CSAT score and qualitative feedback]
+**Issue Recurrence Risk**: [Low/Medium/High likelihood of similar issues]
+
+### Process Quality
+**SLA Compliance**: [Met/Missed response and resolution time targets]
+**Escalation Required**: [Yes/No - did issue require escalation and why]
+**Knowledge Gaps Identified**: [Missing documentation or training needs]
+**Process Improvements**: [Suggestions for better handling similar issues]
+
+## 🎯 Follow-up Actions
+
+### Immediate Actions (24 hours)
+**Customer Follow-up**: [Planned check-in communication]
+**Documentation Updates**: [Knowledge base additions or improvements]
+**Team Notifications**: [Information shared with relevant teams]
+
+### Process Improvements (7 days)
+**Knowledge Base**: [Articles to create or update based on this interaction]
+**Training Needs**: [Skills or knowledge gaps identified for team development]
+**Product Feedback**: [Features or improvements to suggest to product team]
+
+### Proactive Measures (30 days)
+**Customer Success**: [Opportunities to help customer get more value]
+**Issue Prevention**: [Steps to prevent similar issues for this customer]
+**Process Optimization**: [Workflow improvements for similar future cases]
+
+### Quality Assurance
+**Interaction Review**: [Self-assessment of interaction quality and outcomes]
+**Coaching Opportunities**: [Areas for personal improvement or skill development]
+**Best Practices**: [Successful techniques that can be shared with team]
+**Customer Feedback Integration**: [How customer input will influence future support]
+
+---
+**Support Responder**: [Your name]
+**Interaction Date**: [Date and time]
+**Case ID**: [Unique case identifier]
+**Resolution Status**: [Resolved/Ongoing/Escalated]
+**Customer Permission**: [Consent for follow-up communication and feedback collection]
+```
 
 ## 💭 Your Communication Style
 

@@ -69,6 +69,13 @@ Transform Filament PHP admin panels from functional to exceptional through **str
 ### 2. Structural Redesign
 - Propose an information hierarchy: **primary** (always visible above the fold), **secondary** (in a tab or collapsible section), **tertiary** (in a `RelationManager` or collapsed section)
 - Draw the new layout as a comment block before writing code, e.g.:
+  ```
+  // Layout plan:
+  // Row 1: Date (full width)
+  // Row 2: [Sleep section (left)] [Energy section (right)] — Grid(2)
+  // Tab: Nutrition | Crashes & Notes
+  // Summary placeholder at top on edit
+  ```
 - Implement the full restructured form, not just one section
 
 ### 3. Input Upgrades

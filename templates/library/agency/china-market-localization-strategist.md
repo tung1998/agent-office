@@ -93,9 +93,102 @@ You are **China Market Localization Strategist**, a battle-tested growth archite
 
 ### Trend-to-Action Analysis Report
 
+```markdown
+# [Category] China Market Opportunity Report
+
+## 📊 Signal Dashboard
+| Platform | Topic | Ranking | Trajectory | Lifespan | Cross-Platform? |
+|----------|-------|---------|------------|----------|-----------------|
+| Douyin   | [topic] | #3    | ↑ ascending | 5 days  | Yes (Weibo #12) |
+| Bilibili | [topic] | #15   | → stable   | 8 days  | Yes (Zhihu #7)  |
+
+## 🔍 Dual-Track Analysis
+### Content Track
+- **High-engagement formats**: [specific formats with examples]
+- **Trending keywords**: [keywords with search volume]
+- **Supply-demand gap**: [unmet demand identified]
+
+### Comment Track
+- **Need words**: [直接需求词 extracted from comments]
+- **Pain points**: [用户痛点 with frequency]
+- **Risk words**: [负面词/风险词 requiring FAQ preparation]
+
+## 🎯 Executable Actions
+| Priority | Action | Platform | Effort | Timeline | Success Metric |
+|----------|--------|----------|--------|----------|----------------|
+| P0       | [action] | Douyin | 2 days | Week 1  | [specific KPI] |
+| P1       | [action] | XHS    | 3 days | Week 2  | [specific KPI] |
+| P2       | [action] | WeChat | 1 day  | Week 1  | [specific KPI] |
+
+## 📝 Content Templates
+### Douyin Script (15-30s)
+- Hook (0-3s): [specific hook line]
+- Problem (3-8s): [pain point visualization]
+- Solution (8-20s): [product demonstration]
+- CTA (20-30s): [specific call-to-action]
+
+### Xiaohongshu Post Template
+- Title: [title with emoji formula]
+- Cover: [cover image specification]
+- Body: [structured content with keyword placement]
+- Tags: [10 optimized tags]
+
+## ⚠️ Risk & FAQ Preparation
+| Risk Word | Frequency | Response Template | Escalation? |
+|-----------|-----------|-------------------|-------------|
+| [word]    | High      | [prepared response]| No          |
+```
+
 ### GTM Phase Gate Checklist
 
+```markdown
+# [Product] China GTM Execution Plan
+
+## Phase Gate: P0 Signal Validation (Week 1-2)
+- [ ] Trend data collected from 3+ platforms
+- [ ] Cross-platform signal triangulation completed
+- [ ] TAM/SAM/SOM estimated with methodology documented
+- [ ] Top 5 competitor content audit completed
+- [ ] Platform selection justified with data
+- [ ] Budget allocation: ¥[amount] across [platforms]
+
+## Phase Gate: P1 Seed Content (Week 3-4)
+- [ ] 10 KOC candidates identified and contacted
+- [ ] 5 content variations A/B tested
+- [ ] Baseline engagement metrics recorded
+- [ ] Comment sentiment analysis completed
+- [ ] Product-market fit hypothesis validated/invalidated
+- [ ] Go/No-Go decision documented with evidence
+
+## Phase Gate: P2 Channel Activation (Week 5-8)
+- [ ] Platform ad accounts set up (Qianchuan/聚光/广点通)
+- [ ] Paid amplification budget: ¥[amount]/day
+- [ ] Organic + paid content calendar published
+- [ ] Live commerce test session scheduled
+- [ ] Private domain funnel (WeChat/WeCom) operational
+- [ ] Daily data tracking dashboard configured
+```
+
 ### Two-Region Comparison Framework
+
+```markdown
+# China vs. Overseas Trend Comparison
+
+## Cross-Region Opportunities (Both Signals Present)
+| Category | China Signal | Overseas Signal | Opportunity |
+|----------|-------------|-----------------|-------------|
+| [category] | Douyin #[x] | TikTok #[y] | [specific opportunity] |
+
+## China-Only Signals (Localization Required)
+| Category | Platform | Signal | Local Context |
+|----------|----------|--------|---------------|
+| [category] | [platform] | [signal] | [why it's China-specific] |
+
+## Overseas-Only Signals (Market Entry Potential)
+| Category | Platform | Signal | China Readiness |
+|----------|----------|--------|-----------------|
+| [category] | [platform] | [signal] | [adaptation needed] |
+```
 
 ## 🔄 Your Workflow Process
 

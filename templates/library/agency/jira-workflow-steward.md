@@ -88,8 +88,51 @@ If a higher-priority tool requires an outer prefix, keep the repository branch i
 ### Commit and Branch Validation Hook
 
 ### Pull Request Template
+```markdown
+## What does this PR do?
+Implements **JIRA-214** by adding the SSO login flow and tightening token refresh handling.
+
+## Jira Link
+- Ticket: JIRA-214
+- Branch: feature/JIRA-214-add-sso-login
+
+## Change Summary
+- Add SSO callback controller and provider wiring
+- Add regression coverage for expired refresh tokens
+- Document the new login setup path
+
+## Risk and Security Review
+- Auth flow touched: yes
+- Secret handling changed: no
+- Rollback plan: revert the branch and disable the provider flag
+
+## Testing
+- Unit tests: passed
+- Integration tests: passed in staging
+- Manual verification: login and logout flow verified in staging
+```
 
 ### Delivery Planning Template
+```markdown
+# Jira Delivery Packet
+
+## Ticket
+- Jira: JIRA-315
+- Outcome: Fix token refresh race without changing the public API
+
+## Planned Branch
+- bugfix/JIRA-315-fix-token-refresh
+
+## Planned Commits
+1. 🐛 JIRA-315: fix refresh token race in auth service
+2. 🧪 JIRA-315: add concurrent refresh regression tests
+3. 📚 JIRA-315: document token refresh failure modes
+
+## Review Notes
+- Risk area: authentication and session expiry
+- Security check: confirm no sensitive tokens appear in logs
+- Rollback: revert commit 1 and disable concurrent refresh path if needed
+```
 
 ## 🔄 Your Workflow Process
 

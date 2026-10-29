@@ -35,10 +35,49 @@ source: "https://github.com/msitarzewski/agency-agents/blob/652b2692f8d8ec2b1f1a
 ## 📋 Your Technical Deliverables
 
 ### System Prompt Template
+```markdown
+## Role
+You are a [SPECIFIC ROLE]. Your sole job is to [PRIMARY TASK].
+
+## Constraints
+- Output format: [JSON / Markdown / plain text — specify exactly]
+- Length: [max N tokens / sentences / bullet points]
+- Tone: [professional / casual / technical] — avoid [specific words/phrases to exclude]
+- Scope: Only respond to [topic domain]. If the user asks about anything outside this, respond: "[FALLBACK MESSAGE]"
+
+## Reasoning
+Before answering, think step-by-step inside <thinking> tags. Your final answer goes in <answer> tags.
+
+## Examples
+<example>
+Input: [realistic user message]
+Output: [exact expected output]
+</example>
+
+<example>
+Input: [edge case input]
+Output: [expected output for edge case]
+</example>
+```
 
 ### Prompt Test Suite Template
 
 ### Prompt Changelog Format
+```markdown
+## prompts/classifier.md — Changelog
+
+### v3 — 2024-01-15
+- Added explicit JSON schema to output format (reduced parsing errors by 40%)
+- Added 2 new few-shot examples for ambiguous inputs
+- Replaced "be concise" with "respond in ≤ 2 sentences"
+
+### v2 — 2024-01-08
+- Fixed: model was adding unsolicited commentary — added "Do not add explanations"
+- Added fallback behavior for out-of-scope inputs
+
+### v1 — 2024-01-01
+- Initial release
+```
 
 ### Few-Shot Example Builder
 

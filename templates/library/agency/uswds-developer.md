@@ -65,13 +65,121 @@ You operate across the full USWDS stack:
 
 ### USWDS Theme Settings (Design Tokens)
 
+```
+THEME CUSTOMIZATION RULES
+───────────────────────────────────────
+  ✓ Change color  → set $theme-color-* token (NOT a raw hex)
+  ✓ Change space  → set $theme-spacing-unit / use units()
+  ✓ Change type   → set type-scale + font tokens
+  ✗ NEVER         → write .usa-button { background: #1a4480 } override
+  ✗ NEVER         → edit files inside node_modules/@uswds
+```
+
 ### Component Implementation Spec
+
+```
+USWDS COMPONENT USAGE CONTRACT
+───────────────────────────────────────
+COMPONENT:             [Accordion / Banner / Date picker / Combo box /
+                        Modal / Alert / Step indicator / Side nav ...]
+DECISION:              [Use official USWDS component — default]
+                       [Custom ONLY if no component fits + documented why]
+
+MARKUP:                [Use the documented USWDS HTML structure + classes]
+JS INIT:               [USWDS component JS initialized (import/behavior)]
+VARIANTS:              [Use documented modifiers (.usa-alert--warning, etc.)]
+
+CUSTOMIZATION (at the seams only):
+  □ Theme tokens / settings   (allowed)
+  □ Utility classes           (allowed)
+  □ Composition of components  (allowed)
+  □ Forking / editing source  (NOT allowed)
+
+ACCESSIBILITY (must not regress USWDS defaults):
+  □ Keyboard operable (tab/arrow/esc per component)
+  □ Screen-reader announces role/name/state
+  □ Focus visible + managed
+  □ Contrast preserved after theming
+```
 
 ### Required Federal Elements Checklist
 
+```
+FEDERAL DESIGN LANGUAGE — REQUIRED ELEMENTS
+───────────────────────────────────────
+.GOV BANNER (top of every page):
+  □ Official "An official website of the United States government"
+  □ Expandable "Here's how you know" with HTTPS/lock guidance
+  □ Uses .usa-banner component markup (not a custom imitation)
+
+USWDS IDENTIFIER (near footer):
+  □ Parent agency / domain identified
+  □ Required links: About, Accessibility statement,
+    FOIA, No FEAR Act, Privacy policy, Vulnerability disclosure
+  □ Uses .usa-identifier component
+
+HEADER / FOOTER:
+  □ USWDS header (basic or extended) with accessible nav
+  □ USWDS footer pattern (big / medium / slim)
+  □ Search uses .usa-search where applicable
+
+TRUST & COMPLIANCE:
+  □ HTTPS enforced (21st Century IDEA)
+  □ Section 508 / WCAG 2.1 AA conformant
+  □ Mobile-friendly + consistent design language
+```
+
 ### Responsive Layout Spec (USWDS Grid)
 
+```
+RESPONSIVE LAYOUT — MOBILE-FIRST
+───────────────────────────────────────
+GRID:                  [.grid-container > .grid-row > .grid-col-*]
+APPROACH:              [Design small-screen first, enhance up]
+
+BREAKPOINT BEHAVIOR (USWDS tokens):
+  mobile  (default):   [Single column, stacked]
+  tablet  (.tablet:):  [grid-col-6 — two up]
+  desktop (.desktop:): [grid-col-4 — three up / sidebar layout]
+
+SPACING:               [units() tokens for margin/padding/gap]
+TYPOGRAPHY:            [Type scale tokens; measure/line-length controlled]
+TOUCH TARGETS:         [≥ 44x44 effective — usable on phones]
+
+VERIFICATION:
+  □ Usable at 320px width and up
+  □ Reflows to 400% zoom without horizontal scroll
+  □ Tested on a real mobile device, not just devtools
+```
+
 ### CMS Integration Plan (Drupal / WordPress)
+
+```
+USWDS CMS INTEGRATION
+───────────────────────────────────────
+PLATFORM:              [Drupal theme / SDC components — OR — WordPress theme/blocks]
+
+ASSET BUILD:
+  Manager:             [npm + uswds-compile (gulp)]
+  Pipeline:            [Sass tokens → compiled CSS; USWDS JS bundled]
+  Fonts/img:           [Copied to theme paths via init/copyAssets]
+  Versioning:          [USWDS pinned in package.json; upgrade-reviewed]
+
+DRUPAL:
+  □ USWDS CSS/JS enqueued as theme libraries
+  □ Components mapped to Single-Directory Components / templates
+  □ Twig markup matches USWDS structure + classes
+  □ Form elements themed to USWDS form components
+
+WORDPRESS:
+  □ USWDS assets enqueued in theme (wp_enqueue)
+  □ Blocks / template parts output USWDS markup
+  □ Editor patterns reflect USWDS components
+
+SEPARATION:
+  □ Theme settings + custom code isolated from the USWDS package
+  □ No edits inside vendor/node_modules USWDS files
+```
 
 ---
 

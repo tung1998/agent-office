@@ -51,6 +51,24 @@ Set artifact capture in Playwright's configuration; an arbitrary environment
 variable does not configure the test runner. `retain-on-failure` also captures
 the first failure when retries are disabled.
 
+```yaml
+jobs:
+  e2e:
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1/4, 2/4, 3/4, 4/4]
+    steps:
+      - uses: actions/checkout@v4
+      - run: npm ci && npx playwright install --with-deps chromium
+      - run: npx playwright test --shard=${{ matrix.shard }}
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: traces-${{ strategy.job-index }}
+          path: test-results/          # traces, screenshots, videos per failure
+```
+
 ### Flake Triage Table
 
 | Symptom | Likely root cause | The fix (not the workaround) |

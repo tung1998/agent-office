@@ -47,11 +47,101 @@ Build and maintain the infrastructure layer that makes a site visible, parseable
 
 ### AEO Foundations Scorecard
 
+```markdown
+# AEO Foundations Audit: [Site Name]
+## Date: [YYYY-MM-DD]
+
+### 1. Discovery Layer
+| Check                          | Status | Detail                              |
+|--------------------------------|--------|-------------------------------------|
+| robots.txt has AI crawler rules| ❌ No  | No mention of GPTBot, ClaudeBot, etc|
+| llms.txt published             | ❌ No  | /llms.txt returns 404               |
+| llms-full.txt published        | ❌ No  | /llms-full.txt returns 404          |
+| AGENTS.md at repo root         | N/A    | No public repo                      |
+| Sitemap includes content pages | ✅ Yes | 142 URLs in sitemap.xml             |
+| AI crawl activity in logs      | ⚠️ Partial | GPTBot seen, blocked by robots.txt |
+
+### 2. Parsability Layer
+| Check                          | Status | Detail                              |
+|--------------------------------|--------|-------------------------------------|
+| Key pages available as clean HTML | ⚠️ Partial | Blog: yes. Product pages: JS-rendered |
+| Markdown alternatives available| ❌ No  | No /api/content or .md endpoints    |
+| Average content length (tokens)| ⚠️ High | Homepage: 38K tokens (target: <15K) |
+| Heading hierarchy (H1→H6)     | ✅ Yes | Clean semantic structure             |
+| FAQ schema on key pages        | ❌ No  | 0/12 target pages have FAQPage      |
+
+### 3. Capability Layer
+| Check                          | Status | Detail                              |
+|--------------------------------|--------|-------------------------------------|
+| agent-permissions.json         | ❌ No  | Not published                       |
+| WebMCP discovery endpoint      | ❌ No  | No /mcp-actions.json                |
+| Structured action declarations | ❌ No  | No data-mcp-action attributes       |
+
+**Foundation Score: 2/12 (17%)**
+**Target (30-day): 9/12 (75%)**
+```
+
 ### robots.txt AI Crawler Configuration
+
+```text
+# AI Crawler Access Policy — Last updated: [YYYY-MM-DD]
+
+# --- AI Search-Augmented Crawlers (allow — these drive citations) ---
+User-agent: PerplexityBot
+Allow: /
+
+# --- AI Training Crawlers (business decision — allow or disallow) ---
+User-agent: GPTBot          # OpenAI: ChatGPT browsing + training
+Allow: /
+
+User-agent: ClaudeBot        # Anthropic: Claude responses
+Allow: /
+
+User-agent: Google-Extended  # Gemini training (separate from search)
+Allow: /
+
+User-agent: Applebot-Extended  # Apple Intelligence features
+Allow: /
+
+# --- Aggressive/Unwanted Scrapers (block) ---
+User-agent: Bytespider
+Disallow: /
+```
 
 ### Token Budget Worksheet
 
+```markdown
+# Token Budget Analysis: [Site Name]
+
+| Content Type    | Target Budget | Current Avg | Status   | Action                           |
+|-----------------|--------------|-------------|----------|----------------------------------|
+| Quick Start     | <15,000 tok  | 8,200 tok   | ✅ Pass  | None                             |
+| How-To Guide    | <20,000 tok  | 34,500 tok  | ❌ Over  | Split into 3 focused guides      |
+| Landing Page    | <8,000 tok   | 6,300 tok   | ✅ Pass  | None                             |
+| Blog Post       | <12,000 tok  | 18,700 tok  | ❌ Over  | Add TL;DR section, trim examples |
+
+### Token Estimation Method
+- Tool: tiktoken (cl100k_base encoding) or LLM tokenizer
+- Count includes: visible text, alt attributes, structured data, navigation
+- Count excludes: CSS, JavaScript, HTML boilerplate, tracking scripts
+```
+
 ### llms.txt Template
+
+```markdown
+# [Site Name]
+
+> [One-line description of what this site does and who it's for]
+
+## Key Pages
+- [Pricing](/pricing): [One-line description]
+- [Documentation](/docs): [One-line description]
+- [FAQ](/faq): [One-line description]
+
+## Content by Topic
+### [Topic 1]
+- [Page Title](/url): [Description] — [token count estimate]
+```
 
 For the full llms.txt specification and examples, see [llms-txt.cloud](https://llms-txt.cloud/) and Jeremy Howard's [original proposal](https://www.answer.ai/posts/2024-09-03-llmstxt.html).
 
@@ -147,6 +237,26 @@ Not all AI crawlers are equal. Classify them by purpose to make informed access 
 | Tier 5 | PDF-only or image-based | Minimal — lossy extraction | Legacy docs (migrate to Tier 1-2) |
 
 ### Cross-Wave Prerequisite Checklist
+
+```markdown
+### Wave 1 (SEO) Prerequisites
+- [ ] robots.txt allows Googlebot, Bingbot
+- [ ] Sitemap.xml current and submitted
+- [ ] Pages render without JavaScript (or use SSR/SSG)
+- [ ] Semantic heading hierarchy on all key pages
+
+### Wave 2 (AI Citations) Prerequisites
+- [ ] robots.txt allows GPTBot, ClaudeBot, PerplexityBot
+- [ ] llms.txt published and current
+- [ ] Key pages within token budgets
+- [ ] FAQPage and HowTo schema on eligible pages
+
+### Wave 3 (Agentic Task Completion) Prerequisites
+- [ ] agent-permissions.json published
+- [ ] /mcp-actions.json endpoint live (or planned)
+- [ ] Key task flows use native HTML forms (not JS-only widgets)
+- [ ] Guest flows available (no mandatory auth for first interaction)
+```
 
 ### Collaboration with Complementary Agents
 

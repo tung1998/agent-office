@@ -46,7 +46,8 @@ const T = (en, vi) => (LANG === 'vi' ? vi : en)
 // of its own (--out=dir, default the temp dir's agent-office-mobile/), never the
 // guide's images: for a UX review (burn/hunt-ux.md), not for the guide
 const MOBILE = process.argv.includes('--mobile')
-const OUT = MOBILE ? resolve((process.argv.find(a => a.startsWith('--out=')) ?? '').slice(6) || join(tmpdir(), 'agent-office-mobile', LANG))
+const outArg = (process.argv.find(a => a.startsWith('--out=')) ?? '').slice(6)
+const OUT = outArg ? resolve(outArg) : MOBILE ? join(tmpdir(), 'agent-office-mobile', LANG)
   : LANG === 'vi' ? join(here, 'images', 'vi') : join(here, 'images')
 const CONTENT = T('Content & Planning', 'Kế hoạch & Nội dung')
 // --only-missing (or ONLY_MISSING=1) keeps the shots already there
@@ -507,7 +508,37 @@ async function capture({ ao, shop, lead }) {
     if (!picked) throw new Error('idea scope card not found')
     await sleep(400)
   }
+  const searchLibrary = async (query, pick = '') => {
+    const found = await page.eval(`(() => {
+      const input = document.querySelector('input[placeholder=${JSON.stringify(T('Search agents…', 'Tìm agent…'))}]')
+      if (!input) return false
+      input.value = ${JSON.stringify(query)}
+      input.dispatchEvent(new Event('input', { bubbles: true }))
+      return true
+    })()`)
+    if (!found) throw new Error('agent library search not found')
+    await sleep(400)
+    if (pick && !await page.eval(`(() => {
+      const button = [...document.querySelectorAll('button')].find(b => b.querySelector('p')?.textContent.trim() === ${JSON.stringify(pick)})
+      button?.click()
+      return !!button
+    })()`)) throw new Error('library agent not found: ' + pick)
+    await sleep(400)
+  }
+  const requirePackNotice = async () => {
+    await page.eval(`(() => { const style = document.createElement('style'); style.textContent = '*{animation:none!important;transition:none!important}'; document.head.append(style); return true })()`)
+    if (!await page.eval(`document.body.textContent.includes(${JSON.stringify(T('Requires @agentoffice/languages', 'Cần gói @agentoffice/languages'))})`)) throw new Error('agent pack requirement notice not found')
+  }
   const screens = [
+    ['48-agent-variants', '/agents', async () => {
+      await searchLibrary('code-architect')
+      if (!await page.eval(`document.body.textContent.includes('code-architect (1)') && document.body.textContent.includes('code-architect (2)')`)) throw new Error('agent variants missing')
+    }],
+    ['49-agent-pack', '/agents', async () => {
+      await searchLibrary('teacher', 'Giáo viên')
+      await requirePackNotice()
+    }],
+    ['50-agent-pack-add', `${P}?tab=agents&add=office/teacher`, requirePackNotice],
     ['02-overview', '/'],
     ['03-projects', '/projects'],
     ['04a-new-project-idea', '/projects', openIdeaModal],
@@ -599,7 +630,7 @@ async function capture({ ao, shop, lead }) {
   ]
   const want = name => (!only.length || only.includes(name)) && (!onlyMissing || retake.includes(name) || !existsSync(join(OUT, name + '.png')))
   // 38-44 must come out with real content — fail the whole run rather than report success with gaps
-  const REQUIRED = /^(38|39|40|41|42|43|44)-/
+  const REQUIRED = /^(38|39|40|41|42|43|44|48|49|50)-/
   const take = async (name, path, prep) => {
     if (!want(name)) return
     for (let attempt = 1; attempt <= 2; attempt++) {

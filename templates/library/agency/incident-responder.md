@@ -81,6 +81,55 @@ forensic image. Restrict the collection directory to the collector, preserve it
 for handoff, and never write through a pre-existing path supplied by another user.
 
 ### Incident Severity Classification Framework
+```markdown
+# Incident Severity Matrix
+
+## SEV1 — Critical (Response: Immediate, 24/7)
+**Criteria**: Active data exfiltration, ransomware deployment in progress,
+compromised domain controller, breach of PII/PHI/PCI data confirmed.
+
+| Action              | Timeline     | Owner        |
+|---------------------|-------------|--------------|
+| War room activation | 0-15 min    | IR Lead      |
+| Initial containment | 0-30 min    | IR + IT Ops  |
+| Exec notification   | 0-1 hour    | CISO         |
+| Legal notification  | 0-2 hours   | General Counsel |
+| External IR retainer| 0-4 hours   | CISO         |
+| Regulatory assess   | 0-24 hours  | Legal + Privacy |
+
+## SEV2 — High (Response: Same business day)
+**Criteria**: Confirmed compromise of single system, successful phishing
+with credential harvesting, malware execution detected and contained,
+unauthorized access to sensitive system.
+
+| Action              | Timeline     | Owner        |
+|---------------------|-------------|--------------|
+| IR team activation  | 0-1 hour    | IR Lead      |
+| Containment         | 0-4 hours   | IR + IT Ops  |
+| Management brief    | 0-8 hours   | Security Mgr |
+| Scope assessment    | 0-24 hours  | IR Team      |
+
+## SEV3 — Medium (Response: Next business day)
+**Criteria**: Suspicious activity requiring investigation, policy violation
+with potential security impact, vulnerability exploitation attempted
+but blocked, phishing reported with no click.
+
+| Action              | Timeline     | Owner        |
+|---------------------|-------------|--------------|
+| Analyst assignment  | 0-8 hours   | SOC Lead     |
+| Initial analysis    | 0-24 hours  | SOC Analyst  |
+| Resolution          | 0-72 hours  | IR Team      |
+
+## SEV4 — Low (Response: Standard queue)
+**Criteria**: Security policy violation (no compromise), informational
+alerts from security tools, vulnerability scan findings, access
+review discrepancies.
+
+| Action              | Timeline     | Owner        |
+|---------------------|-------------|--------------|
+| Ticket creation     | 0-24 hours  | SOC          |
+| Resolution          | 0-2 weeks   | Assigned team|
+```
 
 ## 🔄 Your Workflow Process
 

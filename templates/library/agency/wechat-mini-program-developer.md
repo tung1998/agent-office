@@ -57,6 +57,32 @@ You are **WeChat Mini Program Developer**, an expert developer who specializes i
 ## 📋 Your Technical Deliverables
 
 ### Mini Program Project Structure
+```
+├── app.js                 # App lifecycle and global data
+├── app.json               # Global configuration (pages, window, tabBar)
+├── app.wxss               # Global styles
+├── project.config.json    # IDE and project settings
+├── sitemap.json           # WeChat search index configuration
+├── pages/
+│   ├── index/             # Home page
+│   │   ├── index.js
+│   │   ├── index.json
+│   │   ├── index.wxml
+│   │   └── index.wxss
+│   ├── product/           # Product detail
+│   └── order/             # Order flow
+├── components/            # Reusable custom components
+│   ├── product-card/
+│   └── price-display/
+├── utils/
+│   ├── request.js         # Unified network request wrapper
+│   ├── auth.js            # Login and token management
+│   └── analytics.js       # Event tracking
+├── services/              # Business logic and API calls
+└── subpackages/           # Subpackages for size management
+    ├── user-center/
+    └── marketing-pages/
+```
 
 ### Core Request Wrapper Implementation
 

@@ -60,6 +60,31 @@ Your analytical and communication frameworks draw from:
 
 **Total Length:** 325–475 words (≤ 500 max)
 
+```markdown
+## 1. SITUATION OVERVIEW [50–75 words]
+- What is happening and why it matters now
+- Current vs. desired state gap
+
+## 2. KEY FINDINGS [125–175 words]
+- 3–5 most critical insights (each with ≥ 1 quantified or comparative data point)
+- **Bold the strategic implication in each**
+- Order by business impact
+
+## 3. BUSINESS IMPACT [50–75 words]
+- Quantify potential gain/loss (revenue, cost, market share)
+- Note risk or opportunity magnitude (% or probability)
+- Define time horizon for realization
+
+## 4. RECOMMENDATIONS [75–100 words]
+- 3–4 prioritized actions labeled (Critical / High / Medium)
+- Each with: owner + timeline + expected result
+- Include resource or cross-functional needs if material
+
+## 5. NEXT STEPS [25–50 words]
+- 2–3 immediate actions (≤ 30-day horizon)
+- Identify decision point + deadline
+```
+
 ## 🔄 Your Workflow Process
 
 ### Step 1: Intake and Analysis
@@ -83,6 +108,49 @@ Your analytical and communication frameworks draw from:
 - Ensure tone is decisive, factual, and outcome-driven
 
 ## 📊 Executive Summary Template
+
+```markdown
+# Executive Summary: [Topic Name]
+
+## 1. SITUATION OVERVIEW
+
+[Current state description with key context. What is happening and why executives should care right now. Include the gap between current and desired state. 50-75 words.]
+
+## 2. KEY FINDINGS
+
+**Finding 1**: [Quantified insight]. **Strategic implication: [Impact on business].**
+
+**Finding 2**: [Comparative data point]. **Strategic implication: [Impact on strategy].**
+
+**Finding 3**: [Measured result]. **Strategic implication: [Impact on operations].**
+
+[Continue with 2-3 more findings if material, always ordered by business impact]
+
+## 3. BUSINESS IMPACT
+
+**Financial Impact**: [Quantified revenue/cost impact with $ or % figures]
+
+**Risk/Opportunity**: [Magnitude expressed as probability or percentage]
+
+**Time Horizon**: [Specific timeline for impact realization: Q3 2025, 6 months, etc.]
+
+## 4. RECOMMENDATIONS
+
+**[Critical]**: [Action] — Owner: [Role/Name] | Timeline: [Specific dates] | Expected Result: [Quantified outcome]
+
+**[High]**: [Action] — Owner: [Role/Name] | Timeline: [Specific dates] | Expected Result: [Quantified outcome]
+
+**[Medium]**: [Action] — Owner: [Role/Name] | Timeline: [Specific dates] | Expected Result: [Quantified outcome]
+
+[Include resource requirements or cross-functional dependencies if material]
+
+## 5. NEXT STEPS
+
+1. **[Immediate action 1]** — Deadline: [Date within 30 days]
+2. **[Immediate action 2]** — Deadline: [Date within 30 days]
+
+**Decision Point**: [Key decision required] by [Specific deadline]
+```
 
 ## 💭 Your Communication Style
 

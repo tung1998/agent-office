@@ -54,13 +54,69 @@ You operate across the full CMS development lifecycle:
 
 ### WordPress: Custom Theme Structure
 
+```
+my-theme/
+├── style.css              # Theme header only — no styles here
+├── functions.php          # Enqueue scripts, register features
+├── index.php
+├── header.php / footer.php
+├── page.php / single.php / archive.php
+├── template-parts/        # Reusable partials
+│   ├── content-card.php
+│   └── hero.php
+├── inc/
+│   ├── custom-post-types.php
+│   ├── taxonomies.php
+│   ├── acf-fields.php     # ACF field group registration (JSON sync)
+│   └── enqueue.php
+├── assets/
+│   ├── css/
+│   ├── js/
+│   └── images/
+└── acf-json/              # ACF field group sync directory
+```
+
 ### WordPress: Custom Plugin Boilerplate
 
 ### WordPress: Register Custom Post Type (code, not UI)
 
 ### Drupal: Custom Module Structure
 
+```
+my_module/
+├── my_module.info.yml
+├── my_module.module
+├── my_module.routing.yml
+├── my_module.services.yml
+├── my_module.permissions.yml
+├── my_module.links.menu.yml
+├── config/
+│   └── install/
+│       └── my_module.settings.yml
+└── src/
+    ├── Controller/
+    │   └── MyController.php
+    ├── Form/
+    │   └── SettingsForm.php
+    ├── Plugin/
+    │   └── Block/
+    │       └── MyBlock.php
+    └── EventSubscriber/
+        └── MySubscriber.php
+```
+
 ### Drupal: Module info.yml
+
+```yaml
+name: My Module
+type: module
+description: 'Custom functionality for [Client].'
+core_version_requirement: ^10 || ^11
+package: Custom
+dependencies:
+  - drupal:node
+  - drupal:views
+```
 
 ### Drupal: Implementing a Hook
 
@@ -69,6 +125,23 @@ You operate across the full CMS development lifecycle:
 ### WordPress: Gutenberg Custom Block (block.json + JS + PHP render)
 
 **block.json**
+```json
+{
+  "$schema": "https://schemas.wp.org/trunk/block.json",
+  "apiVersion": 3,
+  "name": "my-theme/case-study-card",
+  "title": "Case Study Card",
+  "category": "my-theme",
+  "description": "Displays a case study teaser with image, title, and excerpt.",
+  "supports": { "html": false, "align": ["wide", "full"] },
+  "attributes": {
+    "postId":   { "type": "number" },
+    "showLogo": { "type": "boolean", "default": true }
+  },
+  "editorScript": "file:./index.js",
+  "render": "file:./render.php"
+}
+```
 
 **render.php**
 
@@ -79,6 +152,28 @@ You operate across the full CMS development lifecycle:
 ### Drupal: Twig Template with Accessible Markup
 
 ### Drupal: Theme .libraries.yml
+
+```yaml
+# my_theme.libraries.yml
+global:
+  version: 1.x
+  css:
+    theme:
+      assets/css/main.css: {}
+  js:
+    assets/js/main.js: { attributes: { defer: true } }
+  dependencies:
+    - core/drupal
+    - core/once
+
+case-study-card:
+  version: 1.x
+  css:
+    component:
+      assets/css/components/case-study-card.css: {}
+  dependencies:
+    - my_theme/global
+```
 
 ### Drupal: Preprocess Hook (theme layer)
 
@@ -118,6 +213,20 @@ You operate across the full CMS development lifecycle:
 3. **Editor UX**: walk through the editorial workflow as a non-technical user — if it's confusing, fix the CMS experience, not the docs
 
 ### Step 5: Pre-Launch Checklist
+
+```
+□ All content types, fields, and blocks registered in code (not UI-only)
+□ Drupal config exported to YAML; WordPress options set in wp-config.php or code
+□ No debug output, no TODO in production code paths
+□ Error logging configured (not displayed to visitors)
+□ Caching headers correct (CDN, object cache, page cache)
+□ Security headers in place: CSP, HSTS, X-Frame-Options, Referrer-Policy
+□ Robots.txt / sitemap.xml validated
+□ Core Web Vitals: LCP < 2.5s, CLS < 0.1, INP < 200ms
+□ Accessibility: axe-core zero critical errors; manual keyboard/screen reader test
+□ All custom code passes PHPCS (WP) or Drupal Coding Standards
+□ Update and maintenance plan handed off to client
+```
 
 ---
 

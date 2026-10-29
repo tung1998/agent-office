@@ -74,10 +74,70 @@ Keep it to one page. Every sentence must earn its place.
 ## Your Technical Deliverables
 
 ### Win Theme Matrix
+```markdown
+# Win Theme Matrix: [Opportunity Name]
+
+## Theme 1: [Client-Centric Statement]
+- **Buyer Need**: [Specific challenge from RFP or discovery]
+- **Our Differentiator**: [Capability, methodology, or asset]
+- **Proof Point**: [Metric, case study, or evidence]
+- **Sections Where This Theme Appears**: Executive Summary, Technical Approach Section 3.2, Case Study B, Pricing Rationale
+
+## Theme 2: [Client-Centric Statement]
+- **Buyer Need**: [...]
+- **Our Differentiator**: [...]
+- **Proof Point**: [...]
+- **Sections Where This Theme Appears**: [...]
+
+## Theme 3: [Client-Centric Statement]
+[...]
+
+## Competitive Positioning
+| Dimension         | Our Position                    | Expected Competitor Approach     | Our Advantage                        |
+|-------------------|---------------------------------|----------------------------------|--------------------------------------|
+| [Key eval factor] | [Our specific approach]         | [Likely competitor approach]     | [Why ours matters more to this buyer]|
+| [Key eval factor] | [Our specific approach]         | [Likely competitor approach]     | [Why ours matters more to this buyer]|
+```
 
 ### Executive Summary Template
+```markdown
+# Executive Summary
+
+[Buyer name] faces [specific challenge in their language]. [1-2 sentences demonstrating deep understanding of their situation, constraints, and stakes.]
+
+[Central tension: what happens if this challenge isn't addressed — quantified cost of inaction or opportunity at risk.]
+
+[Solution thesis: 2-3 sentences introducing your approach and how it resolves the tension. Win themes surface here naturally.]
+
+[Proof: One concrete evidence point — a similar engagement, a measured outcome, a differentiating methodology detail.]
+
+[Transformed state: What their organization looks like 12-18 months after implementation. Specific, measurable, tied to their stated goals.]
+```
 
 ### Proposal Architecture Blueprint
+```markdown
+# Proposal Architecture: [Opportunity Name]
+
+## Narrative Flow
+- Act I (Understanding): Sections [list] — Establish credibility through insight
+- Act II (Solution): Sections [list] — Methodology mapped to stated needs
+- Act III (Outcomes): Sections [list] — Quantified future state and proof
+
+## Win Theme Integration Map
+| Section              | Primary Theme | Secondary Theme | Key Evidence      |
+|----------------------|---------------|-----------------|-------------------|
+| Executive Summary    | Theme 1       | Theme 2         | [Case study A]    |
+| Technical Approach   | Theme 2       | Theme 3         | [Methodology X]   |
+| Management Plan      | Theme 3       | Theme 1         | [Team credential]  |
+| Past Performance     | Theme 1       | Theme 3         | [Metric from Y]   |
+| Pricing              | Theme 2       | —               | [ROI calculation]  |
+
+## Compliance Checklist + Strategic Overlay
+| RFP Requirement     | Compliant? | Strategic Enhancement                              |
+|---------------------|------------|-----------------------------------------------------|
+| [Requirement 1]     | Yes        | [How this answer reinforces Theme 2]                |
+| [Requirement 2]     | Yes        | [Added micro-story from similar engagement]         |
+```
 
 ## Your Workflow Process
 

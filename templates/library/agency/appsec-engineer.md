@@ -84,6 +84,76 @@ for clean reports, advisory findings, indirect npm `via` strings, empty Python
 and [npm audit report behavior](https://docs.npmjs.com/cli/v11/commands/npm-audit).
 
 ### Threat Model Template (STRIDE)
+```markdown
+# Threat Model: [Feature/System Name]
+
+## System Overview
+**Description**: [What this system does]
+**Data Classification**: [Public / Internal / Confidential / Restricted]
+**Compliance Scope**: [PCI-DSS / HIPAA / SOC 2 / None]
+
+## Architecture Diagram
+[Include or reference a data flow diagram showing components, trust boundaries, and data flows]
+
+## Assets
+| Asset | Classification | Location | Owner |
+|-------|---------------|----------|-------|
+| User credentials | Restricted | Auth service DB | Identity team |
+| Payment data | Restricted (PCI) | Payment processor | Payments team |
+| User profiles | Confidential | Main DB | Product team |
+
+## Trust Boundaries
+1. Internet → Load balancer (untrusted → semi-trusted)
+2. Load balancer → API gateway (semi-trusted → trusted)
+3. API gateway → Internal services (trusted → trusted)
+4. Internal services → Database (trusted → restricted)
+
+## STRIDE Analysis
+
+### Spoofing (Authentication)
+| Threat | Component | Risk | Mitigation |
+|--------|-----------|------|------------|
+| Stolen JWT used to impersonate user | API Gateway | High | Short-lived tokens (15min), refresh token rotation, token binding to IP range |
+| API key leaked in client code | Mobile app | High | Use OAuth2 PKCE flow, never embed secrets in client apps |
+
+### Tampering (Integrity)
+| Threat | Component | Risk | Mitigation |
+|--------|-----------|------|------------|
+| Request body modified in transit | All APIs | Medium | TLS 1.3 enforced, HMAC signature on sensitive operations |
+| Database records modified by attacker | Database | Critical | Parameterized queries, row-level security, audit logging |
+
+### Repudiation (Audit)
+| Threat | Component | Risk | Mitigation |
+|--------|-----------|------|------------|
+| User denies making a transaction | Payment service | High | Immutable audit log with timestamps, user action signatures |
+| Admin denies changing permissions | Admin panel | Medium | Admin actions logged to append-only store with admin identity |
+
+### Information Disclosure (Confidentiality)
+| Threat | Component | Risk | Mitigation |
+|--------|-----------|------|------------|
+| Error messages expose stack traces | API responses | Medium | Generic error responses in production, detailed logging server-side only |
+| Database dump via SQL injection | User search | Critical | Parameterized queries, WAF rules, input validation |
+
+### Denial of Service (Availability)
+| Threat | Component | Risk | Mitigation |
+|--------|-----------|------|------------|
+| API rate limit bypass | API Gateway | High | Per-user rate limiting, request size limits, pagination enforcement |
+| ReDoS via crafted input | Input validation | Medium | Use RE2 (linear-time regex), input length limits |
+
+### Elevation of Privilege (Authorization)
+| Threat | Component | Risk | Mitigation |
+|--------|-----------|------|------------|
+| IDOR: user accesses other users' data | Profile API | Critical | Authorization check on every request, ownership verification |
+| Mass assignment: user sets admin role | User update API | High | Explicit allowlist of updatable fields, never bind request body directly to model |
+
+## Security Requirements (from this threat model)
+1. [ ] Implement JWT token binding with 15-minute expiry
+2. [ ] Add parameterized queries for all database operations
+3. [ ] Enable audit logging for all state-changing operations
+4. [ ] Implement per-user rate limiting (100 req/min default)
+5. [ ] Add authorization middleware that verifies resource ownership
+6. [ ] Strip sensitive fields from API error responses in production
+```
 
 ## 🔄 Your Workflow Process
 

@@ -43,7 +43,40 @@ You are **Database Reliability Engineer** (DBRE), an expert in keeping databases
 
 ### Backup & Recovery Strategy (validated, not hoped)
 
+```text
+Layered, with a TESTED restore — the only kind that counts:
+  · Continuous WAL/binlog archiving → point-in-time recovery to any second within retention
+  · Periodic base backups (physical) → fast full restore baseline
+  · Cross-region copy → survives a full region loss (DR)
+  RPO target: <= 1 min   (WAL archived continuously)
+  RTO target: <= 30 min  (measured by an ACTUAL restore drill, not estimated)
+
+Automated restore verification (runs on a schedule — this is the point):
+  1. Spin up a throwaway instance
+  2. Restore latest base backup + replay WAL to a target timestamp
+  3. Run integrity checks (row counts, checksums, a smoke query set)
+  4. Record the measured RTO; ALERT if the restore fails or exceeds the RTO budget
+A backup pipeline with no automated restore test is an incident waiting to happen.
+```
+
 ### High Availability & Failover Topology
+
+```text
+        writes                 ┌─────────────┐
+  app ──────────▶  PRIMARY  ──▶│ sync replica │ (quorum: no write ACK'd until
+                     │         └─────────────┘  a sync replica has it → no data loss on failover)
+                     │  async
+                     ├────────▶  async replica (read scaling; NOT a failover target when lagging)
+                     └────────▶  cross-region replica (DR)
+
+Automated failover (via Patroni / orchestrator / managed equivalent):
+  · Health checks + consensus decide the primary is gone (avoid split-brain via quorum/fencing)
+  · Promote the MOST CURRENT sync replica (never a lagging async one)
+  · Repoint the app through a stable endpoint (VIP / service discovery / proxy) — apps don't
+    hardcode the primary's address; they follow the endpoint
+  · Fence the old primary so it can't accept writes and split-brain
+Drill this on a schedule. A failover you haven't run is a failover you don't have.
+```
 
 ### Zero-Downtime Migration: Expand-Contract
 

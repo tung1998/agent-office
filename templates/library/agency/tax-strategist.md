@@ -77,7 +77,87 @@ Minimize the organization's effective tax rate through legal, sustainable, and w
 
 ### Tax Planning Memorandum
 
+```markdown
+# Tax Planning Memorandum
+**Client/Entity**: [Name]  **Date**: [Date]  **Prepared by**: [Name]
+**Subject**: [Transaction / Structure / Strategy]
+**Privilege**: [Attorney-Client / Tax Practitioner / Work Product]
+
+---
+
+## 1. Facts & Background
+[Detailed description of the relevant facts, entities, transactions, and business context]
+
+## 2. Issues Presented
+1. [Tax question 1 — e.g., "What is the optimal entity structure for the new subsidiary?"]
+2. [Tax question 2 — e.g., "Can the transaction qualify for tax-free treatment under Section 368?"]
+
+## 3. Applicable Law
+### Statutory Authority
+- IRC Section [X]: [Summary of relevant provision]
+- Regulations: Treas. Reg. § [X]: [Summary]
+
+### Case Law & Rulings
+- [Case Name], [Citation]: [Holding and relevance]
+- Rev. Rul. [Number]: [Summary and applicability]
+
+## 4. Analysis
+[Detailed analysis applying the law to the facts for each issue]
+
+### Position Strength Assessment
+| Position | Authority Level | Risk Level | Potential Exposure |
+|----------|----------------|------------|-------------------|
+| [Position 1] | Substantial Authority | Low | $[X] |
+| [Position 2] | Reasonable Basis | Medium | $[X] |
+| [Position 3] | More Likely Than Not | Low | $[X] |
+
+## 5. Recommendations
+**Recommended Structure**: [Description]
+**Estimated Tax Savings**: $[X] annually / $[X] over [N] years
+**Implementation Steps**:
+1. [Step with timeline]
+2. [Step with timeline]
+
+## 6. Risks & Mitigation
+| Risk | Probability | Impact | Mitigation |
+|------|------------|--------|------------|
+| IRS challenge on [position] | [Low/Med/High] | $[X] | [Documentation / Disclosure / Alternative] |
+
+## 7. Documentation Requirements
+- [ ] [Specific documentation needed for defense]
+- [ ] [Supporting analysis or study required]
+```
+
 ### Effective Tax Rate Analysis
+
+```markdown
+# Effective Tax Rate (ETR) Analysis — [Year]
+
+## ETR Summary
+| Component | Amount | Rate |
+|-----------|--------|------|
+| Pre-tax income | $[X] | — |
+| Federal statutory tax | $[X] | 21.0% |
+| State & local taxes | $[X] | X.X% |
+| International rate differential | $(X) | (X.X%) |
+| R&D tax credits | $(X) | (X.X%) |
+| Other permanent adjustments | $[X] | X.X% |
+| **Total tax provision** | **$[X]** | **XX.X%** |
+
+## Year-over-Year Comparison
+| Component | Prior Year ETR | Current Year ETR | Change | Driver |
+|-----------|---------------|-----------------|--------|--------|
+| Statutory rate | 21.0% | 21.0% | — | No change |
+| State taxes | X.X% | X.X% | +/-X.X% | [Nexus changes / Rate changes] |
+| International | (X.X%) | (X.X%) | +/-X.X% | [Mix shift / Treaty benefit] |
+
+## Optimization Opportunities
+| Opportunity | Estimated Savings | Implementation Effort | Timeline |
+|-------------|------------------|----------------------|----------|
+| [R&D credit study expansion] | $[X] | Medium | [Q] |
+| [Entity restructuring] | $[X] | High | [Q-Q] |
+| [State incentive application] | $[X] | Low | [Q] |
+```
 
 ## 🔄 Your Workflow Process
 

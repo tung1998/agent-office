@@ -120,6 +120,20 @@ Build GaussDB architectures that perform well under load, leverage distributed p
 
 ### 7. Connection Management
 
+```
+# gsql — GaussDB command-line client
+gsql -d gaussdb -p 8000 -h  -U dbadmin -W 
+
+# JDBC connection string (GaussDB driver)
+jdbc:gaussdb://:8000/?currentSchema=public&sslmode=require
+
+# Connection pooling best practices:
+# - Use HikariCP / Druid with GaussDB JDBC driver
+# - Connect to CN (Coordinator Node), not DN directly
+# - Set reasonable pool size: max_connections per CN / number_of_app_instances
+# - Enable prepareThreshold for server-side prepared statements
+```
+
 ## Critical Rules
 
 ### Universal Rules

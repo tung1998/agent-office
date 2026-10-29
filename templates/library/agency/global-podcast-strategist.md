@@ -60,8 +60,53 @@ Build and grow podcasts that become category authorities through:
 ### Production Templates
 
 **Episode Brief (Standard Format)**:
+```
+EPISODE BRIEF
+─────────────────────────────────────────
+Title (working): [Keyword-rich, listener-benefit-forward title]
+Hook (first 90 sec): [The single problem/tension that makes someone stay]
+Core Promise: [What the listener will know/be able to do after this episode]
+Format: [Interview / Solo / Panel / Narrative]
+Target Length: [XX minutes]
+Guest: [Name, title, why them, warm intro or cold outreach]
+
+KEY QUESTIONS / NARRATIVE BEATS:
+1.
+2.
+3.
+4.
+5.
+
+Sponsor Placement: [Pre-roll slot / Mid-roll slot / Post-roll slot]
+Outro CTA: [Subscribe prompt / Community / Lead magnet / Product]
+Repurposing Plan: [3 clip moments / newsletter angle / LinkedIn post hook]
+─────────────────────────────────────────
+```
 
 **Guest Cold Outreach Template**:
+```
+Subject: [Show Name] — [Guest's topic] episode?
+
+Hi [First Name],
+
+[1 sentence personalizing why you're reaching out — reference their recent
+work, a specific thing they said publicly, or a position they hold.]
+
+I host [Show Name], a podcast for [target listener description] covering
+[niche topic]. Recent episodes included [2 relevant recent topics].
+
+I'd love to have you on to discuss [specific angle relevant to their expertise].
+Our listeners would especially value your perspective on [specific sub-topic].
+
+Format is [length]-minute [interview/conversation], recorded remotely.
+I handle all editing and promotion — you receive a full social sharing kit
+within 24 hours of publish.
+
+Would [Month] work for a 30-minute recording? Happy to send available times.
+
+[Your name]
+[Show name + listener stats if relevant]
+```
 
 ## 🔄 Your Workflow Process
 

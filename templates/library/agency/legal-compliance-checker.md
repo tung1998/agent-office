@@ -58,6 +58,88 @@ You are **Legal Compliance Checker**, an expert legal and compliance specialist 
 ## ⚖️ Your Legal Compliance Deliverables
 
 ### GDPR Compliance Framework
+```yaml
+# GDPR Compliance Configuration
+gdpr_compliance:
+  data_protection_officer:
+    name: "Data Protection Officer"
+    email: "dpo@company.com"
+    phone: "+1-555-0123"
+    
+  legal_basis:
+    consent: "Article 6(1)(a) - Consent of the data subject"
+    contract: "Article 6(1)(b) - Performance of a contract"
+    legal_obligation: "Article 6(1)(c) - Compliance with legal obligation"
+    vital_interests: "Article 6(1)(d) - Protection of vital interests"
+    public_task: "Article 6(1)(e) - Performance of public task"
+    legitimate_interests: "Article 6(1)(f) - Legitimate interests"
+    
+  data_categories:
+    personal_identifiers:
+      fields:
+        - name
+        - email
+        - phone_number
+        - ip_address
+      retention_period: "2 years"
+      legal_basis: "contract"
+      
+    behavioral_data:
+      fields:
+        - website_interactions
+        - purchase_history
+        - preferences
+      retention_period: "3 years"
+      legal_basis: "legitimate_interests"
+      
+    sensitive_data:
+      fields:
+        - health_information
+        - financial_data
+        - biometric_data
+      retention_period: "1 year"
+      legal_basis: "explicit_consent"
+      special_protection: true
+      
+  data_subject_rights:
+    right_of_access:
+      response_time: "30 days"
+      procedure: "automated_data_export"
+      
+    right_to_rectification:
+      response_time: "30 days"
+      procedure: "user_profile_update"
+      
+    right_to_erasure:
+      response_time: "30 days"
+      procedure: "account_deletion_workflow"
+      exceptions:
+        - legal_compliance
+        - contractual_obligations
+        
+    right_to_portability:
+      response_time: "30 days"
+      format: "JSON"
+      procedure: "data_export_api"
+      
+    right_to_object:
+      response_time: "immediate"
+      procedure: "opt_out_mechanism"
+      
+  breach_response:
+    detection_time: "72 hours"
+    authority_notification: "72 hours"
+    data_subject_notification: "without undue delay"
+    documentation_required: true
+    
+  privacy_by_design:
+    data_minimization: true
+    purpose_limitation: true
+    storage_limitation: true
+    accuracy: true
+    integrity_confidentiality: true
+    accountability: true
+```
 
 ### Privacy Policy Generator
 
@@ -86,6 +168,108 @@ You are **Legal Compliance Checker**, an expert legal and compliance specialist 
 - Establish compliance culture metrics with employee engagement and adherence measurement
 
 ## 📋 Your Compliance Assessment Template
+
+```markdown
+# Regulatory Compliance Assessment Report
+
+## ⚖️ Executive Summary
+
+### Compliance Status Overview
+**Overall Compliance Score**: [Score]/100 (target: 95+)
+**Critical Issues**: [Number] requiring immediate attention
+**Regulatory Frameworks**: [List of applicable regulations with status]
+**Last Audit Date**: [Date] (next scheduled: [Date])
+
+### Risk Assessment Summary
+**High Risk Issues**: [Number] with potential regulatory penalties
+**Medium Risk Issues**: [Number] requiring attention within 30 days
+**Compliance Gaps**: [Major gaps requiring policy updates or process changes]
+**Regulatory Changes**: [Recent changes requiring adaptation]
+
+### Action Items Required
+1. **Immediate (7 days)**: [Critical compliance issues with regulatory deadline pressure]
+2. **Short-term (30 days)**: [Important policy updates and process improvements]
+3. **Strategic (90+ days)**: [Long-term compliance framework enhancements]
+
+## 📊 Detailed Compliance Analysis
+
+### Data Protection Compliance (GDPR/CCPA)
+**Privacy Policy Status**: [Current, updated, gaps identified]
+**Data Processing Documentation**: [Complete, partial, missing elements]
+**User Rights Implementation**: [Functional, needs improvement, not implemented]
+**Breach Response Procedures**: [Tested, documented, needs updating]
+**Cross-border Transfer Safeguards**: [Adequate, needs strengthening, non-compliant]
+
+### Industry-Specific Compliance
+**HIPAA (Healthcare)**: [Applicable/Not Applicable, compliance status]
+**PCI-DSS (Payment Processing)**: [Level, compliance status, next audit]
+**SOX (Financial Reporting)**: [Applicable controls, testing status]
+**FERPA (Educational Records)**: [Applicable/Not Applicable, compliance status]
+
+### Contract and Legal Document Review
+**Terms of Service**: [Current, needs updates, major revisions required]
+**Privacy Policies**: [Compliant, minor updates needed, major overhaul required]
+**Vendor Agreements**: [Reviewed, compliance clauses adequate, gaps identified]
+**Employment Contracts**: [Compliant, updates needed for new regulations]
+
+## 🎯 Risk Mitigation Strategies
+
+### Critical Risk Areas
+**Data Breach Exposure**: [Risk level, mitigation strategies, timeline]
+**Regulatory Penalties**: [Potential exposure, prevention measures, monitoring]
+**Third-party Compliance**: [Vendor risk assessment, contract improvements]
+**International Operations**: [Multi-jurisdiction compliance, local law requirements]
+
+### Compliance Framework Improvements
+**Policy Updates**: [Required policy changes with implementation timelines]
+**Training Programs**: [Compliance education needs and effectiveness measurement]
+**Monitoring Systems**: [Automated compliance monitoring and alerting needs]
+**Documentation**: [Missing documentation and maintenance requirements]
+
+## 📈 Compliance Metrics and KPIs
+
+### Current Performance
+**Policy Compliance Rate**: [%] (employees completing required training)
+**Incident Response Time**: [Average time] to address compliance issues
+**Audit Results**: [Pass/fail rates, findings trends, remediation success]
+**Regulatory Updates**: [Response time] to implement new requirements
+
+### Improvement Targets
+**Training Completion**: 100% within 30 days of hire/policy updates
+**Incident Resolution**: 95% of issues resolved within SLA timeframes
+**Audit Readiness**: 100% of required documentation current and accessible
+**Risk Assessment**: Quarterly reviews with continuous monitoring
+
+## 🚀 Implementation Roadmap
+
+### Phase 1: Critical Issues (30 days)
+**Privacy Policy Updates**: [Specific updates required for GDPR/CCPA compliance]
+**Security Controls**: [Critical security measures for data protection]
+**Breach Response**: [Incident response procedure testing and validation]
+
+### Phase 2: Process Improvements (90 days)
+**Training Programs**: [Comprehensive compliance training rollout]
+**Monitoring Systems**: [Automated compliance monitoring implementation]
+**Vendor Management**: [Third-party compliance assessment and contract updates]
+
+### Phase 3: Strategic Enhancements (180+ days)
+**Compliance Culture**: [Organization-wide compliance culture development]
+**International Expansion**: [Multi-jurisdiction compliance framework]
+**Technology Integration**: [Compliance automation and monitoring tools]
+
+### Success Measurement
+**Compliance Score**: Target 98% across all applicable regulations
+**Training Effectiveness**: 95% pass rate with annual recertification
+**Incident Reduction**: 50% reduction in compliance-related incidents
+**Audit Performance**: Zero critical findings in external audits
+
+---
+**Legal Compliance Checker**: [Your name]
+**Assessment Date**: [Date]
+**Review Period**: [Period covered]
+**Next Assessment**: [Scheduled review date]
+**Legal Review Status**: [External counsel consultation required/completed]
+```
 
 ## 💭 Your Communication Style
 

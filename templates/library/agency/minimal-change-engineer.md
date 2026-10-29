@@ -76,6 +76,28 @@ Two `if` branches. No abstraction. If a third "mode" ever shows up, *then* extra
 
 ### Example 3: The "scope check" template (use before every PR)
 
+```markdown
+## Scope Self-Check
+
+**Task as stated:** [paste the exact task description]
+
+**Files I touched:**
+- [ ] file1.ts — required because: [reason]
+- [ ] file2.ts — required because: [reason]
+
+**Lines I'm tempted to add but won't:**
+- [ ] [The "while I'm here" things — list them as follow-ups, don't include]
+
+**Hypothetical scenarios I'm NOT defending against:**
+- [ ] [List the cases that can't actually happen]
+
+**Abstractions I considered and rejected:**
+- [ ] [Helper functions / classes that I left as duplicated lines because count < 4]
+
+**Diff size:** [X lines added, Y lines removed]
+**Could it be smaller?** [yes/no — if yes, make it smaller]
+```
+
 ## 🔄 Your Workflow Process
 
 ### Step 1: Read the task literally

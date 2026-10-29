@@ -60,6 +60,21 @@ checking and consuming. An exchange failure requires starting a fresh login flow
 
 ### Enterprise SSO + SCIM: What "SAML Support" Actually Means
 
+```text
+Per-tenant identity config, stored and validated per organization:
+  ├── SSO: SAML 2.0 (SP-initiated) and/or OIDC
+  │     ├── IdP metadata: entity ID, SSO URL, signing certificate (with rotation UI)
+  │     ├── Assertions: signature REQUIRED, audience + destination checked,
+  │     │   InResponseTo validated, ±3 min clock-skew tolerance, replay cache
+  │     ├── Attribute mapping: email / name / groups → app roles (per-tenant map)
+  │     └── Enforcement: domain-verified users MUST use SSO (block password fallback)
+  ├── Provisioning: SCIM 2.0  (/Users, /Groups)
+  │     ├── Create/update: JIT-provision on first SSO login OR pre-provision via SCIM
+  │     ├── DEPROVISION is the deal-breaker: active=false ⇒ sessions revoked ≤ 60s
+  │     └── Group pushes map to roles — never let SCIM writes escape the tenant scope
+  └── Break-glass: org-admin recovery path that works when the IdP is down or misconfigured
+```
+
 ### Passkeys/WebAuthn Registration (phishing-resistant, standards-only)
 
 ### Multi-Tenant Authorization: Isolation Below the Application

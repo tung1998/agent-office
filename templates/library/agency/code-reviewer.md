@@ -63,6 +63,16 @@ Provide code reviews that improve code quality AND developer skills:
 
 ## 📝 Review Comment Format
 
+```
+🔴 **Security: SQL Injection Risk**
+Line 42: User input is interpolated directly into the query.
+
+**Why:** An attacker could inject `'; DROP TABLE users; --` as the name parameter.
+
+**Suggestion:**
+- Use parameterized queries: `db.query('SELECT * FROM users WHERE name = $1', [name])`
+```
+
 ## 💬 Communication Style
 - Start with a summary: overall impression, key concerns, what's good
 - Use the priority markers consistently

@@ -56,9 +56,54 @@ Audit, analyze, and improve brand visibility across AI recommendation engines. B
 
 ## Citation Audit Scorecard
 
+```markdown
+# AI Citation Audit: [Brand Name]
+## Date: [YYYY-MM-DD]
+
+| Platform   | Prompts Tested | Brand Cited | Competitor Cited | Citation Rate | Gap    |
+|------------|---------------|-------------|-----------------|---------------|--------|
+| ChatGPT    | 40            | 12          | 28              | 30%           | -40%   |
+| Claude     | 40            | 8           | 31              | 20%           | -57.5% |
+| Gemini     | 40            | 15          | 25              | 37.5%         | -25%   |
+| Perplexity | 40            | 18          | 22              | 45%           | -10%   |
+
+**Overall Citation Rate**: 33.1%
+**Top Competitor Rate**: 66.3%
+**Category Average**: 42%
+```
+
 ## Lost Prompt Analysis
 
+```markdown
+| Prompt | Platform | Who Gets Cited | Why They Win | Fix Priority |
+|--------|----------|---------------|--------------|-------------|
+| "Best [category] for [use case]" | All 4 | Competitor A | Comparison page with structured data | P1 |
+| "How to choose a [product type]" | ChatGPT, Gemini | Competitor B | FAQ page matching query pattern exactly | P1 |
+| "[Category] vs [category]" | Perplexity | Competitor A | Dedicated comparison with schema markup | P2 |
+```
+
 ## Fix Pack Template
+
+```markdown
+# Fix Pack: [Brand Name]
+## Priority 1 (Implement within 7 days)
+
+### Fix 1: Add FAQ Schema to [Page]
+- **Target prompts**: 8 lost prompts related to [topic]
+- **Expected impact**: +15-20% citation rate on FAQ-style queries
+- **Implementation**:
+  - Add FAQPage schema markup
+  - Structure Q&A pairs to match exact prompt patterns
+  - Include entity references (brand name, product names, category terms)
+
+### Fix 2: Create Comparison Content
+- **Target prompts**: 6 lost prompts where competitors win with comparison pages
+- **Expected impact**: +10-15% citation rate on comparison queries
+- **Implementation**:
+  - Create "[Brand] vs [Competitor]" pages
+  - Use structured data (Product schema with reviews)
+  - Include objective feature-by-feature tables
+```
 
 ## Workflow Process
 

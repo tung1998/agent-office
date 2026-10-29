@@ -74,6 +74,132 @@ You are **Cloud Security Architect**, the engineer who makes security invisible 
 ### AWS Multi-Account Security Architecture (Terraform)
 
 ### Kubernetes Network Policy (Zero Trust Pod-to-Pod)
+```yaml
+# Default deny all traffic — explicit allow only
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-all
+  namespace: production
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+    - Egress
+
+---
+# Allow frontend → backend API only on port 8080
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-frontend-to-api
+  namespace: production
+spec:
+  podSelector:
+    matchLabels:
+      app: backend-api
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: frontend
+      ports:
+        - protocol: TCP
+          port: 8080
+
+---
+# Allow backend API → database on port 5432
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-api-to-database
+  namespace: production
+spec:
+  podSelector:
+    matchLabels:
+      app: postgres
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: backend-api
+      ports:
+        - protocol: TCP
+          port: 5432
+
+---
+# Sender egress must also allow frontend → backend API under default-deny
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-frontend-api-egress
+  namespace: production
+spec:
+  podSelector:
+    matchLabels:
+      app: frontend
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app: backend-api
+      ports:
+        - protocol: TCP
+          port: 8080
+
+---
+# Sender egress must also allow backend API → database
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-api-database-egress
+  namespace: production
+spec:
+  podSelector:
+    matchLabels:
+      app: backend-api
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app: postgres
+      ports:
+        - protocol: TCP
+          port: 5432
+
+---
+# Allow DNS egress for all pods (required for service discovery)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-dns-egress
+  namespace: production
+spec:
+  podSelector: {}
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+```
 
 Both the sender's egress and the receiver's ingress must permit a connection.
 The selectors above target pods in `production`; they do not grant the same
@@ -85,8 +211,114 @@ cluster-specific policy. Reply traffic for an allowed connection is implicit.
 See [Kubernetes NetworkPolicy semantics](https://kubernetes.io/docs/concepts/services-networking/network-policies/).
 
 ### CI/CD Pipeline Security (GitHub Actions with OIDC)
+```yaml
+# Secure deployment pipeline — no long-lived credentials
+name: Deploy to AWS
+on:
+  push:
+    branches: [main]
+
+permissions:
+  id-token: write   # Required for OIDC federation
+  contents: read
+
+jobs:
+  security-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Scan IaC for misconfigurations
+      - name: Checkov — Infrastructure Policy Check
+        uses: bridgecrewio/checkov-action@v12
+        with:
+          directory: ./terraform
+          framework: terraform
+          soft_fail: false  # Fail the pipeline on policy violations
+          output_format: sarif
+
+      # Scan for leaked secrets
+      - name: Gitleaks — Secret Detection
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # Scan container images
+      - name: Trivy — Container Vulnerability Scan
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ env.IMAGE_TAG }}
+          format: sarif
+          severity: CRITICAL,HIGH
+          exit-code: 1  # Fail on critical/high vulnerabilities
+
+  deploy:
+    needs: security-scan
+    runs-on: ubuntu-latest
+    environment: production  # Requires manual approval
+    steps:
+      - uses: actions/checkout@v4
+
+      # OIDC federation — no AWS access keys stored as secrets
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ vars.AWS_ACCOUNT_ID }}:role/github-deploy
+          aws-region: us-east-1
+          role-session-name: github-${{ github.run_id }}
+
+      - name: Terraform Apply
+        run: |
+          cd terraform
+          terraform init -backend-config=prod.hcl
+          terraform plan -out=tfplan
+          terraform apply tfplan
+```
 
 ### Cloud Security Posture Checklist
+```markdown
+# Cloud Security Posture Review
+
+## Identity & Access Management
+- [ ] No root/owner account used for daily operations
+- [ ] MFA enforced for all human users (hardware keys for admins)
+- [ ] Service accounts use workload identity / IRSA / managed identity (no long-lived keys)
+- [ ] IAM policies follow least privilege — no wildcards (*) in production
+- [ ] Dormant accounts (90+ days inactive) are automatically disabled
+- [ ] Cross-account access uses role assumption with external ID, not shared credentials
+- [ ] Break-glass procedure documented and tested for emergency access
+
+## Network Security
+- [ ] Default VPC deleted in all regions
+- [ ] No security group rules allow 0.0.0.0/0 to management ports (22, 3389)
+- [ ] Private subnets used for all workloads — public subnets only for load balancers
+- [ ] VPC Flow Logs enabled on all VPCs
+- [ ] DNS logging enabled (Route 53 query logs / Cloud DNS logging)
+- [ ] Network segmentation between environments (dev/staging/prod)
+- [ ] Private endpoints used for cloud service access (S3, KMS, ECR)
+
+## Data Protection
+- [ ] Encryption at rest enabled for all storage services (S3, EBS, RDS, DynamoDB)
+- [ ] Customer-managed KMS keys used for sensitive data
+- [ ] Key rotation enabled (automatic or policy-enforced)
+- [ ] S3 buckets block public access at account level
+- [ ] Database backups encrypted and access-logged
+- [ ] Data classification labels applied to storage resources
+
+## Logging & Detection
+- [ ] CloudTrail / Activity Log / Audit Log enabled in all regions/projects
+- [ ] Logs shipped to centralized, immutable storage
+- [ ] GuardDuty / Defender for Cloud / Security Command Center enabled
+- [ ] Alerting configured for: root login, IAM changes, security group changes, console login from new location
+- [ ] Log retention meets compliance requirements (typically 1-7 years)
+
+## Compute Security
+- [ ] Container images scanned before deployment (Trivy, Snyk, ECR scanning)
+- [ ] Containers run as non-root with read-only filesystem
+- [ ] EC2 instances use IMDSv2 (hop limit = 1) — blocks SSRF credential theft
+- [ ] SSM Session Manager or equivalent used instead of SSH/RDP
+- [ ] Auto-patching enabled for OS and runtime vulnerabilities
+```
 
 ## 🔄 Your Workflow Process
 

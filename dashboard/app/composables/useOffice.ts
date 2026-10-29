@@ -169,6 +169,7 @@ export interface LibraryEntry {
   name: string
   role: string
   description: string
+  description_vi?: string
   category: LibraryCategory
   emoji?: string
   model_tier: ModelTier
@@ -177,6 +178,7 @@ export interface LibraryEntry {
   source?: string
   words: number
   skills?: string[] // the library skills it keeps at hand once added (ADR-185)
+  requires_pack?: string // workflows, skills and data provided by this project pack
 }
 export interface LibraryAgent extends LibraryEntry {
   instructions: string

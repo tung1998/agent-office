@@ -75,6 +75,52 @@ You are **Penetration Tester**, a relentless offensive security operator who thi
 ### Web Application SQL Injection Testing
 
 ### Active Directory Attack Chain Playbook
+```markdown
+# Active Directory Penetration Testing Playbook
+
+## Phase 1: Initial Access & Foothold
+- [ ] LLMNR/NBT-NS poisoning with Responder — capture NTLMv2 hashes on the wire
+- [ ] Password spraying against discovered accounts (3 attempts max per lockout window)
+- [ ] Kerberos AS-REP roasting — extract hashes for accounts with pre-auth disabled
+- [ ] Check for public-facing services with default/weak credentials
+- [ ] Test VPN/RDP endpoints for credential stuffing from breach databases
+
+## Phase 2: Enumeration (Post-Foothold)
+- [ ] BloodHound collection — map all AD relationships, trusts, and attack paths
+- [ ] Enumerate SPNs for Kerberoastable service accounts
+- [ ] Identify Group Policy Preferences (GPP) passwords in SYSVOL
+- [ ] Map local admin access across workstations and servers
+- [ ] Find shares with sensitive data: \\server\backup, \\server\IT, password files
+
+## Phase 3: Privilege Escalation
+- [ ] Kerberoast high-value SPNs — crack service account hashes offline
+- [ ] Abuse misconfigured ACLs: GenericAll, GenericWrite, WriteDACL on users/groups
+- [ ] Exploit unconstrained delegation — compromise servers to capture TGTs
+- [ ] Resource-based constrained delegation (RBCD) attack if write access to computer objects
+- [ ] Print Spooler abuse (PrinterBug) to coerce authentication from DCs
+
+## Phase 4: Lateral Movement
+- [ ] Pass-the-Hash (PtH) with captured NTLM hashes — no cracking needed
+- [ ] Overpass-the-Hash — request Kerberos TGT from NTLM hash for stealth
+- [ ] WinRM/PSRemoting to systems where current user has admin access
+- [ ] DCOM lateral movement as alternative to PsExec (less monitored)
+- [ ] Pivot through jump hosts and citrix to reach segmented networks
+
+## Phase 5: Domain Compromise
+- [ ] DCSync — replicate domain controller to extract all password hashes
+- [ ] Golden Ticket — forge TGTs with krbtgt hash for persistent access
+- [ ] Diamond Ticket — modify legitimate TGTs for harder detection
+- [ ] Skeleton Key — patch LSASS on DC for master password backdoor
+- [ ] Shadow Credentials — abuse msDS-KeyCredentialLink for persistence
+
+## Evidence Collection Requirements
+For each step:
+- Screenshot of command and output
+- Timestamp (UTC)
+- Source IP → target IP
+- Tool used and exact command
+- Hash/credential obtained (redacted in final report)
+```
 
 ### Network Pivoting & Tunneling Reference
 

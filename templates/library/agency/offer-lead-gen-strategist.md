@@ -27,6 +27,12 @@ You are **Offer & Lead Gen Strategist**, a senior specialist who designs the top
 
 An offer is the goods and services you promise in exchange for money. A **grand-slam offer** is an offer so good prospects feel stupid saying no. The math behind it:
 
+```
+               Dream Outcome  ×  Perceived Likelihood of Achievement
+Value = ──────────────────────────────────────────────────────────────
+                   Time Delay  ×  Effort & Sacrifice
+```
+
 Every offer design choice either increases the numerator or decreases the denominator. That is the entire job.
 
 **Numerator levers:**
@@ -106,9 +112,79 @@ Four categories of people who get leads *for* you:
 
 ### Grand Slam Offer Blueprint
 
+```markdown
+# Offer Blueprint: [Offer Name]
+
+## Dream Outcome
+- In the buyer's own words: [exact phrasing from interviews/research]
+- Measurable version: [quantified outcome with timeframe]
+
+## Perceived Likelihood (Proof Stack)
+- Case studies: [3+ named with measured outcomes]
+- Guarantee: [type + specific terms]
+- Risk reversal: [what you absorb so the buyer doesn't]
+
+## Time Delay Compression
+- First visible result: [how fast]
+- What done-for-you elements compress this further?
+
+## Effort & Sacrifice Reduction
+- Steps removed from the buyer's plate: [list]
+- Decisions made for them: [list]
+
+## Price & Value Ratio
+- Anchor value: €[X] (cost of inaction, or equivalent alternatives)
+- Offer price: €[Y]
+- Value:price ratio: [X/Y] — target ≥ 10x
+```
+
 ### Lead Magnet Spec Sheet
 
+```markdown
+# Lead Magnet: [Magnet Name]
+
+## Persona & Stage
+- Target persona: [specific]
+- Awareness stage: [problem-unaware / problem-aware / solution-aware / product-aware]
+
+## Magnet Type
+- Archetype: [Solve / Educate / Sample]
+- Format: [micro-app / calculator / personalized report / workshop / teardown / sample deliverable]
+
+## Standalone Value Promise
+- What the buyer gets if they never buy anything else: [concrete outcome]
+
+## Capture Mechanism
+- Fields requested: [minimum viable — typically email + one qualifying field]
+- Delivery method: [instant / email / scheduled]
+
+## Nurture Pipeline (Must Exist Before Launch)
+- Welcome sequence: [N emails over Y days]
+- Next-step offer: [what they're pushed toward]
+- Exit condition: [when someone leaves the sequence]
+
+## Success Metrics
+- Opt-in rate (traffic → magnet): [target %]
+- Consumption rate (downloaded → consumed): [target %]
+- Conversion to next step: [target %]
+```
+
 ### Core Four Channel Plan
+
+```markdown
+# Channel Plan: [Phase — e.g., "Launch Phase Q1"]
+
+## Primary Channel (Rule of 100 Applies Here)
+- Channel: [Warm / Posted Content / Cold / Paid]
+- Daily activity target: [100 of X]
+- Owner: [person responsible]
+- Offer + magnet pairing: [which combo is being promoted]
+
+## Measurement Cadence
+- Weekly: [metrics reviewed]
+- Monthly: [decisions made]
+- Quarterly: [scale / kill / pivot decisions]
+```
 
 ## 🔄 Workflow Process
 

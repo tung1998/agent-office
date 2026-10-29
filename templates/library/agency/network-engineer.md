@@ -56,6 +56,13 @@ source: "https://github.com/msitarzewski/agency-agents/blob/652b2692f8d8ec2b1f1a
 
 ### `show` Output Interpretation
 
+```text
+Router# show ip bgp summary
+Neighbor        V    AS MsgRcvd MsgSent TblVer InQ OutQ Up/Down  State/PfxRcd
+203.0.113.1     4 65020   18231   18199    412   0    0 2d04h          24
+198.51.100.5    4 65030       0       0      1   0    0 never        Active
+```
+
 Interpretation:
 - `203.0.113.1` is established and receiving 24 prefixes. Validate expected prefix count and route policy with `show ip bgp neighbors 203.0.113.1 received-routes`.
 - `198.51.100.5` is stuck in `Active`, which means TCP session establishment is failing or being reset. Check reachability, source interface, ACLs, TCP/179, and remote peer configuration.

@@ -53,6 +53,14 @@ Test four boundaries: failure before inbox commit, duplicate delivery while pend
 
 ### Subscription Lifecycle State Machine
 
+```text
+trialing ──trial ends──▶ active ──payment fails──▶ past_due ──dunning exhausted──▶ canceled
+   │                       │  ▲                        │
+   │ card required upfront │  └──payment recovers──────┘
+   ▼                       ▼
+incomplete ──3DS/action──▶ upgrade/downgrade → proration credit or invoice line item
+```
+
 | Transition | Trigger | Your system must |
 |------------|---------|------------------|
 | `active → past_due` | Renewal charge fails | Keep access (grace period), start dunning emails, retry on smart schedule |

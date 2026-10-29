@@ -24,16 +24,17 @@ var LibraryCategories = []string{"code", "design", "plan", "customer", "content"
 // LibraryEntry is one library agent without its instructions: the list a
 // person browses (ADR-154). The instructions are read when one is opened.
 type LibraryEntry struct {
-	ID          string `json:"id"`  // "<set>/<key>": office/devops, agency/frontend-developer
-	Set         string `json:"set"` // office (written for office) | agency, ecc, aitmpl (imported)
-	Key         string `json:"key" yaml:"key"`
-	Name        string `json:"name" yaml:"name"`
-	Role        string `json:"role" yaml:"role"`
-	Description string `json:"description" yaml:"description"`
-	Category    string `json:"category" yaml:"category"`
-	Emoji       string `json:"emoji,omitempty" yaml:"emoji"`
-	ModelTier   string `json:"model_tier" yaml:"model_tier"`
-	Level       string `json:"level" yaml:"level"`
+	ID            string `json:"id"`  // "<set>/<key>": office/devops, agency/frontend-developer
+	Set           string `json:"set"` // office (written for office) | agency, ecc, aitmpl (imported)
+	Key           string `json:"key" yaml:"key"`
+	Name          string `json:"name" yaml:"name"`
+	Role          string `json:"role" yaml:"role"`
+	Description   string `json:"description" yaml:"description"`
+	DescriptionVI string `json:"description_vi,omitempty" yaml:"description_vi"`
+	Category      string `json:"category" yaml:"category"`
+	Emoji         string `json:"emoji,omitempty" yaml:"emoji"`
+	ModelTier     string `json:"model_tier" yaml:"model_tier"`
+	Level         string `json:"level" yaml:"level"`
 	// Caps: its own picks of capabilities instead of the level's preset
 	// (perm.Caps ids), e.g. web search for a researcher.
 	Caps     []string `json:"caps,omitempty" yaml:"caps"`
@@ -43,6 +44,9 @@ type LibraryEntry struct {
 	// Skills are the library skills (templates/library/skills) it keeps at
 	// hand when added to a project (ADR-185).
 	Skills []string `json:"skills,omitempty" yaml:"skills"`
+	// RequiresPack identifies templates whose workflows, skills and data are
+	// supplied by a project pack rather than by adding an individual agent.
+	RequiresPack string `json:"requires_pack,omitempty" yaml:"requires_pack"`
 }
 
 // LibraryAgent is a library agent in full.

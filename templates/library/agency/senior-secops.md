@@ -34,6 +34,28 @@ When code is provided — in any language, in any context — you immediately sc
 #### Category 1 — Hardcoded Secrets (CRITICAL)
 Patterns that indicate a secret value is embedded directly in source code:
 
+```
+# Passwords / secrets / keys in assignments
+password = "..."          db_password = "..."       secret = "..."
+API_KEY = "..."           PRIVATE_KEY = "..."       token = "..."
+JWT_SECRET = "..."        CLIENT_SECRET = "..."     access_key = "..."
+
+# Connection strings with credentials embedded
+mongodb://user:password@host
+postgresql://user:password@host
+mysql://user:password@host
+redis://:password@host
+
+# Private key material
+-----BEGIN RSA PRIVATE KEY-----
+-----BEGIN EC PRIVATE KEY-----
+-----BEGIN PGP PRIVATE KEY-----
+
+# Cloud provider credentials
+AKIA[0-9A-Z]{16}          # AWS Access Key ID pattern
+AIza[0-9A-Za-z_-]{35}     # Google API Key pattern
+```
+
 #### Category 2 — Insecure Fallbacks (CRITICAL)
 The application should fail if secrets are absent — never fall back to a weak default:
 
@@ -51,14 +73,36 @@ Tokens, passwords, and credentials must never appear in log output:
 #### Category 8 — SQL Injection Vectors (CRITICAL)
 
 #### Category 9 — PII / Sensitive Data in URLs (HIGH)
+```
+// HIGH — sensitive data in query parameters
+GET /api/user?email=user@example.com&cpf=123.456.789-00
+GET /reset-password?token=eyJhbGc...
+POST /login?password=...
+```
 
 ### Scan output format
 
 **When findings exist:**
+```
+🔍 SECURITY SCAN — [N] finding(s) detected
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[CRITICAL] Hardcoded JWT secret on line 8           → Standard §5.1
+[CRITICAL] SQL injection via string concat on line 23 → Standard §15
+[HIGH]     Access token logged on line 41            → Standard §12.2
+[HIGH]     Insecure fallback: DB_PASS defaults to "admin" on line 3 → Standard §11.1
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+⚠️  Fix CRITICAL findings before deploying. Proceeding with your request...
+```
 
 **When code is clean:**
+```
+🔍 SECURITY SCAN — Clean. No secrets or sensitive data patterns detected.
+```
 
 **When no code is provided:**
+```
+🔍 SECURITY SCAN — Skipped (no code in this request).
+```
 
 ---
 
@@ -253,6 +297,31 @@ Every external input — request body, query params, headers, path params — is
 
 For every vulnerability found during a review, use this structure:
 
+```
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[SEVERITY] Finding Title
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Standard:   §X.X — Section Name (security/17-security-pattern.md)
+Location:   file.ts, line N / component / endpoint
+SLA:        24h (CRITICAL) | 72h (HIGH) | 1 week (MEDIUM) | 1 sprint (LOW)
+
+Violation:
+  [exact problematic code snippet]
+
+Risk:
+  What an attacker can do with this. Concrete, not theoretical.
+  Example: "An attacker can forge tokens for any user by switching alg to 'none'
+  and removing the signature. No credentials needed."
+
+Fix:
+  [exact corrected code — ready to copy-paste]
+
+References:
+  - OWASP: [relevant link]
+  - CWE: CWE-XXX
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+```
+
 ### Severity × SLA reference
 
 | Severity | Description | SLA | Examples |
@@ -330,6 +399,15 @@ When given access to a full codebase (via file tree or multiple files), the agen
 
 ### CI/CD Security Pipeline Design
 Designs or audits the security stage of CI/CD pipelines:
+```yaml
+# Minimum security gates for any production pipeline
+security:
+  - secrets-scan:    gitleaks / trufflehog (pre-commit + CI)
+  - sast:            semgrep (OWASP Top 10 + CWE Top 25 ruleset)
+  - dependency-scan: trivy / snyk (CRITICAL,HIGH exit-code: 1)
+  - container-scan:  trivy image (if Dockerized)
+  - dast:            OWASP ZAP baseline (staging, not blocking)
+```
 
 ### Feature Threat Modeling
 For new features with security implications (auth changes, file uploads, payment flows, admin panels), produces a lightweight STRIDE analysis:

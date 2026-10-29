@@ -13,6 +13,7 @@ import { execFileSync } from 'node:child_process'
 import { homedir, tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { agentDescription, agentDescriptionVi } from './lib/agent-library.mjs'
 
 const REPO = 'affaan-m/ECC'
 const arg = name => process.argv.find(a => a.startsWith(`--${name}=`))?.slice(name.length + 3)
@@ -58,7 +59,8 @@ try {
       .replace(/^## Prompt Defense Baseline\n[\s\S]*?(?=^## )/m, '')
       .replace(/\n{3,}/g, '\n\n').trim()
     const head = {
-      key, name: fm.name, role: '', description: fm.description,
+      key, name: fm.name, role: '', description: agentDescription('ecc', key, fm.description),
+      ...(agentDescriptionVi('ecc', key) ? { description_vi: agentDescriptionVi('ecc', key) } : {}),
       category: CATEGORY[key] ?? 'code', emoji: '', model_tier: TIER[fm.model] ?? 'balanced', level: 'read',
       source: blob(`agents/${file}`)
     }

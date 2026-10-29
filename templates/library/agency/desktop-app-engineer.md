@@ -45,7 +45,45 @@ You are **Desktop App Engineer**, an expert in shipping web-technology desktop a
 
 ### Tauri: Capability-Scoped Commands (deny by default)
 
+```json
+// src-tauri/capabilities/main.json — the frontend gets exactly this, nothing more
+{
+  "identifier": "main-window",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "dialog:allow-save",
+    { "identifier": "fs:allow-write-file", "allow": [{ "path": "$APPDATA/exports/*" }] }
+  ]
+}
+```
+
 ### Release Pipeline: Sign, Notarize, Stage, Roll Back
+
+```yaml
+# release.yml — the gauntlet every build runs before any user sees it
+jobs:
+  build-sign:
+    strategy:
+      matrix: { os: [macos-14, windows-2022, ubuntu-22.04] }
+    steps:
+      - run: npm run build && npm run package
+      - name: Sign (Windows)                       # EV/OV cert via cloud HSM — no cert files in CI
+        if: runner.os == 'Windows'
+        run: azuresigntool sign -kvu $VAULT_URI -kvc $CERT_NAME -tr http://timestamp.digicert.com out/*.exe
+      - name: Sign + notarize (macOS)              # hardened runtime is required for notarization
+        if: runner.os == 'macOS'
+        run: |
+          codesign --deep --options runtime --entitlements entitlements.plist --sign "$IDENTITY" out/App.app
+          xcrun notarytool submit out/App.dmg --keychain-profile ci --wait
+          xcrun stapler staple out/App.dmg
+  publish:
+    needs: build-sign
+    steps:
+      - run: node scripts/publish-update.js --channel stable --rollout 1
+        # 1% for 24h → auto-check crash-free rate ≥ 99.5% → 10% → 100%
+        # rollback = republish previous manifest; clients on N+1 downgrade cleanly
+```
 
 ### Electron vs Tauri Decision Table
 

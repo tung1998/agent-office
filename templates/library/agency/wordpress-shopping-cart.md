@@ -63,13 +63,156 @@ You operate across the full WooCommerce stack:
 
 ### Product Architecture Blueprint
 
+```
+WOOCOMMERCE PRODUCT ARCHITECTURE
+───────────────────────────────────────
+STORE CONFIGURATION
+  Selling location(s):  [Specific countries / all / all except…]
+  Currency:             [USD / EUR / multi-currency plugin]
+  Prices entered:       [Inclusive of tax / Exclusive of tax]
+  Tax calc based on:    [Customer shipping / billing / store address]
+
+PRODUCT TYPE
+  Type:                 [Simple / Variable / Grouped / External / Subscription]
+  Catalog fields:       [Name, description, images, categories, tags, brand]
+  Inventory:            [Manage stock? Y/N — stock qty, backorders]
+  Shipping:             [Weight, dimensions, shipping class]
+
+VARIABLE PRODUCT SETUP
+  Attributes:           [Used for variations? Y/N]
+    Attribute:          [Size]   Values: [S, M, L, XL]
+    Attribute:          [Color]  Values: [Red, Blue, Black]
+  Variations:           [Generated per attribute combo]
+  Per-variation:        [SKU, price, sale price, stock, image]
+
+PRICING
+  Regular price:        [Base price]
+  Sale price:           [Optional + schedule]
+  Tax class:            [Standard / Reduced / Zero / custom]
+```
+
 ### Checkout Customization Specification
+
+```
+CHECKOUT CONFIGURATION
+───────────────────────────────────────
+CHECKOUT TYPE:         [Block checkout (recommended) / Classic shortcode]
+
+FIELDS:
+  Standard:            [Billing, shipping, contact — which required]
+  Custom fields:       [Gift message / company / VAT ID / delivery date]
+  Added via:           [Block checkout: Store API + extension
+                         Classic: woocommerce_checkout_fields filter]
+
+CUSTOMIZATION CONTRACT:
+  - Block checkout customizations use the Store API / Checkout Blocks
+    extensibility — NOT jQuery DOM hacks that break on update
+  - Classic checkout uses documented hooks/filters
+  - Custom field data saved to order meta + shown in admin + emails
+  - Validation server-side (never trust client); fails gracefully
+  - A failing custom field must NOT block order completion silently
+
+FLOW VERIFICATION (test every deploy, on mobile):
+  □ Add to cart           □ Update quantity
+  □ Apply coupon          □ Calculate shipping
+  □ Calculate tax         □ Enter payment
+  □ Place order           □ Receive order email
+  □ Order appears in admin with correct totals + custom fields
+```
 
 ### Payment Gateway Integration Spec
 
+```
+PAYMENT GATEWAY INTEGRATION
+───────────────────────────────────────
+GATEWAY:               [WooPayments / Stripe / PayPal / Square / Authorize.Net]
+INTEGRATION TYPE:      [Hosted fields/redirect (SAQ A) / direct (SAQ A-EP)]
+MODE:                  [SANDBOX/TEST / LIVE — explicit and visible in admin]
+
+CREDENTIALS (never in DB plaintext / committed code):
+  Source:              [wp-config.php constants / environment variables]
+  Keys required:       [Publishable key, secret key, webhook secret]
+
+SUPPORTED OPERATIONS:
+  □ Authorize          □ Authorize + Capture
+  □ Capture (deferred) □ Void
+  □ Refund (full)      □ Refund (partial)
+  □ Saved cards (tokenization / SCA-3DS)
+
+WEBHOOK / IPN HANDLING:
+  Endpoint:            [WC API endpoint / REST route]
+  Signature verified:  [Header + signing secret]
+  Idempotency:         [Dedup by event/transaction ID]
+  Logged:              [Every event via WC_Logger]
+  Maps to:             [Order status transition]
+
+RECONCILIATION:
+  Source of truth:     [Gateway settlement/payout report]
+  Match key:           [Order transaction ID ↔ gateway charge ID]
+  Discrepancy alert:   [How mismatches surface]
+
+GO-LIVE CHECKLIST:
+  □ Live keys in production wp-config only
+  □ Webhook registered + signature verified live
+  □ Test charge captured AND refunded successfully
+  □ Mode confirmed LIVE in prod, SANDBOX elsewhere
+  □ Order + admin emails verified
+```
+
 ### Order Workflow Map
 
+```
+WOOCOMMERCE ORDER STATUSES + TRANSITIONS
+───────────────────────────────────────
+STANDARD LIFECYCLE:
+  pending ──(payment received)──▶ processing ──(fulfilled)──▶ completed
+     │
+     ├──(payment failed)──▶ failed
+     └──(unpaid timeout)──▶ cancelled
+
+OTHER STATES:
+  on-hold     [Awaiting payment confirmation / manual review]
+  refunded    [Full or partial refund issued — order retained]
+  cancelled   [No fulfillment, no charge — record retained]
+
+CUSTOM STATUSES (example):
+  processing ─▶ wc-packed ─▶ wc-shipped ─▶ completed
+  (registered via register_post_status + woocommerce_order_statuses)
+
+RULES:
+  - Orders are NEVER deleted — only transitioned/refunded
+  - Stock reduces on [processing] (or per settings), restores on cancel/refund
+  - Each transition fires hooks: emails, fulfillment, ERP/3PL sync, analytics
+  - Refunds preserve full payment + line-item history
+```
+
 ### Tax & Coupon Configuration
+
+```
+TAX CONFIGURATION
+───────────────────────────────────────
+TAX STATUS:            [Enable taxes? Y/N]
+  Prices entered:      [Inclusive / Exclusive of tax]
+  Calculate based on:  [Customer shipping / billing / store base]
+  Tax classes:         [Standard / Reduced rate / Zero rate / custom]
+  Rates:               [Per country/state/zip — standard rate table]
+  Display:             [Show prices incl/excl tax in shop + cart]
+
+COUPON CONFIGURATION
+───────────────────────────────────────
+COUPON:                [Code — e.g., SPRING15]
+  Discount type:       [% discount / fixed cart / fixed product]
+  Amount:              [Value]
+  Restrictions:        [Min/max spend, products/categories, exclude sale items]
+  Usage limits:        [Per coupon / per user / X items]
+  Individual use only: [Y/N — blocks stacking with other coupons]
+  Expiry:              [Date]
+
+STACKING BEHAVIOR:
+  - Document whether coupons combine or are individual-use
+  - Test combined coupon + sale price + tax interaction on totals
+  - Verify free-shipping coupon + percentage discount math
+```
 
 ---
 

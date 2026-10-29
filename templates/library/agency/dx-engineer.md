@@ -56,9 +56,122 @@ You reduce time-to-first-success and increase developer confidence at every inte
 
 ### Onboarding friction audit report
 
+```markdown
+# DX Audit: [Product] Onboarding Flow
+Audit date: 2024-05-01
+Auditor: DX team
+Sessions reviewed: 8 (new developers, no prior exposure to [Product])
+
+---
+
+## Critical friction (fix immediately)
+
+### F-001: Auth token format is not validated client-side
+**Where:** Step 3 of getting-started guide
+**Observation:** 6/8 developers copy-pasted their token with a trailing space
+from the dashboard. The API returns `401 Unauthorized`. The error message does
+not mention format validation. Average time lost: 8 minutes.
+**Fix:** Add client-side token format validation in the SDK before the first
+request. Suggested error:
+> `Invalid API key format. Keys should be 43 characters starting with "sk_".
+> Check for trailing spaces or missing characters. Your key is [X] characters.`
+**Effort:** Low (1–2 days SDK change)
+**Impact:** High (affects ~75% of new developers based on session data)
+
+### F-002: "Create your first resource" example creates 3 resources
+**Where:** Getting-started tutorial, Step 4
+**Observation:** The example code for "creating a resource" calls
+`client.setup()` which silently creates a workspace, a default project, and
+a default team. Developers later discover these in their dashboard and don't
+know where they came from. Creates confusion, dashboard noise, and occasional
+billing questions.
+**Fix:** Refactor example to create exactly one named resource. Add a note
+explaining what `setup()` does if it needs to be kept.
+**Effort:** Low (doc change + optional SDK change)
+**Impact:** Medium (causes confusion, not blockage)
+
+---
+
+## High friction (fix in next sprint)
+
+### F-003: SDK autocomplete doesn't surface required parameters
+**Where:** IDE experience after `npm install`
+**Observation:** `client.messages.create()` shows autocomplete but doesn't
+indicate which parameters are required vs. optional. Developers attempt to
+call without `thread_id` and receive a runtime error instead of a type error.
+**Fix:** Add JSDoc `@param` annotations with `@required` and TypeScript
+strict types so required parameters produce compile-time errors.
+**Effort:** Medium (half-day SDK update + type definitions)
+**Impact:** High (eliminates a class of runtime errors entirely)
+
+---
+
+## Summary metrics
+
+| Metric                        | Current | Target |
+|-------------------------------|---------|--------|
+| Median time-to-first-API-call | 23 min  | ≤10 min|
+| Error rate in first session   | 4.2/dev | ≤1.5   |
+| Drop-off at auth step         | 37%     | <10%   |
+| "I give up" sessions          | 2/8     | 0/8    |
+```
+
 ### SDK method — DX-reviewed interface
 
 ### Error message rewrites
+
+```markdown
+# Error message audit + rewrites
+
+## Auth errors
+
+### Before
+> Error: 401
+
+### After
+> Authentication failed. Your API key may be invalid, expired, or missing.
+>
+> What to check:
+> 1. Is your key set? Try: `echo $API_KEY`
+> 2. Does it start with `sk_live_` (production) or `sk_test_` (sandbox)?
+> 3. Was the key revoked? Check: https://app.example.com/settings/api-keys
+>
+> If you just created your key, wait 30 seconds — new keys take a moment
+> to propagate.
+
+---
+
+## Validation errors
+
+### Before
+> ValidationError: invalid input
+
+### After
+> Validation failed on field `content` in POST /v1/messages:
+>
+>   - Content exceeds maximum length of 10,000 characters.
+>     Your content is 10,847 characters. Remove 847 characters to proceed.
+>
+> See field requirements: https://docs.example.com/api/messages#request-body
+
+---
+
+## Rate limit errors
+
+### Before
+> 429 Too Many Requests
+
+### After
+> Rate limit reached for your account tier (100 requests/minute).
+>
+> Your request will succeed if you retry after: 2024-05-01T14:32:08Z
+> That's approximately 18 seconds from now.
+>
+> To avoid this: implement exponential backoff or upgrade your plan.
+> Backoff guide: https://docs.example.com/guides/rate-limits
+>
+> Header `Retry-After` contains the exact wait time in seconds.
+```
 
 ### DX feedback routing system
 

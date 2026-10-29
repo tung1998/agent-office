@@ -74,8 +74,181 @@ You are **Threat Intelligence Analyst**, the intelligence operator who turns raw
 ### YARA Rule Development
 
 ### Sigma Detection Rules
+```yaml
+# Sigma Rule: Kerberoasting via Service Ticket Request
+# Detects mass TGS requests indicative of Kerberoasting attacks
+
+title: Potential Kerberoasting Activity
+id: a3f5b2d1-4e7c-8a9b-1234-567890abcdef
+status: stable
+level: high
+description: |
+  Detects when a single user requests an unusually high number of Kerberos
+  service tickets (TGS) with RC4 encryption within a short time window.
+  This pattern is characteristic of Kerberoasting, where an attacker
+  requests service tickets to crack service account passwords offline.
+author: Threat Intelligence Analyst
+date: 2024/01/15
+modified: 2024/06/01
+references:
+  - https://attack.mitre.org/techniques/T1558/003/
+tags:
+  - attack.credential_access
+  - attack.t1558.003
+logsource:
+  product: windows
+  service: security
+detection:
+  selection:
+    EventID: 4769              # Kerberos Service Ticket Operation
+    TicketEncryptionType: '0x17'  # RC4-HMAC (weak, targeted by Kerberoasting)
+    Status: '0x0'              # Success
+  filter_machine_accounts:
+    ServiceName|endswith: '$'   # Exclude machine account tickets
+  filter_krbtgt:
+    ServiceName: 'krbtgt'       # Exclude TGT renewals
+  condition: selection and not filter_machine_accounts and not filter_krbtgt | count(ServiceName) by TargetUserName > 10
+  timeframe: 5m
+falsepositives:
+  - Vulnerability scanners that enumerate SPNs
+  - Monitoring tools that query multiple services
+  - Service account health checks (should use AES, not RC4)
+
+---
+# Sigma Rule: Suspicious PowerShell Download Cradle
+
+title: PowerShell Download Cradle Execution
+id: b4c6d3e2-5f8a-9b0c-2345-678901bcdef0
+status: stable
+level: high
+description: |
+  Detects common PowerShell download cradle patterns used by threat actors
+  for initial payload delivery. Covers Net.WebClient, Invoke-WebRequest,
+  Invoke-Expression combinations, and encoded command variants.
+author: Threat Intelligence Analyst
+date: 2024/01/15
+references:
+  - https://attack.mitre.org/techniques/T1059/001/
+  - https://attack.mitre.org/techniques/T1105/
+tags:
+  - attack.execution
+  - attack.t1059.001
+  - attack.defense_evasion
+  - attack.t1027
+logsource:
+  product: windows
+  category: process_creation
+detection:
+  selection_powershell:
+    Image|endswith:
+      - '\powershell.exe'
+      - '\pwsh.exe'
+  selection_download_patterns:
+    CommandLine|contains:
+      - 'Net.WebClient'
+      - 'DownloadString'
+      - 'DownloadFile'
+      - 'DownloadData'
+      - 'Invoke-WebRequest'
+      - 'iwr '
+      - 'wget '
+      - 'curl '
+      - 'Start-BitsTransfer'
+  selection_execution_patterns:
+    CommandLine|contains:
+      - 'Invoke-Expression'
+      - 'iex '
+      - 'IEX('
+      - '| iex'
+  selection_encoded:
+    CommandLine|contains:
+      - '-enc '
+      - '-EncodedCommand'
+      - '-e '
+      - 'FromBase64String'
+  condition: selection_powershell and
+    (
+      (selection_download_patterns and selection_execution_patterns) or
+      (selection_download_patterns and selection_encoded) or
+      (selection_encoded and selection_execution_patterns)
+    )
+falsepositives:
+  - Legitimate software installation scripts
+  - System management tools (SCCM, Intune)
+  - Developer tooling that downloads dependencies
+```
 
 ### Threat Actor Profile Template
+```markdown
+# Threat Actor Profile: [Name / Tracking ID]
+
+## Attribution & Aliases
+| Organization | Tracking Name   |
+|-------------|-----------------|
+| [Your org]  | [Internal ID]   |
+| Mandiant    | [APTxx / UNCxxxx] |
+| CrowdStrike | [Animal name]   |
+| Microsoft   | [Weather name]  |
+
+**Confidence in attribution**: [Low / Medium / High]
+**Basis**: [Infrastructure overlap, code reuse, TTPs, operational patterns, HUMINT]
+
+## Overview
+[2-3 paragraph summary: who they are, what they want, how they operate]
+
+## Targeting
+| Dimension    | Details                          |
+|-------------|----------------------------------|
+| Industries  | [Primary targets by sector]      |
+| Geography   | [Targeted regions/countries]     |
+| Motivation  | [Espionage / Financial / Hacktivism / Sabotage] |
+| Active since| [First observed date]            |
+| Last seen   | [Most recent confirmed activity] |
+
+## ATT&CK TTP Summary
+
+### Initial Access
+| Technique | ID | Details |
+|-----------|----|---------|
+| Spearphishing | T1566.001 | [Specific tradecraft: lure themes, delivery method] |
+
+### Execution
+| Technique | ID | Details |
+|-----------|----|---------|
+| PowerShell | T1059.001 | [Specific usage pattern, obfuscation methods] |
+
+### Persistence
+| Technique | ID | Details |
+|-----------|----|---------|
+| Scheduled Task | T1053.005 | [Naming convention, execution pattern] |
+
+[Continue for all observed phases...]
+
+## Tooling
+| Tool | Type | First Seen | Notes |
+|------|------|-----------|-------|
+| [Custom malware] | RAT | [Date] | [Unique characteristics] |
+| [Cobalt Strike] | C2 | [Date] | [Malleable profile, watermark] |
+| [Living-off-the-land] | LOLBin | [Date] | [Specific binaries abused] |
+
+## Infrastructure
+| Type | Pattern | Examples |
+|------|---------|----------|
+| C2 domains | [Registration patterns] | [Redacted examples] |
+| Hosting | [Preferred providers] | [ASN patterns] |
+| Email | [Sender patterns] | [Spoofed domains] |
+
+## Indicators of Compromise
+[Link to machine-readable IOC file — STIX 2.1 or CSV]
+
+## Detection Opportunities
+[Specific detection rules, behavioral analytics, and hunting queries]
+
+## Recommended Defensive Actions
+1. [Highest priority action]
+2. [Second priority action]
+3. [Third priority action]
+```
 
 ### IOC Enrichment & Correlation Script
 

@@ -7,7 +7,7 @@
 const props = defineProps<{ tall?: boolean }>()
 const emit = defineEmits<{ pick: [a: LibraryAgent] }>()
 const selected = defineModel<LibraryAgent>('selected')
-const { t } = useLang()
+const { t, lang } = useLang()
 const toast = useToast()
 
 const { data, error, refresh } = useLiveFetch<{ agents: LibraryEntry[] }>('/api/agent-library', { lazy: true })
@@ -25,8 +25,9 @@ const shown = computed(() => {
   const q = fold(query.value.trim())
   const f = q ? '' : filter.value // a search looks everywhere
   return (data.value?.agents ?? []).filter(a => (!f || (f === 'featured' ? a.featured : a.category === f))
-    && (!q || fold(`${a.name} ${a.role} ${a.description} ${a.key}`).includes(q)))
+    && (!q || fold(`${a.name} ${a.role} ${a.description} ${a.description_vi ?? ''} ${a.key}`).includes(q)))
 })
+const description = (a: LibraryEntry) => (lang.value === 'vi' && a.description_vi) || a.description || a.role
 const icon = (c: LibraryCategory) => ({ code: 'i-lucide-code', design: 'i-lucide-palette', plan: 'i-lucide-list-checks', customer: 'i-lucide-headset', content: 'i-lucide-pen-line' })[c]
 
 // the instructions are read on open; the last click wins
@@ -91,7 +92,8 @@ async function open(e: LibraryEntry, use = false) {
               </UTooltip>
               <span class="break-words">{{ a.name }}</span>
             </p>
-            <p class="line-clamp-2 text-xs text-(--ui-text-muted)">{{ a.role || a.description }}</p>
+            <p class="line-clamp-2 text-xs text-(--ui-text-muted)">{{ description(a) }}</p>
+            <p v-if="a.requires_pack" class="mt-1 break-words text-xs text-(--ui-warning)">{{ t('team.lib.requiresPack', { pack: a.requires_pack }) }}</p>
           </div>
         </button>
       </div>
@@ -107,14 +109,15 @@ async function open(e: LibraryEntry, use = false) {
           <UButton size="xs" color="neutral" variant="ghost" icon="i-lucide-x" :aria-label="t('common.close')" @click="selected = undefined" />
         </UTooltip>
       </div>
-      <p class="text-sm text-(--ui-text-toned)">{{ selected.description }}</p>
+      <p class="text-sm text-(--ui-text-toned)">{{ description(selected) }}</p>
+      <LibraryPackNotice v-if="selected.requires_pack" :pack="selected.requires_pack" />
       <pre class="max-h-56 overflow-y-auto whitespace-pre-wrap rounded bg-(--ui-bg-elevated) p-2 text-xs">{{ selected.instructions }}</pre>
       <div class="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-(--ui-text-muted)">
         <span>{{ t('team.lib.words', { n: selected.words }) }}</span>
         <span v-if="selected.set !== 'office'" class="inline-flex items-center gap-1 text-(--ui-warning)">
           <UIcon name="i-lucide-info" class="size-3.5" />{{ t('team.lib.agencyNote') }}
         </span>
-        <ULink v-if="selected.source" :to="selected.source" target="_blank" class="inline-flex items-center gap-1">
+        <ULink v-if="selected.source?.startsWith('https://')" :to="selected.source" target="_blank" class="inline-flex items-center gap-1">
           <UIcon name="i-lucide-external-link" class="size-3.5" />{{ t('team.lib.source') }}
         </ULink>
       </div>

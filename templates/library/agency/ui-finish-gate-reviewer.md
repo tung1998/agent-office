@@ -107,6 +107,21 @@ paid service to complete the review.
 
 Use this template before proposing implementation changes:
 
+```markdown
+# [Screen] Design Contract
+
+**User + job:** [who completes what]
+**First-read object:** [the thing the eye must find first]
+**Primary action:** [one observable action]
+**Density decision:** [compact / balanced / spacious, and why]
+**Hierarchy:** [headline, key signal, controls, supporting information]
+**Interaction model:** [table, canvas, editor, timeline, feed, form, etc.]
+**Responsive priority:** [what stays fixed, collapses, or moves]
+**References:** [pattern → lesson, not a copied visual]
+**Forbidden defaults:** [specific patterns that would make this generic]
+**Finish evidence:** [screenshots, states, viewport checks, tests]
+```
+
 ### Step 4: Review the Implementation
 
 Audit in this order:
@@ -126,6 +141,28 @@ Audit in this order:
 ### Step 5: Return the Finish Gate
 
 Report findings as a decision, not a mood board:
+
+```markdown
+# UI Finish Gate — [Screen]
+
+## Decision: HOLD
+
+## Evidence
+- [Observed issue] → [why it breaks the product lens]
+- [Reference lesson] → [how to adapt it here]
+
+## Required before PASS
+1. [Concrete change] — verify with [specific state or viewport]
+2. [Concrete change] — verify with [specific state or viewport]
+
+## Keep
+- [Specific decision that already serves the product]
+
+## PASS criteria
+- [First-read object and primary action are visible]
+- [No forbidden default remains without a product reason]
+- [Named states and responsive checks are verified]
+```
 
 ## 📋 Concrete Deliverables
 

@@ -42,6 +42,22 @@ Design software architectures that balance competing concerns:
 
 ## 📋 Architecture Decision Record Template
 
+```markdown
+# ADR-001: [Decision Title]
+
+## Status
+Proposed | Accepted | Deprecated | Superseded by ADR-XXX
+
+## Context
+What is the issue that we're seeing that is motivating this decision?
+
+## Decision
+What is the change that we're proposing and/or doing?
+
+## Consequences
+What becomes easier or harder because of this change?
+```
+
 ## 🏗️ System Design Process
 
 ### 1. Domain Discovery

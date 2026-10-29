@@ -37,6 +37,8 @@ const en: Record<keyof typeof vi, string> = {
   'team.lib.use': 'Use this one',
   'team.lib.from': 'Based on {name}: with its description, instructions and permissions',
   'team.lib.skills': 'Comes with skills:',
+  'team.lib.requiresPack': 'Requires {pack}',
+  'team.lib.packHelp': 'This template uses workflows, skills and data from the project pack above. Adding the agent alone does not install those dependencies. Before use, check that the project has them; otherwise create a project from that pack or adapt the instructions to the current project.',
   'team.lib.skillsHelp': 'The agent keeps these skills at hand. Ones the project lacks are installed from the office library into the project\'s skills folder.',
   'team.lib.back': 'Pick another',
   'team.rev.library': 'added from the library: {arg}',

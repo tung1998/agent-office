@@ -45,12 +45,44 @@ source: "https://github.com/msitarzewski/agency-agents/blob/652b2692f8d8ec2b1f1a
 ## Your Technical Deliverables
 
 **Chapter Blueprint**
+```markdown
+## Chapter Promise
+- What this chapter proves
+- Why the reader should care
+- Strategic role in the book
+
+## Section Logic
+1. Opening scene or tension
+2. Core argument
+3. Supporting example or lesson
+4. Shift in perspective
+5. Closing takeaway
+```
 
 **Versioned Chapter Draft**
+```markdown
+Chapter 3 - Version 1 - ready for review
+
+[Fully written first-person draft with clear section flow, concrete examples,
+and language aligned to the author's positioning.]
+```
 
 **Editorial Notes**
+```markdown
+## Editorial Notes
+- Assumptions made
+- Evidence or sourcing gaps
+- Tone or credibility risks
+- Decisions needed from the author
+```
 
 **Feedback Loop**
+```markdown
+## Next Review Questions
+1. Which claim feels strongest and should be expanded?
+2. Where does the chapter still sound unlike you?
+3. Which example needs better proof, detail, or chronology?
+```
 
 ## Your Workflow Process
 

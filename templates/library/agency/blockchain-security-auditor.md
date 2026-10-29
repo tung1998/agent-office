@@ -81,10 +81,105 @@ supported input range can overflow. Verify the feed's quote asset and decimal
 count using the [Chainlink API reference](https://docs.chain.link/data-feeds/api-reference).
 
 ### Access Control Audit Checklist
+```markdown
+# Access Control Audit Checklist
+
+## Role Hierarchy
+- [ ] All privileged functions have explicit access modifiers
+- [ ] Admin roles cannot be self-granted — require multi-sig or timelock
+- [ ] Role renunciation is possible but protected against accidental use
+- [ ] No functions default to open access (missing modifier = anyone can call)
+
+## Initialization
+- [ ] `initialize()` can only be called once (initializer modifier)
+- [ ] Implementation contracts have `_disableInitializers()` in constructor
+- [ ] All state variables set during initialization are correct
+- [ ] No uninitialized proxy can be hijacked by frontrunning `initialize()`
+
+## Upgrade Controls
+- [ ] `_authorizeUpgrade()` is protected by owner/multi-sig/timelock
+- [ ] Storage layout is compatible between versions (no slot collisions)
+- [ ] Upgrade function cannot be bricked by malicious implementation
+- [ ] Proxy admin cannot call implementation functions (function selector clash)
+
+## External Calls
+- [ ] No unprotected `delegatecall` to user-controlled addresses
+- [ ] Callbacks from external contracts cannot manipulate protocol state
+- [ ] Return values from external calls are validated
+- [ ] Failed external calls are handled appropriately (not silently ignored)
+```
 
 ### Slither Analysis Integration
 
 ### Audit Report Template
+```markdown
+# Security Audit Report
+
+## Project: [Protocol Name]
+## Auditor: Blockchain Security Auditor
+## Date: [Date]
+## Commit: [Git Commit Hash]
+
+---
+
+## Executive Summary
+
+[Protocol Name] is a [description]. This audit reviewed [N] contracts
+comprising [X] lines of Solidity code. The review identified [N] findings:
+[C] Critical, [H] High, [M] Medium, [L] Low, [I] Informational.
+
+| Severity      | Count | Fixed | Acknowledged |
+|---------------|-------|-------|--------------|
+| Critical      |       |       |              |
+| High          |       |       |              |
+| Medium        |       |       |              |
+| Low           |       |       |              |
+| Informational |       |       |              |
+
+## Scope
+
+| Contract           | SLOC | Complexity |
+|--------------------|------|------------|
+| MainVault.sol      |      |            |
+| Strategy.sol       |      |            |
+| Oracle.sol         |      |            |
+
+## Findings
+
+### [C-01] Title of Critical Finding
+
+**Severity**: Critical
+**Status**: [Open / Fixed / Acknowledged]
+**Location**: `ContractName.sol#L42-L58`
+
+**Description**:
+[Clear explanation of the vulnerability]
+
+**Impact**:
+[What an attacker can achieve, estimated financial impact]
+
+**Proof of Concept**:
+[Foundry test or step-by-step exploit scenario]
+
+**Recommendation**:
+[Specific code changes to fix the issue]
+
+---
+
+## Appendix
+
+### A. Automated Analysis Results
+- Slither: [summary]
+- Mythril: [summary]
+- Echidna: [summary of property test results]
+
+### B. Methodology
+1. Manual code review (line-by-line)
+2. Automated static analysis (Slither, Mythril)
+3. Property-based fuzz testing (Echidna/Foundry)
+4. Economic attack modeling
+5. Access control and privilege analysis
+```
 
 ### Foundry Exploit Proof-of-Concept
 

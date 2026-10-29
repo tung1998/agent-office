@@ -63,13 +63,171 @@ You operate across the full Drupal Commerce stack:
 
 ### Product Architecture Blueprint
 
+```
+DRUPAL COMMERCE PRODUCT ARCHITECTURE
+───────────────────────────────────────
+STORE CONFIGURATION
+  Store type:           [Online / Physical / Multi-store]
+  Default currency:     [USD / EUR / multi-currency]
+  Tax registration:     [Jurisdictions where tax is collected]
+  Billing countries:    [Allowed billing/shipping countries]
+
+PRODUCT TYPE
+  Machine name:         [e.g., default, apparel, digital]
+  Product fields:       [title, body, images, brand, category…]
+  Variation type:       [Linked variation type]
+  Stores:               [Single store / assigned stores]
+
+PRODUCT VARIATION TYPE
+  Machine name:         [e.g., apparel_variation]
+  SKU pattern:          [How SKUs are generated/validated]
+  Price field:          [commerce_price — list price + price]
+  Attributes:           [Size, Color, Material…]
+  Generates title:      [Auto from attributes? Yes/No]
+  Inventory tracked:    [Yes/No — which stock provider]
+
+ATTRIBUTES
+  Attribute:            [Size]   Values: [S, M, L, XL]
+  Attribute:            [Color]  Values: [Red, Blue, Black]
+  Rendered as:          [Select / radios / swatch widget]
+
+DERIVED MATRIX
+  [Size × Color] → N variations, each with own SKU, price, stock
+```
+
 ### Checkout Flow Specification
+
+```
+CHECKOUT FLOW DEFINITION
+───────────────────────────────────────
+FLOW: [machine_name — e.g., default, express, digital]
+
+STEP: Login
+  Panes: [login, registration, guest checkout]
+
+STEP: Order Information
+  Panes:
+    □ contact_information   (email — required)
+    □ billing_information   (address)
+    □ shipping_information  (address + shipping rate)
+    □ [custom pane: gift message / PO number / etc.]
+  Validation: [Address verification? Tax recalculation?]
+
+STEP: Review
+  Panes:
+    □ review (order summary — items, prices, tax, total)
+    □ [custom: terms acceptance / age verification]
+
+STEP: Payment
+  Panes:
+    □ payment_information (gateway + method selection)
+    □ payment_process (on-site capture / redirect off-site)
+
+STEP: Complete
+  Panes:
+    □ completion_message
+    □ [custom: receipt, fulfillment trigger, analytics event]
+
+CUSTOM PANE CONTRACT (for any added pane):
+  - buildPaneForm() validates input, never trusts client values
+  - validatePaneForm() blocks only on true errors
+  - submitPaneForm() is idempotent and exception-safe
+  - failure logs to watchdog and does NOT abort checkout
+```
 
 ### Payment Gateway Integration Spec
 
+```
+PAYMENT GATEWAY INTEGRATION
+───────────────────────────────────────
+GATEWAY:               [Stripe / PayPal / Braintree / Authorize.Net / custom]
+INTEGRATION TYPE:      [On-site (PCI SAQ A-EP) / Off-site redirect (SAQ A)]
+MODE:                  [TEST / LIVE — must be explicit and visible]
+
+CREDENTIALS (never committed):
+  Source:              [Environment variable / secrets manager]
+  Keys required:       [Publishable key, secret key, webhook secret]
+  Referenced via:      [settings.php override / config override]
+
+SUPPORTED OPERATIONS:
+  □ Authorize          □ Authorize + Capture
+  □ Capture (deferred) □ Void
+  □ Refund (full)      □ Refund (partial)
+  □ Stored payment methods (tokenization)
+
+WEBHOOK / IPN HANDLING:
+  Endpoint:            [route + path]
+  Signature verified:  [How — header + signing secret]
+  Idempotency:         [Dedup by event/transaction ID]
+  Logged:              [Every event to watchdog + payment record]
+  Maps to:             [Commerce payment state transition]
+
+RECONCILIATION:
+  Source of truth:     [Gateway settlement report]
+  Match key:           [Payment remote_id ↔ gateway transaction ID]
+  Discrepancy alert:   [How mismatches are surfaced]
+
+GO-LIVE CHECKLIST:
+  □ Live credentials in production secrets only
+  □ Webhook endpoint registered + signature verified live
+  □ Test transaction captured AND refunded successfully
+  □ Mode confirmed LIVE in production, TEST elsewhere
+  □ Receipt emails verified
+```
+
 ### Order Workflow Map
 
+```
+ORDER WORKFLOW (states + transitions)
+───────────────────────────────────────
+DEFAULT WORKFLOW (order_default):
+  draft ──(place)──▶ completed
+
+FULFILLMENT WORKFLOW (order_fulfillment):
+  draft
+    └─(place)─▶ fulfillment
+                  ├─(fulfill)─▶ completed
+                  └─(cancel)──▶ canceled
+
+PAYMENT-DRIVEN STATES (custom example):
+  draft ─(place)─▶ pending_payment
+    ├─(payment_received)─▶ processing ─(ship)─▶ completed
+    └─(payment_failed)───▶ canceled
+
+RULES:
+  - Orders are NEVER deleted — only transitioned
+  - Stock decrements on [payment_received], not add-to-cart
+  - Each transition can fire events: email, fulfillment, ERP sync
+  - Canceled/refunded orders retain full payment history
+```
+
 ### Tax & Promotion Configuration
+
+```
+TAX CONFIGURATION
+───────────────────────────────────────
+TAX TYPE:              [US Sales Tax / EU VAT / Custom]
+  Pricing:             [Tax-exclusive (US) / Tax-inclusive (EU)]
+  Rates:               [Per jurisdiction / per zone]
+  Resolution:          [Store registration + customer address]
+  Display:             [Shown as separate line / included]
+
+PROMOTION CONFIGURATION
+───────────────────────────────────────
+PROMOTION:             [Name — e.g., "Spring Sale 15%"]
+  Offer:               [% off order / fixed off / buy-X-get-Y / free shipping]
+  Conditions:          [Min order total, product/category, customer role]
+  Coupons:             [None (automatic) / single / bulk-generated]
+  Usage limits:        [Total uses / per-customer uses]
+  Priority:            [Lower runs first]
+  Compatibility:       [Compatible with any / none / specific]
+  Date window:         [Start / end]
+
+CONFLICT BEHAVIOR:
+  - Document stacking rules explicitly
+  - Test combined promotions for double-discount bugs
+  - Verify free-shipping + percentage-off interaction on totals
+```
 
 ---
 

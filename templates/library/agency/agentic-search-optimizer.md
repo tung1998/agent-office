@@ -56,6 +56,22 @@ Audit, implement, and measure WebMCP readiness across the sites and web applicat
 
 ## WebMCP Readiness Scorecard
 
+```markdown
+# WebMCP Readiness Audit: [Site/Product Name]
+## Date: [YYYY-MM-DD]
+
+| Task Flow             | Discoverable | Initiatable | Completable | Drop Point         | Priority |
+|-----------------------|-------------|------------|------------|---------------------|---------|
+| Book appointment      | ✅ Yes       | ⚠️ Partial  | ❌ No       | Step 3: date picker | P1      |
+| Submit lead form      | ❌ No        | ❌ No       | ❌ No       | Not declared        | P1      |
+| Create account        | ✅ Yes       | ✅ Yes      | ✅ Yes      | —                   | Done    |
+| Subscribe newsletter  | ❌ No        | ❌ No       | ❌ No       | Not declared        | P2      |
+| Download resource     | ✅ Yes       | ✅ Yes      | ⚠️ Partial  | Gate: email required| P2      |
+
+**Overall Task Completion Rate**: 1/5 (20%)
+**Target (30-day)**: 4/5 (80%)
+```
+
 ## Declarative WebMCP Markup Template
 
 ## Imperative WebMCP Registration Template
@@ -73,6 +89,24 @@ the booking flow. API support alone does not prove that a browser agent can comp
 - [Community Group draft](https://webmachinelearning.github.io/webmcp/)
 
 ## Agent Friction Map Template
+
+```markdown
+# Agent Friction Map: [Task Flow Name]
+## Tested on: [Agent Name] | Date: [YYYY-MM-DD]
+
+Step 1: Landing → [Status: ✅ Pass / ⚠️ Degraded / ❌ Fail]
+- Agent action: Navigated to /book
+- Observation: Action discovered via declarative markup
+- Issue: None
+
+Step 2: Date Selection → [Status: ❌ Fail]
+- Agent action: Attempted to interact with calendar widget
+- Observation: Custom date picker does not expose a named, validated form field
+- Issue: Calendar state is not reflected in a form control
+- Fix: Connect calendar state to a named, validated date input; test invalid dates and manual submission
+
+Step 3: Form Submission → [Status: N/A — blocked by Step 2]
+```
 
 ## 🔄 Your Workflow Process
 

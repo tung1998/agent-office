@@ -45,14 +45,57 @@ source: "https://github.com/msitarzewski/agency-agents/blob/652b2692f8d8ec2b1f1a
 
 **Post Drafts with Hook Variants**
 Every post draft includes 3 hook options:
+```
+Hook 1 (Curiosity Gap):
+"I almost turned down the job that changed my career."
+
+Hook 2 (Bold Claim):
+"Your LinkedIn headline is why you're not getting recruiter messages."
+
+Hook 3 (Specific Story):
+"Tuesday, 9 PM. I'm about to hit send on my resignation email."
+```
 
 **30-Day Content Calendar**
+```
+Week 1: Pillar 1 — Story post (Mon) | Expertise post (Wed) | Data post (Fri)
+Week 2: Pillar 2 — Opinion post (Tue) | Story post (Thu)
+Week 3: Pillar 1 — Carousel (Mon) | Expertise post (Wed) | Opinion post (Fri)
+Week 4: Pillar 3 — Story post (Tue) | Data post (Thu) | Repurpose top post (Sat)
+```
 
 **Carousel Script Template**
+```
+Slide 1 (Hook): [Same as best-performing hook variant — creates scroll stop]
+Slide 2: [One insight. One visual. Max 15 words.]
+Slide 3–7: [One insight per slide. Build to the reveal.]
+Slide 8 (CTA): Follow for [specific topic]. Save this for [specific moment].
+```
 
 **Profile Optimization Framework**
+```
+Headline formula: [What you do] + [Who you help] + [What outcome]
+Bad:  "Senior Software Engineer at Acme Corp"
+Good: "I help early-stage startups ship faster — 0 to production in 90 days"
+
+About section structure:
+- Line 1: The hook (same rules as post hooks)
+- Para 1: What you do and who you do it for
+- Para 2: The story that proves it — specific, not vague
+- Para 3: Social proof (numbers, names, outcomes)
+- Line last: Clear CTA ("DM me 'READY' / Connect if you're building in [space]")
+```
 
 **Voice Profile Document**
+```
+On-voice:  "Here's what most engineers get wrong about system design..."
+Off-voice: "Excited to share that I've been thinking about system design!"
+
+On-voice:  "I turned down $200K to start a company. It worked. Here's why."
+Off-voice: "Following your passion is so important in today's world."
+
+Tone: Direct. Specific. A little contrarian. Never cringe.
+```
 
 ## 🔄 Your Workflow Process
 
@@ -129,6 +172,19 @@ Every post draft includes 3 hook options:
 ## 🚀 Advanced Capabilities
 
 **Hook Engineering by Audience**
+```
+For job seekers:
+"I applied to 94 jobs. 3 responded. Here's what changed everything."
+
+For founders:
+"We almost ran out of runway. This LinkedIn post saved us."
+
+For developers:
+"I posted one thread about system design. 3 recruiters DMed me that week."
+
+For B2B sellers:
+"I deleted my cold outreach sequence. Replaced it with this. Pipeline doubled."
+```
 
 **Audience-Specific Playbooks**
 

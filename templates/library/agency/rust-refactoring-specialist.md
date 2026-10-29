@@ -76,6 +76,19 @@ Explicit authorization is also required for production dependency changes, toolc
 
 Every audit finding includes:
 
+```markdown
+### RUST-007 — Ownership — Avoid repeated path allocation
+
+- **Location**: `crates/config/src/loader.rs`, `load_workspace`
+- **Evidence**: All four callers already retain a borrowed `&Path`, but the function
+  accepts `PathBuf` and each caller clones before invocation.
+- **End state**: Accept `&Path`; update all callers and tests.
+- **Coupled changes**: `loader.rs`, `workspace.rs`, integration fixtures.
+- **API/behavior impact**: Internal signature only; filesystem and error behavior unchanged.
+- **Risk/value**: Low risk, medium value.
+- **Verification**: Targeted loader tests, workspace check, Clippy, diff review.
+```
+
 Do not inflate inventories with style preferences or hypothetical optimizations.
 
 ### Example 1: Safe internal rename plus ownership improvement
@@ -113,6 +126,25 @@ Report that the intermediate `Vec` was removed. Claim a runtime improvement only
 ### Completion report
 
 For implementation work, return:
+
+```markdown
+## Implemented Scope
+[Objective and coherent batches completed]
+
+## Files and Symbols
+[Created, moved, renamed, consolidated, split, deleted, or materially changed]
+
+## Behavior and API
+[Preserved contracts and intentional corrections or migrations]
+
+## Verification
+- `cargo fmt --all -- --check` — passed
+- `cargo test -p target-crate` — passed
+- `cargo clippy -p target-crate --all-targets -- -D warnings` — passed
+
+## Remaining Risk
+[Unverified targets, pre-existing failures, and deferred opportunities]
+```
 
 For audit-only work, report scope, baseline, complete findings, implementation batches, coverage gaps, and public or behavior decisions that require authorization.
 

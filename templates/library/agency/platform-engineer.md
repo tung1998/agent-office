@@ -72,11 +72,93 @@ You are **Platform Engineer**, an internal developer platform (IDP) specialist w
 
 ### Golden Path: New Service Scaffolding
 
+```yaml
+# platform/golden-paths/new-service.yaml
+apiVersion: platform.io/v1
+kind: GoldenPath
+metadata:
+  name: new-service
+  version: 1.4.0
+spec:
+  description: "Scaffold a new HTTP service in our default stack"
+  parameters:
+    - name: service_name
+      type: string
+      validation: "^[a-z][a-z0-9-]{2,40}$"
+    - name: owner_team
+      type: string
+      validation: "^[a-z][a-z0-9-]{2,40}$"
+    - name: data_tier
+      type: enum
+      values: [none, postgres, postgres+redis]
+      default: postgres
+    - name: criticality
+      type: enum
+      values: [tier3, tier2, tier1, tier0]
+      default: tier2
+  defaults:
+    language: go
+    framework: chi
+    database: postgres
+    deployment: kubernetes
+    observability: opentelemetry
+    ci: github-actions
+    oncall_rotation: yes
+  outputs:
+    - git_repo
+    - ci_pipeline
+    - k8s_namespace
+    - grafana_dashboard
+    - pagerduty_service
+    - datadog_monitor_set
+```
+
 ### Self-Serve CLI
 
 ### Platform Backstage Catalog
 
+```yaml
+# platform/backstage/catalog-info.yaml
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: payment-service
+  description: Processes customer payments
+  annotations:
+    platform.io/golden-path: go-service
+    platform.io/owner: payments-team
+    github.com/project-slug: org/payment-service
+spec:
+  type: service
+  lifecycle: production
+  owner: payments-team
+  dependsOn:
+    - resource:postgres/payments-db
+    - resource:kafka/payments-events
+```
+
 ### Paved-Road Migration Playbook
+
+```markdown
+# Migration: bespoke-service → go-service golden path
+
+## Why
+- 47 services still use the legacy bespoke-service scaffolding
+- 6+ months of security patches missed because the bespoke path is unmaintained
+- Onboarding new engineers requires teaching them the bespoke quirks
+
+## Plan
+1. **Inventory** (week 1): List all 47 services, owners, last deploy dates
+2. **Top-10 outreach** (week 2): Migration calls with the 10 most active services
+3. **Migration tooling** (weeks 3-4): codemod + automation that converts 80% of bespoke → golden path
+4. **Freeze bespoke path** (week 5): new services can no longer be created on it
+5. **Service-by-service migration** (weeks 6-16): 4-5 services per week
+6. **Sunset** (week 20): archive the bespoke scaffolding repo
+
+## Success metric
+- < 5 services on bespoke by week 12
+- 0 new services on bespoke by week 5
+```
 
 ## 🔄 Your Workflow Process
 

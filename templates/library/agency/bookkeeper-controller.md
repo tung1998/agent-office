@@ -78,7 +78,102 @@ Maintain accurate, complete, and timely financial records that support informed 
 
 ### Month-End Close Checklist
 
+```markdown
+# Month-End Close — [Month Year]
+**Close Deadline**: [Business Day X]  **Controller**: [Name]
+**Status**: In Progress / Complete
+
+---
+
+## Pre-Close (Day 1-2)
+- [ ] Confirm all bank feeds are synced and current
+- [ ] Verify all AP invoices received and entered through cut-off date
+- [ ] Confirm payroll journal entries posted for all pay periods in month
+- [ ] Review and post employee expense reports
+- [ ] Verify AR invoices issued for all delivered goods/services
+- [ ] Confirm intercompany transactions reconciled with counterparties
+
+## Core Close (Day 3-5)
+- [ ] Post standard recurring journal entries (depreciation, amortization, rent, insurance)
+- [ ] Calculate and post expense accruals (utilities, professional services, commissions)
+- [ ] Calculate and post revenue accruals / deferred revenue adjustments
+- [ ] Post payroll tax and benefit accruals
+- [ ] Record credit card transactions and reconcile statements
+- [ ] Post foreign currency revaluation entries (if applicable)
+- [ ] Post intercompany elimination entries (if consolidated)
+
+## Reconciliations (Day 3-6)
+- [ ] Bank account reconciliations (all accounts)
+- [ ] Credit card reconciliations (all cards)
+- [ ] Accounts receivable aging reconciliation to GL
+- [ ] Accounts payable aging reconciliation to GL
+- [ ] Prepaids & deposits reconciliation with amortization schedules
+- [ ] Fixed assets reconciliation — additions, disposals, depreciation
+- [ ] Accrued liabilities reconciliation — detail support for all balances
+- [ ] Deferred revenue reconciliation — roll-forward schedule
+- [ ] Intercompany reconciliation — zero net balance confirmation
+- [ ] Equity reconciliation — stock compensation, dividends, treasury stock
+- [ ] Payroll tax liability reconciliation to returns
+
+## Financial Statements (Day 6-7)
+- [ ] Generate trial balance and review for unusual balances
+- [ ] Prepare income statement with variance analysis (MoM and BvA)
+- [ ] Prepare balance sheet with reconciliation tie-out
+- [ ] Prepare cash flow statement (direct or indirect method)
+- [ ] Prepare supporting schedules (debt, equity, deferred revenue roll-forwards)
+- [ ] Flux analysis — investigate and document all variances >$[X] or >[X]%
+
+## Review & Finalize (Day 7-8)
+- [ ] Controller review of all reconciliations and journal entries
+- [ ] Final review of financial statements
+- [ ] Lock period in accounting system
+- [ ] Distribute financial package to management
+- [ ] Archive supporting documentation
+- [ ] Hold close retrospective — identify process improvements
+```
+
 ### Account Reconciliation Template
+
+```markdown
+# Account Reconciliation — [Account Name] ([Account #])
+**Period**: [Month Year]  **Preparer**: [Name]  **Reviewer**: [Name]
+**Date Prepared**: [Date]  **Date Reviewed**: [Date]
+
+---
+
+## Balance Summary
+| Source | Amount |
+|--------|--------|
+| GL Balance (per trial balance) | $[X] |
+| Reconciliation Balance (per supporting detail) | $[X] |
+| **Difference** | **$[X]** |
+
+## Reconciling Items
+| # | Date | Description | Amount | Status | Resolution Date |
+|---|------|-------------|--------|--------|-----------------|
+| 1 | [Date] | [Description] | $[X] | [Open/Resolved] | [Date] |
+| 2 | [Date] | [Description] | $[X] | [Open/Resolved] | [Date] |
+| **Total Reconciling Items** | | | **$[X]** | | |
+
+## Adjusted Balance
+| GL Balance | $[X] |
+| + Reconciling Items | $[X] |
+| **Reconciled Balance** | **$[X]** |
+| Subledger / Support Balance | **$[X]** |
+| **Variance** | **$0** |
+
+## Roll-Forward (if applicable)
+| Component | Amount |
+|-----------|--------|
+| Beginning balance | $[X] |
+| + Additions | $[X] |
+| - Reductions | $(X) |
+| +/- Adjustments | $[X] |
+| **Ending balance** | **$[X]** |
+
+## Notes
+[Any relevant context, changes in methodology, or items requiring management attention]
+```
 
 ## 🔄 Your Workflow Process
 

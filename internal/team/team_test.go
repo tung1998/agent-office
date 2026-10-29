@@ -12,6 +12,7 @@ import (
 	"github.com/tung1998/agent-office/internal/storage/sqlite"
 	"github.com/tung1998/agent-office/internal/team"
 	librarytemplates "github.com/tung1998/agent-office/templates/library"
+	"github.com/tung1998/agent-office/templates/packs"
 )
 
 type installs struct{ keys []string }
@@ -290,5 +291,39 @@ func TestLibrarySkillsExist(t *testing.T) {
 	}
 	if n == 0 {
 		t.Fatal("no library agent comes with skills")
+	}
+}
+
+func TestLibraryPackRequirements(t *testing.T) {
+	list, err := team.Library()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, e := range list {
+		if e.RequiresPack == "" {
+			continue
+		}
+		if e.RequiresPack != e.Source {
+			t.Errorf("%s: requires %q, want %q", e.ID, e.RequiresPack, e.Source)
+		}
+		if _, _, err := packs.Find(e.RequiresPack); err != nil {
+			t.Errorf("%s: %v", e.ID, err)
+		}
+		a, err := team.LibraryAgentByID(e.ID)
+		if err != nil || a.RequiresPack != e.RequiresPack {
+			t.Errorf("%s: list/detail pack requirement differs: %+v, %v", e.ID, a, err)
+		}
+	}
+	for id, want := range map[string]string{
+		"office/teacher":           "@agentoffice/languages",
+		"office/ceo":               "@agentoffice/startup",
+		"office/portfolio-manager": "@agentoffice/trading",
+		"office/researcher":        "", // pack origin alone is not a dependency
+		"office/backend-dev":       "",
+	} {
+		a, err := team.LibraryAgentByID(id)
+		if err != nil || a.RequiresPack != want {
+			t.Errorf("%s: requires %q, want %q; %v", id, a.RequiresPack, want, err)
+		}
 	}
 }

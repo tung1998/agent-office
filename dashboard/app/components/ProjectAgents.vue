@@ -7,7 +7,7 @@ const emit = defineEmits<{ changed: [] }>()
 
 const toast = useToast()
 const { isAdmin } = useAuth()
-const { t } = useLang()
+const { t, lang } = useLang()
 
 const { data: provData } = useLiveFetch<{ providers: Provider[] }>('/api/providers', { lazy: true })
 const providers = computed(() => provData.value?.providers ?? [])
@@ -81,7 +81,7 @@ function freeKey(k: string) {
   return out
 }
 function pickLib(a: LibraryAgent) {
-  fromLib.value = a
+  fromLib.value = { ...a, description: (lang.value === 'vi' && a.description_vi) || a.description }
   Object.assign(form, { name: a.name, role: a.role, model_tier: a.model_tier })
   form.key = freeKey(a.key)
   keyTouched.value = true
@@ -217,6 +217,7 @@ onMounted(async () => {
           <span class="me-auto min-w-0 truncate">{{ t('team.lib.from', { name: fromLib.name }) }}</span>
           <UButton size="xs" color="neutral" variant="ghost" icon="i-lucide-arrow-left" :label="t('team.lib.back')" @click="addTab = 'library'" />
         </div>
+        <LibraryPackNotice v-if="fromLib?.requires_pack" :pack="fromLib.requires_pack" />
         <div class="grid gap-3 sm:grid-cols-2">
           <UFormField :label="t('org.form.name')" required>
             <UInput v-model="form.name" class="w-full" autofocus />

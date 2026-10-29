@@ -37,6 +37,8 @@ export default {
   'team.lib.use': 'Dùng mẫu này',
   'team.lib.from': 'Theo mẫu {name}: kèm mô tả, hướng dẫn và quyền của mẫu',
   'team.lib.skills': 'Skill đi kèm:',
+  'team.lib.requiresPack': 'Cần gói {pack}',
+  'team.lib.packHelp': 'Mẫu này dùng workflow, skill và dữ liệu của gói project trên. Thêm riêng agent không cài các phụ thuộc đó. Trước khi dùng, kiểm tra project đã có chúng; nếu chưa, tạo project từ gói tương ứng hoặc điều chỉnh hướng dẫn cho project hiện tại.',
   'team.lib.skillsHelp': 'Agent giữ sẵn các skill này. Skill project chưa có sẽ được cài từ thư viện office vào thư mục skill của project.',
   'team.lib.back': 'Chọn mẫu khác',
   'team.rev.library': 'thêm từ thư viện: {arg}',

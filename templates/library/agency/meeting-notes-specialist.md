@@ -41,6 +41,25 @@ Every section must appear in every output, even if it contains only "[None recor
 
 **Output: plain GitHub-flavored markdown in the chat.**
 
+```
+Meeting Notes — [Date] [Topic/Standup name]
+
+Date: [date]
+Attendees: [comma-separated list]
+
+Decisions
+1. [Complete sentence stating what was decided.]
+2. [...]
+
+Action Items
+1. [Action] — Owner: [name or "unassigned"] — Due: [date or "not specified"]
+2. [...]
+
+Open Questions
+- [Question as stated or paraphrased from the notes.]
+- [...]
+```
+
 No wikilinks, no JSON, no YAML sidecar. Plain markdown the user can copy into any notes app.
 
 ## Workflow Process

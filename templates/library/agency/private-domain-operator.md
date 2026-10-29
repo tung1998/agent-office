@@ -82,7 +82,96 @@ source: "https://github.com/msitarzewski/agency-agents/blob/652b2692f8d8ec2b1f1a
 
 ### WeCom SCRM Configuration Blueprint
 
+```yaml
+# WeCom SCRM Core Configuration
+scrm_config:
+  # Channel QR Code Configuration
+  channel_codes:
+    - name: "Package Insert - East China Warehouse"
+      type: "auto_assign"
+      staff_pool: ["sales_team_east"]
+      welcome_message: "Hi~ I'm your dedicated advisor {staff_name}. Thanks for your purchase! Reply 1 for a VIP community invite, reply 2 for a product guide"
+      auto_tags: ["package_insert", "east_china", "new_customer"]
+      channel_tracking: "parcel_card_east"
+
+    - name: "Livestream QR Code"
+      type: "round_robin"
+      staff_pool: ["live_team"]
+      welcome_message: "Hey, thanks for joining from the livestream! Send 'livestream perk' to claim your exclusive coupon~"
+      auto_tags: ["livestream_referral", "high_intent"]
+
+    - name: "In-Store QR Code"
+      type: "location_based"
+      staff_pool: ["store_staff_{city}"]
+      welcome_message: "Welcome to {store_name}! I'm your dedicated shopping advisor - reach out anytime you need anything"
+      auto_tags: ["in_store_customer", "{city}", "{store_name}"]
+
+  # Customer Tag System
+  tag_system:
+    dimensions:
+      - name: "Customer Source"
+        tags: ["package_insert", "livestream", "in_store", "sms", "referral", "organic_search"]
+      - name: "Spending Tier"
+        tags: ["high_aov(>500)", "mid_aov(200-500)", "low_aov(<200)"]
+      - name: "Lifecycle Stage"
+        tags: ["new_customer", "active_customer", "dormant_customer", "churn_warning", "churned"]
+      - name: "Interest Preference"
+        tags: ["skincare", "cosmetics", "personal_care", "baby_care", "health"]
+    auto_tagging_rules:
+      - trigger: "First purchase completed"
+        add_tags: ["new_customer"]
+        remove_tags: []
+      - trigger: "30 days no interaction"
+        add_tags: ["dormant_customer"]
+        remove_tags: ["active_customer"]
+      - trigger: "Cumulative spend > 2000"
+        add_tags: ["high_value_customer", "vip_candidate"]
+
+  # Customer Group Configuration
+  group_config:
+    types:
+      - name: "Welcome Perks Group"
+        max_members: 200
+        auto_welcome: "Welcome! We share daily product picks and exclusive deals here. Check the pinned post for group guidelines~"
+        sop_template: "welfare_group_sop"
+      - name: "VIP Member Group"
+        max_members: 100
+        entry_condition: "Cumulative spend > 1000 OR tagged 'VIP'"
+        auto_welcome: "Congrats on becoming a VIP member! Enjoy exclusive discounts, early access to new products, and 1-on-1 advisor service"
+        sop_template: "vip_group_sop"
+```
+
 ### Community Operations SOP Template
+
+```markdown
+# Perks Group Daily Operations SOP
+
+## Daily Content Schedule
+| Time | Segment | Example Content | Channel | Purpose |
+|------|---------|----------------|---------|---------|
+| 08:30 | Morning greeting | Weather + skincare tip | Group message | Build daily check-in habit |
+| 10:00 | Product spotlight | In-depth single product review (image + text) | Group message + Mini Program card | Value content delivery |
+| 12:30 | Midday engagement | Poll / topic discussion / guess the price | Group message | Boost activity |
+| 15:00 | Flash sale | Mini Program flash sale link (limited to 30 units) | Group message + countdown | Drive conversion |
+| 19:30 | Customer showcase | Curated buyer photos + commentary | Group message | Social proof |
+| 21:00 | Evening perk | Tomorrow's preview + password red envelope | Group message | Next-day retention |
+
+## Weekly Special Events
+| Day | Event | Details |
+|-----|-------|---------|
+| Monday | New product early access | VIP group exclusive new product discount |
+| Wednesday | Livestream preview + exclusive coupon | Drive Channels livestream viewership |
+| Friday | Weekend stock-up day | Spend thresholds / bundle deals |
+| Sunday | Weekly best-sellers | Data recap + next week preview |
+
+## Key Touchpoint SOPs
+### New Member Onboarding (First 72 Hours)
+1. 0 min: Auto-send welcome message + group rules
+2. 30 min: Admin @mentions new member, prompts self-introduction
+3. 2h: Private message with new member exclusive coupon (20 off 99)
+4. 24h: Send curated best-of content from the group
+5. 72h: Invite to participate in day's activity, complete first engagement
+```
 
 ### User Lifecycle Automation Flows
 

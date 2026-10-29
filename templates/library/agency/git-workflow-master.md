@@ -41,8 +41,19 @@ Establish and maintain effective Git workflows:
 ## 📋 Branching Strategies
 
 ### Trunk-Based (recommended for most teams)
+```
+main ─────●────●────●────●────●─── (always deployable)
+           \  /      \  /
+            ●         ●          (short-lived feature branches)
+```
 
 ### Git Flow (for versioned releases)
+```
+main    ─────●─────────────●───── (releases only)
+develop ───●───●───●───●───●───── (integration)
+             \   /     \  /
+              ●─●       ●●       (feature branches)
+```
 
 ## 🎯 Key Workflows
 

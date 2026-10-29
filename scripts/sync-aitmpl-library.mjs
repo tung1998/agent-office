@@ -16,6 +16,7 @@ import { execFileSync } from 'node:child_process'
 import { homedir, tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { agentDescription, agentDescriptionVi } from './lib/agent-library.mjs'
 
 const REPO = 'davila7/claude-code-templates'
 const BASE = 'cli-tool/components'
@@ -80,7 +81,8 @@ try {
       if (seen.has(key)) { console.warn('skip (same key in another folder):', `${dir}/${file}`); continue }
       seen.add(key)
       const head = {
-        key, name: fm.name || key, role: '', description,
+        key, name: fm.name || key, role: '', description: agentDescription('aitmpl', key, description),
+        ...(agentDescriptionVi('aitmpl', key) ? { description_vi: agentDescriptionVi('aitmpl', key) } : {}),
         category: AGENT_KEY_CATEGORY[key] ?? AGENT_CATEGORY[dir] ?? 'code', emoji: '',
         model_tier: TIER[(fm.model ?? '').toLowerCase()] ?? 'balanced', level: 'read',
         source: blob(`agents/${dir}/${file}`)

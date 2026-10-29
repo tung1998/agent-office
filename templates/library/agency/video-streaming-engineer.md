@@ -65,6 +65,16 @@ Rules: rungs spaced ~1.5–2× apart (too close wastes storage and confuses ABR;
 
 ### QoE Metrics That Actually Matter
 
+```text
+Track per session, segment by segment — these predict engagement, not resolution:
+  · Time-to-first-frame (startup delay)   → target < 1s; this is churn-at-the-door
+  · Rebuffer ratio (stall time / watch time) → target < 0.5%; the #1 abandonment driver
+  · Play-failure rate (never started)     → often DRM, manifest, or codec-support bugs
+  · Average bitrate delivered + switch freq → quality without excessive oscillation
+  · Exit-before-video-start rate          → the startup path is too slow or broken
+Alert on the worst-network cohort, not the average — the average hides the users you're losing.
+```
+
 ## 🔄 Your Workflow Process
 
 1. **Profile the content and audience first**: content complexity (talking-head vs high-motion), target devices, network distribution, and whether it's VOD, live, or low-latency. The ladder and format matrix fall out of this.

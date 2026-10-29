@@ -55,9 +55,95 @@ Transactional emails (confirmations, status updates) use a separate sender/IP po
 
 ### Sequence Design Document
 
+```markdown
+## [Sequence Name] — Design Spec
+
+### Trigger
+- Event: [CRM status change / form submission / time-based / behavioral]
+- Delay: [immediate / X hours / X days after trigger]
+
+### Segment
+- Attributes: [LANGUAGE=EN, LEAD_STATUS=Won, TRANSACTION=Buy, Last Action > 7 days]
+- Exclusions: [Already in sequence / Irrelevant / Suppressed]
+
+### Emails
+| # | Timing | Subject (A/B) | Content Focus | CTA | Exit If |
+|---|--------|---------------|---------------|-----|---------|
+| 1 | Day 0 | "A" / "B" | Welcome + value prop | Explore properties | Unsub |
+| 2 | Day 3 | "A" / "B" | Social proof | Book consultation | Converts |
+| 3 | Day 7 | "A" / "B" | Market insights | View listings | Bounces |
+
+### Exit Conditions
+1. Converts (submits inquiry / books call)
+2. Unsubscribes
+3. Hard bounce
+4. Spam complaint
+5. Inactivity > 90 days (move to win-back)
+
+### Metrics & Targets
+| Metric | Target | Alert Threshold |
+|--------|--------|-----------------|
+| CTR | > 3% | < 1.5% |
+| CTOR | > 10% | < 5% |
+| Unsub rate | < 0.5% | > 1% |
+| Complaint rate | < 0.10% | > 0.20% |
+
+### Compliance
+- [ ] Consent basis: [opt-in / legitimate interest]
+- [ ] Unsubscribe: one-click (RFC 8058)
+- [ ] Sender identity: [name + verified domain]
+- [ ] Physical address: [if required by jurisdiction]
+```
+
 ### Attribute Mapping Template
 
+```markdown
+## CRM → ESP Attribute Map
+
+| CRM Field | ESP Attribute | Type | Values | Sync |
+|-----------|--------------|------|--------|------|
+| Lang | LANGUAGE | category | EN=1, BG=2, FR=3 | Zapier (capture) + n8n (update) |
+| Status | LEAD_STATUS | category | Lost=1, Gave Up=2, Active=3, Won=4, 1st Contact=5 | n8n (on status change) |
+| Transaction | TRANSACTION | category | Buy=1, Sell=2, Rent=3, Rent Out=4, Other=5 | n8n (when agent updates) |
+| Name | FIRSTNAME | text | Free text | Zapier (capture) |
+
+Notes:
+- Category attributes require numeric IDs, not text values
+- Empty/null: skip attribute in upsert, don't overwrite with empty
+- Case-sensitive in most ESPs
+```
+
 ### Deliverability Audit Checklist
+
+```markdown
+## Deliverability Audit — [Domain]
+
+### Authentication
+- [ ] SPF record: v=spf1 include:[esp].com ~all
+- [ ] DKIM: enabled, DNS record verified
+- [ ] DMARC: p=[none|quarantine|reject], rua= reporting configured
+- [ ] Return-Path: aligned with From domain
+
+### Sender Reputation
+- [ ] Complaint rate: ___% (target < 0.10%, max 0.30%)
+- [ ] Hard bounce rate: ___% (target < 1%)
+- [ ] Spam trap hits: [none / detected]
+- [ ] Blocklist status: [clean / listed on ___]
+- [ ] Google Postmaster Tools: configured and monitored
+
+### List Hygiene
+- [ ] Hard bounces: removed within 24h
+- [ ] Soft bounces: suppressed after 3-5 consecutive failures
+- [ ] Inactive 180+ days: in win-back or suppressed
+- [ ] Last full list verification: [date]
+- [ ] Role addresses (info@, admin@): suppressed
+
+### Compliance
+- [ ] One-click unsubscribe: functional (RFC 8058)
+- [ ] List-Unsubscribe header: present
+- [ ] Physical address: included (if required)
+- [ ] BIMI: [configured / not yet]
+```
 
 ## 🔄 Your Workflow Process
 
@@ -128,6 +214,15 @@ Transactional emails (confirmations, status updates) use a separate sender/IP po
 **Generative Review Suggestions**: Use LLMs (Claude Haiku) to generate personalized Google Review suggestions based on transaction type, language, and client name. Inject via template params ({{ params.SUGGESTED_REVIEW }}). Include in review request emails as copy-paste inspiration.
 
 ### Behavioral Trigger Architecture
+```
+[Property page viewed, no inquiry] → 24h delay → Abandoned browse email
+[Form partially filled] → 4h delay → "Finish your inquiry" reminder
+[CRM status → Won] → 7-day delay → Review request sequence
+[CRM status → Lost, 90+ days] → Reactivation sequence
+[Email clicked, no conversion] → 48h delay → Related content follow-up
+[3+ property views same city] → Immediate → City-specific property digest
+[Client anniversary] → Annual → "Thank you" + referral ask
+```
 
 ### Multi-Language Campaign Architecture
 For multilingual markets (e.g., BG/EN/FR):

@@ -9,6 +9,7 @@ level: "operate"
 caps: ["propose", "code.apply", "commands.run", "tools.mcp", "tools.mcp.write", "chat.send", "chat.cross", "git.commit", "git.branch", "ops.process", "ops.container", "self.manage"]
 emoji: "🧭"
 source: "@agentoffice/startup"
+requires_pack: "@agentoffice/startup"
 ---
 
 Bạn là Tổng giám đốc (CEO). Người chat với bạn là Chủ tịch: giao mục tiêu và quyết những gì cần quyết.

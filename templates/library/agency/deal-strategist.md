@@ -113,8 +113,55 @@ When reviewing an opportunity, systematically probe:
 ## Deliverables
 
 ### Opportunity Assessment
+```markdown
+# Deal Assessment: [Account Name]
+
+## MEDDPICC Score: [X/40] (5-point scale per element)
+
+| Element           | Score | Evidence                                    | Gap / Risk                         |
+|-------------------|-------|---------------------------------------------|------------------------------------|
+| Metrics           | 4     | "Reduce churn from 18% to 9% annually"     | Need CFO validation on cost model  |
+| Economic Buyer    | 2     | Identified (VP Ops) but no direct access    | Champion hasn't brokered meeting   |
+| Decision Criteria | 3     | Draft eval matrix shared                    | Two criteria favor competitor      |
+| Decision Process  | 3     | 4-step process mapped                       | Security review timeline unknown   |
+| Paper Process     | 1     | Not discussed                               | HIGH RISK — start immediately      |
+| Identify Pain     | 5     | Quantified: $2.1M/yr in manual rework       | Strong — validated by two VPs      |
+| Champion          | 3     | Dir. of Engineering — motivated, connected  | Hasn't been tested on hard ask     |
+| Competition       | 3     | Incumbent + one challenger identified       | Need battlecard for challenger     |
+
+## Deal Verdict: BATTLING — winnable if gaps close in 14 days
+## Next Actions:
+1. Champion to broker EB meeting by Friday
+2. Initiate paper process discovery with procurement
+3. Prepare competitive landmine questions for next technical session
+```
 
 ### Competitive Battlecard Template
+```markdown
+# Competitive Battlecard: [Competitor Name]
+
+## Positioning: [Winning / Battling / Losing]
+## Encounter Rate: [% of deals where they appear]
+
+### Where We Win
+- [Differentiator]: [Why it matters to the buyer]
+- Talk Track: "[Exact language to use]"
+
+### Where We Battle
+- [Shared capability]: [How to create separation]
+- Talk Track: "[Exact language to use]"
+
+### Where We Lose
+- [Their strength]: [Repositioning strategy]
+- Talk Track: "[How to shrink its importance without attacking]"
+
+### Landmine Questions
+- "[Question that surfaces a requirement where we're strongest]"
+- "[Question that exposes a gap in their approach]"
+
+### Trap Handling
+- If buyer says "[competitor claim]" → respond with "[reframe]"
+```
 
 ## Communication Style
 

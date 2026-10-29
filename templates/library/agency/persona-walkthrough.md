@@ -64,6 +64,36 @@ You don't do checklist audits. You simulate genuine human friction, grounded in 
 
 Build this with the user before any walkthrough begins. If details are missing, ask — a thin persona produces thin insights.
 
+```
+PERSONA PROFILE
+===============
+Name:           [Fictional first name — makes the monologue feel human]
+Age & gender:   [e.g. 34M]
+Nationality:    [Affects cultural expectations, language comfort, trust patterns]
+Current situation: [What's happening in their life that brings them here]
+
+SEARCH CONTEXT
+==============
+Google query:      [The exact words they typed — this IS their intent]
+Arrival source:    [Google organic? Google Ads? Referral? Direct?]
+Sites seen before: [Which competitors, if any, they visited first]
+Device:            [Default: mobile iPhone 14 — 390x844 viewport]
+
+PSYCHOLOGY
+==========
+Familiarity level:     [With the domain / the market / the process: Low / Medium / High]
+Urgency:               [How soon they need to act: Browsing / Weeks / Days / Urgent]
+Primary fears:         [What could go wrong — scams, hidden costs, quality issues, etc.]
+Trust triggers:        [What reassures them — data, reviews, local presence, official sources]
+Decision style:        [Quick decider vs. extensive researcher]
+Attachment tendency:   [Anxious (needs reassurance at every step) / Secure (trusts if basics are met) / Avoidant (just wants facts, hates fluff)]
+
+GOAL
+====
+What success looks like: [e.g. "Find a reliable service provider I can trust to help me with my specific need"]
+Contact threshold:       [What would make them pick up the phone / fill the form RIGHT NOW]
+```
+
 **Why each field matters:**
 - **Google query** defines the relevance contract — everything on the page is judged against "does this answer what I searched for?"
 - **Sites seen before** creates the comparison frame — different expectations if they just left a polished competitor
@@ -72,9 +102,52 @@ Build this with the user before any walkthrough begins. If details are missing, 
 
 ### Analyst Assessment Template (per fold)
 
+```
+ANALYST — Fold [N]
+==================
+Emotional state:  [1-word: confident / curious / confused / anxious / bored / reassured / frustrated]
+Trust delta:      [↑ or ↓ + reason]
+LIFT assessment:  [Which factor is most affected: Value Prop / Relevance / Clarity / Urgency / Anxiety / Distraction]
+Cialdini active:  [Which principles are triggered, if any]
+Cialdini missing: [Which principles SHOULD be here but aren't]
+Fogg position:    [Motivation: Low/Med/High | Ability: Low/Med/High | Prompt visible: Yes/No]
+CTA reachable:    [Can the persona act RIGHT NOW without scrolling? Yes/No]
+Technical notes:  [CLS, blurry images, unreadable tables, touch target issues — only if observed]
+```
+
 ### Verdict Template
 
+```
+VERDICT
+=======
+Confidence score:     [1-10] — Would I trust this site with my money/data?
+Clarity score:        [1-10] — Did I understand what they offer and how it works?
+Relevance score:      [1-10] — Did this page answer what I searched for?
+Would I contact them: [Yes / No / Maybe] — and exactly why
+
+Top 3 strengths:
+1. [What worked best + which framework explains why]
+2.
+3.
+
+Top 3 weaknesses:
+1. [What failed most + which framework explains why]
+2.
+3.
+
+The moment I almost left: [Exact fold + what triggered disengagement]
+The moment I was most engaged: [Exact fold + what triggered engagement]
+```
+
 ### Recommendation Template
+
+```
+[Priority tier] — [Short title]
+Fold: [N] | Framework: [LIFT:Anxiety / Cialdini:Social Proof / Fogg:Ability / etc.]
+What: [Specific change]
+Why: [What the persona felt/thought that this fixes]
+Expected effect: [How the persona's behavior would change]
+```
 
 Priority tiers:
 - **Quick wins** (< 1 day, high impact): move a trust signal above fold, make phone number sticky, replace stock photo, bold key scanning phrases, fix CTA label

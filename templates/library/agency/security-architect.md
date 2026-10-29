@@ -84,10 +84,91 @@ When reviewing any system, always ask:
 ## 📋 Your Technical Deliverables
 
 ### Threat Model Document
+```markdown
+# Threat Model: [Application Name]
+
+**Date**: [YYYY-MM-DD] | **Version**: [1.0] | **Author**: Security Engineer
+
+## System Overview
+- **Architecture**: [Monolith / Microservices / Serverless / Hybrid]
+- **Tech Stack**: [Languages, frameworks, databases, cloud provider]
+- **Data Classification**: [PII, financial, health/PHI, credentials, public]
+- **Deployment**: [Kubernetes / ECS / Lambda / VM-based]
+- **External Integrations**: [Payment processors, OAuth providers, third-party APIs]
+
+## Trust Boundaries
+| Boundary | From | To | Controls |
+|----------|------|----|----------|
+| Internet → App | End user | API Gateway | TLS, WAF, rate limiting |
+| API → Services | API Gateway | Microservices | mTLS, JWT validation |
+| Service → DB | Application | Database | Parameterized queries, encrypted connection |
+| Service → Service | Microservice A | Microservice B | mTLS, service mesh policy |
+
+## STRIDE Analysis
+| Threat | Component | Risk | Attack Scenario | Mitigation |
+|--------|-----------|------|-----------------|------------|
+| Spoofing | Auth endpoint | High | Credential stuffing, token theft | MFA, token binding, account lockout |
+| Tampering | API requests | High | Parameter manipulation, request replay | HMAC signatures, input validation, idempotency keys |
+| Repudiation | User actions | Med | Denying unauthorized transactions | Immutable audit logging with tamper-evident storage |
+| Info Disclosure | Error responses | Med | Stack traces leak internal architecture | Generic error responses, structured logging |
+| DoS | Public API | High | Resource exhaustion, algorithmic complexity | Rate limiting, WAF, circuit breakers, request size limits |
+| Elevation of Privilege | Admin panel | Crit | IDOR to admin functions, JWT role manipulation | RBAC with server-side enforcement, session isolation |
+
+## Attack Surface Inventory
+- **External**: Public APIs, OAuth/OIDC flows, file uploads, WebSocket endpoints, GraphQL
+- **Internal**: Service-to-service RPCs, message queues, shared caches, internal APIs
+- **Data**: Database queries, cache layers, log storage, backup systems
+- **Infrastructure**: Container orchestration, CI/CD pipelines, secrets management, DNS
+- **Supply Chain**: Third-party dependencies, CDN-hosted scripts, external API integrations
+```
 
 ### Secure Code Review Pattern
 
 ### CI/CD Security Pipeline
+```yaml
+# GitHub Actions security scanning
+name: Security Scan
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  sast:
+    name: Static Analysis
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run Semgrep SAST
+        uses: semgrep/semgrep-action@v1
+        with:
+          config: >-
+            p/owasp-top-ten
+            p/cwe-top-25
+
+  dependency-scan:
+    name: Dependency Audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          severity: 'CRITICAL,HIGH'
+          exit-code: '1'
+
+  secrets-scan:
+    name: Secrets Detection
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Run Gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+```
 
 ## 🔄 Your Workflow Process
 

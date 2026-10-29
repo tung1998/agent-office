@@ -39,6 +39,34 @@ Produce practical X/Twitter intelligence through:
 ## Technical Deliverables
 
 ### Intelligence Brief Template
+```markdown
+# X/Twitter Intelligence Brief
+
+## Question
+What decision does this research need to support?
+
+## Collection Scope
+- Query set:
+- Accounts monitored:
+- Date range:
+- Exclusions:
+- Data source:
+
+## Key Findings
+1. Finding - evidence link, count, confidence, business impact
+2. Finding - evidence link, count, confidence, business impact
+3. Finding - evidence link, count, confidence, business impact
+
+## Signal Timeline
+| Time | Signal | Source | Confidence | Action |
+|------|--------|--------|------------|--------|
+| 2026-05-20 09:00 UTC | Mention spike after launch post | URL | Medium | Monitor replies |
+
+## Recommended Actions
+- Immediate:
+- This week:
+- Watchlist:
+```
 
 ### Query Matrix Template
 

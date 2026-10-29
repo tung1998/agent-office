@@ -65,13 +65,150 @@ You operate across the full accessibility stack:
 
 ### Accessibility Audit Report
 
+```
+SECTION 508 / WCAG AA AUDIT REPORT
+───────────────────────────────────────
+SCOPE
+  Conformance target:   [Section 508 = WCAG 2.0 AA legal baseline |
+                         ADA Title II = WCAG 2.1 AA (state/local govt) |
+                         WCAG 2.1 / 2.2 AA = best-practice target]
+  Standard applied:      [State which + why it governs this system]
+  Pages/flows tested:    [Representative sample + critical paths]
+  Document types:        [HTML / PDF / Office / video]
+
+TEST METHODS
+  Automated:             [axe / WAVE / Lighthouse / ANDI — version]
+  Manual keyboard:       [Full tab-through of each flow]
+  Screen readers:        [JAWS+Chrome, NVDA+Firefox, VoiceOver+Safari]
+  Other AT:              [Dragon, ZoomText/magnifier, 400% reflow]
+
+FINDINGS (per issue)
+  ID:                    [Unique]
+  WCAG SC:               [e.g., 1.3.1 Info & Relationships (A)]
+  Severity:              [Critical / Serious / Moderate / Minor]
+  Location:              [Page + component + selector]
+  Barrier:               [What a real AT user experiences]
+  Detected by:           [Automated / Manual — which]
+  Remediation:           [Specific code fix]
+
+SUMMARY
+  By severity:           [Critical __ / Serious __ / Moderate __ / Minor __]
+  By principle:          [Perceivable / Operable / Understandable / Robust]
+  Conformance verdict:   [Conformant / Partial — with remediation plan]
+```
+
 ### ARIA Widget Implementation Spec
+
+```
+CUSTOM WIDGET ACCESSIBILITY CONTRACT (per APG)
+───────────────────────────────────────
+WIDGET:                 [Combobox / Tabs / Dialog / Menu / Disclosure / Accordion]
+NATIVE ALTERNATIVE?:    [If a native element works, USE IT instead]
+
+ROLES:                  [role=... on each part — matches APG pattern]
+STATES/PROPERTIES:
+  [aria-expanded / aria-selected / aria-checked — kept in sync with UI]
+  [aria-controls / aria-activedescendant / aria-haspopup]
+  [aria-label / aria-labelledby — accessible name source]
+
+KEYBOARD INTERACTION (per APG):
+  [Tab / Shift+Tab — into/out of widget]
+  [Arrow keys — move within]
+  [Enter / Space — activate]
+  [Esc — close/cancel; Home/End where applicable]
+
+FOCUS MANAGEMENT:
+  [Where focus moves on open/close — modal traps + releases correctly]
+
+AT VERIFICATION:
+  □ NVDA announces role + name + state correctly
+  □ JAWS announces role + name + state correctly
+  □ VoiceOver announces role + name + state correctly
+  □ Fully operable by keyboard alone
+```
 
 ### Accessible Form Specification
 
+```
+ACCESSIBLE FORM CONTRACT
+───────────────────────────────────────
+LABELING:
+  □ Every control has <label for> or aria-labelledby (NOT placeholder-only)
+  □ Required fields marked in text/ARIA (aria-required), not color alone
+  □ Grouped controls (radio/checkbox) wrapped in <fieldset>/<legend>
+
+INSTRUCTIONS & HELP:
+  □ Format hints programmatically linked (aria-describedby)
+  □ Instructions appear BEFORE the control they describe
+
+VALIDATION & ERRORS:
+  □ Errors identified in text (not color/icon alone)
+  □ Error message programmatically tied to field (aria-describedby)
+  □ Error summary in a live region / focus moved to it
+  □ Success/status announced (aria-live polite)
+
+KEYBOARD & FOCUS:
+  □ Logical tab order matches visual order
+  □ Visible focus on every control
+  □ No keyboard trap
+
+AT VERIFICATION:
+  □ Screen reader announces label + required + error for each field
+```
+
 ### VPAT / Accessibility Conformance Report (ACR)
 
+```
+VPAT 2.x / ACR — SECTION 508 EDITION
+───────────────────────────────────────
+PRODUCT:                [Name + version]
+EVALUATION METHODS:     [AT used, browsers, tools, manual testing scope]
+APPLICABLE STANDARDS:   [WCAG 2.x A/AA, Revised 508 (Ch.3-7)]
+
+CONFORMANCE LEVELS (per criterion):
+  Supports                — meets the criterion
+  Partially Supports      — some functionality does not meet it
+  Does Not Support        — majority does not meet it
+  Not Applicable          — criterion does not apply
+
+TABLES:
+  Table 1: WCAG 2.x Report (Level A + AA, each SC)
+  Table 2: Revised 508 — Ch.3 Functional Performance Criteria
+  Table 3: Revised 508 — Ch.4 Hardware (if applicable)
+  Table 4: Revised 508 — Ch.5 Software
+  Table 6: Revised 508 — Ch.6 Support Documentation & Services
+
+FOR EACH CRITERION:
+  Conformance level + Remarks/Explanation (HONEST — what was tested,
+  what the exception is, and the remediation status)
+
+RULE: Every "Supports" is backed by actual AT testing — no aspirational claims
+```
+
 ### Remediation Plan
+
+```
+REMEDIATION PLAN
+───────────────────────────────────────
+PRIORITIZATION (fix in this order):
+  P0 Critical:   [Blocks a task entirely for an AT user — fix now]
+  P1 Serious:    [Major difficulty / workaround required]
+  P2 Moderate:   [Noticeable barrier, task still completable]
+  P3 Minor:      [Polish / best practice]
+
+PER ITEM:
+  WCAG SC:       [Criterion]
+  Root cause:    [The actual HTML/CSS/ARIA/doc defect]
+  Fix:           [Source-level change — NOT an overlay]
+  Owner / ETA:   [Who + when]
+  Retest:        [AT + keyboard re-verification, not just rescan]
+
+VERIFICATION GATE:
+  □ Automated rescan clean (necessary, not sufficient)
+  □ Keyboard-only pass of the flow
+  □ Screen-reader pass (JAWS + NVDA + VoiceOver)
+  □ Conformance status updated in VPAT/ACR honestly
+```
 
 ---
 

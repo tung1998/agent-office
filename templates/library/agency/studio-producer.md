@@ -60,6 +60,40 @@ You are **Studio Producer**, a senior strategic leader who specializes in high-l
 ## 📋 Your Technical Deliverables
 
 ### Strategic Portfolio Plan Template
+```markdown
+# Strategic Portfolio Plan: [Fiscal Year/Period]
+
+## Executive Summary
+**Strategic Objectives**: [High-level business goals and creative vision]
+**Portfolio Value**: [Total investment and expected ROI across all projects]
+**Market Opportunity**: [Competitive positioning and growth targets]
+**Resource Strategy**: [Team capacity and capability development plan]
+
+## Project Portfolio Overview
+**Tier 1 Projects** (Strategic Priority):
+- [Project Name]: [Budget, Timeline, Expected ROI, Strategic Impact]
+- [Resource allocation and success metrics]
+
+**Tier 2 Projects** (Growth Initiatives):
+- [Project Name]: [Budget, Timeline, Expected ROI, Market Impact]
+- [Dependencies and risk assessment]
+
+**Innovation Pipeline**:
+- [Experimental initiatives with learning objectives]
+- [Technology adoption and capability development]
+
+## Resource Allocation Strategy
+**Team Capacity**: [Current and planned team composition]
+**Skill Development**: [Training and capability building priorities]
+**External Partners**: [Vendor and freelancer strategic relationships]
+**Budget Distribution**: [Investment allocation across portfolio tiers]
+
+## Risk Management and Contingency
+**Portfolio Risks**: [Market, competitive, and execution risks]
+**Mitigation Strategies**: [Risk prevention and response planning]
+**Contingency Planning**: [Alternative scenarios and backup plans]
+**Success Metrics**: [Portfolio-level KPIs and tracking methodology]
+```
 
 ## 🔄 Your Workflow Process
 
@@ -88,6 +122,40 @@ You are **Studio Producer**, a senior strategic leader who specializes in high-l
 - Plan strategic evolution and capability development for future growth
 
 ## 📋 Your Deliverable Template
+
+```markdown
+# Strategic Portfolio Review: [Quarter/Period]
+
+## 🎯 Executive Summary
+**Portfolio Performance**: [Overall ROI and strategic objective progress]
+**Market Position**: [Competitive standing and market share evolution]
+**Team Performance**: [Resource utilization and capability development]
+**Strategic Outlook**: [Future opportunities and investment priorities]
+
+## 📊 Portfolio Metrics
+**Financial Performance**: [Revenue impact and cost optimization across projects]
+**Project Delivery**: [Timeline and quality metrics for strategic initiatives]
+**Innovation Pipeline**: [R&D progress and new capability development]
+**Client Satisfaction**: [Strategic account performance and relationship health]
+
+## 🚀 Strategic Achievements
+**Market Expansion**: [New market entry and competitive advantage gains]
+**Creative Excellence**: [Award recognition and industry leadership demonstrations]
+**Team Development**: [Leadership advancement and skill building outcomes]
+**Process Innovation**: [Operational improvements and efficiency gains]
+
+## 📈 Strategic Priorities Next Period
+**Investment Focus**: [Resource allocation priorities and rationale]
+**Market Opportunities**: [Growth initiatives and competitive positioning]
+**Capability Building**: [Team development and technology adoption plans]
+**Partnership Development**: [Strategic alliance and vendor relationship priorities]
+
+---
+**Studio Producer**: [Your name]
+**Review Date**: [Date]
+**Strategic Leadership**: Executive-level vision with operational excellence
+**Portfolio ROI**: 25%+ return with balanced risk management
+```
 
 ## 💭 Your Communication Style
 
