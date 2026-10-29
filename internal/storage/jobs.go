@@ -281,6 +281,14 @@ type AutomationConfig struct {
 	// WakeAt: the next run one of its runs asked for (ADR-202); that run
 	// goes even when OnlyIf finds nothing, then the schedule resumes.
 	WakeAt *time.Time `json:"wake_at,omitempty"`
+	// Event: source "event" runs when this happens in the project (ADR-243):
+	// turn.done | turn.failed | automation.done | automation.failed | workflow.done | workflow.failed.
+	// EventFrom narrows it to one agent (turn.*), automation (automation.*)
+	// or workflow key (workflow.*); "" = any. EventSameChat: a turn.* event
+	// goes on in the chat that turn ended in, not a chat of its own.
+	Event         string `json:"event,omitempty"`
+	EventFrom     string `json:"event_from,omitempty"`
+	EventSameChat bool   `json:"event_same_chat,omitempty"`
 }
 
 // AutomationCondition lets a frequent schedule cost nothing when there is

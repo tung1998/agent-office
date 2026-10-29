@@ -371,5 +371,20 @@ export default {
   'auto.permEffectiveNormal': 'Agent {name} chạy quyền thường',
   'auto.permBudgetWarning': 'Chạy toàn quyền mà không ai duyệt: nên đặt Trần chi phí/ngày và Tự tắt sau N lần lỗi ở mục Giới hạn (không bắt buộc).',
   'auto.adminBadge': 'Admin',
-  'auto.adminBadgeHint': 'Chạy toàn quyền administrator'
+  'auto.adminBadgeHint': 'Chạy toàn quyền administrator',
+  'auto.sourceEvent': 'Sự kiện',
+  'auto.sourceEventDesc': 'Chạy khi một việc trong project kết thúc: lượt chat, tự động hóa khác, quy trình. Nối các bước đuôi nhau',
+  'auto.onEvent': 'khi {event}',
+  'auto.eventLabel': 'Khi',
+  'auto.eventFrom': 'Của',
+  'auto.eventFromAny': 'Bất kỳ',
+  'auto.eventSameChat': 'Chạy tiếp trong chat đó',
+  'auto.eventSameChatHint': 'Gửi tiếp vào chính chat vừa xong lượt, thay vì mở chat riêng',
+  'auto.eventHint': 'Kết quả việc vừa xong nằm trong {{payload.text}}. Chuỗi tối đa 5 bước, mỗi tự động hóa tối đa 30 lần/giờ.',
+  'auto.ev.turn.done': 'Agent trả lời xong một lượt',
+  'auto.ev.turn.failed': 'Lượt chat bị lỗi',
+  'auto.ev.automation.done': 'Tự động hóa chạy xong',
+  'auto.ev.automation.failed': 'Tự động hóa thất bại',
+  'auto.ev.workflow.done': 'Quy trình xong',
+  'auto.ev.workflow.failed': 'Quy trình thất bại'
 } as const

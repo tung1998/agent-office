@@ -15,21 +15,25 @@ import (
 type Spec struct {
 	AutomationID string `json:"automation_id,omitempty"` // update: which one
 	// Enabled turns it on or off (ADR-200); nil = a new one on, an edited one as it is.
-	Enabled      *bool                      `json:"enabled,omitempty"`
-	Name         string                     `json:"name"`
-	Source       string                     `json:"source"` // schedule | webhook
-	EveryMinutes int                        `json:"every_minutes,omitempty"`
-	Cron         string                     `json:"cron,omitempty"`
-	Timezone     string                     `json:"timezone,omitempty"`
-	Action       string                     `json:"action"`             // script | chat | workflow
-	Workflow     string                     `json:"workflow,omitempty"` // workflow: its key; prompt is the input
-	AgentID      string                     `json:"agent_id,omitempty"`
-	Prompt       string                     `json:"prompt,omitempty"`
-	Script       storage.AutomationScript   `json:"script"`
-	Escalate     storage.AutomationEscalate `json:"escalate"`          // gone (ADR-057): read, never kept
-	Goal         *storage.AutomationGoal    `json:"goal,omitempty"`    // chat/workflow: run until it is reached (ADR-132)
-	Tags         []string                   `json:"tags,omitempty"`    // on each run's chat (none = the ones it has)
-	EndsAt       *time.Time                 `json:"ends_at,omitempty"` // schedule: it stops then (none = the one it has)
+	Enabled *bool  `json:"enabled,omitempty"`
+	Name    string `json:"name"`
+	Source  string `json:"source"` // schedule | webhook | event
+	// Event, EventFrom, EventSameChat: source event (ADR-243)
+	Event         string                     `json:"event,omitempty"`
+	EventFrom     string                     `json:"event_from,omitempty"`
+	EventSameChat bool                       `json:"event_same_chat,omitempty"`
+	EveryMinutes  int                        `json:"every_minutes,omitempty"`
+	Cron          string                     `json:"cron,omitempty"`
+	Timezone      string                     `json:"timezone,omitempty"`
+	Action        string                     `json:"action"`             // script | chat | workflow
+	Workflow      string                     `json:"workflow,omitempty"` // workflow: its key; prompt is the input
+	AgentID       string                     `json:"agent_id,omitempty"`
+	Prompt        string                     `json:"prompt,omitempty"`
+	Script        storage.AutomationScript   `json:"script"`
+	Escalate      storage.AutomationEscalate `json:"escalate"`          // gone (ADR-057): read, never kept
+	Goal          *storage.AutomationGoal    `json:"goal,omitempty"`    // chat/workflow: run until it is reached (ADR-132)
+	Tags          []string                   `json:"tags,omitempty"`    // on each run's chat (none = the ones it has)
+	EndsAt        *time.Time                 `json:"ends_at,omitempty"` // schedule: it stops then (none = the one it has)
 	// OnlyIf: a schedule runs only when its data says there is work (ADR-194)
 	OnlyIf *storage.AutomationCondition `json:"only_if,omitempty"`
 	// Limits: its guards (none = the ones it has)
@@ -43,8 +47,10 @@ func (s *Spec) Check() error {
 	switch {
 	case s.Name == "":
 		return errors.New("tự động hóa cần tên")
-	case s.Source != "schedule" && s.Source != "webhook":
-		return errors.New("nguồn phải là schedule hoặc webhook")
+	case s.Source != "schedule" && s.Source != "webhook" && s.Source != "event":
+		return errors.New("nguồn phải là schedule, webhook hoặc event")
+	case s.Source == "event" && (s.Event != "" || s.AutomationID == "") && !ValidEvent(s.Event): // an edit may keep its event
+		return fmt.Errorf("sự kiện phải là một trong: %s", strings.Join(Events, ", "))
 	case s.Action != "script" && s.Action != "chat" && s.Action != "workflow":
 		return errors.New("hành động phải là script, chat hoặc workflow")
 	case s.Action == "workflow" && strings.TrimSpace(s.Workflow) == "":
@@ -140,6 +146,9 @@ func (s Spec) Apply(a *storage.Automation, now time.Time) {
 	if s.EndsAt != nil {
 		end := s.EndsAt.UTC()
 		cfg.EndsAt = &end
+	}
+	if s.Source == "event" {
+		cfg.Event, cfg.EventFrom, cfg.EventSameChat = s.Event, strings.TrimSpace(s.EventFrom), s.EventSameChat && strings.HasPrefix(s.Event, "turn.")
 	}
 	if s.Source == "webhook" && cfg.Auth == "" {
 		cfg.Auth = "bearer"

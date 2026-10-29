@@ -199,8 +199,8 @@ func (s *server) applyAutomation(r *http.Request, in automationInput, a *storage
 	} else {
 		a.PermissionMode, a.OverrideFullAccess, a.OverrideAdminBy, a.OverrideExtraDirs = "agent", false, "", nil
 	}
-	if in.Source != "schedule" && in.Source != "webhook" && !trigger.IsChannel(in.Source) {
-		return errors.New("nguồn phải là lịch chạy, webhook hoặc tin nhắn kênh (telegram, discord)")
+	if in.Source != "schedule" && in.Source != "webhook" && in.Source != "event" && !trigger.IsChannel(in.Source) {
+		return errors.New("nguồn phải là lịch chạy, webhook, sự kiện hoặc tin nhắn kênh (telegram, discord)")
 	}
 	if in.ModelTier != "" && !storage.ValidTier(in.ModelTier) {
 		return errors.New("cấp model phải là mạnh, cân bằng hoặc nhanh")
@@ -229,7 +229,7 @@ func (s *server) applyAutomation(r *http.Request, in automationInput, a *storage
 			src = "webhook" // a message arrives like a delivery: the script checks the same way
 		}
 		spec := trigger.Spec{Name: in.Name, Source: src, EveryMinutes: in.Config.EveryMinutes, Cron: in.Config.Cron, Timezone: in.Config.Timezone,
-			Action: in.Action, Script: in.Script}
+			Action: in.Action, Script: in.Script, Event: in.Config.Event}
 		if err := spec.Check(); err != nil {
 			return err
 		}
@@ -298,6 +298,12 @@ func (s *server) applyAutomation(r *http.Request, in automationInput, a *storage
 			cfg.CommandArg = strings.TrimSpace(in.Config.CommandArg)
 			cfg.Skill = strings.TrimSpace(in.Config.Skill)
 		}
+	} else if in.Source == "event" { // ADR-243: when something in the project ends
+		if !trigger.ValidEvent(in.Config.Event) {
+			return errors.New("hãy chọn sự kiện")
+		}
+		cfg.Event, cfg.EventFrom = in.Config.Event, strings.TrimSpace(in.Config.EventFrom)
+		cfg.EventSameChat = in.Config.EventSameChat && strings.HasPrefix(cfg.Event, "turn.")
 	} else {
 		cfg.Auth, cfg.AuthName = in.Config.Auth, strings.TrimSpace(in.Config.AuthName)
 		if cfg.Auth != "header" && cfg.Auth != "query" {

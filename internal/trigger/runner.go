@@ -405,6 +405,11 @@ func (r *Runner) execute(ctx context.Context, j storage.Job) {
 		for _, fn := range r.onDone {
 			fn(context.WithoutCancel(ctx), cur, doneText, doneErr)
 		}
+		if cur.ParentJobID == "" { // the next link of a chain (ADR-243)
+			if a, err := r.store.Automations().Get(ctx, cur.OriginID); err == nil {
+				r.emitDone(context.WithoutCancel(ctx), a, cur, doneText)
+			}
+		}
 	}()
 	a, err := r.store.Automations().Get(ctx, j.OriginID)
 	if err != nil {
@@ -511,6 +516,9 @@ func (r *Runner) execute(ctx context.Context, j storage.Job) {
 	}
 	if fromChannel {
 		conv = channelPayloadOf(origin).ConversationID // the outside chat's own conversation
+	}
+	if ev := eventOf(j); a.Config.EventSameChat && ev.ConversationID != "" {
+		conv = ev.ConversationID // goes on in the chat whose turn ended (ADR-243)
 	}
 	if fromChannel { // the files sent with the message go to the agent with it
 		actx = WithAttachments(actx, channelPayloadOf(origin).Attachments)

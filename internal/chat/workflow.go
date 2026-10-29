@@ -476,6 +476,27 @@ func (e *Engine) finishRun(conversationID, runID, status, result, errText string
 		e.StopAll(c)
 	}
 	e.cancelRoleTurns(runID)
+	e.runEnded(rec)
+}
+
+// runEnded tells that a workflow run a person started ended (workflow.*,
+// ADR-243); a sub-workflow's end is its caller's, an automation's run is
+// that automation's (automation.*).
+func (e *Engine) runEnded(rec storage.WorkflowRun) {
+	if e.onEnded == nil || rec.ParentRunID != "" || strings.HasPrefix(rec.Actor, "auto:") {
+		return
+	}
+	ev, text := "workflow.done", rec.Result
+	switch rec.Status {
+	case storage.RunDone:
+	case storage.RunFailed:
+		ev, text = "workflow.failed", rec.Error
+	default:
+		return
+	}
+	x := Ended{ProjectID: rec.ProjectID, ID: rec.ID, Event: ev, From: rec.WorkflowKey, FromName: rec.WorkflowName,
+		ConversationID: firstNonEmpty(rec.CallerConversationID, rec.ConversationID), Status: rec.Status, Error: rec.Error, Text: text}
+	safeGo("onEnded", func() { e.onEnded(context.Background(), x) })
 }
 
 // cancelRoleTurns stops the roles' turns of a run still answering (not the

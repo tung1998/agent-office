@@ -372,7 +372,22 @@ const en: Record<keyof typeof vi, string> = {
   'auto.permEffectiveNormal': 'Agent {name} runs with normal access',
   'auto.permBudgetWarning': 'Runs with full access and nobody approving: a Daily cost cap and Disable after N failures (Limits) are worth setting (optional).',
   'auto.adminBadge': 'Admin',
-  'auto.adminBadgeHint': 'Runs with full administrator access'
+  'auto.adminBadgeHint': 'Runs with full administrator access',
+  'auto.sourceEvent': 'Event',
+  'auto.sourceEventDesc': 'Runs when something in the project ends: a chat turn, another automation, a workflow. Chains steps one after another',
+  'auto.onEvent': 'on {event}',
+  'auto.eventLabel': 'When',
+  'auto.eventFrom': 'Of',
+  'auto.eventFromAny': 'Any',
+  'auto.eventSameChat': 'Go on in that chat',
+  'auto.eventSameChatHint': 'Send it on in the chat whose turn just ended, not a chat of its own',
+  'auto.eventHint': 'What just ended is in {{payload.text}}. A chain goes at most 5 steps, each automation at most 30 runs an hour.',
+  'auto.ev.turn.done': 'An agent answered a turn',
+  'auto.ev.turn.failed': 'A chat turn failed',
+  'auto.ev.automation.done': 'An automation finished',
+  'auto.ev.automation.failed': 'An automation failed',
+  'auto.ev.workflow.done': 'A workflow finished',
+  'auto.ev.workflow.failed': 'A workflow failed'
 }
 
 export default en

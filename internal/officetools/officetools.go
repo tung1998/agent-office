@@ -25,6 +25,7 @@ import (
 	"github.com/tung1998/agent-office/internal/peer"
 	"github.com/tung1998/agent-office/internal/storage"
 	"github.com/tung1998/agent-office/internal/transfer"
+	"github.com/tung1998/agent-office/internal/trigger"
 	"github.com/tung1998/agent-office/internal/wiki"
 )
 
@@ -317,17 +318,20 @@ func (t *Toolbox) Tools() []Tool {
 		str := func(desc string) map[string]any { return map[string]any{"type": "string", "description": desc} }
 		list = append(list, Tool{Name: "propose_automation", Description: "Propose an automation (the person approves it). Prefer action=script (NO AI tokens); chat only when every run needs AI; workflow runs a project workflow. A script feeds the project's Burn: each output line '@@quest <title> :: <detail>' becomes a Burn quest (open ones with the same title are skipped). A scheduled script opens a project workflow with a line '@@workflow <key> <input>' (at most 3, no AI until the workflow reaches an agent step). chat/workflow with goal runs until a check passes. A frequent schedule takes only_if (it runs only when its data or the work board has work: no tokens otherwise) and limits. With the self.manage capability, a chat/workflow schedule at most every 30 minutes with limits.daily_cost_usd up to 5 is done at once, no approval. With automation_id it edits that one: what the edit leaves out (time zone, agent, prompt, goal, only_if, limits, where it reports) stays as it is.",
 			Schema: obj(map[string]any{
-				"automation_id": str("Edit this automation (empty = create a new one)"),
-				"enabled":       map[string]any{"type": "boolean", "description": "Turn it on (true) or off (false); empty = a new one on, an edited one as it is"},
-				"name":          str("Short name"),
-				"source":        map[string]any{"type": "string", "enum": []string{"schedule", "webhook"}},
-				"every_minutes": map[string]any{"type": "integer"},
-				"cron":          str("5-field cron, e.g. 0 8 * * 1-5"),
-				"timezone":      str("IANA, e.g. Asia/Ho_Chi_Minh"),
-				"action":        map[string]any{"type": "string", "enum": []string{"script", "chat", "workflow"}},
-				"workflow":      str("workflow: key of the workflow to run (agent_id is the coordinating agent)"),
-				"agent_id":      str("chat: answering agent (empty = team lead)"),
-				"prompt":        str("chat: text sent to the agent; workflow: the workflow's input; supports {{payload}}, {{today}}…"),
+				"automation_id":   str("Edit this automation (empty = create a new one)"),
+				"enabled":         map[string]any{"type": "boolean", "description": "Turn it on (true) or off (false); empty = a new one on, an edited one as it is"},
+				"name":            str("Short name"),
+				"source":          map[string]any{"type": "string", "enum": []string{"schedule", "webhook", "event"}},
+				"event":           map[string]any{"type": "string", "enum": trigger.Events, "description": "source event: runs when this ends in the project (turn.* = a person's chat turn; automation.* = another automation's run, so automations chain; workflow.*). The payload ({{payload.text}}, {{payload.status}}, {{payload.from_name}}…) carries what ended"},
+				"event_from":      str("source event: only this one's end (agent id for turn.*, automation id for automation.*, workflow key for workflow.*); empty = any"),
+				"event_same_chat": map[string]any{"type": "boolean", "description": "source event, turn.*: go on in the chat that turn ended in"},
+				"every_minutes":   map[string]any{"type": "integer"},
+				"cron":            str("5-field cron, e.g. 0 8 * * 1-5"),
+				"timezone":        str("IANA, e.g. Asia/Ho_Chi_Minh"),
+				"action":          map[string]any{"type": "string", "enum": []string{"script", "chat", "workflow"}},
+				"workflow":        str("workflow: key of the workflow to run (agent_id is the coordinating agent)"),
+				"agent_id":        str("chat: answering agent (empty = team lead)"),
+				"prompt":          str("chat: text sent to the agent; workflow: the workflow's input; supports {{payload}}, {{today}}…"),
 				"script": obj(map[string]any{
 					"lang":       map[string]any{"type": "string", "enum": []string{"bash", "node", "python"}},
 					"body":       str("Source; runs in the project folder, payload on stdin and $OFFICE_PAYLOAD, result on stdout, non-zero exit on error; a line '@@quest <title> :: <detail>' gives the project's Burn a quest (detail optional); a line '@@workflow <key> <input>' opens that workflow"),

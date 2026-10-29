@@ -25,6 +25,9 @@ const sourceCards = computed(() => [
   // a GitHub/Bitbucket pull request: a webhook whose token is in its URL (they send no header)
   { value: 'pr', icon: 'i-lucide-git-pull-request', title: t('auto.sourcePR'), desc: t('auto.sourcePRDesc'), active: !botsOpen.value && form.source === 'webhook' && !!form.config.pull_request,
     pick: () => { botsOpen.value = false; form.source = 'webhook'; form.config.pull_request = true; form.config.auth = 'query'; form.config.auth_name = 'token' } },
+  // something in the project ended: the next piece of work goes on its own (ADR-243)
+  { value: 'event', icon: 'i-lucide-git-commit-horizontal', title: t('auto.sourceEvent'), desc: t('auto.sourceEventDesc'), active: !botsOpen.value && form.source === 'event',
+    pick: () => { botsOpen.value = false; form.source = 'event'; form.config.event ||= 'turn.done' } },
   // a bot's messages: made on the bot's page (a command of it); here, which bot
   { value: 'channel', icon: 'i-lucide-messages-square', title: t('auto.sourceChannel'), desc: t('auto.sourceChannelDesc'), active: botsOpen.value || fromChannel.value,
     pick: () => { botsOpen.value = true } }
@@ -85,6 +88,18 @@ const { data: wfData } = useLiveFetch<{ workflows: ProjectWorkflow[] }>(() => `/
 const workflowItems = computed(() => (wfData.value?.workflows ?? []).filter(w => w.enabled && !w.error && w.callable !== 'sub')
   .map(w => ({ label: `#${w.key} · ${w.name}`, value: w.key })))
 const workflowKey = computed({ get: () => form.config.workflow ?? '', set: (v: string) => { form.config.workflow = v } })
+// source event (ADR-243): which end, and whose ("" = any: a sentinel, as LEAD)
+const ANY = '__any'
+const eventItems = computed(() => automationEvents.map(e => ({ label: t(`auto.ev.${e}`), value: e })))
+const { data: autosData } = useLiveFetch<{ automations: Automation[] }>(() => `/api/projects/${props.projectId}/automations`, { lazy: true, immediate: form.source === 'event' })
+const eventKind = computed(() => (form.config.event ?? 'turn.done').split('.')[0])
+const eventFromItems = computed(() => [{ label: t('auto.eventFromAny'), value: ANY }, ...(eventKind.value === 'turn'
+  ? (agentsData.value?.agents ?? []).map(a => ({ label: a.name, value: a.id }))
+  : eventKind.value === 'automation'
+    ? (autosData.value?.automations ?? []).filter(a => a.name !== form.name).map(a => ({ label: a.name, value: a.id }))
+    : (wfData.value?.workflows ?? []).map(w => ({ label: `#${w.key} · ${w.name}`, value: w.key })))])
+const eventFrom = computed({ get: () => form.config.event_from || ANY, set: (v: string) => { form.config.event_from = v === ANY ? '' : v } })
+watch(() => form.config.event, (now, was) => { if (was && now?.split('.')[0] !== was.split('.')[0]) form.config.event_from = '' })
 // run until a goal is reached (ADR-132): a check command and/or a judge, at most N turns
 const goalOn = ref(!!form.config.goal)
 const goal = reactive({ text: '', check: '', judge: false, max_rounds: 5, ...form.config.goal })
@@ -130,7 +145,9 @@ const fmt = (d: string) => new Date(d).toLocaleString(dateLocale.value, { weekda
 
 const placeholders = computed(() => fromChannel.value
   ? ['{{message}}', '{{user}}', '{{now}}', '{{today}}', '{{automation}}']
-  : form.config.pull_request
+  : form.source === 'event'
+    ? ['{{payload.text}}', '{{payload.status}}', '{{payload.from_name}}', '{{payload.error}}', '{{payload.conversation_id}}', '{{automation}}']
+    : form.config.pull_request
     ? ['{{diff}}', '{{payload.number}}', '{{payload.title}}', '{{payload.author}}', '{{payload.url}}', '{{payload.source}}', '{{payload.target}}']
     : ['{{payload}}', '{{payload.x}}', '{{now}}', '{{today}}', '{{yesterday}}', '{{source}}', '{{automation}}'])
 // the bot answers go out by: the project's, or one borrowed (NotifyBotPicker)
@@ -252,6 +269,19 @@ async function testRun() {
           <span v-if="preview.error" class="text-(--ui-error)">{{ preview.error }}</span>
           <span v-for="n in preview.next" v-else :key="n" class="rounded-md bg-(--ui-bg-elevated) px-2 py-0.5 tabular-nums">{{ fmt(n) }}</span>
         </div>
+      </template>
+      <template v-else-if="form.source === 'event'">
+        <div class="grid gap-3 @lg:grid-cols-2">
+          <UFormField :label="t('auto.eventLabel')">
+            <USelect v-model="form.config.event" :items="eventItems" class="w-full" />
+          </UFormField>
+          <UFormField :label="t('auto.eventFrom')">
+            <USkeleton v-if="eventKind === 'automation' && !autosData" class="h-8 w-full" />
+            <USelect v-else v-model="eventFrom" :items="eventFromItems" class="w-full" />
+          </UFormField>
+        </div>
+        <USwitch v-if="eventKind === 'turn'" v-model="form.config.event_same_chat" :label="t('auto.eventSameChat')" :description="t('auto.eventSameChatHint')" />
+        <p class="text-xs text-(--ui-text-muted)">{{ t('auto.eventHint') }}</p>
       </template>
       <p v-else-if="form.config.pull_request" class="flex items-start gap-1.5 text-sm text-(--ui-text-muted)">
         {{ t('auto.prShort') }}

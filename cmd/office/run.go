@@ -271,6 +271,10 @@ func serveCmd() *cobra.Command {
 			office.AddProvider(supportPack)
 			office.AddProvider(collections.NewTools(collections.New(a.store), acts)) // data_* (ADR-172); a delete is a card
 			office.AddProvider(activity.NewTools(a.store))                           // project_report (ADR-210)
+			chatEngine.SetOnEnded(func(ctx context.Context, x chat.Ended) {          // automations that follow it (ADR-243)
+				runner.Emit(ctx, x.ProjectID, x.ID, trigger.EventPayload{Event: x.Event, From: x.From, FromName: x.FromName,
+					ConversationID: x.ConversationID, Status: x.Status, Error: x.Error, Text: x.Text})
+			})
 			runner.SetOnReply(bots.Reply)
 			runner.SetOnProgress(bots.Progress)
 			acts.SetAutoApprover(bots.DirectApprover) // a chat in direct mode: approved in the turn, the agent goes on

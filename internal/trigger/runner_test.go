@@ -44,6 +44,7 @@ type fakeExec struct {
 	actors []string   // who each task was asked by
 	goals  []string   // each task's goal
 	tags   [][]string // the chat tags each run was given
+	convs  []string   // the chat each run was sent to ("" = a new one)
 }
 
 func (f *fakeExec) RunChat(ctx context.Context, projectID, agentID, conv, prompt, edit string) (string, string, error) {
@@ -54,6 +55,7 @@ func (f *fakeExec) RunChat(ctx context.Context, projectID, agentID, conv, prompt
 		return "", "", trigger.ErrBusy
 	}
 	f.chats = append(f.chats, prompt)
+	f.convs = append(f.convs, conv)
 	f.tiers = append(f.tiers, trigger.ModelTierOf(ctx))
 	f.tags = append(f.tags, trigger.TagsOf(ctx))
 	f.actors = append(f.actors, actor.From(ctx))

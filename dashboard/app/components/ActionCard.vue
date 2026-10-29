@@ -22,7 +22,7 @@ export interface ProposedAction {
   // config_change: a settings change (ADR-045)
   change?: { resource: string, op: 'create' | 'update' | 'delete', id?: string, patch?: Record<string, unknown>, before?: Record<string, unknown> }
   // create_automation / update_automation: the proposed automation
-  automation?: { name: string, source: string, every_minutes?: number, cron?: string, timezone?: string, action: string, workflow?: string, prompt?: string,
+  automation?: { name: string, source: string, event?: string, every_minutes?: number, cron?: string, timezone?: string, action: string, workflow?: string, prompt?: string,
     script?: { lang: string, body: string, timeout_s?: number }, escalate?: { when?: string, action?: string, agent_id?: string, prompt?: string } }
   // its number among the chat's proposals: they are approved in that order
   seq?: number
@@ -100,6 +100,7 @@ const when = computed(() => {
   const s = spec.value
   if (!s) return ''
   if (s.source === 'webhook') return t('auto.sourceWebhook')
+  if (s.source === 'event') return t('auto.onEvent', { event: s.event ?? '' })
   return s.cron ? `${s.cron}${s.timezone ? ` (${s.timezone})` : ''}` : t('auto.every', { n: s.every_minutes ?? 0 })
 })
 // a settings change: what each field goes from and to

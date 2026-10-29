@@ -64,6 +64,9 @@ func keepLeftOut(spec *trigger.Spec, old storage.Automation) {
 	if spec.OnlyIf == nil {
 		spec.OnlyIf = old.Config.OnlyIf
 	}
+	if spec.Source == "event" && spec.Event == "" { // the same event, from the same one
+		spec.Event, spec.EventFrom, spec.EventSameChat = old.Config.Event, old.Config.EventFrom, old.Config.EventSameChat
+	}
 }
 
 // saveAutomation creates or updates the automation of an approved proposal.
@@ -86,6 +89,7 @@ func (s *Service) saveAutomation(ctx context.Context, a storage.Action) error {
 		cfg := old.Config
 		cfg.EveryMinutes, cfg.Cron, cfg.Timezone, cfg.Workflow, cfg.Goal, cfg.OnlyIf = x.Config.EveryMinutes, x.Config.Cron, x.Config.Timezone, x.Config.Workflow, x.Config.Goal, x.Config.OnlyIf
 		cfg.Tags, cfg.EndsAt, cfg.Auth = x.Config.Tags, x.Config.EndsAt, x.Config.Auth
+		cfg.Event, cfg.EventFrom, cfg.EventSameChat = x.Config.Event, x.Config.EventFrom, x.Config.EventSameChat
 		x.Config = cfg
 		err = s.store.Automations().UpdateSpec(ctx, x)
 		if err == nil && spec.Enabled != nil && *spec.Enabled != old.Enabled { // turned on or off (ADR-200)

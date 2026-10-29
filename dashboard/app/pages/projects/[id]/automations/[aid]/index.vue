@@ -66,7 +66,7 @@ async function remove() {
     <div v-if="a" class="space-y-4">
       <UButton :to="back" icon="i-lucide-arrow-left" size="xs" color="neutral" variant="ghost" class="-ms-2" :label="backLabel" />
       <div class="flex flex-wrap items-center gap-2 text-xs text-(--ui-text-muted)">
-        <UIcon :name="a.source === 'schedule' ? 'i-lucide-alarm-clock' : isChannelSource(a.source) ? (a.config.command ? 'i-lucide-square-slash' : 'i-lucide-messages-square') : 'i-lucide-webhook'" class="size-4" />
+        <UIcon :name="a.source === 'schedule' ? 'i-lucide-alarm-clock' : a.source === 'event' ? 'i-lucide-git-commit-horizontal' : isChannelSource(a.source) ? (a.config.command ? 'i-lucide-square-slash' : 'i-lucide-messages-square') : 'i-lucide-webhook'" class="size-4" />
         <span class="font-mono">{{ scheduleText(a, t) }}</span>
         <span>{{ a.action === 'script' ? t('auto.actionScript') : a.action === 'workflow' ? t('auto.toWorkflow', { key: a.config.workflow ?? '' }) : t('auto.actionChat') }}</span>
         <UBadge :label="a.enabled ? t('auto.on') : t('auto.off')" :color="a.enabled ? 'success' : 'neutral'" variant="subtle" size="sm" />

@@ -22,8 +22,9 @@ func (e *Engine) beginJob(ctx context.Context, conv storage.Conversation, agentI
 		CreatedBy: actor.From(ctx), ConversationID: conv.ID, AgentID: agentID, Title: title, Status: "running", StartedAt: &now})
 }
 
-// endJob finishes the job of an answer (cost and tokens come from its runs).
-func (e *Engine) endJob(jobID, messageID string, runErr, ctxErr error) {
+// endJob finishes the job of an answer (cost and tokens come from its runs);
+// ok = it was this call that finished it.
+func (e *Engine) endJob(jobID, messageID string, runErr, ctxErr error) (j storage.Job, ok bool) {
 	ctx := context.Background()
 	if messageID != "" {
 		_ = e.store.Jobs().SetMessageID(ctx, jobID, messageID)
@@ -45,7 +46,42 @@ func (e *Engine) endJob(jobID, messageID string, runErr, ctxErr error) {
 	// FinishIfRunning, not Finish: a cancel may have already moved the job to
 	// "cancelled" (e.g. via FinishIfRunning in cancelJob) while this run was
 	// wrapping up; don't let that get overwritten back to done/failed.
-	_, _ = e.store.Jobs().FinishIfRunning(ctx, jobID, status, code, msg, time.Now().UTC())
+	j, err := e.store.Jobs().FinishIfRunning(ctx, jobID, status, code, msg, time.Now().UTC())
+	return j, err == nil && j.Status == status
+}
+
+// Ended is something that ended in a project, for the automations that
+// follow it (ADR-243): a person's turn (turn.*) or a workflow run (workflow.*).
+type Ended struct {
+	ProjectID, ID  string // ID: the job or run that ended
+	Event          string
+	From, FromName string // the agent, or the workflow's key and name
+	ConversationID string
+	Status, Error  string
+	Text           string // the answer or the result
+}
+
+// SetOnEnded hears turns and workflow runs end.
+func (e *Engine) SetOnEnded(fn func(ctx context.Context, x Ended)) { e.onEnded = fn }
+
+// turnEnded tells that a person's turn ended: one an automation ran is its
+// own run (automation.*), and a workflow's or an expert's turns are the
+// workflow's, so a turn.* automation never answers itself.
+func (e *Engine) turnEnded(j storage.Job, conv storage.Conversation, agent storage.Agent, text string) {
+	if e.onEnded == nil || j.Origin != "user" || j.Kind != "chat_turn" || conv.Purpose == consultPurpose || e.runOf(conv.ID) != nil {
+		return
+	}
+	ev := "turn.done"
+	switch j.Status {
+	case "done":
+	case "failed":
+		ev, text = "turn.failed", j.Error
+	default:
+		return
+	}
+	x := Ended{ProjectID: conv.ProjectID, ID: j.ID, Event: ev, From: agent.ID, FromName: agent.Name, ConversationID: conv.ID,
+		Status: j.Status, Error: j.Error, Text: text}
+	safeGo("onEnded", func() { e.onEnded(context.Background(), x) })
 }
 
 // outOfTokens are how the AI services say a run stopped because the account

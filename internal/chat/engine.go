@@ -228,6 +228,7 @@ type Engine struct {
 	onRunning   func(conversationID string)                // an answer started or ended there (the dashboard's live data)
 	onRunWait   func(ctx context.Context, callerID string) // a workflow's turn ended: what it waits on a person for goes to the chat that called it (a bot's)
 	onAnswered  func(ctx context.Context, a Answered)      // an agent answered a turn: its notes are kept up to date (ADR-215)
+	onEnded     func(ctx context.Context, x Ended)         // a turn or a workflow run ended: automations that follow it (ADR-243)
 	decided     decisions                                  // proposals a person decided on the dashboard: the agent goes on (ADR-084)
 	queueRun    QueueRunner                                // carries out a queued proposal (Drain)
 	draining    sync.Map                                   // conversation id → *sync.Mutex: one Drain at a time
@@ -1076,7 +1077,9 @@ func (e *Engine) run(ctx context.Context, turn *Turn, conv storage.Conversation,
 	}
 	fail := func(err error) {
 		turn.err = err.Error()
-		e.endJob(turn.JobID, "", err, ctx.Err())
+		if j, ok := e.endJob(turn.JobID, "", err, ctx.Err()); ok {
+			e.turnEnded(j, conv, agent, "")
+		}
 		m, _ := e.store.Chat().AddMessage(context.Background(), storage.Message{ConversationID: conv.ID, Role: "error", Content: err.Error()})
 		dto := MessageDTO{ID: m.ID, Role: "error", Content: m.Content, CreatedAt: m.CreatedAt, Tools: []storage.ToolCall{}, Attachments: []storage.Attachment{}, Patches: []PatchDTO{}}
 		turn.emit(Event{Type: "error", Text: err.Error(), Message: &dto, NextTurnID: e.nextTurn(ctx, turn, conv, project, agent, "")})
@@ -1533,7 +1536,9 @@ func (e *Engine) run(ctx context.Context, turn *Turn, conv storage.Conversation,
 		mem.LastMessageID = msg.ID // it has seen everything up to its answer
 	}
 	_ = e.store.Chat().UpsertMember(context.Background(), mem)
-	e.endJob(turn.JobID, msg.ID, nil, nil)
+	if j, ok := e.endJob(turn.JobID, msg.ID, nil, nil); ok {
+		e.turnEnded(j, conv, agent, res.Text)
+	}
 	if e.onAnswered != nil && conv.Purpose != consultPurpose && (len(msg.Tools) > 0 || len(res.Text) >= minReviewed) {
 		a := Answered{ProjectID: project.ID, AgentID: agent.ID, ConversationID: conv.ID, Asked: text, Answer: res.Text}
 		safeGo("onAnswered", func() { e.onAnswered(context.Background(), a) })

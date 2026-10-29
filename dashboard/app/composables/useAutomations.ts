@@ -50,7 +50,12 @@ export interface AutomationConfig {
   tags?: string[] // put on the chat of each run
   ends_at?: string | null // a schedule turns itself off then (as a Burn); none = runs until turned off
   goal?: AutomationGoal | null // chat/workflow: runs until it is reached (ADR-132)
+  // source event (ADR-243): runs when this ends in the project; from: one agent / automation / workflow key ('' = any);
+  // same_chat: a turn.* run goes on in the chat that turn ended in
+  event?: AutomationEvent, event_from?: string, event_same_chat?: boolean
 }
+export const automationEvents = ['turn.done', 'turn.failed', 'automation.done', 'automation.failed', 'workflow.done', 'workflow.failed'] as const
+export type AutomationEvent = typeof automationEvents[number]
 // AutomationGoal: after each turn the check (exit 0) and/or the judge; not reached, the chat goes on
 export interface AutomationGoal { text?: string, check?: string, judge?: boolean, max_rounds?: number }
 export interface AutomationLimits {
@@ -70,7 +75,7 @@ export interface Automation {
   project_id: string
   name: string
   enabled: boolean
-  source: 'schedule' | 'webhook' | 'telegram' | 'discord'
+  source: 'schedule' | 'webhook' | 'event' | 'telegram' | 'discord'
   config: AutomationConfig
   action: 'chat' | 'script' | 'workflow'
   agent_id: string
@@ -152,8 +157,9 @@ export function automationBody(a: Pick<Automation, 'name' | 'enabled' | 'source'
 }
 
 // scheduleText describes when an automation runs.
-export function scheduleText(a: Pick<Automation, 'source' | 'config' | 'webhook_url' | 'bot_status'>, t: (k: 'auto.every' | 'auto.sourceWebhook' | 'auto.sourceChannel', p?: Record<string, string | number>) => string) {
+export function scheduleText(a: Pick<Automation, 'source' | 'config' | 'webhook_url' | 'bot_status'>, t: (k: 'auto.every' | 'auto.sourceWebhook' | 'auto.sourceChannel' | 'auto.onEvent', p?: Record<string, string | number>) => string) {
   if (a.source === 'webhook') return a.webhook_url ?? t('auto.sourceWebhook')
+  if (a.source === 'event') return t('auto.onEvent', { event: a.config.event ?? '' })
   if (isChannelSource(a.source)) {
     const bot = a.bot_status?.bot_name ? `@${a.bot_status.bot_name}` : t('auto.sourceChannel')
     const which = a.config.command ? ` · /${a.config.command}` : a.config.keywords?.length ? ` · "${a.config.keywords.join('", "')}"` : ''
@@ -374,7 +380,7 @@ export function draftFrom(a: Automation): AutomationDraft {
 const draftObjects = ['config', 'limits', 'script', 'escalate', 'bot'] as const
 const draftScalars = ['name', 'enabled', 'source', 'action', 'agent_id', 'prompt', 'edit_mode', 'keep_context'] as const
 const allowed: Record<string, readonly string[]> = {
-  source: ['schedule', 'webhook', 'telegram', 'discord'], action: ['script', 'chat'], edit_mode: ['worktree', 'direct'], model_tier: ['', 'strong', 'balanced', 'fast'],
+  source: ['schedule', 'webhook', 'event', 'telegram', 'discord'], action: ['script', 'chat'], edit_mode: ['worktree', 'direct'], model_tier: ['', 'strong', 'balanced', 'fast'],
   'script.lang': ['bash', 'node', 'python'], 'escalate.when': ['never'],
   'config.auth': ['bearer', 'header', 'query']
 }
