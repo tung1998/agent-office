@@ -33,12 +33,18 @@ func (r harnessRepo) Facts(ctx context.Context, projectID string, since time.Tim
 	}
 	if err := r.each(ctx, func(rows *sql.Rows) error {
 		var a storage.HarnessAction
-		if err := rows.Scan(&a.ID, &a.ConversationID, &a.Kind, &a.Target, &a.Status, &a.DecidedBy, &a.Detail, &created); err != nil {
+		var decided string
+		if err := rows.Scan(&a.ID, &a.ConversationID, &a.Kind, &a.Target, &a.Status, &a.DecidedBy, &a.Detail, &created, &decided); err != nil {
 			return err
+		}
+		if decided != "" {
+			if err := setTime(&a.DecidedAt, decided); err != nil {
+				return err
+			}
 		}
 		f.Actions = append(f.Actions, a)
 		return setTime(&f.Actions[len(f.Actions)-1].CreatedAt, created)
-	}, `SELECT id, COALESCE(conversation_id, ''), kind, substr(target, 1, 300), status, decided_by, substr(detail, 1, 300), created_at
+	}, `SELECT id, COALESCE(conversation_id, ''), kind, substr(target, 1, 300), status, decided_by, substr(detail, 1, 300), created_at, COALESCE(decided_at, '')
 		FROM actions WHERE project_id = ? AND created_at >= ? ORDER BY created_at LIMIT ?`, projectID, from, harnessCap); err != nil {
 		return f, err
 	}

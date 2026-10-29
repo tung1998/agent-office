@@ -33,6 +33,7 @@ type HarnessPatch struct {
 type HarnessAction struct {
 	ID, ConversationID, Kind, Target, Status, DecidedBy, Detail string
 	CreatedAt                                                   time.Time
+	DecidedAt                                                   time.Time // zero while it waits
 }
 
 // HarnessJob is one turn or task run.

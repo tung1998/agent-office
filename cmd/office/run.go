@@ -15,6 +15,7 @@ import (
 	"github.com/tung1998/agent-office/internal/cleanup"
 	"github.com/tung1998/agent-office/internal/deciding"
 	"github.com/tung1998/agent-office/internal/events"
+	"github.com/tung1998/agent-office/internal/heartbeat"
 	"github.com/tung1998/agent-office/internal/home"
 	"github.com/tung1998/agent-office/internal/limitalert"
 	"github.com/tung1998/agent-office/internal/mcpgateway"
@@ -205,6 +206,9 @@ func serveCmd() *cobra.Command {
 			// schedules and webhooks start chats as jobs (ADR-040)
 			runner := trigger.New(a.store, officeExecutor{chat: chatEngine})
 			go runner.Run(ctx)
+			// stuck work (cards no one decides, loops, the same failure): the
+			// coordinator looks into it while it happens (ADR-230)
+			go heartbeat.New(a.store, officeExecutor{chat: chatEngine}).Run(ctx)
 			// the office assistant: a hidden project whose chats span projects (ADR-046)
 			if _, err := assistant.Ensure(ctx, a.store, filepath.Join(h.Dir, "assistant")); err != nil {
 				fmt.Fprintf(cmd.ErrOrStderr(), "office: không dựng được trợ lý office: %v\n", err)
