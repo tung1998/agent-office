@@ -73,10 +73,16 @@ func stalledCards(f storage.HarnessFacts, now time.Time) []Signal {
 	if now.Sub(oldest.CreatedAt) < cardWait {
 		return nil
 	}
+	// turns that went on past a card: in its own chat, or anywhere for a card
+	// with no chat. A card left in a chat that has finished (a webhook review
+	// that answered and ended) blocks nothing, whatever runs in other chats.
 	after := 0
 	for _, j := range f.Jobs {
-		if j.CreatedAt.After(oldest.CreatedAt) {
-			after++
+		for _, a := range waiting {
+			if j.CreatedAt.After(a.CreatedAt) && (a.ConversationID == "" || a.ConversationID == j.ConversationID) {
+				after++
+				break
+			}
 		}
 	}
 	if after < cardRunsAfter && len(waiting) < cardMany {

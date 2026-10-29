@@ -240,6 +240,8 @@ const en: Record<keyof typeof vi, string> = {
   'feat.fDesc.git': 'Git bar, branch menu',
   'feat.f.ops': 'Operations',
   'feat.fDesc.ops': 'Processes, containers, env tabs and their monitoring',
+  'feat.f.selfcheck': 'Self-check',
+  'feat.fDesc.selfcheck': 'When agents go in circles or keep failing, office calls the coordinator to find the cause (uses AI)',
   'feat.pack.support': 'Customer care',
   'feat.packDesc.support': 'Tickets, Inbox, sources (bot, Crisp, form, API)',
   'feat.f.support': 'Customers',

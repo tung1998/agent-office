@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/tung1998/agent-office/internal/features"
 	"github.com/tung1998/agent-office/internal/storage"
 	"github.com/tung1998/agent-office/internal/storage/sqlite"
 	"github.com/tung1998/agent-office/internal/verify"
@@ -30,6 +31,10 @@ func TestDetectStuckNight(t *testing.T) {
 		f.Jobs = append(f.Jobs, storage.HarnessJob{ID: "j", ConversationID: "c9", AgentID: []string{"ceo", "coder"}[i%2], Kind: "chat_turn", Status: "done", CreatedAt: at(20 + i)})
 		// the person and one agent: no hand-off
 		f.Jobs = append(f.Jobs, storage.HarnessJob{ID: "k", ConversationID: "c8", AgentID: "ceo", Kind: "chat_turn", Status: "done", CreatedAt: at(20 + i)})
+	}
+	// the coordinator goes on in the chat its build card waits in
+	for i := range 3 {
+		f.Jobs = append(f.Jobs, storage.HarnessJob{ID: "l", ConversationID: "c1", AgentID: "ceo", Kind: "chat_turn", Status: "done", CreatedAt: at(10 + i)})
 	}
 	got := map[string]Signal{}
 	for _, s := range Detect(f, at(35)) {
@@ -78,6 +83,23 @@ func TestDetectQuiet(t *testing.T) {
 	f.Actions = f.Actions[:4] // the settings cards decided: only a fresh push card waits
 	if sigs := Detect(f, at(30)); len(sigs) != 0 {
 		t.Fatalf("quiet work raised %+v", sigs)
+	}
+}
+
+// A webhook review (29/10, PR #309) answered and ended, leaving a read-only
+// card; turns in other chats went on. Its chat is done: nothing is blocked.
+func TestDetectLeftoverCard(t *testing.T) {
+	f := storage.HarnessFacts{Actions: []storage.HarnessAction{{ID: "a1", ConversationID: "pr", Kind: "run_command", Target: "git grep -n key", Status: "pending", CreatedAt: at(1)}}}
+	f.Jobs = append(f.Jobs, storage.HarnessJob{ConversationID: "pr", Status: "done", CreatedAt: at(0)})
+	for i := range 5 {
+		f.Jobs = append(f.Jobs, storage.HarnessJob{ConversationID: "other", Status: "done", CreatedAt: at(3 + i)})
+	}
+	if sigs := Detect(f, at(20)); len(sigs) != 0 {
+		t.Fatalf("leftover card raised %+v", sigs)
+	}
+	f.Jobs = append(f.Jobs, storage.HarnessJob{ConversationID: "pr", Status: "done", CreatedAt: at(5)}, storage.HarnessJob{ConversationID: "pr", Status: "done", CreatedAt: at(9)}, storage.HarnessJob{ConversationID: "pr", Status: "done", CreatedAt: at(12)})
+	if sigs := Detect(f, at(20)); len(sigs) != 1 || sigs[0].Kind != "stalled_cards" {
+		t.Fatalf("a chat going on past its card: %+v", sigs)
 	}
 }
 
@@ -169,4 +191,58 @@ func TestCheckOpensOneTurn(t *testing.T) {
 		t.Fatal("not raised again after remember")
 	}
 	<-opened
+}
+
+// Cards waiting alone are the person's: no turn. A project with the
+// self-check turned off is not checked.
+func TestCheckQuietWhenOnlyCardsOrOff(t *testing.T) {
+	ctx := context.Background()
+	st, err := sqlite.Open(filepath.Join(t.TempDir(), "o.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { st.Close() })
+	if err := st.Migrate(ctx); err != nil {
+		t.Fatal(err)
+	}
+	p, _ := st.Repos().Create(ctx, storage.Repo{Name: "storefront"})
+	lead, _ := st.Agents().Create(ctx, storage.Agent{ProjectID: p.ID, Key: "lead", Name: "Lead", ModelTier: "balanced", Permissions: storage.Permissions{Level: "operate", FullAccess: true}})
+	c, _ := st.Chat().CreateConversation(ctx, storage.Conversation{ProjectID: p.ID, Title: "x"})
+	if _, err := st.Actions().Create(ctx, storage.Action{ProjectID: p.ID, ConversationID: c.ID, Kind: "run_command", Target: "git grep -n key", Status: "pending"}); err != nil {
+		t.Fatal(err)
+	}
+	for range 3 {
+		st.Jobs().Create(ctx, storage.Job{ProjectID: p.ID, Kind: "chat_turn", Origin: "user", ConversationID: c.ID, AgentID: lead.ID, Status: "done"})
+	}
+	fc := &fakeChat{}
+	s := New(st, fc)
+	now := time.Now().Add(20 * time.Minute)
+	s.now = func() time.Time { return now }
+	if sigs := Detect(mustFacts(t, st, p.ID, now), now); len(sigs) != 1 || sigs[0].Kind != "stalled_cards" {
+		t.Fatalf("signals = %+v", sigs)
+	}
+	if got := s.Check(ctx, p); got != nil {
+		t.Fatalf("only a waiting card opened a turn: %+v", got)
+	}
+	for range 3 { // the same command again and again: a loop the lead can fix…
+		st.Actions().Create(ctx, storage.Action{ProjectID: p.ID, ConversationID: c.ID, Kind: "run_command", Target: "sh build.sh", Status: "rejected"})
+	}
+	if err := features.Save(ctx, st, p.ID, features.Config{Off: []string{features.SelfCheck}}); err != nil {
+		t.Fatal(err)
+	}
+	if got := s.Check(ctx, p); got != nil { // …but the project turned the self-check off
+		t.Fatalf("self-check off raised %+v", got)
+	}
+	if len(fc.calls) != 0 {
+		t.Fatalf("calls = %q", fc.calls)
+	}
+}
+
+func mustFacts(t *testing.T, st storage.Store, projectID string, now time.Time) storage.HarnessFacts {
+	t.Helper()
+	f, err := st.Harness().Facts(context.Background(), projectID, now.Add(-Window))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return f
 }

@@ -18,6 +18,9 @@ import (
 const (
 	Git = "git" // the git bar and branch menu
 	Ops = "ops" // Vận hành: processes, containers (and their monitors), env
+	// SelfCheck: office's self-check calls the coordinator when work looks
+	// stuck (ADR-230); off, the project is not checked
+	SelfCheck = "selfcheck"
 )
 
 // Support is the support pack's one feature: tickets, sources, Inbox (ADR-171).
@@ -37,7 +40,7 @@ type Pack struct {
 // Packs lists every pack. Everything else (chat, agents, automations, Burn,
 // memory, reviewing changes) is core: always there.
 var Packs = []Pack{
-	{ID: "develop", Features: []string{Git, Ops}},
+	{ID: "develop", Features: []string{Git, Ops, SelfCheck}},
 	{ID: "support", Features: []string{Support}, DefaultOff: true},
 }
 

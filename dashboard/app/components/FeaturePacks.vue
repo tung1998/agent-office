@@ -13,7 +13,7 @@ interface State { config: Config, on: string[], off: Record<string, 'project' | 
 const { data, error, refresh } = useLiveFetch<State>(() => `/api/projects/${props.projectId}/features`, { lazy: true })
 
 const packIcon: Record<string, string> = { develop: 'i-lucide-code-xml', support: 'i-lucide-headset' }
-const featureIcon: Record<string, string> = { git: 'i-lucide-git-branch', ops: 'i-lucide-square-terminal', support: 'i-lucide-inbox' }
+const featureIcon: Record<string, string> = { git: 'i-lucide-git-branch', ops: 'i-lucide-square-terminal', selfcheck: 'i-lucide-heart-pulse', support: 'i-lucide-inbox' }
 
 // a pack not set is on, but one off by default (support)
 const packOn = (id: string) => data.value?.config.packs?.[id] ?? !data.value?.packs.find(p => p.id === id)?.default_off

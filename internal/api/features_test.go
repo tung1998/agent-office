@@ -13,11 +13,11 @@ func TestProjectFeatures(t *testing.T) {
 	base := e.srv.URL + "/api/projects/" + pid
 
 	_, body = do(t, admin, "GET", base, nil, nil)
-	if f := body["project"].(map[string]any)["features"].([]any); len(f) != 2 {
+	if f := body["project"].(map[string]any)["features"].([]any); len(f) != 3 {
 		t.Fatalf("unset: every feature on, got %v", f)
 	}
 	resp, body := do(t, admin, "PUT", base+"/features", map[string]any{"packs": map[string]any{"develop": true}, "off": []string{"ops"}}, nil)
-	if resp.StatusCode != 200 || len(body["on"].([]any)) != 1 || body["off"].(map[string]any)["ops"] != "project" {
+	if resp.StatusCode != 200 || len(body["on"].([]any)) != 2 || body["off"].(map[string]any)["ops"] != "project" {
 		t.Fatalf("save = %d %v", resp.StatusCode, body)
 	}
 	do(t, admin, "PUT", base+"/features", map[string]any{"packs": map[string]any{"develop": false}}, nil)

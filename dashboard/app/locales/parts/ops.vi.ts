@@ -239,6 +239,8 @@ export default {
   'feat.fDesc.git': 'Thanh git, menu nhánh',
   'feat.f.ops': 'Vận hành',
   'feat.fDesc.ops': 'Tab tiến trình, container, env và giám sát của chúng',
+  'feat.f.selfcheck': 'Tự soát',
+  'feat.fDesc.selfcheck': 'Khi agent làm vòng vòng hoặc lỗi lặp, office gọi agent điều phối tìm nguyên nhân (tốn AI)',
   'feat.pack.support': 'Chăm sóc khách hàng',
   'feat.packDesc.support': 'Ticket, Hộp thư, nguồn tin (bot, Crisp, form, API)',
   'feat.f.support': 'Khách hàng',

@@ -4,9 +4,11 @@ import (
 	"context"
 	"log/slog"
 	"runtime/debug"
+	"slices"
 	"time"
 
 	"github.com/tung1998/agent-office/internal/actor"
+	"github.com/tung1998/agent-office/internal/features"
 	"github.com/tung1998/agent-office/internal/prompts"
 	"github.com/tung1998/agent-office/internal/storage"
 )
@@ -80,7 +82,7 @@ func (s *Service) Check(ctx context.Context, p storage.Repo) []Signal {
 	if _, err := s.store.Settings().Get(ctx, stateKey(p.ID), &st); err != nil {
 		return nil
 	}
-	if now.Sub(st.Last) < cooldown {
+	if now.Sub(st.Last) < cooldown || !features.Has(features.For(ctx, s.store, p.ID), features.SelfCheck) {
 		return nil
 	}
 	f, err := s.store.Harness().Facts(ctx, p.ID, now.Add(-Window))
@@ -93,7 +95,9 @@ func (s *Service) Check(ctx context.Context, p storage.Repo) []Signal {
 			fresh = append(fresh, sig)
 		}
 	}
-	if len(fresh) == 0 {
+	// cards waiting alone are the person's to decide, and they see them:
+	// a turn would only tell them so again, or add cards (29/10)
+	if !slices.ContainsFunc(fresh, func(sig Signal) bool { return sig.Kind != "stalled_cards" }) {
 		return nil
 	}
 	lead, ok := s.coordinator(ctx, p)

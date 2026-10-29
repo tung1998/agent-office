@@ -12,7 +12,7 @@ import (
 
 func TestEffective(t *testing.T) {
 	on, off := Effective(Config{}, true)
-	if !slices.Equal(on, []string{Git, Ops}) || off[Support] != ReasonProject {
+	if !slices.Equal(on, []string{Git, Ops, SelfCheck}) || off[Support] != ReasonProject {
 		t.Fatalf("no setting: everything on but support, got %v %v", on, off)
 	}
 	on, _ = Effective(Config{Packs: map[string]bool{"support": true}}, true)
@@ -51,7 +51,7 @@ func TestLoadSaveFor(t *testing.T) {
 		t.Fatal(err)
 	}
 	p, _ := st.Repos().Create(ctx, storage.Repo{Name: "demo", Path: t.TempDir()})
-	if got := For(ctx, st, p.ID); !slices.Equal(got, []string{Git, Ops}) || On(ctx, st, p.ID, Support) {
+	if got := For(ctx, st, p.ID); !slices.Equal(got, []string{Git, Ops, SelfCheck}) || On(ctx, st, p.ID, Support) {
 		t.Fatalf("unset: everything on but support, got %v", got)
 	}
 	if err := Save(ctx, st, p.ID, Config{Packs: map[string]bool{"develop": true, "nope": false}, Off: []string{Git, "nope"}}); err != nil {
@@ -66,7 +66,7 @@ func TestLoadSaveFor(t *testing.T) {
 	}
 	// a setting that does not read: everything on
 	_ = st.Settings().Set(ctx, Key(p.ID), "broken")
-	if got := For(ctx, st, p.ID); !slices.Equal(got, []string{Git, Ops}) {
+	if got := For(ctx, st, p.ID); !slices.Equal(got, []string{Git, Ops, SelfCheck}) {
 		t.Fatalf("broken setting: as unset, got %v", got)
 	}
 }

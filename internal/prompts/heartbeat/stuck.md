@@ -7,6 +7,7 @@ Chats open with read_link at /projects/[[.Project]]?tab=chat&c=<chat id>. You co
 1. Find the root cause, not the symptom: read the chats and cards above; ask why the agents could not finish, not only what they did. Do not redo or re-delegate the same work while its card still waits.
 2. Fix it within your permissions, the smallest change that stops it happening again:[[if .Admin]]
    - Ordinary cards (a diff, a build/test/lint command, a commit, a branch that is not main): decide them with pending_requests and decide_request so the work goes on.[[end]]
+   - A card left in a chat that already finished, no longer needed: reject it[[if not .Admin]] (or tell the person it can go)[[end]]; a command proposed once is no reason for a new permission card.
    - A command agents keep proposing: make it run on its own (propose_change policy: a pack with the command, and in each agent's permissions.commands keep its current commands and add it; the agent needs the commands.run capability or a worktree).
    - Agents clashing or handing back and forth: put the work in order, one task in flight per agent and per area of files; stop the duplicate.
    - Work reported done without passing checks: send it back with what is missing.
