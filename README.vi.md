@@ -118,6 +118,18 @@ docker compose exec office office user create --email ban@example.com   # tùy c
 Đăng nhập `admin` / `admin` rồi đặt lại, hoặc bỏ qua bước đó bằng lệnh trên. Tài khoản sau thêm trên dashboard (Quản trị → Tài khoản); quên mật khẩu thì `office user passwd --email …`.
 
 
+### Tìm ghi chú theo nghĩa (tùy chọn, embedding của kết nối AI)
+
+Không cần Docker: một kết nối OpenAI (hoặc tương thích OpenAI, vd Ollama) embed ghi chú của agent vào SQLite, `recall` tìm theo nghĩa trong ghi chú của mọi agent trong project (ADR-236). Tự bật khi có kết nối OpenAI có khóa; được hỏi trước Cognee.
+
+```bash
+./bin/office embed status                                # kết nối, model, số ghi chú đã embed mỗi project
+./bin/office embed use <kết nối> [--model …]             # vd kết nối Ollama với --model nomic-embed-text
+./bin/office embed auto | off | sync                     # sync: embed ngay phần còn thiếu (office tự làm 2 phút một lần)
+```
+
+`recall` có từ khóa cũng đọc wiki của project (`docs/wiki/`, ADR-220), không cần cài gì.
+
 ### Tìm ghi chú theo nghĩa (tùy chọn, Cognee)
 
 Ghi chú của agent vẫn ở SQLite; có [Cognee](https://github.com/topoteretes/cognee) thì `recall` tìm thêm theo nghĩa trong ghi chú của mọi agent trong project (ADR-195). Cognee chạy trong Docker, cần **Docker có từ 8 GB RAM** (không có LLM key thì nó nạp model local ~2 GB).

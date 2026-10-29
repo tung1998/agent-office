@@ -50,6 +50,7 @@ import (
 	"github.com/tung1998/agent-office/internal/clitools"
 	"github.com/tung1998/agent-office/internal/cognee"
 	"github.com/tung1998/agent-office/internal/collections"
+	"github.com/tung1998/agent-office/internal/embed"
 	"github.com/tung1998/agent-office/internal/setup"
 	"github.com/tung1998/agent-office/internal/storage"
 	"github.com/tung1998/agent-office/internal/support"
@@ -201,7 +202,16 @@ func serveCmd() *cobra.Command {
 			// (off until `office cognee up` or COGNEE_URL; read again each round)
 			notes := cognee.Auto(a.store)
 			go notes.Run(ctx, 2*time.Minute)
-			office.SetRelated(notes.Related)
+			// or embedded in SQLite by an AI connection, no service of its own (ADR-236);
+			// it answers first when on (`office embed`; read again each round)
+			vectors := embed.New(a.store, embed.Resolver(a.store, a.providers.APIKey))
+			go vectors.Run(ctx, 2*time.Minute)
+			office.SetRelated(func(ctx context.Context, projectID, query, skip string, n int) ([]string, error) {
+				if vectors.On() {
+					return vectors.Related(ctx, projectID, query, skip, n)
+				}
+				return notes.Related(ctx, projectID, query, skip, n)
+			})
 			// agents find skills in the office library and propose installing them (ADR-187)
 			autoSvc := newAutomation(a, h)
 			if autoSvc != nil {

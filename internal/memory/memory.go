@@ -13,7 +13,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"math"
 	"slices"
 	"strings"
 	"sync"
@@ -21,12 +20,9 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"golang.org/x/text/runes"
-	"golang.org/x/text/transform"
-	"golang.org/x/text/unicode/norm"
-
 	"github.com/tung1998/agent-office/internal/prompts"
 	"github.com/tung1998/agent-office/internal/storage"
+	"github.com/tung1998/agent-office/internal/textrank"
 )
 
 // Compactor rewrites notes shorter (a fast model): the new notes, one each.
@@ -284,15 +280,7 @@ func Slug(s string) string {
 	return b.String()
 }
 
-// fold lowercases and drops diacritics so "Đơn hàng" matches "don hang".
-func fold(s string) string {
-	s = strings.NewReplacer("đ", "d", "Đ", "d").Replace(strings.ToLower(s))
-	out, _, err := transform.String(transform.Chain(norm.NFD, runes.Remove(runes.In(unicode.Mn)), norm.NFC), s)
-	if err != nil {
-		return s
-	}
-	return out
-}
+func fold(s string) string { return textrank.Fold(s) }
 
 func (s *Service) size(ctx context.Context, projectID, agentID, topic string) int {
 	list, _ := s.store.Memories().List(ctx, projectID, agentID)
@@ -508,7 +496,7 @@ func Recall(ctx context.Context, store storage.Store, projectID, agentID, topic,
 	if err != nil {
 		return "", err
 	}
-	topic, words := Slug(topic), uniq(strings.Fields(fold(query)))
+	topic, words := Slug(topic), textrank.Words(query)
 	core := topic == "core" // the notes with no topic, as the prompt has them
 	if topic == "" && len(words) == 0 {
 		lines := Index(list)
@@ -516,12 +504,6 @@ func Recall(ctx context.Context, store storage.Store, projectID, agentID, topic,
 			return "No topics in your notes yet.", nil
 		}
 		return fmt.Sprintf("%d topics (recall one by its name):\n%s", len(lines), strings.Join(lines, "\n")), nil
-	}
-	type hit struct {
-		m       storage.Memory
-		matched int
-		score   float64
-		at      int
 	}
 	var pool []storage.Memory
 	var hays []string
@@ -532,32 +514,16 @@ func Recall(ctx context.Context, store storage.Store, projectID, agentID, topic,
 		pool = append(pool, m)
 		hays = append(hays, fold(m.Topic+" "+m.Summary+" "+m.Text))
 	}
-	idf := make([]float64, len(words)) // a word few notes have says more
-	for i, w := range words {
-		df := 0
-		for _, h := range hays {
-			if strings.Contains(h, w) {
-				df++
-			}
+	var hits []storage.Memory
+	full := 1
+	if len(words) == 0 { // a topic's notes, as written
+		hits = pool
+	} else {
+		var ranked []textrank.Hit
+		ranked, full = textrank.Rank(hays, words)
+		for _, h := range ranked {
+			hits = append(hits, pool[h.At])
 		}
-		idf[i] = math.Log(1 + float64(len(pool)+1)/float64(df+1))
-	}
-	var hits []hit
-	full := 0
-	for i, m := range pool {
-		h := hit{m: m, at: i}
-		for j, w := range words {
-			if strings.Contains(hays[i], w) {
-				h.matched++
-				h.score += idf[j]
-			}
-		}
-		if h.matched == len(words) {
-			full++
-		} else if 2*h.matched < len(words) || h.matched == 0 {
-			continue
-		}
-		hits = append(hits, h)
 	}
 	if len(hits) == 0 {
 		var names []string
@@ -566,27 +532,19 @@ func Recall(ctx context.Context, store storage.Store, projectID, agentID, topic,
 		}
 		return fmt.Sprintf("No notes match. Topics: %s.", cmp.Or(strings.Join(names, ", "), "(none)")), nil
 	}
-	// every word first, then the higher score, then the newest
-	slices.SortStableFunc(hits, func(a, b hit) int {
-		if c := cmp.Compare(b.matched, a.matched); c != 0 {
-			return c
-		}
-		if c := cmp.Compare(b.score, a.score); c != 0 {
-			return c
-		}
-		return b.at - a.at
-	})
 	n := partialCap
 	if full > 0 {
-		n = min(full, recallCap)
+		n = recallCap
+	}
+	if len(words) == 0 && len(hits) > n { // the newest
+		hits = hits[len(hits)-n:]
 	}
 	hits = hits[:min(n, len(hits))]
 	var b strings.Builder
 	if topic != "" && len(words) == 0 {
-		slices.SortFunc(hits, func(a, b hit) int { return a.at - b.at }) // as written
 		fmt.Fprintf(&b, "Notes on %s (id first: remember with replaces, or forget, keeps them right):\n", topic)
-		for _, h := range hits {
-			fmt.Fprintf(&b, "- [%s] %s\n", h.m.ID, h.m.Text)
+		for _, m := range hits {
+			fmt.Fprintf(&b, "- [%s] %s\n", m.ID, m.Text)
 		}
 		return b.String(), nil
 	}
@@ -595,8 +553,8 @@ func Recall(ctx context.Context, store storage.Store, projectID, agentID, topic,
 	} else {
 		fmt.Fprintf(&b, "No note has every word; %d have most of them, best first:\n", len(hits))
 	}
-	for _, h := range hits {
-		fmt.Fprintf(&b, "- [%s] [%s] %s\n", h.m.ID, cmp.Or(h.m.Topic, "core"), h.m.Text)
+	for _, m := range hits {
+		fmt.Fprintf(&b, "- [%s] [%s] %s\n", m.ID, cmp.Or(m.Topic, "core"), m.Text)
 	}
 	return b.String(), nil
 }
@@ -605,16 +563,6 @@ const (
 	recallCap  = 30 // notes with every word shown at most
 	partialCap = 10 // notes with part of the words shown at most
 )
-
-func uniq(words []string) []string {
-	var out []string
-	for _, w := range words {
-		if !slices.Contains(out, w) {
-			out = append(out, w)
-		}
-	}
-	return out
-}
 
 func autoKey(projectID string) string { return "memory_auto/" + projectID }
 

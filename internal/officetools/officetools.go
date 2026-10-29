@@ -25,6 +25,7 @@ import (
 	"github.com/tung1998/agent-office/internal/peer"
 	"github.com/tung1998/agent-office/internal/storage"
 	"github.com/tung1998/agent-office/internal/transfer"
+	"github.com/tung1998/agent-office/internal/wiki"
 )
 
 // Tool is one callable tool.
@@ -291,7 +292,7 @@ func (t *Toolbox) Tools() []Tool {
 				"ids":    map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "description": "Ids of the notes to drop"},
 				"reason": map[string]any{"type": "string", "description": "Why, e.g. the command changed; the old repo is gone"},
 			}, "ids", "reason")})
-		list = append(list, Tool{Name: "recall", Description: "Read your notes, with their ids, on a topic from the index in your notes (they are not in the prompt; topic core = the notes with no topic), or search all your notes by keywords, ignoring accents, best matches first (a word no note has does not empty the answer) (and, when the office has Cognee, by meaning across the notes of every agent of the project). With no arguments, lists your topics.",
+		list = append(list, Tool{Name: "recall", Description: "Read your notes, with their ids, on a topic from the index in your notes (they are not in the prompt; topic core = the notes with no topic), or search all your notes by keywords, ignoring accents, best matches first (a word no note has does not empty the answer); a search also reads the project's wiki (docs/wiki) and, when the office has embeddings or Cognee, the notes of every agent of the project by meaning. With no arguments, lists your topics.",
 			Schema: obj(map[string]any{
 				"topic": map[string]any{"type": "string", "description": "Topic name from the index, e.g. payments"},
 				"query": map[string]any{"type": "string", "description": "Keywords to search the notes by (optional)"},
@@ -947,6 +948,9 @@ func (t *Toolbox) Call(ctx context.Context, sc Scope, name string, raw json.RawM
 		if err == nil && t.related != nil && strings.TrimSpace(in.Query) != "" {
 			out += t.recallRelated(ctx, projectID, in.Query, out)
 		}
+		if err == nil && strings.TrimSpace(in.Query) != "" {
+			out += t.recallWiki(ctx, projectID, in.Query)
+		}
 	case "use_skill", "my_skills":
 		out, err = t.skillCall(ctx, sc, projectID, name, in.Action, in.Name, in.Why, in.Task)
 	case "find_skills":
@@ -1317,6 +1321,25 @@ func (t *Toolbox) recallRelated(ctx context.Context, projectID, query, shown str
 		return ""
 	}
 	return "\nRelated by meaning (notes of all agents of this project):\n- " + strings.Join(lines, "\n- ") + "\n"
+}
+
+// recallWiki is what recall adds from the project's wiki (docs/wiki,
+// ADR-220): the sections nearest the query, nothing without a wiki.
+func (t *Toolbox) recallWiki(ctx context.Context, projectID, query string) string {
+	r, err := t.store.Repos().Get(ctx, projectID)
+	if err != nil || r.Path == "" {
+		return ""
+	}
+	hits, err := wiki.Search(r.Path, query, 5)
+	if err != nil || len(hits) == 0 {
+		return ""
+	}
+	var b strings.Builder
+	b.WriteString("\nFrom the wiki (" + wiki.Dir + "; read the page for the rest):\n")
+	for _, h := range hits {
+		fmt.Fprintf(&b, "- %s › %s: %s\n", h.Path, cmp.Or(h.Heading, "(top)"), h.Text)
+	}
+	return b.String()
 }
 
 func (t *Toolbox) agentID(ctx context.Context, projectID, name string) (string, error) {

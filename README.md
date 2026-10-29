@@ -118,6 +118,18 @@ docker compose exec office office user create --email you@example.com   # option
 Sign in with `admin` / `admin` and set your own, or skip it with the command above. Later accounts are added on the dashboard (Administration → Accounts); `office user passwd --email …` resets a forgotten password.
 
 
+### Memory by meaning (optional, an AI connection's embeddings)
+
+No Docker: an OpenAI connection (or any OpenAI-compatible one, e.g. Ollama) embeds the agents' notes into SQLite, and `recall` finds the notes of every agent of the project by meaning (ADR-236). On by itself once an OpenAI connection with a key exists; it answers before Cognee.
+
+```bash
+./bin/office embed status                                # connection, model, notes embedded per project
+./bin/office embed use <connection> [--model …]          # e.g. an Ollama connection with --model nomic-embed-text
+./bin/office embed auto | off | sync                     # sync: embed what is missing now (office does it every 2 minutes)
+```
+
+`recall` with a query also reads the project's wiki (`docs/wiki/`, ADR-220), no setup needed.
+
 ### Memory by meaning (optional, Cognee)
 
 Agents' notes stay in SQLite; with [Cognee](https://github.com/topoteretes/cognee) running, `recall` also finds the notes of every agent of the project by meaning (ADR-195). It runs in Docker and wants **8 GB+ of RAM for Docker** (without an LLM key it loads a ~2 GB local model).

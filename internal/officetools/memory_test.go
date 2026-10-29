@@ -3,6 +3,7 @@ package officetools
 import (
 	"context"
 	"errors"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -71,6 +72,15 @@ func TestRememberTopicAndRecall(t *testing.T) {
 	}
 	if out, _ = tb.Call(ctx, sc, "recall", []byte(`{"topic":"deploy"}`)); !strings.Contains(out, "No notes match. Topics: thanh-toan") {
 		t.Fatalf("recall unknown = %s", out)
+	}
+	// the project's wiki (ADR-220) is searched with the notes
+	os.MkdirAll(filepath.Join(p.Path, "docs", "wiki"), 0o755)
+	os.WriteFile(filepath.Join(p.Path, "docs", "wiki", "quyet-dinh.md"), []byte("# Quyết định\n## Hoàn tiền\nHoàn tiền trong 7 ngày, qua PayPal.\n"), 0o644)
+	if out, _ = tb.Call(ctx, sc, "recall", []byte(`{"query":"hoan tien paypal"}`)); !strings.Contains(out, "[thanh-toan] Hoàn tiền") || !strings.Contains(out, "From the wiki") || !strings.Contains(out, "docs/wiki/quyet-dinh.md › Hoàn tiền: Hoàn tiền trong 7 ngày") {
+		t.Fatalf("recall wiki = %s", out)
+	}
+	if out, _ = tb.Call(ctx, sc, "recall", []byte(`{"topic":"thanh-toan"}`)); strings.Contains(out, "From the wiki") {
+		t.Fatalf("wiki without a query = %s", out)
 	}
 	if !tb.Has(sc, "recall") {
 		t.Fatal("recall not offered where remember is")
