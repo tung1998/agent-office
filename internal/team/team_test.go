@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io/fs"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/tung1998/agent-office/internal/storage"
@@ -204,11 +205,17 @@ func TestLibraryIsValid(t *testing.T) {
 		t.Fatalf("library: %d agents, first %+v", len(list), list[0])
 	}
 	ids := map[string]bool{}
+	names := map[string]string{}
 	for _, e := range list {
 		if ids[e.ID] {
 			t.Errorf("%s: duplicate id", e.ID)
 		}
 		ids[e.ID] = true
+		name := strings.ToLower(strings.TrimSpace(e.Name))
+		if other, exists := names[name]; exists {
+			t.Errorf("%s and %s: duplicate name %q", other, e.ID, e.Name)
+		}
+		names[name] = e.ID
 		if !slices.Contains(team.LibraryCategories, e.Category) {
 			t.Errorf("%s: unknown category %q", e.ID, e.Category)
 		}
@@ -222,12 +229,24 @@ func TestLibraryIsValid(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+		if a.Name != e.Name || a.Spec().Name != e.Name {
+			t.Errorf("%s: list name %q differs from detail/spec %q", e.ID, e.Name, a.Name)
+		}
 		// ADR-074: nothing shipped turns on full access
 		if a.Permissions.FullAccess || len(a.Permissions.ExtraDirs) > 0 || a.Instructions == "" {
 			t.Errorf("%s: %+v", e.ID, a.Permissions)
 		}
 		if err := team.Validate([]team.AgentSpec{{Key: a.Key, Name: a.Name, ModelTier: a.ModelTier}}); err != nil {
 			t.Error(err)
+		}
+	}
+	for id, want := range map[string]string{
+		"aitmpl/code-architect": "code-architect (1)",
+		"ecc/code-architect":    "code-architect (2)",
+	} {
+		a, err := team.LibraryAgentByID(id)
+		if err != nil || a.Name != want {
+			t.Errorf("%s: name %q, want %q; error: %v", id, a.Name, want, err)
 		}
 	}
 	for _, bad := range []string{"office/../office/devops", "office/nope", "devops", "x/devops"} {

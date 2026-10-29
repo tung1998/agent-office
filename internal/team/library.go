@@ -84,6 +84,20 @@ func Library() ([]LibraryEntry, error) {
 			}
 			libIndex = append(libIndex, a.LibraryEntry)
 		}
+		// Different collections can ship agents with the same name. Number
+		// those variants in file/ID order, before sorting or filtering the list.
+		counts, numbers := map[string]int{}, map[string]int{}
+		for _, a := range libIndex {
+			counts[strings.ToLower(strings.TrimSpace(a.Name))]++
+		}
+		for i := range libIndex {
+			a := &libIndex[i]
+			name := strings.ToLower(strings.TrimSpace(a.Name))
+			if counts[name] > 1 {
+				numbers[name]++
+				a.Name = fmt.Sprintf("%s (%d)", a.Name, numbers[name])
+			}
+		}
 		rank := func(c string) int {
 			for i, x := range LibraryCategories {
 				if x == c {
@@ -116,7 +130,20 @@ func LibraryAgentByID(id string) (LibraryAgent, error) {
 	if errors.Is(err, fs.ErrNotExist) {
 		return LibraryAgent{}, fmt.Errorf("%w: %q", ErrNoLibraryAgent, id)
 	}
-	return a, err
+	if err != nil {
+		return LibraryAgent{}, err
+	}
+	entries, err := Library()
+	if err != nil {
+		return LibraryAgent{}, err
+	}
+	for _, e := range entries {
+		if e.ID == a.ID {
+			a.Name = e.Name
+			break
+		}
+	}
+	return a, nil
 }
 
 // readLibrary parses one file: YAML frontmatter, then the instructions.

@@ -48,13 +48,15 @@ function go(link: string) {
 
 <template>
   <UPopover v-model:open="open" :content="{ align: 'end' }">
-    <button
-      type="button" :title="error ? t('hdr.incidentsError') : t('hdr.incidents', { n })" :aria-label="t('hdr.incidents', { n })"
-      class="flex items-center gap-1 rounded-md px-1.5 py-1 text-xs tabular-nums transition hover:bg-(--ui-bg-elevated)"
-      :class="error ? 'text-(--ui-warning)' : n ? 'text-(--ui-error)' : 'text-(--ui-text-muted) hover:text-(--ui-text)'"
-    >
-      <UIcon :name="error ? 'i-lucide-triangle-alert' : n ? 'i-lucide-bell-ring' : 'i-lucide-bell'" class="size-3.5" />{{ error ? '?' : n }}
-    </button>
+    <UTooltip :text="error ? t('hdr.incidentsError') : t('hdr.incidents', { n })" :disabled="open">
+      <button
+        type="button" :aria-label="error ? t('hdr.incidentsError') : t('hdr.incidents', { n })"
+        class="flex items-center gap-1 rounded-md px-1.5 py-1 text-xs tabular-nums transition hover:bg-(--ui-bg-elevated)"
+        :class="error ? 'text-(--ui-warning)' : n ? 'text-(--ui-error)' : 'text-(--ui-text-muted) hover:text-(--ui-text)'"
+      >
+        <UIcon :name="error ? 'i-lucide-triangle-alert' : n ? 'i-lucide-bell-ring' : 'i-lucide-bell'" class="size-3.5" />{{ error ? '?' : n }}
+      </button>
+    </UTooltip>
     <template #content>
       <div class="w-[min(24rem,calc(100vw-1rem))]">
         <div class="max-h-[60vh] divide-y divide-(--ui-border) overflow-y-auto">
@@ -62,10 +64,12 @@ function go(link: string) {
           <LoadingRows v-else-if="!data" class="p-2" />
           <p v-else-if="!list.length" class="p-3 text-sm text-(--ui-text-muted)">{{ t('bell.empty') }}</p>
           <div v-for="x in list" :key="x.key" class="space-y-1.5 p-2.5">
-            <button type="button" class="block w-full rounded text-start outline-none focus-visible:ring-2 focus-visible:ring-primary" @click="go(x.link)">
-              <p class="line-clamp-2 break-words text-sm" :class="x.severity === 'error' ? 'text-(--ui-error)' : ''" :title="x.title">{{ incidentText(x, (n, l) => t('bell.files', { n, list: l })) }}</p>
-              <p class="truncate text-xs text-(--ui-text-muted)">{{ [x.project_name, x.detail].filter(Boolean).join(' · ') }}</p>
-            </button>
+            <UTooltip :text="incidentText(x, (n, l) => t('bell.files', { n, list: l }))">
+              <button type="button" class="block w-full rounded text-start outline-none focus-visible:ring-2 focus-visible:ring-primary" @click="go(x.link)">
+                <p class="line-clamp-2 break-words text-sm" :class="x.severity === 'error' ? 'text-(--ui-error)' : ''">{{ incidentText(x, (n, l) => t('bell.files', { n, list: l })) }}</p>
+                <p class="truncate text-xs text-(--ui-text-muted)">{{ [x.project_name, x.detail].filter(Boolean).join(' · ') }}</p>
+              </button>
+            </UTooltip>
             <div class="flex flex-wrap gap-1.5">
               <UButton
                 v-for="(a, i) in incidentActs(x)" :key="a" size="xs" :color="i ? 'neutral' : 'primary'" :variant="i ? 'outline' : 'solid'"

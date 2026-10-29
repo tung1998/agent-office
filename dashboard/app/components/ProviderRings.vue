@@ -13,11 +13,13 @@ onBeforeUnmount(() => clearInterval(timer))
 
 <template>
   <div v-if="rings.length" class="hidden items-center gap-1 sm:flex">
-    <NuxtLink
-      v-for="r in rings" :key="r.id" to="/providers" :title="r.title" :aria-label="r.title"
-      class="grid size-7 place-items-center rounded-full transition hover:bg-(--ui-bg-elevated)"
-    >
-      <ProviderRing :ring="r" class="size-full" />
-    </NuxtLink>
+    <UTooltip v-for="r in rings" :key="r.id" :text="r.title">
+      <NuxtLink
+        to="/providers" :aria-label="r.title"
+        class="grid size-7 place-items-center rounded-full transition hover:bg-(--ui-bg-elevated)"
+      >
+        <ProviderRing :ring="r" class="size-full" />
+      </NuxtLink>
+    </UTooltip>
   </div>
 </template>
