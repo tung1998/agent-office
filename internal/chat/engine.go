@@ -243,6 +243,10 @@ type Engine struct {
 	peers       Peers           // linked projects in other offices (ADR-167; nil = none)
 	stopping    atomic.Bool     // office is going down: answers cut off now go on after it (Shutdown)
 
+	// keepFiles copies the files sent with a message into the project and
+	// returns their paths there (ADR-233)
+	keepFiles func(ctx context.Context, projectID, conversationID string, files []attach.File) []string
+
 	// testStepPanic: a step id runSteps' per-step goroutine panics on
 	// instead of running, for a regression test to force that path
 	// deterministically (ADR: step panics must not hang runSteps forever).
@@ -458,6 +462,12 @@ func ToActionDTO(a storage.Action) ActionDTO {
 
 // SetAttachments sets where attached files are stored.
 func (e *Engine) SetAttachments(s attach.Store) { e.files = s }
+
+// SetKeepFiles sets what copies the files sent with a message into the
+// project's temporary folder and lists them (ADR-233).
+func (e *Engine) SetKeepFiles(fn func(ctx context.Context, projectID, conversationID string, files []attach.File) []string) {
+	e.keepFiles = fn
+}
 
 // SetOnRunning tells fn each time an answer starts or ends, with its chat.
 func (e *Engine) SetOnRunning(fn func(conversationID string)) { e.onRunning = fn }
@@ -792,6 +802,11 @@ func (e *Engine) SendWithContext(ctx context.Context, conversationID, text, page
 	files, err := e.files.Resolve(project.ID, attachmentIDs)
 	if err != nil {
 		return nil, storage.Message{}, err
+	}
+	if len(files) > 0 && e.keepFiles != nil { // kept in the project's files table (ADR-233)
+		if saved := e.keepFiles(ctx, project.ID, conv.ID, files); len(saved) > 0 {
+			prompt += "\n\n(Office saved the attached files in the project folder, table files, as temporary: " + strings.Join(saved, ", ") + ". If the person wants one kept, call file_keep.)"
+		}
 	}
 	if agent.Disabled { // only paused agents were called: the notice, no AI
 		return e.offReply(ctx, conv, text, pageContext, files, paused)

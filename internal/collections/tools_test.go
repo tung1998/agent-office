@@ -28,7 +28,7 @@ func TestTools(t *testing.T) {
 	if got := strings.Join(names(read), ","); got != "data_collections,data_query,data_get" {
 		t.Fatalf("read: %s", got)
 	}
-	if got := names(write); len(got) != 4 || got[3] != "data_upsert" {
+	if got := names(write); len(got) != 5 || got[3] != "data_upsert" || got[4] != "file_keep" {
 		t.Fatalf("propose: %v", got)
 	}
 	out, isErr := tools.Call(ctx, write, "data_upsert", []byte(`{"collection":"customers","data":{"name":"An","email":"an@x.vn","tier":"vip"}}`))

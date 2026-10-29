@@ -22,6 +22,25 @@ func (s *server) collectionRoutes(mux *http.ServeMux, auth, admin func(http.Hand
 	mux.Handle("GET /api/projects/{id}/collections/{key}/records/{rid}", auth(s.getRecord))
 	mux.Handle("DELETE /api/projects/{id}/collections/{key}/records/{rid}", admin(s.deleteRecord))
 	mux.Handle("GET /api/projects/{id}/collections/{key}/records/{rid}/history", auth(s.recordHistory))
+	mux.Handle("POST /api/projects/{id}/files/{rid}/keep", admin(s.keepFile))
+}
+
+// keepFile moves a temporary file of the project's files table to the kept
+// folder (ADR-233), as an agent's file_keep does.
+func (s *server) keepFile(w http.ResponseWriter, r *http.Request) {
+	var in struct {
+		Note string `json:"note"`
+	}
+	if r.ContentLength > 0 && !decode(w, r, &in) {
+		return
+	}
+	x, err := s.coll().KeepFile(r.Context(), r.PathValue("id"), r.PathValue("rid"), in.Note, Actor(r))
+	if err != nil {
+		s.collectionError(w, r, err)
+		return
+	}
+	s.audit(r, audit.Change{Action: "file.keep", Resource: "record", ResourceID: x.ID, ProjectID: x.ProjectID, After: x.Data})
+	writeJSON(w, http.StatusOK, map[string]any{"record": x})
 }
 
 func (s *server) coll() *collections.Service { return collections.New(s.cfg.Store) }

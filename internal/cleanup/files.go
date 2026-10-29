@@ -9,6 +9,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/tung1998/agent-office/internal/collections"
 )
 
 // Files: what the work keeps on disk — worktrees (dependency folders are
@@ -22,6 +24,10 @@ type ProjectFiles struct {
 	Attachments int64 `json:"attachments"`
 	Junk        int64 `json:"junk"`
 	JunkItems   int   `json:"junk_items"`
+	// files sent with messages, still temporary in the project folder
+	// (ADR-233): cleaned by hand, project by project
+	TempFiles int64 `json:"temp_files"`
+	TempItems int   `json:"temp_items"`
 }
 
 // Files is every project's, plus the database file.
@@ -73,6 +79,15 @@ func (s *Service) scan(ctx context.Context) (Files, error) {
 	projects, err := s.store.Repos().List(ctx)
 	if err != nil {
 		return f, err
+	}
+	for _, p := range projects {
+		if p.Path == "" {
+			continue
+		}
+		if size, n := collections.TempFiles(p.Path); n > 0 {
+			pf := of(p.ID)
+			pf.TempFiles, pf.TempItems = size, n
+		}
 	}
 	for _, p := range projects {
 		if s.trees == nil {
@@ -160,6 +175,9 @@ func (s *Service) usedAttachments(ctx context.Context) map[string]bool {
 	}
 	return used
 }
+
+// Rescan drops the last scan: the next Files walks the folders again.
+func (s *Service) Rescan() { s.files.reset() }
 
 // SweepFiles removes the junk (worktrees nothing uses, attachments nothing
 // points to); it returns the bytes freed.

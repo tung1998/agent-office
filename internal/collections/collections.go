@@ -141,13 +141,20 @@ func (s *Service) List(ctx context.Context, projectID string) ([]storage.Collect
 	if err := s.ensureLinks(ctx, projectID); err != nil {
 		return nil, err
 	}
+	if err := s.ensureFiles(ctx, projectID); err != nil {
+		return nil, err
+	}
 	return s.store.Collections().List(ctx, projectID)
 }
 
 // Collection reads one collection by key.
 func (s *Service) Collection(ctx context.Context, projectID, key string) (storage.Collection, error) {
-	if key == LinksKey {
-		if err := s.ensureLinks(ctx, projectID); err != nil {
+	if key == LinksKey || key == FilesKey {
+		ensure := s.ensureLinks
+		if key == FilesKey {
+			ensure = s.ensureFiles
+		}
+		if err := ensure(ctx, projectID); err != nil {
 			return storage.Collection{}, err
 		}
 	}

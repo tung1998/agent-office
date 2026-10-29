@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"github.com/tung1998/agent-office/internal/actions"
 	"github.com/tung1998/agent-office/internal/activity"
+	"github.com/tung1998/agent-office/internal/actor"
 	"github.com/tung1998/agent-office/internal/agentskills"
 	"github.com/tung1998/agent-office/internal/assistant"
 	"github.com/tung1998/agent-office/internal/attach"
@@ -164,6 +165,21 @@ func serveCmd() *cobra.Command {
 					by = ag.Name
 				}
 				return collections.New(a.store).SaveLink(ctx, projectID, collections.Link{Kind: o.Topic, Title: o.Summary, URL: o.Text, Note: o.ID}, "agent:"+by)
+			})
+			chatEngine.SetKeepFiles(func(ctx context.Context, projectID, convID string, files []attach.File) []string { // ADR-233
+				svc := collections.New(a.store)
+				var saved []string
+				for _, f := range files {
+					rel, err := svc.SaveFile(ctx, projectID, f.Path, f.Name, convID, actor.From(ctx))
+					if err != nil {
+						if !errors.Is(err, collections.ErrNoFolder) {
+							slog.Warn("files: keep a sent file", "project", projectID, "file", f.Name, "err", err)
+						}
+						continue
+					}
+					saved = append(saved, rel)
+				}
+				return saved
 			})
 			chatEngine.SetOnAnswered(func(ctx context.Context, x chat.Answered) { // ADR-215
 				if err := mem.Review(ctx, x.ProjectID, x.AgentID, x.Asked, x.Answer); err != nil {

@@ -5,7 +5,7 @@
 type Kind = 'chat' | 'burn' | 'task'
 type Level = 'delete' | 'content' | 'summary'
 interface Usage { project_id: string, kind: Kind, items: number, cleaned: number, messages: number, bytes: number }
-interface ProjectFiles { worktrees: number, attachments: number, junk: number, junk_items: number }
+interface ProjectFiles { worktrees: number, attachments: number, junk: number, junk_items: number, temp_files?: number, temp_items?: number }
 interface Item { kind: Kind, id: string, project_id: string, title: string, cleaned: string, updated_at: string, messages: number, bytes: number, reason?: string }
 interface Status { running: boolean, level: Level, total: number, done: number, started_at: string | null, finished_at: string | null, cleaned: number, bytes: number, failed: Item[] }
 interface Auto { enabled: boolean, days: number, level: Level, kinds: Kind[], last_run?: string, last_msg?: string }
@@ -42,7 +42,7 @@ const rows = computed(() => {
     if (!id) continue
     const r = row(id)
     r.files = f
-    r.total += f.worktrees + f.attachments
+    r.total += f.worktrees + f.attachments + (f.temp_files ?? 0)
   }
   return [...by.values()].sort((a, b) => b.total - a.total)
 })
@@ -63,6 +63,22 @@ async function sweep() {
     toast.add({ title: apiError(e), color: 'error' })
   } finally {
     sweeping.value = false
+  }
+}
+
+// ---- a project's temporary files (sent with messages, not kept: ADR-233) ----
+const cleaningTemp = ref('')
+async function cleanTemp(id: string, n: number) {
+  if (!confirm(t('data.cleanTemp', { n, project: projectName(id) }))) return
+  cleaningTemp.value = id
+  try {
+    const res = await $fetch<{ bytes: number, files: number }>('/api/data/temp-files', { method: 'POST', body: { project_id: id } })
+    toast.add({ title: t('data.cleanedTemp', { n: res.files, size: fmtBytes(res.bytes) }), color: 'success' })
+    await refresh()
+  } catch (e) {
+    toast.add({ title: apiError(e), color: 'error' })
+  } finally {
+    cleaningTemp.value = ''
   }
 }
 
@@ -180,6 +196,7 @@ async function saveAuto() {
               <th v-for="k in KINDS" :key="k" class="px-3 py-2 text-right font-medium">{{ kindLabel(k) }}</th>
               <th class="px-3 py-2 text-right font-medium">{{ t('data.worktrees') }}</th>
               <th class="px-3 py-2 text-right font-medium">{{ t('data.attachments') }}</th>
+              <th class="px-3 py-2 text-right font-medium"><span class="inline-flex items-center gap-1">{{ t('data.tempFiles') }}<InfoTip :text="t('data.tempFilesHint')" icon-class="size-3.5" /></span></th>
               <th class="px-3 py-2 text-right font-medium">{{ t('data.junk') }}</th>
               <th />
             </tr>
@@ -196,11 +213,18 @@ async function saveAuto() {
               </td>
               <td class="px-3 py-2 text-right tabular-nums">{{ fmtBytes(r.files?.worktrees ?? 0) }}</td>
               <td class="px-3 py-2 text-right tabular-nums">{{ fmtBytes(r.files?.attachments ?? 0) }}</td>
+              <td class="px-3 py-2 text-right tabular-nums">
+                <template v-if="r.files?.temp_items">
+                  {{ fmtBytes(r.files.temp_files ?? 0) }}
+                  <UButton size="xs" color="neutral" variant="link" icon="i-lucide-trash" :loading="cleaningTemp === r.id" :aria-label="t('data.tempFiles')" @click="cleanTemp(r.id, r.files.temp_items)" />
+                </template>
+                <span v-else class="text-(--ui-text-dimmed)">—</span>
+              </td>
               <td class="px-3 py-2 text-right tabular-nums">{{ r.files?.junk ? fmtBytes(r.files.junk) : '—' }}</td>
               <td class="px-3 py-2 text-right"><UButton size="xs" color="neutral" variant="ghost" icon="i-lucide-eraser" :label="t('data.cleanThis')" @click="cleanProject(r.id)" /></td>
             </tr>
-            <tr v-if="loading"><td colspan="8" class="p-0"><LoadingRows :n="3" :icon="false" /></td></tr>
-            <tr v-else-if="!rows.length"><td colspan="8" class="px-4 py-6 text-center text-(--ui-text-muted)">{{ t('data.empty') }}</td></tr>
+            <tr v-if="loading"><td colspan="9" class="p-0"><LoadingRows :n="3" :icon="false" /></td></tr>
+            <tr v-else-if="!rows.length"><td colspan="9" class="px-4 py-6 text-center text-(--ui-text-muted)">{{ t('data.empty') }}</td></tr>
           </tbody>
         </table>
       </div>

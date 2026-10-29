@@ -139,6 +139,7 @@ async function removeRepo() {
               </div>
             </UCard>
               <ProjectLinks :project-id="project.id" />
+              <ProjectFiles v-if="project.path" :project-id="project.id" />
               <FeaturePacks :project-id="project.id" @changed="refresh()" />
               <PackSync v-if="isAdmin" :project-id="project.id" @changed="refresh()" />
               <ProjectBudget :project-id="project.id" />

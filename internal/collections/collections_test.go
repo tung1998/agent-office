@@ -167,7 +167,7 @@ func TestLinks(t *testing.T) {
 	ctx := context.Background()
 	s, p := setup(t)
 	list, err := s.List(ctx, p)
-	if err != nil || len(list) != 1 || list[0].Key != LinksKey {
+	if err != nil || len(list) != 2 || list[0].Key != LinksKey && list[1].Key != LinksKey { // and files (ADR-233)
 		t.Fatalf("collections = %+v, %v", list, err)
 	}
 	if err := s.SaveLink(ctx, p, Link{Title: "Bản build", URL: "https://x.io/b.zip", Kind: "tai-ve"}, "agent:A"); err != nil {

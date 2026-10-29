@@ -7,6 +7,7 @@ import (
 
 	"github.com/tung1998/agent-office/internal/audit"
 	"github.com/tung1998/agent-office/internal/cleanup"
+	"github.com/tung1998/agent-office/internal/collections"
 	"github.com/tung1998/agent-office/internal/storage"
 )
 
@@ -17,6 +18,7 @@ func (s *server) dataRoutes(mux *http.ServeMux, admin func(http.HandlerFunc) htt
 	mux.Handle("POST /api/data/plan", admin(s.planData))
 	mux.Handle("POST /api/data/clean", admin(s.cleanData))
 	mux.Handle("POST /api/data/sweep", admin(s.sweepData))
+	mux.Handle("POST /api/data/temp-files", admin(s.cleanTempFiles))
 	mux.Handle("PUT /api/data/auto", admin(s.saveDataAuto))
 }
 
@@ -146,6 +148,25 @@ func (s *server) sweepData(w http.ResponseWriter, r *http.Request) {
 	}
 	s.audit(r, audit.Change{Action: "data.sweep", Resource: "data", After: map[string]any{"bytes": freed}})
 	writeJSON(w, http.StatusOK, map[string]any{"bytes": freed})
+}
+
+// cleanTempFiles deletes a project's temporary files (sent with messages,
+// not kept) and their rows (ADR-233).
+func (s *server) cleanTempFiles(w http.ResponseWriter, r *http.Request) {
+	var in struct {
+		ProjectID string `json:"project_id"`
+	}
+	if !decode(w, r, &in) {
+		return
+	}
+	freed, n, err := collections.New(s.cfg.Store).CleanTemp(r.Context(), in.ProjectID, Actor(r))
+	s.cfg.Cleanup.Rescan()
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	s.audit(r, audit.Change{Action: "data.temp_files", Resource: "data", ProjectID: in.ProjectID, After: map[string]any{"bytes": freed, "files": n}})
+	writeJSON(w, http.StatusOK, map[string]any{"bytes": freed, "files": n})
 }
 
 func (s *server) saveDataAuto(w http.ResponseWriter, r *http.Request) {
