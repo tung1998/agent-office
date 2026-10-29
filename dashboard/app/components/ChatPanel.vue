@@ -1102,7 +1102,7 @@ onBeforeUnmount(() => {
                     <UIcon name="i-lucide-chevron-right" class="size-3.5 transition group-open/rep:rotate-90" />{{ t('chat.reportShow') }}
                   </summary>
                   <!-- eslint-disable-next-line vue/no-v-html -->
-                  <div class="markdown mt-1.5 min-w-0" @click="onMarkdownClick" v-html="renderMarkdown(reportBody(m.content))" />
+                  <div class="markdown mt-1.5 min-w-0" @click="onMarkdownClick" v-html="renderMarkdown(reportBody(m.content), true, projectId)" />
                 </details>
               </div>
               <div v-else-if="m.content" class="min-w-0 whitespace-pre-wrap rounded-2xl rounded-br-sm bg-(--ui-primary) px-3.5 py-2 text-sm text-white @max-[420px]/chat:px-2 @max-[420px]/chat:py-1 @max-[420px]/chat:text-xs"><template v-for="(p, i) in tagged(m.content)" :key="i"><span v-if="p.tag" class="rounded bg-white/20 px-0.5 font-medium">{{ p.text }}</span><template v-else>{{ p.text }}</template></template></div>
@@ -1139,7 +1139,7 @@ onBeforeUnmount(() => {
               </ul>
             </details>
             <!-- eslint-disable-next-line vue/no-v-html -->
-            <div class="markdown min-w-0 text-sm @max-[420px]/chat:text-xs" :class="purpose && `md-apply-${purpose}`" @click="onMarkdownClick" v-html="renderMarkdown(m.content)" />
+            <div class="markdown min-w-0 text-sm @max-[420px]/chat:text-xs" :class="purpose && `md-apply-${purpose}`" @click="onMarkdownClick" v-html="renderMarkdown(m.content, true, projectId)" />
             <UButton
               v-for="(d, i) in (purpose || current?.purpose === 'skill' || current?.purpose === 'workflow' ? [] : skillDrafts(m.content))" :key="`sk${i}`"
               icon="i-lucide-sparkles" size="sm" color="neutral" variant="outline" :label="t('chat.openSkillEditor', { name: String(d.name) })"
@@ -1181,7 +1181,7 @@ onBeforeUnmount(() => {
             <li v-for="(t, i) in liveTools" :key="i" class="line-clamp-2 break-all" :title="t.summary">{{ t.summary }}</li>
           </ul>
           <!-- eslint-disable-next-line vue/no-v-html -->
-          <div v-if="liveText" class="markdown text-sm" v-html="renderMarkdown(liveText)" />
+          <div v-if="liveText" class="markdown text-sm" v-html="renderMarkdown(liveText, true, projectId)" />
         </div>
 
         <!-- written while it answers: sent next, greyed until then -->
