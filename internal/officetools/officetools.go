@@ -291,7 +291,7 @@ func (t *Toolbox) Tools() []Tool {
 				"ids":    map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "description": "Ids of the notes to drop"},
 				"reason": map[string]any{"type": "string", "description": "Why, e.g. the command changed; the old repo is gone"},
 			}, "ids", "reason")})
-		list = append(list, Tool{Name: "recall", Description: "Read your notes, with their ids, on a topic from the index in your notes (they are not in the prompt; topic core = the notes with no topic), or search all your notes by keywords, ignoring accents (and, when the office has Cognee, by meaning across the notes of every agent of the project). With no arguments, lists your topics.",
+		list = append(list, Tool{Name: "recall", Description: "Read your notes, with their ids, on a topic from the index in your notes (they are not in the prompt; topic core = the notes with no topic), or search all your notes by keywords, ignoring accents, best matches first (a word no note has does not empty the answer) (and, when the office has Cognee, by meaning across the notes of every agent of the project). With no arguments, lists your topics.",
 			Schema: obj(map[string]any{
 				"topic": map[string]any{"type": "string", "description": "Topic name from the index, e.g. payments"},
 				"query": map[string]any{"type": "string", "description": "Keywords to search the notes by (optional)"},

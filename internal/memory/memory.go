@@ -13,6 +13,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"slices"
 	"strings"
 	"sync"
@@ -498,14 +499,16 @@ func Index(list []storage.Memory) []string {
 	return out
 }
 
-// Recall is what the recall tool reads: the notes of topic, or those with
-// every word of query (accents ignored), or both; neither lists the topics.
+// Recall is what the recall tool reads: the notes of topic, or those
+// nearest query (accents ignored), or both; neither lists the topics.
+// Notes with every word, else (a word no note has does not empty the answer)
+// those with at least half of the words, the rarer words first (idf).
 func Recall(ctx context.Context, store storage.Store, projectID, agentID, topic, query string) (string, error) {
 	list, err := store.Memories().List(ctx, projectID, agentID)
 	if err != nil {
 		return "", err
 	}
-	topic, words := Slug(topic), strings.Fields(fold(query))
+	topic, words := Slug(topic), uniq(strings.Fields(fold(query)))
 	core := topic == "core" // the notes with no topic, as the prompt has them
 	if topic == "" && len(words) == 0 {
 		lines := Index(list)
@@ -514,15 +517,47 @@ func Recall(ctx context.Context, store storage.Store, projectID, agentID, topic,
 		}
 		return fmt.Sprintf("%d topics (recall one by its name):\n%s", len(lines), strings.Join(lines, "\n")), nil
 	}
-	var hits []storage.Memory
+	type hit struct {
+		m       storage.Memory
+		matched int
+		score   float64
+		at      int
+	}
+	var pool []storage.Memory
+	var hays []string
 	for _, m := range list {
 		if core && m.Topic != "" || !core && topic != "" && m.Topic != topic {
 			continue
 		}
-		hay := fold(m.Topic + " " + m.Summary + " " + m.Text)
-		if !slices.ContainsFunc(words, func(w string) bool { return !strings.Contains(hay, w) }) {
-			hits = append(hits, m)
+		pool = append(pool, m)
+		hays = append(hays, fold(m.Topic+" "+m.Summary+" "+m.Text))
+	}
+	idf := make([]float64, len(words)) // a word few notes have says more
+	for i, w := range words {
+		df := 0
+		for _, h := range hays {
+			if strings.Contains(h, w) {
+				df++
+			}
 		}
+		idf[i] = math.Log(1 + float64(len(pool)+1)/float64(df+1))
+	}
+	var hits []hit
+	full := 0
+	for i, m := range pool {
+		h := hit{m: m, at: i}
+		for j, w := range words {
+			if strings.Contains(hays[i], w) {
+				h.matched++
+				h.score += idf[j]
+			}
+		}
+		if h.matched == len(words) {
+			full++
+		} else if 2*h.matched < len(words) || h.matched == 0 {
+			continue
+		}
+		hits = append(hits, h)
 	}
 	if len(hits) == 0 {
 		var names []string
@@ -531,22 +566,54 @@ func Recall(ctx context.Context, store storage.Store, projectID, agentID, topic,
 		}
 		return fmt.Sprintf("No notes match. Topics: %s.", cmp.Or(strings.Join(names, ", "), "(none)")), nil
 	}
-	if len(hits) > 30 { // the newest
-		hits = hits[len(hits)-30:]
+	// every word first, then the higher score, then the newest
+	slices.SortStableFunc(hits, func(a, b hit) int {
+		if c := cmp.Compare(b.matched, a.matched); c != 0 {
+			return c
+		}
+		if c := cmp.Compare(b.score, a.score); c != 0 {
+			return c
+		}
+		return b.at - a.at
+	})
+	n := partialCap
+	if full > 0 {
+		n = min(full, recallCap)
 	}
+	hits = hits[:min(n, len(hits))]
 	var b strings.Builder
 	if topic != "" && len(words) == 0 {
+		slices.SortFunc(hits, func(a, b hit) int { return a.at - b.at }) // as written
 		fmt.Fprintf(&b, "Notes on %s (id first: remember with replaces, or forget, keeps them right):\n", topic)
-		for _, m := range hits {
-			fmt.Fprintf(&b, "- [%s] %s\n", m.ID, m.Text)
+		for _, h := range hits {
+			fmt.Fprintf(&b, "- [%s] %s\n", h.m.ID, h.m.Text)
 		}
 		return b.String(), nil
 	}
-	fmt.Fprintf(&b, "%d notes match:\n", len(hits))
-	for _, m := range hits {
-		fmt.Fprintf(&b, "- [%s] [%s] %s\n", m.ID, cmp.Or(m.Topic, "core"), m.Text)
+	if full > 0 {
+		fmt.Fprintf(&b, "%d notes match:\n", len(hits))
+	} else {
+		fmt.Fprintf(&b, "No note has every word; %d have most of them, best first:\n", len(hits))
+	}
+	for _, h := range hits {
+		fmt.Fprintf(&b, "- [%s] [%s] %s\n", h.m.ID, cmp.Or(h.m.Topic, "core"), h.m.Text)
 	}
 	return b.String(), nil
+}
+
+const (
+	recallCap  = 30 // notes with every word shown at most
+	partialCap = 10 // notes with part of the words shown at most
+)
+
+func uniq(words []string) []string {
+	var out []string
+	for _, w := range words {
+		if !slices.Contains(out, w) {
+			out = append(out, w)
+		}
+	}
+	return out
 }
 
 func autoKey(projectID string) string { return "memory_auto/" + projectID }

@@ -56,6 +56,16 @@ func TestRememberTopicAndRecall(t *testing.T) {
 	if out, _ = tb.Call(ctx, sc, "recall", []byte(`{"query":"pnpm"}`)); !strings.Contains(out, "[core] Repo dùng pnpm") {
 		t.Fatalf("recall core = %s", out)
 	}
+	// a word no note has does not empty the answer: the notes with most words, best first
+	if out, _ = tb.Call(ctx, sc, "recall", []byte(`{"query":"hoan tien paypal loi"}`)); !strings.Contains(out, "most of them") || !strings.Contains(out, "[thanh-toan] Hoàn tiền") || strings.Contains(out, "pnpm") {
+		t.Fatalf("recall partial = %s", out)
+	}
+	if out, _ = tb.Call(ctx, sc, "recall", []byte(`{"query":"pnpm stripe"}`)); !strings.Contains(out, "pnpm") || !strings.Contains(out, "Hoàn tiền") {
+		t.Fatalf("recall half = %s", out)
+	}
+	if out, _ = tb.Call(ctx, sc, "recall", []byte(`{"query":"pnpm lockfile deploy docker"}`)); !strings.Contains(out, "No notes match") {
+		t.Fatalf("recall under half = %s", out)
+	}
 	if out, _ = tb.Call(ctx, sc, "recall", []byte(`{}`)); !strings.Contains(out, "- thanh-toan: hoàn tiền") {
 		t.Fatalf("recall topics = %s", out)
 	}
