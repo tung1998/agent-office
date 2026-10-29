@@ -398,7 +398,7 @@ func (e *Engine) officeAccess(ctx context.Context, sc officetools.Scope) (*Offic
 // GatewayFor gives a run the MCP servers office manages, behind its gateway:
 // their names (Claude Code, Codex) and their tools for an API run (ADR-091,
 // ADR-093), those given to the run's agent; then the names of the servers
-// given only to other agents (ADR-230).
+// given only to other agents (ADR-231).
 type GatewayFor func(ctx context.Context, sc officetools.Scope) ([]string, []string, GatewayTools)
 
 // SetGateway gives runs the MCP servers office manages.
@@ -1245,7 +1245,7 @@ func (e *Engine) run(ctx context.Context, turn *Turn, conv storage.Conversation,
 		office, revoke := e.officeAccess(ctx, sc)
 		defer revoke()
 		req.Office = office
-		if office != nil && len(office.GatewayOthers) > 0 { // so it asks for one, not says it is missing (ADR-230)
+		if office != nil && len(office.GatewayOthers) > 0 { // so it asks for one, not says it is missing (ADR-231)
 			req.System += "\n\n" + prompts.Render("chat/mcp-others", map[string]any{"Names": strings.Join(office.GatewayOthers, ", ")})
 		}
 	}

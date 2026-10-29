@@ -2,6 +2,7 @@ package storage
 
 import (
 	"context"
+	"encoding/json"
 	"strings"
 	"time"
 )
@@ -51,7 +52,8 @@ type Job struct {
 // SendsAs is who a run speaks for when it sends into another chat: the person
 // who started it, or, for a scheduled automation run as administrator, the
 // admin who gave the agent that right (ADR-191). Bots and webhooks: nobody.
-// SpeaksFor also knows an automation's owner (ADR-194).
+// SpeaksFor also knows an automation's owner (ADR-194) and a bot message's
+// linked account (ADR-232).
 func (j Job) SendsAs() (string, bool) {
 	if strings.HasPrefix(j.CreatedBy, "human:") {
 		return j.CreatedBy, true
@@ -68,10 +70,18 @@ func (j Job) scheduled() bool {
 
 // SpeaksFor is SendsAs, and for a scheduled automation the person who owns
 // it (ADR-194): the account that saved it, or for one an agent made, the
-// person its turn spoke for. A disabled or unknown account: nobody.
+// person its turn spoke for. A bot's message: the account its writer's
+// Discord/Telegram id is linked to (ADR-232), looked up again now. A disabled
+// or unknown account: nobody.
 func SpeaksFor(ctx context.Context, st Store, j Job) (string, bool) {
-	if as, ok := j.SendsAs(); ok || !j.scheduled() {
+	if as, ok := j.SendsAs(); ok {
 		return as, ok
+	}
+	if j.Trigger == "discord" || j.Trigger == "telegram" {
+		return linkedSender(ctx, st, j)
+	}
+	if !j.scheduled() {
+		return "", false
 	}
 	a, err := st.Automations().Get(ctx, j.OriginID)
 	if err != nil || !strings.Contains(a.CreatedBy, "@") || strings.ContainsAny(a.CreatedBy, " :") {
@@ -81,6 +91,22 @@ func SpeaksFor(ctx context.Context, st Store, j Job) (string, bool) {
 		return "", false
 	}
 	return "human:" + a.CreatedBy, true
+}
+
+// linkedSender is the account a bot message's writer is linked to: the
+// platform's own user id, never a name, so nobody passes for someone else.
+func linkedSender(ctx context.Context, st Store, j Job) (string, bool) {
+	var p struct {
+		Sender *Sender `json:"sender"`
+	}
+	if json.Unmarshal([]byte(j.Payload), &p) != nil || p.Sender == nil || p.Sender.ID == "" || p.Sender.Kind != j.Trigger {
+		return "", false
+	}
+	u, err := st.Users().ByChatID(ctx, j.Trigger, p.Sender.ID)
+	if err != nil || u.Disabled {
+		return "", false
+	}
+	return "human:" + u.Email, true
 }
 
 // JobFilter narrows a job listing; empty fields match everything.
