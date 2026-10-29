@@ -4,8 +4,10 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strings"
+	"time"
 )
 
 // DirEntry is one sub-folder shown in the folder picker.
@@ -34,6 +36,81 @@ var projectMarkers = []string{".git", "package.json", "go.mod", "composer.json",
 var skipDirs = map[string]bool{"node_modules": true, "vendor": true, "__pycache__": true, "Library": true, ".Trash": true}
 
 const maxEntries = 500
+
+// guardedHome: folders of the home macOS guards (TCC). Reading one asks the
+// person (a dialog the request waits on) or fails, so a listing does not
+// peek into them; opening one is the person's own choice.
+var guardedHome = map[string]bool{"Desktop": true, "Documents": true, "Downloads": true, "Pictures": true,
+	"Movies": true, "Music": true, "Library": true}
+
+// guarded reports whether peeking into full may wait on a macOS permission
+// dialog: a guarded folder of the home, a volume (removable, network), the
+// cloud drives.
+func guarded(full string) bool {
+	if runtime.GOOS != "darwin" {
+		return false
+	}
+	parent := filepath.Dir(full)
+	if parent == "/Volumes" || strings.HasSuffix(parent, "/Library/CloudStorage") {
+		return true
+	}
+	if !guardedHome[filepath.Base(full)] {
+		return false
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return false
+	}
+	if real, err := filepath.EvalSymlinks(home); err == nil {
+		home = real // full has its symlinks resolved (ListDirs)
+	}
+	return parent == home
+}
+
+// peekBudget: how long a listing waits on its peeks. A folder that takes
+// longer (a permission dialog, a network volume) shows with an arrow and no
+// markers: the listing comes back anyway.
+var peekBudget = 2 * time.Second
+
+// peekAll finds the project markers and sub-folders of each entry, side by
+// side, until peekBudget; an entry not peeked keeps its arrow.
+func peekAll(entries []DirEntry, showHidden bool) {
+	type peeked struct {
+		i        int
+		markers  []string
+		hasChild bool
+	}
+	done := make(chan peeked, len(entries))
+	slots := make(chan struct{}, 16)
+	n := 0
+	for i, e := range entries {
+		if guarded(e.Path) { // shown, not peeked into
+			continue
+		}
+		n++
+		go func() {
+			slots <- struct{}{}
+			defer func() { <-slots }()
+			p := peeked{i: i, markers: []string{}}
+			for _, m := range projectMarkers {
+				if _, err := os.Stat(filepath.Join(e.Path, m)); err == nil {
+					p.markers = append(p.markers, m)
+				}
+			}
+			p.hasChild = hasSubdir(e.Path, showHidden)
+			done <- p
+		}()
+	}
+	timeout := time.After(peekBudget)
+	for ; n > 0; n-- {
+		select {
+		case p := <-done:
+			entries[p.i].Markers, entries[p.i].IsProject, entries[p.i].HasChild = p.markers, len(p.markers) > 0, p.hasChild
+		case <-timeout:
+			return
+		}
+	}
+}
 
 // ListDirs returns the sub-folders of dir (names only, no file contents).
 func ListDirs(dir string, showHidden bool) (Listing, error) {
@@ -73,16 +150,9 @@ func ListDirs(dir string, showHidden bool) (Listing, error) {
 			out.Truncated = true
 			break
 		}
-		e := DirEntry{Name: name, Path: full, Markers: []string{}}
-		for _, m := range projectMarkers {
-			if _, err := os.Stat(filepath.Join(full, m)); err == nil {
-				e.Markers = append(e.Markers, m)
-			}
-		}
-		e.IsProject = len(e.Markers) > 0
-		e.HasChild = hasSubdir(full, showHidden)
-		out.Entries = append(out.Entries, e)
+		out.Entries = append(out.Entries, DirEntry{Name: name, Path: full, Markers: []string{}, HasChild: true})
 	}
+	peekAll(out.Entries, showHidden)
 	sort.Slice(out.Entries, func(i, j int) bool {
 		return strings.ToLower(out.Entries[i].Name) < strings.ToLower(out.Entries[j].Name)
 	})

@@ -13,6 +13,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 	"sync"
@@ -1356,15 +1357,43 @@ func (s *server) auditAction(r *http.Request, action, target string, detail map[
 // listDirs powers the folder tree in the dashboard. Browsers cannot hand a web
 // page an absolute path, but the office server runs on the machine that holds
 // the projects, so it lists sub-folder names (never file contents) for admins.
+// listDirsWait: how long the folder picker waits on one folder.
+var listDirsWait = 15 * time.Second
+
 func (s *server) listDirs(w http.ResponseWriter, r *http.Request) {
 	path := r.URL.Query().Get("path")
 	if path == "" {
 		path = s.cloneRoot()
 	}
-	l, err := repos.ListDirs(path, r.URL.Query().Get("hidden") == "1")
+	// reading a folder macOS guards waits on its permission dialog, on the
+	// machine office runs on: answer before the browser gives up
+	type listed struct {
+		l   repos.Listing
+		err error
+	}
+	got := make(chan listed, 1)
+	go func() {
+		l, err := repos.ListDirs(path, r.URL.Query().Get("hidden") == "1")
+		got <- listed{l, err}
+	}()
+	var l repos.Listing
+	var err error
+	select {
+	case x := <-got:
+		l, err = x.l, x.err
+	case <-time.After(listDirsWait):
+		writeError(w, http.StatusGatewayTimeout, "Đọc thư mục quá lâu: máy chạy office có thể đang hỏi quyền truy cập thư mục (macOS). Bấm Cho phép trên máy đó, hoặc cấp Truy cập toàn bộ ổ đĩa cho office, rồi thử lại")
+		return
+	case <-r.Context().Done():
+		return
+	}
 	switch {
 	case errors.Is(err, os.ErrPermission):
-		writeError(w, http.StatusForbidden, "Không có quyền đọc thư mục này")
+		msg := "Không có quyền đọc thư mục này"
+		if runtime.GOOS == "darwin" { // Desktop, Documents, Downloads, volumes: macOS asks per app
+			msg += ": cấp cho office trong Cài đặt hệ thống → Quyền riêng tư & Bảo mật → Truy cập toàn bộ ổ đĩa (hoặc Tệp và thư mục), rồi khởi động lại office"
+		}
+		writeError(w, http.StatusForbidden, msg)
 		return
 	case errors.Is(err, os.ErrNotExist), errors.Is(err, repos.ErrNotDir):
 		writeError(w, http.StatusNotFound, "Thư mục không tồn tại")
