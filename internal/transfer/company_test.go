@@ -108,6 +108,13 @@ func TestLibraryPacksImport(t *testing.T) {
 					t.Fatalf("ngoai-ngu: %d agents, %d workflows, %d schedules, %d tables", len(agents), len(wfs), len(autos), len(cols))
 				}
 			}
+			// an investor: watchlist, signals, paper trades, lessons; four workflows, three schedules off
+			if b.Name == "@agentoffice/dau-tu" {
+				cols, _ := o.st.Collections().List(ctx, repo.ID)
+				if len(agents) != 3 || len(wfs) != 4 || len(autos) != 3 || len(cols) != 4 {
+					t.Fatalf("dau-tu: %d agents, %d workflows, %d schedules, %d tables", len(agents), len(wfs), len(autos), len(cols))
+				}
+			}
 			if e.Key == "cskh" {
 				if fc := features.LoadConfig(ctx, o.st, repo.ID); !fc.Packs["support"] {
 					t.Fatalf("cskh: support pack off: %+v", fc)

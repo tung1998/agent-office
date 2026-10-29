@@ -81,6 +81,16 @@ func TestLibrary(t *testing.T) {
 			t.Fatalf("ngoai-ngu: %s missing", f)
 		}
 	}
+	// the investor's bundle: its skills and the paper desk's folders
+	desk := repo()
+	if _, err := packs.Write(ctx, "@agentoffice/dau-tu", desk, true); err != nil {
+		t.Fatal(err)
+	}
+	for _, f := range []string{"office.pack.json", ".claude/skills/phan-tich/SKILL.md", ".claude/skills/tranh-bien/SKILL.md", ".claude/skills/rui-ro/SKILL.md", ".claude/skills/danh-gia/SKILL.md", "docs/ho-so.md", "docs/quy-tac-rui-ro.md", "phan-tich/README.md", "nhat-ky/README.md"} {
+		if _, err := os.Stat(filepath.Join(desk, f)); err != nil {
+			t.Fatalf("dau-tu: %s missing", f)
+		}
+	}
 	if _, e, err := packs.Find("@agentoffice/company/marketing"); err != nil || e.Ref != "@agentoffice/startup/marketing" {
 		t.Fatalf("old name: %+v %v", e, err)
 	}

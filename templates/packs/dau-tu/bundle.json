@@ -1,0 +1,13 @@
+{
+  "title": "Phân tích thị trường",
+  "description": "Một nhà đầu tư với ba agent theo mô hình TradingAgents: Quản lý danh mục điều phối và quyết định, Phân tích viên phân tích bốn góc có nguồn, Quản trị rủi ro phản biện, kiểm quy mô lệnh và rút kinh nghiệm. Chỉ giao dịch giấy.",
+  "packs": [
+    {
+      "key": "",
+      "title": "Phân tích thị trường",
+      "description": "Danh sách theo dõi → phân tích một mã (cơ bản, kỹ thuật, tin tức, tâm lý; mỗi số có nguồn) → tranh biện tăng/giảm → tín hiệu có độ tin cậy, cắt lỗ, mục tiêu → lệnh giấy theo quy tắc rủi ro → theo dõi cuối ngày → đánh giá tuần, bài học cho lần sau. Cổ phiếu VN, Mỹ, crypto. Ba lịch (bản tin sáng, theo dõi lệnh, đánh giá tuần), tắt sẵn.",
+      "file": "office.pack.json",
+      "root": true
+    }
+  ]
+}
