@@ -590,3 +590,16 @@ func TestLibraryListSkills(t *testing.T) {
 		t.Fatalf("List after edit = %#v", items)
 	}
 }
+
+func TestReadSkillKeepsLargeFiles(t *testing.T) {
+	dir := t.TempDir()
+	write(t, filepath.Join(dir, "SKILL.md"), "---\nname: big\ndescription: d\n---\n")
+	write(t, filepath.Join(dir, "scripts", "bundle.js"), strings.Repeat("x", 1<<20))
+	files, err := ReadSkill(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(files["scripts/bundle.js"]) != 1<<20 {
+		t.Fatalf("a 1 MB script was dropped: %v", len(files["scripts/bundle.js"]))
+	}
+}

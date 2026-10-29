@@ -170,7 +170,9 @@ func writeAgentFile(base, p, content string) error {
 	return os.WriteFile(p, []byte(content), 0o644)
 }
 
-// ReadSkill loads a skill folder (text files up to 256 KB each, 2 MB total).
+// ReadSkill loads a skill folder (text files up to 4 MB each, 16 MB total):
+// skills ship bundled scripts and data (Impeccable's live mode is a 550 KB
+// script and a 1 MB font index).
 func ReadSkill(dir string) (map[string]string, error) {
 	files := map[string]string{}
 	total := 0
@@ -185,7 +187,7 @@ func ReadSkill(dir string) (map[string]string, error) {
 			return nil
 		}
 		info, err := d.Info()
-		if err != nil || info.Size() > 256<<10 {
+		if err != nil || info.Size() > 4<<20 {
 			return nil
 		}
 		raw, err := os.ReadFile(p)
@@ -193,7 +195,7 @@ func ReadSkill(dir string) (map[string]string, error) {
 			return nil
 		}
 		total += len(raw)
-		if total > 2<<20 {
+		if total > 16<<20 {
 			return errors.New("skill quá lớn")
 		}
 		rel, _ := filepath.Rel(dir, p)
