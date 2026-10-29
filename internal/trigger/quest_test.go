@@ -81,3 +81,40 @@ func TestScriptGivesQuests(t *testing.T) {
 		t.Fatalf("starts = %v", sink.starts)
 	}
 }
+
+// @@workflow lines (ADR-237): a script opens a workflow of the project, its
+// input after the key, each key once; a webhook's script opens none.
+func TestScriptStartsWorkflows(t *testing.T) {
+	ctx := context.Background()
+	st, p := openStore(t)
+	if _, err := st.Agents().Create(ctx, storage.Agent{ProjectID: p.ID, Key: "a", Name: "A", ModelTier: "fast"}); err != nil {
+		t.Fatal(err)
+	}
+	if got := trigger.Flows("x\n@@workflow kiem-tra deploy 16h\n@@workflow: kiem-tra again\n@@workflows no\n@@workflow b@d"); len(got) != 1 || got[0] != (trigger.FlowCall{Key: "kiem-tra", Input: "deploy 16h"}) {
+		t.Fatalf("flows = %+v", got)
+	}
+	ex := &recExec{returnCnv: "cnv_w"}
+	r := trigger.New(st, ex)
+	a, _ := st.Automations().Create(ctx, storage.Automation{ProjectID: p.ID, Name: "deploy", Source: "schedule", Action: "script", Enabled: true,
+		Config: storage.AutomationConfig{EveryMinutes: 10},
+		Script: storage.AutomationScript{Lang: "bash", Body: "echo alarm\necho '@@workflow kiem-tra deploy 16h'", TimeoutS: 30}})
+	runOnce(t, r, st, a, "")
+	if len(ex.prompts) != 1 || ex.prompts[0] != "#kiem-tra deploy 16h" {
+		t.Fatalf("prompts = %q", ex.prompts)
+	}
+	s, kids := jobsOf(t, st, a)
+	if s.Status != "done" || !strings.Contains(s.Output, "Đã mở quy trình #kiem-tra") {
+		t.Fatalf("output = %q", s.Output)
+	}
+	if len(kids) != 1 || kids[0].Status != "done" || kids[0].ParentJobID != s.ID || kids[0].ConversationID != "cnv_w" {
+		t.Fatalf("children = %+v", kids)
+	}
+	if _, _, err := r.Enqueue(ctx, a, "webhook", `{"x":1}`, "", ""); err != nil {
+		t.Fatal(err)
+	}
+	r.StartReady(ctx, time.Now().UTC())
+	r.Wait()
+	if len(ex.prompts) != 1 {
+		t.Fatalf("a webhook's script opened a workflow: %q", ex.prompts)
+	}
+}

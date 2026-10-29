@@ -273,6 +273,7 @@ function addStep(p: Drop, position: { x: number, y: number }, link: boolean) {
       http: { method: 'GET', url: '' },
       condition: { if: '', then: [], else: [] },
       switch: { value: '', cases: [{ when: '', next: [] }] },
+      wait: { for: '30m' },
       approve: { note: '' },
       check: { command: '' },
       end: {}

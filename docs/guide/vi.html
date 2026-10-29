@@ -423,7 +423,7 @@
   </table>
   <table>
     <tr><th>Hành động</th><th>Chi phí</th></tr>
-    <tr><td><b>Script</b> (bash, node, python)</td><td>Miễn phí. Chạy trong thư mục project, nhận payload qua stdin và <code>$OFFICE_PAYLOAD</code>. Chỉ gọi agent khi script lỗi, hoặc khi in dòng <code>@@agent: …</code>.</td></tr>
+    <tr><td><b>Script</b> (bash, node, python)</td><td>Miễn phí. Chạy trong thư mục project, nhận payload qua stdin và <code>$OFFICE_PAYLOAD</code>. Không dùng AI. Dòng <code>@@quest …</code> giao quest cho Burn; dòng <code>@@workflow &lt;key&gt; &lt;input&gt;</code> mở một quy trình (code, chờ, điều kiện, chỉ gọi agent ở bước cần).</td></tr>
     <tr><td><b>Chat</b></td><td>Gửi prompt cho agent. Dùng được <code>{{payload}}</code>, <code>{{today}}</code>.</td></tr>
   </table>
   <figure><img src="images/vi/10-automation-builder.png" alt="Trình tạo tự động hóa" loading="lazy"><figcaption>Trình tạo: một bên là form, bên kia là chat. Mô tả điều bạn muốn, AI điền form; bấm <b>Chạy thử</b> trước khi lưu.</figcaption></figure>

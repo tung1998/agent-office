@@ -19,7 +19,7 @@ import (
 // Steps (ADR-108): a workflow may be a graph of steps the office runs in
 // order, as n8n does, instead of a coordinator deciding: an agent's turn, a
 // sub-workflow, code, an HTTP request, a condition (and loops by going back),
-// a person's approval, a check command, the end. Data goes from step to
+// a wait, a person's approval, a check command, the end. Data goes from step to
 // step by templates: {{input.key}}, {{steps.<id>.output}},
 // {{steps.<id>.json.a.b}}, {{steps.<id>.status}}.
 //
@@ -41,13 +41,16 @@ const (
 	StepHTTP       = "http"
 	StepCondition  = "condition"
 	StepSwitch     = "switch"
-	StepApprove    = "approve"
-	StepCheck      = "check"
-	StepEnd        = "end"
+	// StepWait: the run waits For (30m, 1h…) before its next steps, as a
+	// check "an hour later" (ADR-237); an office restart ends the run.
+	StepWait    = "wait"
+	StepApprove = "approve"
+	StepCheck   = "check"
+	StepEnd     = "end"
 )
 
 // StepTypes are the step types, in the order the editor offers them.
-var StepTypes = []string{StepAgent, StepCoordinate, StepWorkflow, StepCode, StepHTTP, StepCondition, StepSwitch, StepApprove, StepCheck, StepEnd}
+var StepTypes = []string{StepAgent, StepCoordinate, StepWorkflow, StepCode, StepHTTP, StepCondition, StepSwitch, StepWait, StepApprove, StepCheck, StepEnd}
 
 // Step is one node of a workflow's graph.
 type Step struct {
@@ -91,6 +94,8 @@ type Step struct {
 	// switch: Value (a template) goes to the case it equals (no case: Else)
 	Value string `yaml:"value,omitempty" json:"value,omitempty"`
 	Cases []Case `yaml:"cases,omitempty" json:"cases,omitempty"`
+	// wait: how long, a Go duration (30m, 1h30m) or a template, at most MaxWait
+	For string `yaml:"for,omitempty" json:"for,omitempty"`
 	// approve: what the person decides (rejected: Else, or the run stops)
 	Note string `yaml:"note,omitempty" json:"note,omitempty"`
 	// check: a command that must pass (the project's command rules apply)
@@ -261,6 +266,18 @@ type Position struct {
 	Y float64 `yaml:"y" json:"y"`
 }
 
+// MaxWait bounds a wait step.
+const MaxWait = 24 * time.Hour
+
+// WaitFor reads a wait step's For: a Go duration, more than 0 and at most MaxWait.
+func WaitFor(v string) (time.Duration, error) {
+	d, err := time.ParseDuration(strings.TrimSpace(v))
+	if err != nil || d <= 0 || d > MaxWait {
+		return 0, fmt.Errorf("for %q: thời lượng như 30m, 1h, từ 1s tới 24h", v)
+	}
+	return d, nil
+}
+
 // DefaultMaxLoops bounds a condition's way back.
 const DefaultMaxLoops = 5
 
@@ -387,6 +404,10 @@ func (d Def) validateSteps(add func(string, ...any)) {
 				ref(s, "next của case "+strconv.Quote(c.When), c.Next, true)
 			}
 			ref(s, "else", s.Else, false)
+		case StepWait:
+			if _, err := WaitFor(s.For); err != nil && !strings.Contains(s.For, "{{") {
+				add("bước %q: %s", s.ID, err)
+			}
 		case StepApprove:
 			if strings.TrimSpace(s.Note) == "" {
 				add("bước %q: thiếu note (điều người dùng duyệt)", s.ID)

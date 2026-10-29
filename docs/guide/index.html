@@ -422,7 +422,7 @@
   </table>
   <table>
     <tr><th>Action</th><th>Cost</th></tr>
-    <tr><td><b>Script</b> (bash, node, python)</td><td>Free. Runs in the project folder, gets the payload on stdin and <code>$OFFICE_PAYLOAD</code>. Calls an agent only when it fails, or when it prints a line <code>@@agent: …</code>.</td></tr>
+    <tr><td><b>Script</b> (bash, node, python)</td><td>Free. Runs in the project folder, gets the payload on stdin and <code>$OFFICE_PAYLOAD</code>. Uses no AI. A line <code>@@quest …</code> gives Burn a quest; a line <code>@@workflow &lt;key&gt; &lt;input&gt;</code> opens a workflow (code, wait, condition, an agent only where needed).</td></tr>
     <tr><td><b>Chat</b></td><td>Sends a prompt to an agent. Use <code>{{payload}}</code>, <code>{{today}}</code>.</td></tr>
   </table>
   <figure><img src="images/10-automation-builder.png" alt="Automation builder" loading="lazy"><figcaption>The builder: a form on one side, a chat on the other. Describe what you want and the AI fills the form; <b>Test run</b> before saving.</figcaption></figure>

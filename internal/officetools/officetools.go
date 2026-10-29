@@ -315,7 +315,7 @@ func (t *Toolbox) Tools() []Tool {
 				"why":    map[string]any{"type": "string", "description": "add: when it helps, one line, e.g. before a website goes live"},
 			}, "action", "name")})
 		str := func(desc string) map[string]any { return map[string]any{"type": "string", "description": desc} }
-		list = append(list, Tool{Name: "propose_automation", Description: "Propose an automation (the person approves it). Prefer action=script (NO AI tokens); chat only when every run needs AI; workflow runs a project workflow. A script feeds the project's Burn: each output line '@@quest <title> :: <detail>' becomes a Burn quest (open ones with the same title are skipped). chat/workflow with goal runs until a check passes. A frequent schedule takes only_if (it runs only when its data or the work board has work: no tokens otherwise) and limits. With the self.manage capability, a chat/workflow schedule at most every 30 minutes with limits.daily_cost_usd up to 5 is done at once, no approval. With automation_id it edits that one: what the edit leaves out (time zone, agent, prompt, goal, only_if, limits, where it reports) stays as it is.",
+		list = append(list, Tool{Name: "propose_automation", Description: "Propose an automation (the person approves it). Prefer action=script (NO AI tokens); chat only when every run needs AI; workflow runs a project workflow. A script feeds the project's Burn: each output line '@@quest <title> :: <detail>' becomes a Burn quest (open ones with the same title are skipped). A scheduled script opens a project workflow with a line '@@workflow <key> <input>' (at most 3, no AI until the workflow reaches an agent step). chat/workflow with goal runs until a check passes. A frequent schedule takes only_if (it runs only when its data or the work board has work: no tokens otherwise) and limits. With the self.manage capability, a chat/workflow schedule at most every 30 minutes with limits.daily_cost_usd up to 5 is done at once, no approval. With automation_id it edits that one: what the edit leaves out (time zone, agent, prompt, goal, only_if, limits, where it reports) stays as it is.",
 			Schema: obj(map[string]any{
 				"automation_id": str("Edit this automation (empty = create a new one)"),
 				"enabled":       map[string]any{"type": "boolean", "description": "Turn it on (true) or off (false); empty = a new one on, an edited one as it is"},
@@ -330,7 +330,7 @@ func (t *Toolbox) Tools() []Tool {
 				"prompt":        str("chat: text sent to the agent; workflow: the workflow's input; supports {{payload}}, {{today}}…"),
 				"script": obj(map[string]any{
 					"lang":       map[string]any{"type": "string", "enum": []string{"bash", "node", "python"}},
-					"body":       str("Source; runs in the project folder, payload on stdin and $OFFICE_PAYLOAD, result on stdout, non-zero exit on error; a line '@@quest <title> :: <detail>' gives the project's Burn a quest (detail optional)"),
+					"body":       str("Source; runs in the project folder, payload on stdin and $OFFICE_PAYLOAD, result on stdout, non-zero exit on error; a line '@@quest <title> :: <detail>' gives the project's Burn a quest (detail optional); a line '@@workflow <key> <input>' opens that workflow"),
 					"timeout_s":  map[string]any{"type": "integer", "description": "Default 300, max 3600"},
 					"burn_start": map[string]any{"type": "boolean", "description": "Quests were added and the Burn is stopped: start it with its saved settings (schedule or manual runs only)"},
 				}),

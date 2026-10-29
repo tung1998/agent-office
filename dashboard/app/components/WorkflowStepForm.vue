@@ -296,6 +296,14 @@ const onErrorItems = computed(() => [{ label: t('wf.step.onErrorStop'), value: '
       </UFormField>
     </template>
 
+    <!-- wait -->
+    <template v-else-if="step.type === 'wait'">
+      <UFormField :hint="miss('for')" :ui="ui">
+        <template #label><InfoLabel :label="t('wf.step.waitFor')" :info="t('wf.step.waitInfo')" /></template>
+        <UInput :model-value="step.for ?? ''" size="sm" class="w-32 font-mono" placeholder="30m" @update:model-value="v => patch({ for: String(v) })" />
+      </UFormField>
+    </template>
+
     <!-- approve / check -->
     <template v-else-if="step.type === 'approve' || step.type === 'check'">
       <UFormField v-if="step.type === 'approve'" :label="t('wf.step.note')" :hint="miss('note')" :ui="ui">

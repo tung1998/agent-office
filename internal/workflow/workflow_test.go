@@ -265,9 +265,9 @@ func TestStepsParseRenderEval(t *testing.T) {
 	if again, err := Parse(out); err != nil || len(again.Steps) != 3 || !slices.Equal(again.Steps[1].Else, Targets{"x"}) {
 		t.Fatalf("format round trip: %v\n%s", err, out)
 	}
-	bad := "---\nkey: s\nname: S\nsteps:\n  - { id: x, type: agent, role: nope }\n  - { id: h, type: http, url: ftp://x, next: zz }\n  - { id: k, type: code, lang: ruby }\n---\n"
+	bad := "---\nkey: s\nname: S\nsteps:\n  - { id: x, type: agent, role: nope }\n  - { id: h, type: http, url: ftp://x, next: zz }\n  - { id: k, type: code, lang: ruby }\n  - { id: w, type: wait, for: 48h, next: x }\n---\n"
 	_, err = Parse(bad)
-	for _, want := range []string{`role "nope"`, "thiếu prompt", "url", `next "zz"`, "lang", "thiếu script", "bước end"} {
+	for _, want := range []string{`role "nope"`, "thiếu prompt", "url", `next "zz"`, "lang", "thiếu script", `for "48h"`, "bước end"} {
 		if err == nil || !strings.Contains(err.Error(), want) {
 			t.Fatalf("missing %q in %v", want, err)
 		}

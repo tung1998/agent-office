@@ -615,6 +615,55 @@ steps:
 	}
 }
 
+// a wait step (ADR-237): check, wait, check again, as a check after a
+// deploy at 30 minutes then an hour; no agent runs
+func TestWorkflowWaitStepLoops(t *testing.T) {
+	g := newWFGroup(t)
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	src := `---
+key: cho
+name: Chờ
+roles:
+  - { key: viet, name: Người viết, access: analyze }
+steps:
+  - id: kiem
+    type: code
+    lang: bash
+    script: echo x >> "$HOME/.lan"; wc -l < "$HOME/.lan" | tr -d ' '
+    next: du
+  - id: du
+    type: condition
+    if: "{{steps.kiem.output}} >= 3"
+    then: xong
+    else: cho
+  - id: cho
+    type: wait
+    for: 300ms
+    next: kiem
+  - id: xong
+    type: end
+    summary: "lần {{steps.kiem.output}}, chờ {{steps.cho.output}}"
+---
+`
+	if _, err := g.svc.Create(g.context, g.f.project.ID, src, map[string]string{"viet": g.dev.ID}); err != nil {
+		t.Fatal(err)
+	}
+	start := time.Now()
+	call0, _, err := g.engine.Send(g.context, g.conv.ID, "#cho", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	collect(t, call0)
+	r := g.run(t)
+	if r.Status != storage.RunDone || r.Result != "lần 3, chờ 300ms" {
+		t.Fatalf("run = %+v", r)
+	}
+	if took := time.Since(start); took < 600*time.Millisecond {
+		t.Fatalf("it did not wait twice: %v", took)
+	}
+}
+
 // a coordinate step (ADR-111): an agent decides inside the step, in a run
 // of its own; its workflow_done is the step's output for the steps after it
 func TestWorkflowCoordinateStep(t *testing.T) {

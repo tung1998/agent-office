@@ -75,7 +75,7 @@ export interface WorkflowDef {
 // {{steps.<id>.json.a.b}}, {{steps.<id>.status}}.
 // One output may go to several steps (a list): they run at once; a step
 // several branches reach waits for them all (ADR-110).
-export type StepType = 'agent' | 'coordinate' | 'workflow' | 'code' | 'http' | 'condition' | 'switch' | 'approve' | 'check' | 'end'
+export type StepType = 'agent' | 'coordinate' | 'workflow' | 'code' | 'http' | 'condition' | 'switch' | 'wait' | 'approve' | 'check' | 'end'
 
 // a switch's way out: the value it matches and where it goes
 export interface WorkflowCase { when: string, next: string[] | null }
@@ -105,6 +105,7 @@ export interface WorkflowStep {
   value?: string // switch: what is compared with each case
   cases?: WorkflowCase[]
   max_loops?: number
+  for?: string // wait: 30m, 1h… (up to 24h)
   note?: string // approve
   command?: string // check
   summary?: string // end
@@ -121,6 +122,7 @@ export const STEP_TYPES: { type: StepType, icon: string }[] = [
   { type: 'http', icon: 'i-lucide-globe' },
   { type: 'condition', icon: 'i-lucide-split' },
   { type: 'switch', icon: 'i-lucide-route' },
+  { type: 'wait', icon: 'i-lucide-hourglass' },
   { type: 'approve', icon: 'i-lucide-user-check' },
   { type: 'check', icon: 'i-lucide-test-tube' },
   { type: 'end', icon: 'i-lucide-flag' }
@@ -206,6 +208,9 @@ export function stepMissing(s: WorkflowStep, def: WorkflowDef): string[] {
       ref('else', false)
       break
     }
+    case 'wait':
+      if (!validWait(s.for ?? '')) bad.push('for')
+      break
     case 'approve':
       if (!s.note?.trim()) bad.push('note')
       ref('else', false)
@@ -217,6 +222,17 @@ export function stepMissing(s: WorkflowStep, def: WorkflowDef): string[] {
   }
   if (s.type !== 'end' && s.type !== 'condition' && s.type !== 'switch') ref('next', true)
   return bad
+}
+
+// a wait's length as Go reads it (30m, 1h30m, 90s), more than 0 and at most 24h; a template passes
+const WAIT_UNIT: Record<string, number> = { ms: 0.001, s: 1, m: 60, h: 3600 }
+export function validWait(v: string): boolean {
+  const t = v.trim()
+  if (t.includes('{{')) return true
+  if (!/^(\d+(\.\d+)?(ms|s|m|h))+$/.test(t)) return false
+  let secs = 0
+  for (const [, n, , u] of t.matchAll(/(\d+(\.\d+)?)(ms|s|m|h)/g)) secs += Number(n) * WAIT_UNIT[u!]!
+  return secs > 0 && secs <= 24 * 3600
 }
 
 // One kind of workflow (ADR-111): a file without steps (an agent coordinates
@@ -245,7 +261,7 @@ export function renameStep(steps: WorkflowStep[], from: string, to: string): Wor
     if (n.id === from) n.id = to
     for (const f of ['next', 'then', 'else'] as const) if (n[f]) n[f] = n[f]!.map(x => x === from ? to : x)
     n.cases = n.cases?.map(c => ({ when: tpl(c.when), next: (c.next ?? []).map(x => x === from ? to : x) }))
-    for (const f of ['prompt', 'script', 'url', 'body', 'if', 'value', 'note', 'command', 'summary'] as const) {
+    for (const f of ['prompt', 'script', 'url', 'body', 'if', 'value', 'for', 'note', 'command', 'summary'] as const) {
       if (n[f]) n[f] = tpl(n[f]!)
     }
     n.inputs = map(n.inputs)

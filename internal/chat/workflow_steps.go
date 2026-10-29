@@ -170,7 +170,7 @@ func (e *Engine) runSteps(ctx context.Context, own storage.Conversation, run *wf
 				if ok && s.Type == workflow.StepAgent && slices.ContainsFunc(slices.Collect(maps.Keys(running)), func(r string) bool { o, _ := d.Step(r); return o.Type == workflow.StepAgent && o.Role == s.Role }) {
 					continue // one role answers one step at a time
 				}
-				if len(running) >= d.Limits.Concurrency && ok && s.Type != workflow.StepEnd && s.Type != workflow.StepCondition && s.Type != workflow.StepSwitch {
+				if len(running) >= d.Limits.Concurrency && ok && s.Type != workflow.StepEnd && s.Type != workflow.StepCondition && s.Type != workflow.StepSwitch && s.Type != workflow.StepWait {
 					continue
 				}
 				pending = slices.Delete(pending, i, i+1)
@@ -369,6 +369,20 @@ func (e *Engine) runStep(ctx context.Context, own storage.Conversation, run *wfR
 			return res, fmt.Errorf("%w: HTTP %d", workflow.ErrStepFailed, code)
 		}
 		return res, nil
+	case workflow.StepWait:
+		d, err := workflow.WaitFor(workflow.Render(s.For, vars))
+		if err != nil {
+			return workflow.StepResult{}, err
+		}
+		e.post(own, s, "Chờ "+d.String()+", tới "+time.Now().Add(d).Format("15:04")) // i18n-ignore
+		t := time.NewTimer(d)
+		defer t.Stop()
+		select {
+		case <-t.C:
+			return workflow.NewResult(d.String(), "done"), nil
+		case <-ctx.Done():
+			return workflow.StepResult{}, ctx.Err()
+		}
 	case workflow.StepApprove:
 		return e.stepDecide(ctx, own, run, s, "workflow_gate", run.def.Name+": "+workflow.StepLabel(s), workflow.Render(s.Note, vars))
 	case workflow.StepCheck:

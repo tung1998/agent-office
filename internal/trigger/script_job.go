@@ -25,6 +25,9 @@ func (r *Runner) runScriptJob(ctx context.Context, a storage.Automation, j stora
 	note := ""
 	if runErr == nil && !timedOut { // its @@quest lines go to the project's Burn (ADR-132)
 		note = r.giveQuests(ctx, a, j, out)
+		if f := r.startFlows(ctx, a, j, out); f != "" { // its @@workflow lines open workflows (ADR-237)
+			note = strings.TrimSpace(note + "\n" + f)
+		}
 	}
 	stored := out
 	if note != "" {
@@ -55,11 +58,12 @@ func (r *Runner) runScriptJob(ctx context.Context, a storage.Automation, j stora
 	_ = r.store.Automations().RecordRun(ctx, a.ID, r.now().UTC(), result, reason, a.Limits.DisableAfterFailures, "")
 }
 
-// withoutSignals is a script's output without its @@agent and @@quest lines.
+// withoutSignals is a script's output without its @@agent, @@quest and @@workflow lines.
 func withoutSignals(out string) string {
 	var keep []string
 	for _, l := range strings.Split(out, "\n") {
-		if _, quest := questLine(l); !quest && !strings.HasPrefix(strings.TrimSpace(l), "@@agent:") {
+		_, flow := flowLine(l)
+		if _, quest := questLine(l); !quest && !flow && !strings.HasPrefix(strings.TrimSpace(l), "@@agent:") {
 			keep = append(keep, l)
 		}
 	}
