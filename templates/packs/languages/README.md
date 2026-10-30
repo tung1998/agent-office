@@ -19,7 +19,7 @@ thêm từ mới ──► sổ: vocabulary, grammar (có tag) + lessons/<ngày>
 
 | Bước | Làm thế nào | Ai |
 |---|---|---|
-| Lộ trình | "Mình muốn đỗ N3 trong 2 tháng, mỗi ngày 45 phút"; `#plan-roadmap`. Kiểm tra có kịp không, chia giai đoạn, tuần, mốc kiểm tra, xếp việc 2 tuần tới; lịch **Điều chỉnh lộ trình hằng tuần** sửa theo kết quả | Giáo viên lập, Chấm bài soát |
+| Lộ trình | "Mình muốn đỗ N3 trong 2 tháng, mỗi ngày 45 phút"; `#plan-roadmap`. Kiểm tra có kịp không, chia giai đoạn, tuần, mốc kiểm tra, xếp việc 2 tuần tới; hết giai đoạn phải qua ngưỡng đạt (khoảng 80% mục ở hộp 3 trở lên, mốc kiểm tra đạt) mới sang phần mới; lịch **Điều chỉnh lộ trình hằng tuần** sửa theo kết quả | Giáo viên lập, Chấm bài soát |
 | Thêm từ mới | Gửi từ, câu, đoạn văn, ảnh sách, link vào chat; nhiều mục thì Giáo viên chạy `#add-words` | Giáo viên ghi, Chấm bài soát |
 | Ôn tập | "Ôn bài" trong chat, hoặc lịch **Ôn tập hằng ngày**; `#review` | Soạn đề soạn, Giáo viên hỏi |
 | Chấm | Trả lời trong chat; `#grade`. Từ chưa nhớ về hộp 1, sai nhiều thành **khó**, câu sai vào sổ **Lỗi hay sai**; buổi ôn sau dành khoảng 1/3 cho các mục yếu | Chấm bài |
@@ -43,7 +43,7 @@ Cách lập và điều chỉnh lộ trình ở skill `roadmap`; luyện nghe, n
 ## Thư mục
 - `docs/profile.md`: hồ sơ người học (điền ở buổi đầu), có lộ trình hiện tại.
 - `roadmap/`: các lộ trình, mỗi mục tiêu một file, có lịch sử điều chỉnh.
-- `lessons/`: mỗi buổi một file bài học.
+- `lessons/`: mỗi buổi một file bài học, cuối file có nhật ký ngắn (học gì, khó gì, mức tự tin 1-5).
 - `exercises/`: bài ôn tập và đáp án.
 - `exams/`: đề luyện thi và đáp án.
 - `resources/exam-formats.md`: cấu trúc các kỳ thi đã tra, có nguồn.

@@ -68,7 +68,14 @@ Culture, usage, common mistakes.
 
 ## Self-check
 3-5 quick questions (answers at the end of the file, after a `---` line).
+
+## Journal
+- Learned: <one line>
+- Hard: <what did not stick or was confusing>
+- Confidence: <1-5>
 ```
+
+The journal is written at the end of each session, three short lines in the learner's words (ask them; write it yourself only if they skip it, and say so). Every session that day adds its own lines.
 
 ## 6. Tell the learner
 How many words and which grammar patterns were recorded, in which file; which words were already there (and what was added); what is still uncertain.
