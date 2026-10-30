@@ -78,15 +78,6 @@ function load() {
   })))
 }
 const { stale, reset: resync } = useDraft(agent, form, () => load()) // never over what is being edited
-const DEFAULT_PROVIDER = '__default'
-const providerChoice = computed({
-  get: () => form.provider_id || DEFAULT_PROVIDER,
-  set: (v: string) => { form.provider_id = v === DEFAULT_PROVIDER ? '' : v }
-})
-const providerOptions = computed(() => [
-  { label: t('org.form.providerDefault', { suffix: defaultProvider.value ? ` (${defaultProvider.value.name})` : '' }), value: DEFAULT_PROVIDER },
-  ...providers.value.map(p => ({ label: p.name, value: p.id }))
-])
 const formProvider = computed(() => providers.value.find(p => p.id === form.provider_id) ?? defaultProvider.value)
 const formEfforts = computed(() => effortsFor(formProvider.value?.kind, form.llm_model || formProvider.value?.tier_models[form.model_tier]))
 const providerName = (id: string) => providers.value.find(p => p.id === id)?.name ?? id
@@ -352,14 +343,9 @@ async function restore(e: Entry) {
 
         <UCard :ui="{ body: 'space-y-3 sm:p-4' }">
           <p class="text-sm font-medium">{{ t('agentPage.cardModel') }}</p>
-          <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <UFormField :label="t('org.form.provider')"><USelect v-model="providerChoice" :items="providerOptions" class="w-full" /></UFormField>
+          <div class="grid gap-3 sm:grid-cols-2">
             <UFormField :label="t('org.form.modelTier')">
               <USelect v-model="form.model_tier" :items="Object.entries(modelTierLabel).map(([value, label]) => ({ label, value }))" class="w-full" />
-            </UFormField>
-            <!-- the tier's model as the placeholder: a hint beside the label pushed it onto two lines -->
-            <UFormField :label="t('org.form.specificModel')">
-              <ModelInput v-model="form.llm_model" :models="formProvider?.models" :placeholder="formProvider?.tier_models[form.model_tier] || ''" class="w-full" />
             </UFormField>
             <UFormField v-if="formEfforts.length" :label="t('org.form.effort')">
               <template #hint>
@@ -368,7 +354,7 @@ async function restore(e: Entry) {
               <EffortSelect v-model="form.effort" :options="formEfforts" class="w-full" :disabled="!isAdmin" />
             </UFormField>
           </div>
-          <FallbackPicker v-model="form.fallback_provider_ids" :providers="providers" :main-id="formProvider?.id" :tier="form.model_tier" :disabled="!isAdmin" />
+          <ConnectionChain v-model:provider-id="form.provider_id" v-model:llm-model="form.llm_model" v-model:fallbacks="form.fallback_provider_ids" :providers="providers" :tier="form.model_tier" :disabled="!isAdmin" />
           <UButton v-if="isAdmin" size="sm" icon="i-lucide-save" :label="t('org.form.save')" :loading="saving === 'model'" :disabled="!!saving" @click="save('model')" />
         </UCard>
 

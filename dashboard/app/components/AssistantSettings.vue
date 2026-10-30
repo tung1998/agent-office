@@ -27,12 +27,6 @@ watch(open, async (o) => {
     toast.add({ title: apiError(e), color: 'error' })
   }
 })
-const DEFAULT = '__default' // a Select item cannot be ""
-const providerChoice = computed({ get: () => form.provider_id || DEFAULT, set: (v: string) => { form.provider_id = v === DEFAULT ? '' : v } })
-const providerItems = computed(() => [
-  { label: t('org.form.providerDefault', { suffix: defaultProvider.value ? ` (${defaultProvider.value.name})` : '' }), value: DEFAULT },
-  ...providers.value.map(p => ({ label: p.name, value: p.id }))
-])
 const chosen = computed(() => providers.value.find(p => p.id === form.provider_id) ?? defaultProvider.value)
 const tierItems = computed(() => (['strong', 'balanced', 'fast'] as const).map(v => ({
   label: `${t(`tier.model.${v}`)}${chosen.value?.tier_models?.[v] ? ` · ${chosen.value.tier_models[v]}` : ''}`, value: v
@@ -75,19 +69,10 @@ async function save() {
           v-if="mode === 'admin'" color="error" variant="subtle" icon="i-lucide-shield-alert"
           :title="t('assistant.adminWarnTitle')" :description="t('assistant.adminWarn')"
         />
-        <UFormField :label="t('org.form.provider')">
-          <USelect v-model="providerChoice" :items="providerItems" class="w-full" />
-        </UFormField>
         <UFormField :label="t('org.form.modelTier')">
           <USelect v-model="form.model_tier" :items="tierItems" class="w-full" />
         </UFormField>
-        <UFormField
-          :label="t('org.form.specificModel')"
-          :help="t('org.form.specificModelHelp', { model: chosen?.tier_models?.[form.model_tier] || t('org.form.specificModelFallback') })"
-        >
-          <ModelInput v-model="form.llm_model" :models="chosen?.models" class="w-full" />
-        </UFormField>
-        <FallbackPicker v-model="form.fallback_provider_ids" :providers="providers" :main-id="chosen?.id" :tier="form.model_tier" />
+        <ConnectionChain v-model:provider-id="form.provider_id" v-model:llm-model="form.llm_model" v-model:fallbacks="form.fallback_provider_ids" :providers="providers" :tier="form.model_tier" />
 
       </div>
     </template>
