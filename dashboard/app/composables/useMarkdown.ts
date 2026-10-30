@@ -27,7 +27,9 @@ function codeBars(html: string, copy: string, apply: string): string {
 // a project file the text names (`internal/x.go:12`, or a relative link to it)
 // opens in the Files tab (plugins/md-file): marked here, the click goes there.
 // An audio file plays right there: a player under the name, a project file
-// through the Files tab's preview (needs the project), a URL straight
+// through the Files tab's preview (needs the project), a URL straight.
+// An image with a project path (![shot](docs/a.png)) shows through that preview
+// too: the page's own URL would 404 it; a click opens the file
 const FILE_REF = /^(?:\.\/)?[\w@-][\w.@-]*(?:\/[\w.@[\]-]+)*\.[A-Za-z][\w-]{0,9}(?::\d+(?:-\d+)?)?$/
 const AUDIO = /\.(?:mp3|wav|ogg|oga|m4a|aac|flac|opus)(?=$|[?#&])/i
 const filePath = (p: string) => p.replace(/^\.\//, '').replace(/:\d+(?:-\d+)?$/, '')
@@ -48,6 +50,8 @@ function fileRefs(html: string, project: string): string {
       if (!file && !audio) return m
       return `<a href="${h}"${file ? ' ' + fileAttrs(h) : ''}${rest}>${body}</a>${audio ? player(audio) : ''}`
     })
+    .replace(/<img([^>]*?) src="([^"]+)"/g, (m, pre: string, src: string) =>
+      project && FILE_REF.test(src) ? `<img${pre} class="md-img" ${fileAttrs(src)} loading="lazy" src="${previewSrc(project, src)}"` : m)
 }
 
 // project: the chat's project, so its audio files play in place
