@@ -36,10 +36,16 @@ const add = (id: string) => {
   addKey.value++
 }
 const setModel = (i: number, m: string) => set(entries.value.map((e, j) => (j === i ? join(split(e).id, m) : e)))
-function up(i: number) {
+// dragged by its grip only, so text in the model box still selects
+const grip = ref(-1)
+const dragging = ref(-1)
+function dragOver(to: number) {
+  const from = dragging.value
+  if (from < 0 || from === to) return
   const l = [...entries.value]
-  ;[l[i - 1], l[i]] = [l[i]!, l[i - 1]!]
+  l.splice(to, 0, ...l.splice(from, 1))
   set(l)
+  dragging.value = to
 }
 const remove = (i: number) => set(entries.value.filter((_, j) => j !== i))
 </script>
@@ -48,7 +54,17 @@ const remove = (i: number) => set(entries.value.filter((_, j) => j !== i))
   <UFormField>
     <template #label><InfoLabel :label="t('org.form.connections')" :info="t('org.form.connectionsHelp')" /></template>
     <div class="space-y-1.5">
-      <div v-for="(r, i) in rows" :key="i" class="flex items-center gap-2 rounded-md border border-(--ui-border) px-2 py-1 text-sm" :class="{ 'opacity-60': providerOf(r.id)?.enabled === false }">
+      <div
+        v-for="(r, i) in rows" :key="i" :draggable="!disabled && grip === i"
+        class="flex items-center gap-2 rounded-md border border-(--ui-border) px-2 py-1 text-sm"
+        :class="{ 'opacity-60': providerOf(r.id)?.enabled === false, 'opacity-50': dragging === i }"
+        @dragstart="(e: DragEvent) => { dragging = i; e.dataTransfer?.setData('text/plain', String(i)) }"
+        @dragover.prevent="dragOver(i)" @drop.prevent @dragend="dragging = -1; grip = -1"
+      >
+        <UIcon
+          v-if="!disabled && rows.length > 1" name="i-lucide-grip-vertical" class="size-4 shrink-0 cursor-grab text-(--ui-text-dimmed)"
+          :aria-label="t('org.form.connectionDrag')" @pointerdown="grip = i" @pointerup="grip = -1"
+        />
         <span class="w-4 text-xs tabular-nums text-(--ui-text-muted)">{{ i + 1 }}</span>
         <span class="min-w-0 flex-1 truncate">
           {{ nameOf(r.id) }}
@@ -59,10 +75,7 @@ const remove = (i: number) => set(entries.value.filter((_, j) => j !== i))
           :placeholder="i > 0 && providerOf(r.id)?.id === mainId && !r.model ? t('org.form.fallbackModelNeeded') : (tier && providerOf(r.id)?.tier_models[tier]) || t('org.form.fallbackModel')"
           @update:model-value="(v: string) => setModel(i, v)"
         />
-        <template v-if="!disabled">
-          <UButton v-if="i > 0" size="xs" color="neutral" variant="ghost" icon="i-lucide-arrow-up" :aria-label="t('org.form.fallbackUp')" @click="up(i)" />
-          <UButton v-if="rows.length > 1 || r.id" size="xs" color="neutral" variant="ghost" icon="i-lucide-x" :aria-label="t('org.form.fallbackRemove')" @click="remove(i)" />
-        </template>
+        <UButton v-if="!disabled && (rows.length > 1 || r.id)" size="xs" color="neutral" variant="ghost" icon="i-lucide-x" :aria-label="t('org.form.fallbackRemove')" @click="remove(i)" />
       </div>
       <USelect
         v-if="!disabled && options.length" :key="addKey" :model-value="undefined" :items="options" :placeholder="t('org.form.connectionAdd')"
