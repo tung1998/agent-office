@@ -47,6 +47,7 @@ function dragOver(to: number) {
   set(l)
   dragging.value = to
 }
+const toTop = (i: number) => set([entries.value[i]!, ...entries.value.filter((_, j) => j !== i)])
 const remove = (i: number) => set(entries.value.filter((_, j) => j !== i))
 </script>
 
@@ -75,6 +76,7 @@ const remove = (i: number) => set(entries.value.filter((_, j) => j !== i))
           :placeholder="i > 0 && providerOf(r.id)?.id === mainId && !r.model ? t('org.form.fallbackModelNeeded') : (tier && providerOf(r.id)?.tier_models[tier]) || t('org.form.fallbackModel')"
           @update:model-value="(v: string) => setModel(i, v)"
         />
+        <UButton v-if="!disabled && i > 0" size="xs" color="neutral" variant="ghost" icon="i-lucide-arrow-up-to-line" :aria-label="t('org.form.connectionTop')" :title="t('org.form.connectionTop')" @click="toTop(i)" />
         <UButton v-if="!disabled && (rows.length > 1 || r.id)" size="xs" color="neutral" variant="ghost" icon="i-lucide-x" :aria-label="t('org.form.fallbackRemove')" @click="remove(i)" />
       </div>
       <USelect

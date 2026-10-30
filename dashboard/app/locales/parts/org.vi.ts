@@ -94,6 +94,7 @@ export default {
   'org.form.connections': 'Kết nối AI',
   'org.form.connectionsHelp': 'Office dùng kết nối đầu tiên; khi nó gọi lỗi, hết hạn mức dùng trong ngày hoặc bị bạn tắt, office thử lần lượt các kết nối bên dưới đến khi gọi được. Kéo một dòng lên đầu để dùng nó trước. Mỗi dòng chọn riêng một model; để trống thì dùng model mà kết nối đó gán cho hạng của agent (Mạnh: việc khó; Cân bằng: việc thường ngày; Nhanh: việc lặp lại, rẻ), quy định ở trang Kết nối AI, mục Model theo mức. Có thể thêm cùng một kết nối hai lần với hai model khác nhau.',
   'org.form.connectionAdd': 'Thêm kết nối',
+  'org.form.connectionTop': 'Đưa lên đầu',
   'org.form.connectionDrag': 'Kéo để đổi thứ tự',
   'org.form.fallbackRemove': 'Bỏ',
   'org.form.fallbackOff': 'đang tắt',

@@ -90,6 +90,7 @@ const en: Record<keyof typeof vi, string> = {
   'org.form.connections': 'AI connections',
   'org.form.connectionsHelp': 'Office uses the first connection; when it fails to answer, runs out of its daily quota, or you turn it off, office tries the ones below, top to bottom, until one works. Drag a row to the top to use it first. Each row can name its own model; left blank, it uses the model that connection assigns to the agent\'s tier (Strong: hard work; Balanced: everyday work; Fast: repetitive, cheap work), set on the AI connections page under Model per tier. The same connection can be added twice with two different models.',
   'org.form.connectionAdd': 'Add a connection',
+  'org.form.connectionTop': 'Move to the top',
   'org.form.connectionDrag': 'Drag to reorder',
   'org.form.fallbackRemove': 'Remove',
   'org.form.fallbackOff': 'off',
