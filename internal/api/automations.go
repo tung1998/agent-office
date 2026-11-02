@@ -101,6 +101,9 @@ func (s *server) toAutomationDTO(r *http.Request, a storage.Automation) automati
 		tags = []string{}
 	}
 	cfg["tags"] = tags
+	if a.Action == "workflow" { // its workflow too: a switch on the list sends the config back
+		cfg["workflow"] = c.Workflow
+	}
 	d := automationDTO{ID: a.ID, ProjectID: a.ProjectID, Name: a.Name, Enabled: a.Enabled, Source: a.Source, Config: cfg, Action: a.Action,
 		AgentID: a.AgentID, Prompt: a.Prompt, EditMode: a.EditMode, ModelTier: a.ModelTier, KeepContext: a.KeepContext, Limits: a.Limits, Script: a.Script, Escalate: a.Escalate, Failures: a.Failures,
 		DisabledCode: a.DisabledCode, DisabledReason: a.DisabledReason, LastRunAt: a.LastRunAt, NextRunAt: a.NextRunAt, CreatedAt: a.CreatedAt,

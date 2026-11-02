@@ -172,6 +172,24 @@ func TestAutomationsAPI(t *testing.T) {
 	}, nil); resp.StatusCode != 200 {
 		t.Fatalf("turn off event = %d %v", resp.StatusCode, body)
 	}
+	// a workflow automation reads its workflow back, so turning it off with the config it read works
+	if resp, body := do(t, admin, "POST", e.srv.URL+"/api/projects/"+pid+"/workflows", map[string]any{
+		"source": "---\nkey: duyet\nname: Duyệt\nroles:\n  - key: a\n---\nLàm đi.\n"}, nil); resp.StatusCode != 201 {
+		t.Fatalf("workflow = %d %v", resp.StatusCode, body)
+	}
+	resp, body = do(t, admin, "POST", e.srv.URL+"/api/projects/"+pid+"/automations", map[string]any{
+		"name": "Duyệt", "source": "schedule", "action": "workflow", "prompt": "p",
+		"config": map[string]any{"every_minutes": 60, "workflow": "duyet"},
+	}, nil)
+	wa, _ := body["automation"].(map[string]any)
+	if cfg, _ := wa["config"].(map[string]any); resp.StatusCode != 201 || cfg["workflow"] != "duyet" {
+		t.Fatalf("workflow read back = %d %v", resp.StatusCode, body)
+	}
+	if resp, body := do(t, admin, "PATCH", e.srv.URL+"/api/automations/"+wa["id"].(string), map[string]any{
+		"name": "Duyệt", "enabled": false, "source": "schedule", "action": "workflow", "prompt": "p", "config": wa["config"],
+	}, nil); resp.StatusCode != 200 {
+		t.Fatalf("turn off workflow = %d %v", resp.StatusCode, body)
+	}
 	if _, body := do(t, admin, "GET", e.srv.URL+"/api/automations/preview-schedule?cron=0+8+*+*+1-5&tz=Asia/Ho_Chi_Minh", nil, nil); len(body["next"].([]any)) != 5 {
 		t.Fatalf("preview = %v", body)
 	}
