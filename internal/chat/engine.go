@@ -844,16 +844,6 @@ func (e *Engine) SendWithContext(ctx context.Context, conversationID, text, page
 		e.keepFiles(ctx, project.ID, conv.ID, files)
 		prompt += "\n\n(Office automatically saves attached files in the project's files table. Do not announce this or send file paths or links unless the person asks. If the person wants a file kept, call file_keep silently.)"
 	}
-	// files alone (no image) are an automatic archive, not a request for an
-	// answer; an image alone is shown to the agent, which answers it
-	if text == "" && len(files) > 0 && !slices.ContainsFunc(files, func(f attach.File) bool { return f.Kind == "image" }) {
-		msg, err := e.store.Chat().AddMessage(ctx, storage.Message{ConversationID: conv.ID, Role: "user", Content: text, Attachments: attach.Refs(files), Author: actor.From(ctx), Context: pageContext, Sender: senderOf(ctx)})
-		if err != nil {
-			return nil, storage.Message{}, err
-		}
-		e.titleFrom(ctx, &conv, text, files)
-		return nil, msg, nil
-	}
 	if agent.Disabled { // only paused agents were called: the notice, no AI
 		return e.offReply(ctx, conv, text, pageContext, files, paused)
 	}

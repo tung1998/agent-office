@@ -42,7 +42,7 @@ func capturing(t *testing.T, last *struct {
 	}
 }
 
-func TestFileOnlyMessageArchivesWithoutAgentTurn(t *testing.T) {
+func TestFileOnlyMessageIsKeptAndAnswered(t *testing.T) {
 	var last struct {
 		sync.Mutex
 		system, prompt string
@@ -71,17 +71,18 @@ func TestFileOnlyMessageArchivesWithoutAgentTurn(t *testing.T) {
 		t.Fatal(err)
 	}
 	turn, msg, err := f.engine.Send(ctx, conv.ID, "", []string{file.ID})
-	if err != nil || turn != nil || len(msg.Attachments) != 1 {
+	if err != nil || turn == nil || len(msg.Attachments) != 1 {
 		t.Fatalf("turn=%v msg=%+v err=%v", turn, msg, err)
 	}
+	collect(t, turn)
 	rows, _, err := collections.New(f.st).Query(ctx, f.project.ID, collections.FilesKey, collections.Query{})
 	if err != nil || len(rows) != 1 || rows[0].Data["status"] != collections.FileTemp {
 		t.Fatalf("saved files=%+v err=%v", rows, err)
 	}
 	last.Lock()
 	defer last.Unlock()
-	if last.prompt != "" {
-		t.Fatalf("unexpected agent prompt: %s", last.prompt)
+	if !strings.Contains(last.prompt, "See the attached files.") || !strings.Contains(last.prompt, "notes") {
+		t.Fatalf("prompt = %s", last.prompt)
 	}
 }
 
