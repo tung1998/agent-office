@@ -85,6 +85,36 @@ func TestFileOnlyMessageArchivesWithoutAgentTurn(t *testing.T) {
 	}
 }
 
+func TestImageOnlyMessageGetsAnAnswer(t *testing.T) {
+	var last struct {
+		sync.Mutex
+		system, prompt string
+	}
+	f := setup(t, capturing(t, &last))
+	ctx := actor.With(context.Background(), "human:a@b.c")
+	conv, err := f.engine.StartConversation(ctx, f.project.ID, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	a := attach.Store{Dir: t.TempDir()}
+	f.engine.SetAttachments(a)
+	png := []byte("\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x02")
+	img, err := a.Save(f.project.ID, "human:a@b.c", "shot.png", png)
+	if err != nil {
+		t.Fatal(err)
+	}
+	turn, msg, err := f.engine.Send(ctx, conv.ID, "", []string{img.ID})
+	if err != nil || turn == nil || len(msg.Attachments) != 1 {
+		t.Fatalf("turn=%v msg=%+v err=%v", turn, msg, err)
+	}
+	collect(t, turn)
+	last.Lock()
+	defer last.Unlock()
+	if !strings.Contains(last.prompt, "See the attached files.") || !strings.Contains(last.prompt, `"image"`) {
+		t.Fatalf("prompt = %s", last.prompt)
+	}
+}
+
 func TestPageContextAndAutomationChat(t *testing.T) { // ADR-042
 	var last struct {
 		sync.Mutex
