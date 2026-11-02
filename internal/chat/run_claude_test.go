@@ -242,23 +242,27 @@ func TestClaudeArgsWeb(t *testing.T) {
 	}
 }
 
-// A turn thinking above medium runs Claude's subagents at medium; the
-// person's own CLAUDE_CODE_SUBAGENT_EFFORT wins.
-func TestClaudeSubagentEffort(t *testing.T) {
+// A turn thinking above medium runs Claude's subagents at medium, and
+// "ultrathink" is off; the person's own settings win.
+func TestClaudeEnv(t *testing.T) {
 	t.Setenv("CLAUDE_CODE_SUBAGENT_EFFORT", "")
+	t.Setenv("CLAUDE_CODE_DISABLE_ULTRATHINK", "") // restored after the test
+	os.Unsetenv("CLAUDE_CODE_DISABLE_ULTRATHINK")
 	for effort, want := range map[string]string{"": "", "low": "", "medium": "", "high": "medium", "max": "medium"} {
 		if got := subagentEffort(effort); got != want {
 			t.Errorf("subagentEffort(%q) = %q, want %q", effort, got, want)
 		}
 	}
-	if env := claudeEnv(RunRequest{Effort: "low"}); env != nil {
-		t.Fatalf("low effort keeps the office's environment: %v", env)
+	low := claudeEnv(RunRequest{Effort: "low"})
+	if !slices.Contains(low, "CLAUDE_CODE_DISABLE_ULTRATHINK=1") || slices.Contains(low, "CLAUDE_CODE_SUBAGENT_EFFORT=medium") {
+		t.Fatalf("low: ultrathink off, subagents as is")
 	}
 	if env := claudeEnv(RunRequest{Effort: "xhigh"}); !slices.Contains(env, "CLAUDE_CODE_SUBAGENT_EFFORT=medium") {
 		t.Fatalf("xhigh: subagent effort missing")
 	}
 	t.Setenv("CLAUDE_CODE_SUBAGENT_EFFORT", "high")
+	t.Setenv("CLAUDE_CODE_DISABLE_ULTRATHINK", "0")
 	if env := claudeEnv(RunRequest{Effort: "max"}); env != nil {
-		t.Fatalf("the person's own setting must win: %v", env)
+		t.Fatalf("the person's own settings must win: %v", env)
 	}
 }

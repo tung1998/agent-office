@@ -55,17 +55,25 @@ func subagentEffort(effort string) string {
 	return ""
 }
 
-// claudeEnv is cliEnv plus the subagents' effort, unless the person set one.
+// claudeEnv is cliEnv plus the subagents' effort and no "ultrathink" (the
+// chat's effort picker decides, not a word in a message, a bot's included),
+// unless the person set either one.
 func claudeEnv(req RunRequest) []string {
+	var extra []string
+	if se := subagentEffort(req.Effort); se != "" && os.Getenv("CLAUDE_CODE_SUBAGENT_EFFORT") == "" {
+		extra = append(extra, "CLAUDE_CODE_SUBAGENT_EFFORT="+se)
+	}
+	if _, set := os.LookupEnv("CLAUDE_CODE_DISABLE_ULTRATHINK"); !set {
+		extra = append(extra, "CLAUDE_CODE_DISABLE_ULTRATHINK=1")
+	}
 	env := cliEnv(req.Provider)
-	se := subagentEffort(req.Effort)
-	if se == "" || os.Getenv("CLAUDE_CODE_SUBAGENT_EFFORT") != "" {
+	if len(extra) == 0 {
 		return env
 	}
 	if env == nil {
 		env = os.Environ()
 	}
-	return append(env, "CLAUDE_CODE_SUBAGENT_EFFORT="+se)
+	return append(env, extra...)
 }
 
 func (claudeRunner) args(req RunRequest, resume bool) []string {
