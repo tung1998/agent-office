@@ -241,3 +241,24 @@ func TestClaudeArgsWeb(t *testing.T) {
 		t.Fatalf("web missing: %v", toolsOf(on))
 	}
 }
+
+// A turn thinking above medium runs Claude's subagents at medium; the
+// person's own CLAUDE_CODE_SUBAGENT_EFFORT wins.
+func TestClaudeSubagentEffort(t *testing.T) {
+	t.Setenv("CLAUDE_CODE_SUBAGENT_EFFORT", "")
+	for effort, want := range map[string]string{"": "", "low": "", "medium": "", "high": "medium", "max": "medium"} {
+		if got := subagentEffort(effort); got != want {
+			t.Errorf("subagentEffort(%q) = %q, want %q", effort, got, want)
+		}
+	}
+	if env := claudeEnv(RunRequest{Effort: "low"}); env != nil {
+		t.Fatalf("low effort keeps the office's environment: %v", env)
+	}
+	if env := claudeEnv(RunRequest{Effort: "xhigh"}); !slices.Contains(env, "CLAUDE_CODE_SUBAGENT_EFFORT=medium") {
+		t.Fatalf("xhigh: subagent effort missing")
+	}
+	t.Setenv("CLAUDE_CODE_SUBAGENT_EFFORT", "high")
+	if env := claudeEnv(RunRequest{Effort: "max"}); env != nil {
+		t.Fatalf("the person's own setting must win: %v", env)
+	}
+}

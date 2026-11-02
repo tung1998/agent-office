@@ -45,6 +45,29 @@ func withEffort(a []string, effort string) []string {
 	return append(a, "--effort", effort)
 }
 
+// subagentEffort: Claude's own subagents (Explore, Task…) search and read, so
+// a turn thinking above medium runs them at medium instead of its own level
+// (CLAUDE_CODE_SUBAGENT_EFFORT, Claude Code 2.1.316); "" leaves them as is.
+func subagentEffort(effort string) string {
+	if i := slices.Index(storage.Efforts, effort); i > slices.Index(storage.Efforts, "medium") {
+		return "medium"
+	}
+	return ""
+}
+
+// claudeEnv is cliEnv plus the subagents' effort, unless the person set one.
+func claudeEnv(req RunRequest) []string {
+	env := cliEnv(req.Provider)
+	se := subagentEffort(req.Effort)
+	if se == "" || os.Getenv("CLAUDE_CODE_SUBAGENT_EFFORT") != "" {
+		return env
+	}
+	if env == nil {
+		env = os.Environ()
+	}
+	return append(env, "CLAUDE_CODE_SUBAGENT_EFFORT="+se)
+}
+
 func (claudeRunner) args(req RunRequest, resume bool) []string {
 	if req.NoTools { // answered from the conversation only
 		a := []string{"-p", "--output-format", "stream-json", "--verbose", "--include-partial-messages", "--permission-mode", "dontAsk",
@@ -214,7 +237,7 @@ func (r claudeRunner) run(ctx context.Context, req RunRequest, emit func(Event),
 	cmd := exec.CommandContext(runCtx, bin, args...)
 	ownGroup(cmd)
 	cmd.Dir = req.WorkDir
-	cmd.Env = cliEnv(req.Provider)
+	cmd.Env = claudeEnv(req)
 	cmd.Stdin = strings.NewReader(strings.ToValidUTF8(prompt, "�")) // a stray cut byte must not make the CLI refuse the whole turn
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
