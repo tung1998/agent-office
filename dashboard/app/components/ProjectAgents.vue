@@ -86,14 +86,22 @@ function pickLib(a: LibraryAgent) {
   form.key = freeKey(a.key)
   keyTouched.value = true
   problems.value = []
+  resetCheck()
   addTab.value = 'edit'
 }
+const { errors, check, reset: resetCheck } = useFormCheck(() => {
+  const key = form.key.trim()
+  return {
+    name: !form.name.trim() && t('common.required'),
+    key: !key ? t('common.required') : agents.value.some(a => a.key === key) && t('team.keyTaken', { key })
+  }
+})
 // the key follows the name until typed by hand (lowercase, digits, dashes)
 const slug = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\u0111/gi, 'd')
   .toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
 watch(() => form.name, (n) => { if (!keyTouched.value) form.key = slug(n) })
 async function add() {
-  if (adding.value || !fromLib.value) return
+  if (adding.value || !fromLib.value || !check()) return
   adding.value = true
   problems.value = []
   try {
@@ -219,10 +227,10 @@ onMounted(async () => {
         </div>
         <LibraryPackNotice v-if="fromLib?.requires_pack" :pack="fromLib.requires_pack" />
         <div class="grid gap-3 sm:grid-cols-2">
-          <UFormField :label="t('org.form.name')" required>
+          <UFormField :label="t('org.form.name')" required data-field="name" :error="errors.name">
             <UInput v-model="form.name" class="w-full" autofocus />
           </UFormField>
-          <UFormField :label="t('org.form.key')" required>
+          <UFormField :label="t('org.form.key')" required data-field="key" :error="errors.key">
             <template #hint>
               <InfoTip :text="t('org.form.keyHelp')" icon-class="size-4 text-(--ui-text-muted)" />
             </template>
@@ -253,7 +261,7 @@ onMounted(async () => {
       <div class="flex w-full justify-end gap-2">
         <UButton color="neutral" variant="ghost" :label="t('common.cancel')" @click="addOpen = false" />
         <UButton v-if="addTab === 'library'" icon="i-lucide-check" :disabled="!libPick" :label="t('team.lib.use')" @click="libPick && pickLib(libPick)" />
-        <UButton v-else type="submit" form="agent-add" :loading="adding" :disabled="!fromLib || !form.name.trim() || !form.key.trim()" :label="t('team.addAndConfigure')" />
+        <UButton v-else type="submit" form="agent-add" :loading="adding" :label="t('team.addAndConfigure')" />
       </div>
     </template>
   </UModal>

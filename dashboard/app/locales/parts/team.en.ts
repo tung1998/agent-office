@@ -12,6 +12,7 @@ const en: Record<keyof typeof vi, string> = {
   'team.open': 'Open agent page',
   'team.export': 'Download agents JSON',
   'team.addAndConfigure': 'Add and configure',
+  'team.keyTaken': 'The project already has an agent with key {key}',
   'team.empty.title': 'This project has no agents yet',
   'team.empty.desc': 'Add agents from the library, or let AI pick what the project needs.',
 

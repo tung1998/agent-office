@@ -33,6 +33,7 @@ function openForm(s?: SupportSource) {
         website_id: c.website_id ?? '', identifier: c.identifier ?? '', reply_via: c.reply_via || 'none', smtp_host: c.smtp_host ?? '',
         smtp_port: c.smtp_port || '587', smtp_user: c.smtp_user ?? '', smtp_from: c.smtp_from ?? '' }
     : {})
+  resetCheck()
   open.value = true
 }
 function body() {
@@ -47,10 +48,23 @@ function body() {
     ...(form.secret ? { secret: form.secret } : {}) }
 }
 const needsSecret = computed(() => form.kind === 'crisp' || (form.kind !== 'bot' && form.reply_via === 'email'))
+const { errors, check, reset: resetCheck } = useFormCheck(() => {
+  const need = t('common.required')
+  const email = (form.kind === 'api' || form.kind === 'form') && form.reply_via === 'email'
+  return {
+    name: !form.name.trim() && need,
+    channel_id: form.kind === 'bot' && !form.channel_id && t('common.pickOne'),
+    website_id: form.kind === 'crisp' && !form.website_id.trim() && need,
+    identifier: form.kind === 'crisp' && !form.identifier.trim() && need,
+    smtp_host: email && !form.smtp_host.trim() && need,
+    smtp_from: email && !form.smtp_from.trim() && need,
+    automation_id: !form.automation_id && t('common.pickOne')
+  }
+})
 const saving = ref(false)
 const secret = ref<{ id: string, kind: string, token: string } | null>(null)
 async function save() {
-  if (saving.value) return
+  if (saving.value || !check()) return
   saving.value = true
   try {
     if (editing.value) {
@@ -160,28 +174,28 @@ const where = (s: SupportSource) => {
         <form id="sup-source" class="space-y-3" @submit.prevent="save">
           <div class="grid gap-3 sm:grid-cols-2">
             <UFormField :label="t('sup.kindLabel')"><USelect v-model="form.kind" :items="kinds" class="w-full" :disabled="!!editing" /></UFormField>
-            <UFormField :label="t('sup.name')" required><UInput v-model="form.name" class="w-full" :placeholder="t('sup.namePlaceholder')" /></UFormField>
+            <UFormField :label="t('sup.name')" required data-field="name" :error="errors.name"><UInput v-model="form.name" class="w-full" :placeholder="t('sup.namePlaceholder')" /></UFormField>
           </div>
-          <UFormField v-if="form.kind === 'bot'" :label="t('sup.bot')" :hint="t('sup.botHint')" required>
+          <UFormField v-if="form.kind === 'bot'" :label="t('sup.bot')" :hint="t('sup.botHint')" required data-field="channel_id" :error="errors.channel_id">
             <USelect v-model="form.channel_id" :items="(bots?.channels ?? []).map(b => ({ label: b.name || b.bot_name || b.id, value: b.id }))" class="w-full" />
           </UFormField>
           <div v-if="form.kind === 'crisp'" class="grid gap-3 sm:grid-cols-2">
-            <UFormField label="Website ID" required><UInput v-model="form.website_id" class="w-full" /></UFormField>
-            <UFormField label="Identifier" required><UInput v-model="form.identifier" class="w-full" /></UFormField>
+            <UFormField label="Website ID" required data-field="website_id" :error="errors.website_id"><UInput v-model="form.website_id" class="w-full" /></UFormField>
+            <UFormField label="Identifier" required data-field="identifier" :error="errors.identifier"><UInput v-model="form.identifier" class="w-full" /></UFormField>
           </div>
           <UFormField v-if="form.kind === 'api' || form.kind === 'form'" :label="t('sup.replyVia')">
             <USelect v-model="form.reply_via" :items="replyWays" class="w-full" />
           </UFormField>
           <div v-if="(form.kind === 'api' || form.kind === 'form') && form.reply_via === 'email'" class="grid gap-3 sm:grid-cols-2">
-            <UFormField label="SMTP host" required><UInput v-model="form.smtp_host" class="w-full" placeholder="smtp.gmail.com" /></UFormField>
+            <UFormField label="SMTP host" required data-field="smtp_host" :error="errors.smtp_host"><UInput v-model="form.smtp_host" class="w-full" placeholder="smtp.gmail.com" /></UFormField>
             <UFormField label="SMTP port"><UInput v-model="form.smtp_port" class="w-full" /></UFormField>
             <UFormField :label="t('sup.smtpUser')"><UInput v-model="form.smtp_user" class="w-full" /></UFormField>
-            <UFormField :label="t('sup.smtpFrom')" required><UInput v-model="form.smtp_from" class="w-full" placeholder="shop@example.com" /></UFormField>
+            <UFormField :label="t('sup.smtpFrom')" required data-field="smtp_from" :error="errors.smtp_from"><UInput v-model="form.smtp_from" class="w-full" placeholder="shop@example.com" /></UFormField>
           </div>
           <UFormField v-if="needsSecret" :label="form.kind === 'crisp' ? 'Crisp key' : t('sup.smtpPassword')" :hint="editing ? t('sup.secretKeep') : undefined">
             <UInput v-model="form.secret" type="password" autocomplete="new-password" class="w-full" />
           </UFormField>
-          <UFormField :label="t('sup.automation')" :hint="t('sup.automationHint')" required>
+          <UFormField :label="t('sup.automation')" :hint="t('sup.automationHint')" required data-field="automation_id" :error="errors.automation_id">
             <div class="flex gap-2">
               <USelect v-model="form.automation_id" :items="answerers.map(a => ({ label: a.name, value: a.id }))" class="min-w-0 flex-1" :placeholder="t('sup.noAutomation')" />
               <UButton v-if="!answerers.length" size="sm" color="neutral" variant="outline" icon="i-lucide-sparkles" :label="t('sup.makeAnswerer')" :loading="making" @click="makeAnswerer" />
@@ -194,7 +208,7 @@ const where = (s: SupportSource) => {
         </form>
       </template>
       <template #footer>
-        <UButton type="submit" form="sup-source" :label="t('common.save')" :loading="saving" :disabled="!form.name || !form.automation_id" />
+        <UButton type="submit" form="sup-source" :label="t('common.save')" :loading="saving" />
       </template>
     </UModal>
 

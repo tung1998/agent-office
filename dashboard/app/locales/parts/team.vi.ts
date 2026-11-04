@@ -12,6 +12,7 @@ export default {
   'team.open': 'Mở trang agent',
   'team.export': 'Tải JSON các agent',
   'team.addAndConfigure': 'Thêm rồi cấu hình',
+  'team.keyTaken': 'Project đã có agent mang key {key}',
   'team.empty.title': 'Project chưa có agent',
   'team.empty.desc': 'Thêm agent từ thư viện, hoặc để AI chọn những gì project cần.',
 

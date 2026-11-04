@@ -102,9 +102,15 @@ const commit = reactive({ open: false, message: '', picked: [] as string[], busy
 function openCommit() {
   commit.message = ''
   commit.picked = (st.value?.changes ?? []).map(c => c.path)
+  commitCheck.reset()
   commit.open = true
 }
+const commitCheck = useFormCheck(() => ({
+  message: !commit.message.trim() && t('common.required'),
+  files: !commit.picked.length && t('git.pickFiles')
+}))
 async function doCommit() {
+  if (commit.busy || !commitCheck.check()) return
   commit.busy = true
   try {
     const res = await $fetch<{ action: ProposedAction }>(`/api/projects/${props.projectId}/git/commit`, { method: 'POST', body: { message: commit.message, files: commit.picked } })
@@ -189,8 +195,12 @@ const menu = computed(() => [[
   <UModal v-model:open="commit.open" :title="t('git.commitTitle', { branch: st?.branch ?? '' })">
     <template #body>
       <div class="space-y-3">
-        <UTextarea v-model="commit.message" :rows="3" autoresize class="w-full" :placeholder="t('git.messagePlaceholder')" />
-        <p class="text-xs text-(--ui-text-muted)">{{ t('git.files', { picked: commit.picked.length, total: changes }) }}</p>
+        <UFormField data-field="message" :error="commitCheck.errors.value.message">
+          <UTextarea v-model="commit.message" :rows="3" autoresize class="w-full" :placeholder="t('git.messagePlaceholder')" />
+        </UFormField>
+        <UFormField data-field="files" :error="commitCheck.errors.value.files">
+          <p class="text-xs text-(--ui-text-muted)">{{ t('git.files', { picked: commit.picked.length, total: changes }) }}</p>
+        </UFormField>
         <div class="max-h-64 space-y-1 overflow-y-auto">
           <label v-for="c in st?.changes ?? []" :key="c.path" class="flex items-center gap-2 text-xs">
             <UCheckbox :model-value="commit.picked.includes(c.path)" @update:model-value="(v: boolean | 'indeterminate') => toggle(c.path, v === true)" />
@@ -203,7 +213,7 @@ const menu = computed(() => [[
     <template #footer>
       <div class="flex w-full justify-end gap-2">
         <UButton color="neutral" variant="ghost" :label="t('common.cancel')" @click="commit.open = false" />
-        <UButton icon="i-lucide-git-commit-horizontal" :label="t('git.commit')" :loading="commit.busy" :disabled="!commit.message.trim() || !commit.picked.length" @click="doCommit" />
+        <UButton icon="i-lucide-git-commit-horizontal" :label="t('git.commit')" :loading="commit.busy" @click="doCommit" />
       </div>
     </template>
   </UModal>

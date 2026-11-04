@@ -32,6 +32,7 @@ function clearTemplateForm() {
 function addTemplate() {
   editingTemplate.value = null
   clearTemplateForm()
+  tplCheck.reset()
   templateModalOpen.value = true
 }
 function editTemplate(template: AutomationTemplate) {
@@ -39,6 +40,7 @@ function editTemplate(template: AutomationTemplate) {
   if (!saved) return
   editingTemplate.value = saved
   Object.assign(templateForm, saved)
+  tplCheck.reset()
   templateModalOpen.value = true
 }
 function templateKey(name: string) {
@@ -50,8 +52,15 @@ function templateKey(name: string) {
   while (templates.value.some(template => template.key === key)) key = `${base.slice(0, 62 - String(suffix).length)}-${suffix++}`
   return key
 }
+// the buttons stay pressable: what is missing is marked and focused
+const tplCheck = useFormCheck(() => {
+  const need = t('common.required')
+  return { name: !templateForm.name.trim() && need, category: !templateForm.category.trim() && need,
+    description: !templateForm.description.trim() && need, prompt: !templateForm.prompt.trim() && need }
+})
+const pickCheck = useFormCheck(() => ({ project: !projectId.value && t('common.pickOne') }))
 async function saveTemplate() {
-  if (!templateForm.name.trim() || !templateForm.description.trim() || !templateForm.category.trim() || !templateForm.prompt.trim()) return
+  if (templateSaving.value || !tplCheck.check()) return
   templateSaving.value = true
   try {
     const key = templateKey(templateForm.name)
@@ -80,10 +89,11 @@ async function deleteTemplate(template: AutomationTemplate) {
 function chooseTemplate(key: string) {
   selectedTemplate.value = key
   projectId.value = ''
+  pickCheck.reset()
   projectModalOpen.value = true
 }
 async function startTemplate() {
-  if (!projectId.value || !selectedTemplate.value) return
+  if (!pickCheck.check() || !selectedTemplate.value) return
   await navigateTo(`/projects/${projectId.value}/automations/new?template=${encodeURIComponent(selectedTemplate.value)}`)
 }
 </script>
@@ -127,39 +137,39 @@ async function startTemplate() {
   </PageShell>
   <UModal v-model:open="projectModalOpen" :title="t('auto.chooseProjectForTemplateTitle')" :description="t('auto.chooseProjectForTemplateDesc')">
     <template #body>
-      <UFormField :label="t('auto.projectPick')" required>
+      <UFormField :label="t('auto.projectPick')" required data-field="project" :error="pickCheck.errors.value.project">
         <USelectMenu v-model="projectId" :items="projectItems" value-key="value" :placeholder="t('auto.projectPick')" :aria-label="t('auto.projectPick')" class="w-full" />
       </UFormField>
       <p v-if="!projects.length" class="mt-3 text-sm text-(--ui-text-muted)">{{ t('auto.chooseProjectEmpty') }}</p>
     </template>
     <template #footer>
       <UButton color="neutral" variant="ghost" :label="t('common.cancel')" @click="projectModalOpen = false" />
-      <UButton color="primary" :label="t('auto.startFromTemplate')" :disabled="!projectId" @click="startTemplate" />
+      <UButton color="primary" :label="t('auto.startFromTemplate')" @click="startTemplate" />
     </template>
   </UModal>
   <UModal v-model:open="templateModalOpen" :title="t(editingTemplate ? 'auto.templateEditTitle' : 'auto.templateAddTitle')" :ui="{ content: 'max-w-2xl' }">
     <template #body>
       <div class="grid gap-4 sm:grid-cols-2">
-        <UFormField :label="t('auto.name')" required>
+        <UFormField :label="t('auto.name')" required data-field="name" :error="tplCheck.errors.value.name">
           <UInput v-model="templateForm.name" class="w-full" />
         </UFormField>
-        <UFormField :label="t('auto.templateCategory')" required>
+        <UFormField :label="t('auto.templateCategory')" required data-field="category" :error="tplCheck.errors.value.category">
           <UInput v-model="templateForm.category" class="w-full" />
         </UFormField>
-        <UFormField :label="t('auto.templateDescription')" required class="sm:col-span-2">
+        <UFormField :label="t('auto.templateDescription')" required data-field="description" :error="tplCheck.errors.value.description" class="sm:col-span-2">
           <UInput v-model="templateForm.description" class="w-full" />
         </UFormField>
         <UFormField :label="t('auto.source')" required class="sm:col-span-2">
           <USelect v-model="templateForm.source" :items="[{ label: t('auto.sourceSchedule'), value: 'schedule' }, { label: t('auto.sourceWebhook'), value: 'webhook' }]" class="w-full" />
         </UFormField>
-        <UFormField :label="t('auto.prompt')" required class="sm:col-span-2">
+        <UFormField :label="t('auto.prompt')" required data-field="prompt" :error="tplCheck.errors.value.prompt" class="sm:col-span-2">
           <UTextarea v-model="templateForm.prompt" :rows="12" autoresize class="w-full" :placeholder="t('auto.promptPlaceholder')" />
         </UFormField>
       </div>
     </template>
     <template #footer>
       <UButton color="neutral" variant="ghost" :label="t('common.cancel')" @click="templateModalOpen = false" />
-      <UButton color="primary" icon="i-lucide-save" :label="t('auto.save')" :loading="templateSaving" :disabled="!templateForm.name.trim() || !templateForm.description.trim() || !templateForm.category.trim() || !templateForm.prompt.trim()" @click="saveTemplate" />
+      <UButton color="primary" icon="i-lucide-save" :label="t('auto.save')" :loading="templateSaving" @click="saveTemplate" />
     </template>
   </UModal>
 </template>

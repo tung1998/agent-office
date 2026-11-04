@@ -34,11 +34,13 @@ const selected = ref<string | null>(null)
 interface StageForm { on: boolean, who: string, agent: string }
 const blank = (): StageForm => ({ on: false, who: 'a:', agent: '' })
 const form = reactive({ name: '', stages: { issue: blank(), plan: blank(), result: blank() } as Record<ReviewStage, StageForm> })
+const { errors, check, reset: resetCheck } = useFormCheck(() => ({ name: !form.name.trim() && t('common.required') }))
 let loadGen = 0
 function load(p?: BurnReviewProfile) {
   loadGen++
   selected.value = p?.id ?? ''
   form.name = p?.name ?? ''
+  resetCheck()
   for (const k of reviewStageKeys) {
     const st = p?.stages[k]
     form.stages[k] = { on: !!st, who: st?.workflow ? `w:${st.workflow}` : `a:${st?.agent_id ?? ''}`, agent: st?.agent_id ?? '' }
@@ -48,6 +50,7 @@ watch(data, (d) => { if (d && selected.value === null) load(d.profiles[0]) }, { 
 
 const saving = ref(false)
 async function save() {
+  if (saving.value || !check()) return
   saving.value = true
   const gen = loadGen
   const stages: Partial<Record<ReviewStage, BurnReviewStage>> = {}
@@ -111,7 +114,7 @@ async function remove() {
 
       <!-- one profile -->
       <UCard :ui="{ body: 'space-y-4 sm:p-4' }">
-        <UFormField :label="t('burn.review.name')" required>
+        <UFormField :label="t('burn.review.name')" required data-field="name" :error="errors.name">
           <UInput v-model="form.name" class="w-full" :placeholder="t('burn.review.namePlaceholder')" />
         </UFormField>
         <div v-for="k in reviewStageKeys" :key="k" class="space-y-3 rounded-lg border border-(--ui-border) p-3">
@@ -126,7 +129,7 @@ async function remove() {
         </div>
         <div class="flex justify-end gap-2">
           <UButton v-if="selected" color="error" variant="ghost" icon="i-lucide-trash-2" :label="t('common.delete')" @click="remove" />
-          <UButton :label="t('common.save')" :loading="saving" :disabled="!form.name.trim()" @click="save" />
+          <UButton :label="t('common.save')" :loading="saving" @click="save" />
         </div>
       </UCard>
     </div>

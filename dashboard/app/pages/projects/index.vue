@@ -51,17 +51,23 @@ const cloneDest = computed(() => {
   return form.parent && dir ? `${form.parent.replace(/\/+$/, '')}/${dir}` : ''
 })
 const ideaDest = computed(() => form.parent && form.dir.trim() ? `${form.parent.replace(/\/+$/, '')}/${form.dir.trim()}` : '')
-const canAdd = computed(() => ({
-  folder: !!form.path,
-  clone: !!form.url.trim() && !!form.parent,
-  idea: !!form.idea.trim() && !!form.dir.trim() && !!form.parent,
-  template: !!form.template && !!form.dir.trim() && !!form.parent,
-  machine: !!form.name
-})[form.scope])
+// the button stays pressable: what is wrong or missing is marked and focused
+const { errors, check, reset: resetCheck } = useFormCheck(() => {
+  const need = t('common.required')
+  return ({
+    folder: { path: !form.path && t('common.pickFolder') },
+    clone: { url: !form.url.trim() && need, parent: !form.parent && t('common.pickFolder') },
+    idea: { idea: !form.idea.trim() && need, dir: !form.dir.trim() && need, parent: !form.parent && t('common.pickFolder') },
+    template: { template: !form.template && t('common.pickOne'), dir: !form.dir.trim() && need, parent: !form.parent && t('common.pickFolder') },
+    machine: { name: !form.name.trim() && need }
+  } as Record<Scope, Record<string, string | false>>)[form.scope]
+})
+watch(() => form.scope, () => { resetCheck(); error.value = '' })
 
 function openAdd(path = '', name = '', template = '') {
   Object.assign(form, { scope: template ? 'template' : 'folder', path, name, url: '', dir: '', parent: sys.value?.clone_root ?? '', idea: '', stack: '', goal: '', template })
   error.value = ''
+  resetCheck()
   addOpen.value = true
 }
 
@@ -108,6 +114,7 @@ onMounted(() => {
 })
 
 async function add() {
+  if (adding.value || !check()) return
   adding.value = true
   error.value = ''
   try {
@@ -248,13 +255,13 @@ async function add() {
             </div>
           </UFormField>
 
-          <UFormField v-if="form.scope === 'folder'" :label="t('projects.folder')" required>
+          <UFormField v-if="form.scope === 'folder'" :label="t('projects.folder')" required data-field="path" :error="errors.path">
             <FolderTree v-model="form.path" />
           </UFormField>
 
           <template v-if="form.scope === 'clone'">
             <div class="grid gap-3 sm:grid-cols-[1fr_12rem]">
-              <UFormField required>
+              <UFormField required data-field="url" :error="errors.url">
                 <template #label><InfoLabel :label="t('projects.cloneUrl')" :info="t('projects.cloneUrlHelp')" /></template>
                 <UInput v-model="form.url" class="w-full font-mono" icon="i-lucide-link" :placeholder="t('projects.cloneUrlPlaceholder')" autofocus />
               </UFormField>
@@ -262,45 +269,45 @@ async function add() {
                 <UInput v-model="form.dir" class="w-full font-mono" :placeholder="urlDir" />
               </UFormField>
             </div>
-            <UFormField :label="t('projects.cloneParent')" :help="cloneDest ? t('projects.cloneInto', { path: cloneDest }) : undefined" required>
+            <UFormField :label="t('projects.cloneParent')" :help="cloneDest ? t('projects.cloneInto', { path: cloneDest }) : undefined" required data-field="parent" :error="errors.parent">
               <FolderTree v-model="form.parent" />
             </UFormField>
           </template>
 
           <template v-if="form.scope === 'idea'">
-            <UFormField :label="t('projects.idea')" required>
+            <UFormField :label="t('projects.idea')" required data-field="idea" :error="errors.idea">
               <UTextarea v-model="form.idea" :rows="3" autoresize class="w-full" :placeholder="t('projects.ideaPlaceholder')" autofocus />
             </UFormField>
             <div class="grid gap-3 sm:grid-cols-2">
               <UFormField :label="t('projects.stack')">
                 <UInput v-model="form.stack" class="w-full" :placeholder="t('projects.stackPlaceholder')" />
               </UFormField>
-              <UFormField :label="t('projects.cloneDir')" required>
+              <UFormField :label="t('projects.cloneDir')" required data-field="dir" :error="errors.dir">
                 <UInput v-model="form.dir" class="w-full font-mono" placeholder="my-app" />
               </UFormField>
             </div>
-            <UFormField :label="t('projects.cloneParent')" :help="ideaDest ? t('projects.ideaInto', { path: ideaDest }) : undefined" required>
+            <UFormField :label="t('projects.cloneParent')" :help="ideaDest ? t('projects.ideaInto', { path: ideaDest }) : undefined" required data-field="parent" :error="errors.parent">
               <FolderTree v-model="form.parent" />
             </UFormField>
           </template>
 
           <template v-if="form.scope === 'template'">
-            <UFormField :label="t('projects.templatePick')" required>
+            <UFormField :label="t('projects.templatePick')" required data-field="template" :error="errors.template">
               <USelect v-model="form.template" :items="packItems" :loading="!packData" class="w-full" />
               <template v-if="pickedPack" #help>{{ pickedPack.description }}</template>
             </UFormField>
             <UFormField v-if="pickedPack?.root" :label="t('projects.companyGoal')">
               <UTextarea v-model="form.goal" :rows="2" autoresize class="w-full" :placeholder="t('projects.companyGoalPlaceholder')" autofocus />
             </UFormField>
-            <UFormField :label="t('projects.cloneDir')" required>
+            <UFormField :label="t('projects.cloneDir')" required data-field="dir" :error="errors.dir">
               <UInput v-model="form.dir" class="w-full font-mono" placeholder="acme" />
             </UFormField>
-            <UFormField :label="t('projects.cloneParent')" :help="ideaDest ? t('projects.ideaInto', { path: ideaDest }) : undefined" required>
+            <UFormField :label="t('projects.cloneParent')" :help="ideaDest ? t('projects.ideaInto', { path: ideaDest }) : undefined" required data-field="parent" :error="errors.parent">
               <FolderTree v-model="form.parent" />
             </UFormField>
           </template>
 
-          <UFormField :required="form.scope === 'machine'">
+          <UFormField :required="form.scope === 'machine'" data-field="name" :error="errors.name">
             <template #label><InfoLabel :label="t('projects.name')" :info="form.scope !== 'machine' ? t('projects.nameHelp') : undefined" /></template>
             <UInput v-model="form.name" class="w-full" :placeholder="form.scope === 'machine' ? t('projects.namePlaceholder') : ''" />
           </UFormField>
@@ -314,7 +321,6 @@ async function add() {
           <UButton
             type="submit" form="project-form" :loading="adding"
             :label="form.scope !== 'clone' ? t('projects.add') : adding ? t('projects.cloning') : t('projects.cloneAction')"
-            :disabled="!canAdd"
           />
         </div>
       </template>

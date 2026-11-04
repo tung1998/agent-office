@@ -154,15 +154,17 @@ function openCreate() {
   const example = files.value?.find(f => f.example)
   const dir = example?.path.includes('/') ? example.path.slice(0, example.path.lastIndexOf('/') + 1) : ''
   Object.assign(createForm, { path: `${dir}.env`, from: example?.path ?? blank })
+  createCheck.reset()
   createOpen.value = true
 }
+const createPath = computed(() => createForm.path.trim().replace(/^\/+/, ''))
+const createCheck = useFormCheck(() => {
+  const p = createPath.value
+  return { path: !p ? t('common.required') : p.endsWith('/') ? t('envfile.needFile') : files.value?.some(f => f.path === p) && t('envfile.exists', { path: p }) }
+})
 async function create() {
-  const p = createForm.path.trim().replace(/^\/+/, '')
-  if (!p || p.endsWith('/')) return
-  if (files.value?.some(f => f.path === p)) {
-    toast.add({ title: t('envfile.exists', { path: p }), color: 'warning' })
-    return
-  }
+  if (!createCheck.check()) return
+  const p = createPath.value
   let text = ''
   if (createForm.from !== blank) {
     try {
@@ -275,7 +277,7 @@ const current = computed(() => files.value?.find(f => f.path === path.value))
     <UModal v-model:open="createOpen" :title="t('envfile.createTitle')" :ui="{ content: 'max-w-md' }">
       <template #body>
         <form id="envfile-create" class="space-y-4" @submit.prevent="create">
-          <UFormField :label="t('envfile.path')" required>
+          <UFormField :label="t('envfile.path')" required data-field="path" :error="createCheck.errors.value.path">
             <UInput v-model="createForm.path" class="w-full font-mono" placeholder=".env" />
           </UFormField>
           <UFormField v-if="files?.length" :label="t('envfile.copyFrom')">
@@ -286,7 +288,7 @@ const current = computed(() => files.value?.find(f => f.path === path.value))
       <template #footer>
         <div class="flex w-full justify-end gap-2">
           <UButton color="neutral" variant="ghost" :label="t('envfile.cancel')" @click="createOpen = false" />
-          <UButton type="submit" form="envfile-create" :label="t('envfile.createOk')" :disabled="!createForm.path.trim()" />
+          <UButton type="submit" form="envfile-create" :label="t('envfile.createOk')" />
         </div>
       </template>
     </UModal>

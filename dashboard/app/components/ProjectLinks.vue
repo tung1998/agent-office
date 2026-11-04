@@ -29,11 +29,13 @@ const form = reactive({ title: '', url: '', kind: 'web' as Kind, note: '' })
 function openForm(r?: DataRecord) {
   editing.value = r ?? null
   Object.assign(form, { title: str(r?.data.title), url: str(r?.data.url), kind: r ? kindOf(r) : 'web', note: str(r?.data.note) })
+  resetCheck()
   open.value = true
 }
+const { errors, check, reset: resetCheck } = useFormCheck(() => ({ url: !form.url.trim() && t('common.required') }))
 const saving = ref(false)
 async function save() {
-  if (saving.value || !form.url.trim()) return
+  if (saving.value || !check()) return
   saving.value = true
   try {
     await $fetch(base.value, { method: 'POST', body: { id: editing.value?.id, data: {
@@ -95,7 +97,7 @@ async function remove() {
     <UModal v-model:open="open" :title="editing ? t('links.edit') : t('links.add')">
       <template #body>
         <form id="project-link" class="space-y-3" @submit.prevent="save">
-          <UFormField :label="t('links.url')" required><UInput v-model="form.url" placeholder="https://…" class="w-full font-mono" /></UFormField>
+          <UFormField :label="t('links.url')" required data-field="url" :error="errors.url"><UInput v-model="form.url" placeholder="https://…" class="w-full font-mono" /></UFormField>
           <UFormField :label="t('links.name')"><UInput v-model="form.title" class="w-full" /></UFormField>
           <UFormField :label="t('links.kindLabel')"><USelect v-model="form.kind" :items="kindItems" class="w-full" /></UFormField>
           <UFormField :label="t('links.note')"><UTextarea v-model="form.note" autoresize :rows="2" class="w-full" /></UFormField>
@@ -103,7 +105,7 @@ async function remove() {
       </template>
       <template #footer>
         <UButton v-if="editing" color="error" variant="ghost" icon="i-lucide-trash-2" :label="t('links.delete')" @click="remove" />
-        <UButton type="submit" form="project-link" :label="t('common.save')" :loading="saving" :disabled="!form.url.trim()" class="ms-auto" />
+        <UButton type="submit" form="project-link" :label="t('common.save')" :loading="saving" class="ms-auto" />
       </template>
     </UModal>
   </UCard>

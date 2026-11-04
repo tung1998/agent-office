@@ -13,7 +13,14 @@ const bot = computed({ get: () => form.channel_id || NONE, set: (v: string) => {
 const botItems = computed(() => [{ label: t('alert.off'), value: NONE }, ...(data.value?.bots ?? []).map(b => ({ label: `${b.name} · ${b.kind === 'discord' ? 'Discord' : 'Telegram'} · ${b.project}`, value: b.id }))])
 const kind = computed(() => data.value?.bots.find(b => b.id === form.channel_id)?.kind)
 const saving = ref(false)
+// a test needs a bot and a chat: pressing it without them marks the field
+const testCheck = useFormCheck(() => ({
+  bot: !form.channel_id && t('common.pickOne'),
+  chat: !form.chat_id.trim() && t('common.required')
+}))
 async function save(test = false) {
+  if (saving.value || (test && !testCheck.check())) return
+  if (!test) testCheck.reset()
   saving.value = true
   try {
     await $fetch('/api/limit-alert', { method: 'PUT', body: { ...form } })
@@ -39,17 +46,17 @@ async function save(test = false) {
     <StaleNotice :show="stale" @reload="resync" />
     <USkeleton v-if="!data" class="h-10 w-full" />
     <div v-else class="grid gap-3 sm:grid-cols-[1fr_12rem_7rem_auto] sm:items-end">
-      <UFormField :label="t('alert.bot')">
+      <UFormField :label="t('alert.bot')" data-field="bot" :error="testCheck.errors.value.bot">
         <USelect v-model="bot" :items="botItems" class="w-full" />
       </UFormField>
-      <UFormField :label="kind === 'telegram' ? t('alert.chatTelegram') : t('alert.chatDiscord')">
+      <UFormField :label="kind === 'telegram' ? t('alert.chatTelegram') : t('alert.chatDiscord')" data-field="chat" :error="testCheck.errors.value.chat">
         <UInput v-model="form.chat_id" class="w-full font-mono text-xs" :disabled="!form.channel_id" placeholder="123456789012345678" />
       </UFormField>
       <UFormField :label="t('alert.threshold')">
         <UInputNumber v-model="form.threshold" :min="50" :max="95" :step="5" class="w-full" />
       </UFormField>
       <div class="flex gap-2">
-        <UButton color="neutral" variant="outline" icon="i-lucide-send" :label="t('alert.test')" :disabled="!form.channel_id || !form.chat_id" :loading="saving" @click="save(true)" />
+        <UButton color="neutral" variant="outline" icon="i-lucide-send" :label="t('alert.test')" :loading="saving" @click="save(true)" />
         <UButton icon="i-lucide-save" :label="t('common.save')" :loading="saving" @click="save()" />
       </div>
     </div>
