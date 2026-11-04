@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/tung1998/agent-office/internal/storage"
@@ -89,8 +90,43 @@ func New(p storage.Provider, apiKey string, opts Options) (Client, error) {
 		return &geminiCLI{bin: orDefault(p.BaseURL, "gemini"), env: p.CLIEnv()}, nil
 	case storage.ProviderAntigravityCLI:
 		return &antigravityCLI{bin: orDefault(p.BaseURL, "agy")}, nil
+	case storage.ProviderDSH:
+		// turns run in dsh; checks and one-off calls go to the same API directly
+		if apiKey == "" {
+			return nil, ErrNoAPIKey
+		}
+		api, base := HarnessAPI(p.BaseURL)
+		if api == HarnessAnthropic {
+			return &anthropic{base: base, key: apiKey, http: hc}, nil
+		}
+		return &openAI{base: base, key: apiKey, http: hc}, nil
 	}
 	return nil, fmt.Errorf("llm: unknown provider kind %q", p.Kind)
+}
+
+// Wire protocols DeepSeek Harness speaks to a model API.
+const (
+	HarnessOpenAI    = "openai-completions"
+	HarnessAnthropic = "anthropic-messages"
+)
+
+// DeepSeekAPI is DeepSeek's own API, a harness connection's default.
+const DeepSeekAPI = "https://api.deepseek.com/v1"
+
+// HarnessAPI is the protocol and endpoint of a harness connection's base
+// URL: an Anthropic Messages endpoint when the URL names anthropic
+// (api.anthropic.com, …/anthropic gateways), else Chat Completions; ""
+// is DeepSeek's own API.
+func HarnessAPI(baseURL string) (api, base string) {
+	base = strings.TrimRight(strings.TrimSpace(baseURL), "/")
+	if base == "" {
+		return HarnessOpenAI, DeepSeekAPI
+	}
+	if strings.Contains(strings.ToLower(base), "anthropic") {
+		// the Anthropic SDK adds /v1/messages itself
+		return HarnessAnthropic, strings.TrimSuffix(base, "/v1")
+	}
+	return HarnessOpenAI, base
 }
 
 // DefaultTierModels suggests tier → model for a new provider. Empty means the

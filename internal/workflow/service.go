@@ -82,6 +82,10 @@ func Family(p storage.Provider) string {
 		return "openai"
 	case storage.ProviderGeminiCLI:
 		return "google"
+	case storage.ProviderDSH:
+		if p.BaseURL == "" { // DeepSeek's own API
+			return "api.deepseek.com"
+		}
 	}
 	if u, err := url.Parse(p.BaseURL); err == nil && u.Host != "" {
 		return u.Host

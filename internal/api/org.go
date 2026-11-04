@@ -352,7 +352,7 @@ func (s *server) providerKinds(w http.ResponseWriter, r *http.Request) {
 			BaseURLHint: hint, TierModels: llm.DefaultTierModels(kind), Detected: d}
 	}
 	// each CLI runs --version; detect them together so the page waits for the slowest only
-	tools := []string{"claude", "codex", "gemini", "antigravity"}
+	tools := []string{"claude", "codex", "gemini", "antigravity", "dsh"}
 	found := make([]*detected, len(tools))
 	var wg sync.WaitGroup
 	for i, id := range tools {
@@ -379,6 +379,9 @@ func (s *server) providerKinds(w http.ResponseWriter, r *http.Request) {
 		k(storage.ProviderAntigravityCLI, "Antigravity CLI trên máy",
 			"Dùng tài khoản Google (gói Google AI Pro/Ultra hoặc miễn phí) đã đăng nhập trong Antigravity CLI trên máy này. Không cần API key.",
 			"agy", false, false, found[3]),
+		k(storage.ProviderDSH, "DeepSeek Harness (dsh)",
+			"Agent chạy trong DeepSeek Harness trên máy (npm install -g @deepseek-ai/dsh), gọi API bạn chọn: để trống URL là DeepSeek; điền URL tương thích OpenAI (OpenRouter, GLM, Kimi, Ollama…) hoặc Anthropic (URL có chữ anthropic).",
+			llm.DeepSeekAPI, true, false, found[4]),
 		k(storage.ProviderOpenAICompatible, "API tương thích OpenAI",
 			"Model chạy local hoặc cổng trung gian: Ollama, LM Studio, vLLM, OpenRouter, LiteLLM…",
 			"http://localhost:11434/v1", false, false, nil),

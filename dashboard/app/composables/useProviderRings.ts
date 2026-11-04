@@ -9,7 +9,7 @@ import type { MessageKey } from '~/locales/vi'
 const kindLogo: Record<string, string> = {
   claude_cli: 'i-simple-icons-claude', anthropic: 'i-simple-icons-claude',
   codex_cli: 'i-simple-icons-openai', openai: 'i-simple-icons-openai',
-  gemini_cli: 'i-simple-icons-googlegemini', antigravity_cli: 'i-simple-icons-google'
+  gemini_cli: 'i-simple-icons-googlegemini', antigravity_cli: 'i-simple-icons-google', dsh: 'i-simple-icons-deepseek'
 }
 const presetLogo: Record<string, string> = {
   openrouter: 'i-simple-icons-openrouter', gemini: 'i-simple-icons-googlegemini', deepseek: 'i-simple-icons-deepseek',

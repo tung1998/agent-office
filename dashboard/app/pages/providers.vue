@@ -58,7 +58,7 @@ const urlChangedWithStoredKey = computed(() => !!editing.value?.has_api_key && f
 const keyUrl = computed(() => selectedPreset.value?.key_url ?? ({ anthropic: 'https://console.anthropic.com', openai: 'https://platform.openai.com/api-keys' } as Record<string, string>)[form.kind] ?? '')
 const kindIconOf = (k: string) => ({
   claude_cli: 'i-lucide-terminal', codex_cli: 'i-lucide-terminal', gemini_cli: 'i-lucide-terminal', antigravity_cli: 'i-lucide-terminal', anthropic: 'i-lucide-key-round',
-  openai: 'i-lucide-key-round', openai_compatible: 'i-lucide-server'
+  openai: 'i-lucide-key-round', openai_compatible: 'i-lucide-server', dsh: 'i-lucide-terminal'
 } as Record<string, string>)[k] ?? 'i-lucide-plug'
 
 // Pick sensible defaults for a kind: its label as name, and the env var when one is already set.

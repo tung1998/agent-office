@@ -129,6 +129,8 @@ func clientKind(kind storage.ProviderKind) string {
 		return "gemini"
 	case storage.ProviderAntigravityCLI:
 		return "antigravity"
+	case storage.ProviderDSH:
+		return "dsh"
 	default:
 		return "api"
 	}
@@ -149,7 +151,7 @@ func gatewayBrief(o *OfficeAccess) string {
 	return ""
 }
 
-// ClientHeader tells the gateway which AI calls (claude | codex | gemini).
+// ClientHeader tells the gateway which AI calls (claude | codex | gemini | antigravity | dsh).
 const ClientHeader = "X-Office-Client"
 
 // GatewayTools are the gateway's tools for an API run: office calls them
@@ -190,6 +192,8 @@ func runnerFor(kind storage.ProviderKind) Runner {
 		return geminiRunner{}
 	case storage.ProviderAntigravityCLI:
 		return antigravityRunner{}
+	case storage.ProviderDSH:
+		return dshRunner{}
 	case storage.ProviderAnthropic:
 		return anthropicRunner{}
 	default:

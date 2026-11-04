@@ -142,6 +142,7 @@ export type Effort = typeof EFFORTS[number]
 // names it in the model (gemini-3.8-flash-high), so only its default model picks one
 export function effortsFor(kind: string | undefined, model: string | undefined): readonly string[] {
   if (kind === 'antigravity_cli') return model ? [] : EFFORTS.slice(0, 3)
+  if (kind === 'dsh') return ['low', 'high', 'max'] // DeepSeek Harness: off, low, high, max
   return EFFORTS
 }
 export function effortLabel(e: string, t: (k: `effort.${Effort}`) => string) {

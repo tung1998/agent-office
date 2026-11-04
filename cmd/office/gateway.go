@@ -61,7 +61,7 @@ func gatewayIdentify(st storage.Store, mcp *mcpserver.Server) func(r *http.Reque
 			return mcpgateway.Caller{}, false
 		}
 		kind := r.Header.Get(chat.ClientHeader)
-		if kind != "codex" && kind != "gemini" && kind != "antigravity" {
+		if kind != "codex" && kind != "gemini" && kind != "antigravity" && kind != "dsh" {
 			kind = "claude"
 		}
 		return gatewayCaller(r.Context(), st, sc, kind), true
@@ -210,7 +210,7 @@ func (p gatewayDiscovery) CallMCP(ctx context.Context, sc officetools.Scope, nam
 // The runner kind comes from the run's bound scope, not tool arguments.
 func gatewayClient(sc officetools.Scope) string {
 	switch sc.ClientKind {
-	case "claude", "codex", "gemini", "antigravity":
+	case "claude", "codex", "gemini", "antigravity", "dsh":
 		return sc.ClientKind
 	default:
 		return "api"

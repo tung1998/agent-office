@@ -165,7 +165,7 @@ func (s *Service) apply(p *storage.Provider, in Input) error {
 	if in.Enabled != nil {
 		p.Enabled = *in.Enabled
 	}
-	needsKey := p.Kind == storage.ProviderAnthropic || p.Kind == storage.ProviderOpenAI
+	needsKey := p.Kind == storage.ProviderAnthropic || p.Kind == storage.ProviderOpenAI || p.Kind == storage.ProviderDSH
 	if needsKey && p.APIKeyEnc == "" && p.APIKeyEnv == "" {
 		return ErrNeedsKey
 	}
@@ -288,12 +288,23 @@ func (s *Service) APIKey(p storage.Provider) (string, error) {
 	return s.box.Open(p.APIKeyEnc)
 }
 
+// dshBin is DeepSeek Harness's command (npm install -g @deepseek-ai/dsh).
+const dshBin = "dsh"
+
 // cliBins is the command each CLI provider runs.
 var cliBins = map[storage.ProviderKind]string{storage.ProviderClaudeCLI: "claude", storage.ProviderCodexCLI: "codex", storage.ProviderGeminiCLI: "gemini", storage.ProviderAntigravityCLI: "agy"}
 
 // CLIBin returns the binary a CLI provider runs (explicit path, or the resolver's
 // lookup, or the bare command name).
 func (s *Service) CLIBin(p storage.Provider) string {
+	if p.Kind.Harness() { // its base URL is the API's, the command is always dsh
+		if s.resolveBin != nil {
+			if path := s.resolveBin(dshBin); path != "" {
+				return path
+			}
+		}
+		return dshBin
+	}
 	if !p.Kind.IsCLI() {
 		return ""
 	}

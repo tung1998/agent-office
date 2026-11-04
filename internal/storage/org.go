@@ -20,21 +20,30 @@ const (
 	ProviderCodexCLI         ProviderKind = "codex_cli"         // local `codex exec`
 	ProviderGeminiCLI        ProviderKind = "gemini_cli"        // local `gemini` (headless)
 	ProviderAntigravityCLI   ProviderKind = "antigravity_cli"   // local `agy` (print mode)
+	// ProviderDSH: local DeepSeek Harness (`dsh`, ACP over stdio) driving the
+	// API at BaseURL with the connection's key ("" = DeepSeek's own API)
+	ProviderDSH ProviderKind = "dsh"
 )
 
 // Valid reports whether k is known.
 func (k ProviderKind) Valid() bool {
 	switch k {
-	case ProviderAnthropic, ProviderOpenAI, ProviderOpenAICompatible, ProviderClaudeCLI, ProviderCodexCLI, ProviderGeminiCLI, ProviderAntigravityCLI:
+	case ProviderAnthropic, ProviderOpenAI, ProviderOpenAICompatible, ProviderClaudeCLI, ProviderCodexCLI, ProviderGeminiCLI, ProviderAntigravityCLI, ProviderDSH:
 		return true
 	}
 	return false
 }
 
-// IsCLI reports whether the provider runs a local binary instead of an HTTP API.
+// IsCLI reports whether the provider runs a local binary instead of an HTTP
+// API. DeepSeek Harness runs one too, but its connection is an API (base URL
+// and key), so it is not counted here (see Harness).
 func (k ProviderKind) IsCLI() bool {
 	return k == ProviderClaudeCLI || k == ProviderCodexCLI || k == ProviderGeminiCLI || k == ProviderAntigravityCLI
 }
+
+// Harness reports whether turns run in a local agent harness that calls the
+// connection's API itself (DeepSeek Harness).
+func (k ProviderKind) Harness() bool { return k == ProviderDSH }
 
 // cliHomeEnv is the variable that moves each CLI's config and credentials
 // to another folder: a connection with an account of its own (ADR-178).
@@ -171,6 +180,9 @@ func ValidEffort(e string) bool { return e == "" || slices.Contains(Efforts, e) 
 // (gemini-3.8-flash-high) or takes none (claude-sonnet-4-6): only its own
 // default model picks one, up to high.
 func EffortsFor(kind ProviderKind, model string) []string {
+	if kind == ProviderDSH { // dsh: off, low, high, max
+		return []string{"low", "high", "max"}
+	}
 	if kind == ProviderAntigravityCLI {
 		if model != "" {
 			return nil

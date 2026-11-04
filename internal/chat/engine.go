@@ -2167,7 +2167,7 @@ func (e *Engine) ProposeTree(ctx context.Context, conversationID, dir, tree stri
 }
 
 // machineAccess: the runtime gives a run every tool on the machine when
-// asked (FullAccess); Codex and API runs never do.
+// asked (FullAccess; dsh: danger-full-access); Codex and API runs never do.
 func machineAccess(k storage.ProviderKind) bool {
-	return k == storage.ProviderClaudeCLI || k == storage.ProviderGeminiCLI || k == storage.ProviderAntigravityCLI
+	return k == storage.ProviderClaudeCLI || k == storage.ProviderGeminiCLI || k == storage.ProviderAntigravityCLI || k == storage.ProviderDSH
 }

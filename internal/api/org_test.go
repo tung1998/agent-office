@@ -41,7 +41,7 @@ func TestProvidersAPI(t *testing.T) {
 		t.Fatalf("member list providers = %d", resp.StatusCode)
 	}
 	resp, body = do(t, admin, "GET", e.srv.URL+"/api/provider-kinds", nil, nil)
-	if resp.StatusCode != 200 || len(body["kinds"].([]any)) != 7 {
+	if resp.StatusCode != 200 || len(body["kinds"].([]any)) != 8 {
 		t.Fatalf("kinds = %v", body)
 	}
 }
