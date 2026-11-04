@@ -248,6 +248,9 @@ const userMenu = computed<DropdownMenuItem[][]>(() => [
     : []),
   [{ label: t('user.logout'), icon: 'i-lucide-log-out', color: 'error', onSelect: () => logout() }]
 ])
+// the account's theme (useTheme): checked once the person is known
+const { theme, look: themeLook, load: loadTheme } = useTheme()
+watch(() => user.value?.id, () => loadTheme(), { immediate: true })
 </script>
 
 <template>
@@ -256,7 +259,7 @@ const userMenu = computed<DropdownMenuItem[][]>(() => [
   </div>
 
   <UDashboardGroup v-else>
-    <UDashboardSidebar collapsible resizable :default-size="18">
+    <UDashboardSidebar collapsible resizable :default-size="18" class="office-sidebar">
       <template #header="{ collapsed }">
         <div class="flex w-full min-w-0 items-center gap-2 px-1 font-semibold">
           <UIcon name="i-lucide-building-2" class="size-5 shrink-0 text-primary" />
@@ -313,6 +316,7 @@ const userMenu = computed<DropdownMenuItem[][]>(() => [
     </div>
     <slot />
     <FloatingChat />
+    <LazyThemeWallpaper v-if="theme?.wallpaper" :scene="theme.id" :look="themeLook" />
     <SettingsModal v-model:open="settingsOpen" />
   </UDashboardGroup>
 </template>

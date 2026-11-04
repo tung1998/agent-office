@@ -13,12 +13,14 @@ import dataPage from './parts/data.vi'
 import team from './parts/team.vi'
 import workflows from './parts/workflows.vi'
 import support from './parts/support.vi'
+import themes from './parts/theme.vi'
 
 const vi = {
   ...dataPage,
   ...team,
   ...workflows,
   ...support,
+  ...themes,
   ...watchScreen,
   ...files,
   ...chatTags,

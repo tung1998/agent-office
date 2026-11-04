@@ -14,12 +14,14 @@ import dataPage from './parts/data.en'
 import team from './parts/team.en'
 import workflows from './parts/workflows.en'
 import support from './parts/support.en'
+import themes from './parts/theme.en'
 
 const en: Record<MessageKey, string> = {
   ...dataPage,
   ...team,
   ...workflows,
   ...support,
+  ...themes,
   ...watchScreen,
   ...files,
   ...chatTags,

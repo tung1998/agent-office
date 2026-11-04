@@ -28,6 +28,13 @@ func TestPrefsPerAccount(t *testing.T) {
 	if resp, _ := do(t, admin, "PUT", e.srv.URL+"/api/me/prefs/projects", map[string]any{"value": map[string]any{"order": []string{"a", "b"}, "hidden": []string{"b"}}}, nil); resp.StatusCode != 204 {
 		t.Fatalf("put projects = %d", resp.StatusCode)
 	}
+	// the dashboard's theme
+	if resp, _ := do(t, admin, "PUT", e.srv.URL+"/api/me/prefs/theme", map[string]any{"value": map[string]any{"id": "moonlit"}}, nil); resp.StatusCode != 204 {
+		t.Fatalf("put theme = %d", resp.StatusCode)
+	}
+	if _, got := do(t, admin, "GET", e.srv.URL+"/api/me/prefs/theme", nil, nil); got["value"].(map[string]any)["id"] != "moonlit" {
+		t.Fatalf("theme = %v", got)
+	}
 	if resp, _ := do(t, admin, "PUT", e.srv.URL+"/api/me/prefs/other", map[string]any{"value": 1}, nil); resp.StatusCode != 404 {
 		t.Fatalf("unknown key = %d", resp.StatusCode)
 	}
