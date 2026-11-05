@@ -561,6 +561,30 @@ func (s *server) getPatch(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"patch": chat.FullPatchDTO(p)})
 }
 
+// installPatchDeps proposes again the install of a merged diff's
+// dependencies in the project (ADR-251): its card(s).
+func (s *server) installPatchDeps(w http.ResponseWriter, r *http.Request) {
+	p, err := s.cfg.Store.Chat().GetPatch(r.Context(), r.PathValue("id"))
+	if err != nil {
+		s.writeDomainError(w, r, err)
+		return
+	}
+	if p.ConversationID != "" && !s.mayOpen(r, p.ConversationID) {
+		writeError(w, http.StatusNotFound, "không tìm thấy diff")
+		return
+	}
+	acts, err := s.cfg.Chat.InstallDeps(r.Context(), p.ID)
+	if errors.Is(err, chat.ErrNoDeps) {
+		writeError(w, http.StatusConflict, err.Error())
+		return
+	}
+	if err != nil {
+		s.writeDomainError(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"actions": acts})
+}
+
 func (s *server) approvePatch(w http.ResponseWriter, r *http.Request) { s.decidePatch(w, r, true) }
 func (s *server) rejectPatch(w http.ResponseWriter, r *http.Request)  { s.decidePatch(w, r, false) }
 

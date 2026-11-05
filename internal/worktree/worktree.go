@@ -6,7 +6,9 @@
 // files included, without touching the person's index or files. Its HEAD is
 // the accepted point: changes on top of HEAD are pending; accepting a diff
 // moves HEAD past it. Dependency folders (node_modules, .venv) are linked
-// from the project and ignored .env files copied, so builds work.
+// from the project and ignored .env files copied, so builds work; a package
+// whose dependencies the agent changes gets folders of its own (Detach,
+// ADR-251).
 package worktree
 
 import (

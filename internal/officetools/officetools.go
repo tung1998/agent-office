@@ -265,6 +265,11 @@ func (t *Toolbox) Tools() []Tool {
 				"command": map[string]any{"type": "string", "description": "Command line, e.g. go test ./internal/..."},
 				"reason":  map[string]any{"type": "string", "description": "Why it needs to run"},
 			}, "command", "reason")})
+		list = append(list, Tool{Name: "deps_install", Description: "Install a package's dependencies (pnpm/npm/yarn/bun install, uv sync, pip) after you change package.json, a lockfile, uv.lock or requirements. In your own worktree they go into folders of its own (node_modules/.venv are no longer the project's links), so build/test run on the new versions and the project is untouched: never copy the project to /tmp for this, and never run the install with run_command. It runs at once when you may edit or run commands on your own, else (and outside a worktree) it is a proposal for the person. Once your diff is merged, office proposes the same install in the project.",
+			Schema: obj(map[string]any{
+				"path":   map[string]any{"type": "string", "description": "Package folder relative to the project, e.g. dashboard; \".\" = the top. A workspace package installs from its lockfile's folder"},
+				"reason": map[string]any{"type": "string", "description": "Why, e.g. Nuxt 4.5.2 → 4.6.4 in dashboard/package.json"},
+			}, "path", "reason")})
 		list = append(list, Tool{Name: "propose_action", Description: "Propose an action for the person to approve (runs on its own if your permissions allow; git_push always needs approval). Use it to re-run build/test after a fix, restart a stuck service, or commit/push when asked.",
 			Schema: obj(map[string]any{
 				"action":  map[string]any{"type": "string", "enum": []string{"run_process", "restart_process", "stop_process", "start_container", "restart_container", "stop_container", "git_commit", "git_branch", "git_merge", "git_push"}},
@@ -788,6 +793,25 @@ func (t *Toolbox) Call(ctx context.Context, sc Scope, name string, raw json.RawM
 				return "$ " + a.Target + "\nLỗi: " + a.Detail, true
 			default:
 				out = fmt.Sprintf("Command %q is not on the list you may run yourself; created proposal %s, waiting for the person's approval. Nothing has run yet; tell the person.", a.Target, a.ID)
+			}
+		}
+	case "deps_install":
+		if t.actions == nil || !perm.AtLeast(sc.Level, perm.Propose) {
+			return "Ở mức " + perm.Label(sc.Level) + " bạn không cài thư viện được", true
+		}
+		var a storage.Action
+		if a, err = t.actions.Propose(ctx, sc, "deps_install", in.Path, in.Reason); err == nil {
+			where := "your worktree"
+			if sc.Dir == "" {
+				where = "the project"
+			}
+			switch a.Status {
+			case "done":
+				out = "Installed " + a.Target + " in " + where + ".\n" + a.Detail
+			case "failed":
+				return a.Detail, true
+			default:
+				out = fmt.Sprintf("Installing %s in %s needs the person's approval: created proposal %s. Nothing has run yet; tell the person.", a.Target, where, a.ID)
 			}
 		}
 	case "describe", "list", "get", "propose_change":

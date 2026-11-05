@@ -116,6 +116,10 @@ type Policy struct {
 	// its own, one a line ("dashboard/ .vue: cmd" for those files only);
 	// empty = the build checks the project's files suggest (ADR-222).
 	MergeChecks string `json:"merge_checks"`
+	// AutoDeps: a merged diff that changes the project's dependencies
+	// (package.json, lockfiles, uv.lock, requirements) installs them in the
+	// project at once instead of leaving a "Cài lại thư viện" card (ADR-251).
+	AutoDeps bool `json:"auto_deps"`
 	// LinkedProjects: ids of the projects this project's agents may open a
 	// chat in, send to and read (send_to_chat, read_link, search_history).
 	// One way: the other project links back on its own.

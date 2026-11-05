@@ -18,6 +18,7 @@ import (
 	"github.com/tung1998/agent-office/internal/attach"
 	"github.com/tung1998/agent-office/internal/audit"
 	"github.com/tung1998/agent-office/internal/automation"
+	"github.com/tung1998/agent-office/internal/deps"
 	"github.com/tung1998/agent-office/internal/mcpserver"
 	"github.com/tung1998/agent-office/internal/memory"
 	"github.com/tung1998/agent-office/internal/officetools"
@@ -102,6 +103,9 @@ type PatchDTO struct {
 	Del       int  `json:"del"`
 	// Deciding: who is deciding it right now (it says pending until done)
 	Deciding string `json:"deciding,omitempty"`
+	// Deps: the packages whose dependencies it changes (ADR-251), read from
+	// its files: merged, the project installs them (deps_install)
+	Deps []deps.Change `json:"deps,omitempty"`
 }
 
 // PatchPreview is how much of a diff a chat loads with its messages.
@@ -123,6 +127,7 @@ func toPatchDTO(p storage.Patch) PatchDTO {
 func FullPatchDTO(p storage.Patch) PatchDTO {
 	d := PatchDTO{ID: p.ID, MessageID: p.MessageID, Diff: p.Diff, Files: p.Files, Status: p.Status, Detail: p.Detail, DecidedBy: p.DecidedBy, DecidedAt: p.DecidedAt, Origin: p.Origin, Size: len(p.Diff)}
 	d.Deciding, _ = deciding.Is(p.ID)
+	d.Deps = deps.Changes("", p.Files)
 	for line := range strings.SplitSeq(p.Diff, "\n") {
 		switch {
 		case strings.HasPrefix(line, "+") && !strings.HasPrefix(line, "+++"):
@@ -515,6 +520,12 @@ type ActionDTO struct {
 	Deciding string `json:"deciding,omitempty"`
 	// AfterDiff: a commit that comes after its answer's diff (ADR-189)
 	AfterDiff bool `json:"after_diff,omitempty"`
+	// Patch: deps_install, the merged diff whose dependencies it installs in
+	// the project (ADR-251); Deps its package
+	Patch string            `json:"patch,omitempty"`
+	Deps  *storage.DepsArgs `json:"deps,omitempty"`
+	// Worktree: deps_install in the run's own worktree
+	Worktree bool `json:"worktree,omitempty"`
 }
 
 // ToActionDTO converts a stored action.
@@ -526,8 +537,14 @@ func ToActionDTO(a storage.Action) ActionDTO {
 	by, _ := deciding.Is(a.ID)
 	return ActionDTO{ID: a.ID, MessageID: a.MessageID, TaskID: a.TaskID, Kind: a.Kind, Label: actions.Kinds[a.Kind], Target: a.Target, TargetID: a.TargetID,
 		Reason: a.Reason, Message: a.Args.Message, Files: a.Args.Files, Automation: a.Args.Automation, Change: a.Args.Change, Status: a.Status, Detail: a.Detail, By: a.ProposedBy, DecidedBy: a.DecidedBy, DecidedAt: a.DecidedAt,
-		Always: always, Deciding: by, AfterDiff: a.Args.AfterDiff}
+		Always: always, Deciding: by, AfterDiff: a.Args.AfterDiff, Patch: a.Args.Patch, Deps: a.Args.Deps,
+		Worktree: a.Kind == "deps_install" && a.Args.Dir != ""}
 }
+
+// followUp: a card made for a merged diff (its dependencies' install,
+// ADR-251): shown after the answer's diff and commit, never waited on
+// (decided whenever, nothing waits behind it).
+func followUp(a storage.Action) bool { return a.Kind == "deps_install" && a.Args.Patch != "" }
 
 // SetAttachments sets where attached files are stored.
 func (e *Engine) SetAttachments(s attach.Store) { e.files = s }
@@ -2027,6 +2044,9 @@ func (e *Engine) DecidePatch(ctx context.Context, patchID string, approve bool) 
 	// a commit held for it goes with it: a person's later cards and a step
 	// waiting for the merge do not wait for it any more (ADR-189)
 	e.dropHeldFor(ctx, p, status, detail, who, now)
+	if status == "applied" { // its dependencies follow it into the project (ADR-251)
+		e.proposeDeps(ctx, project, p)
+	}
 	return toPatchDTO(p), nil
 }
 

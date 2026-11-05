@@ -891,6 +891,20 @@ type ActionArgs struct {
 	// in the project yet; it comes after the turn's diff and runs once that
 	// is merged (ADR-189)
 	AfterDiff bool `json:"after_diff,omitempty"`
+	// deps_install: the package whose dependencies are installed (ADR-251).
+	// With Dir: in that worktree, in folders of its own; else in the project,
+	// for the diff Patch merged, after which Tree (the worktree it came from)
+	// links back to the project's folders.
+	Deps  *DepsArgs `json:"deps,omitempty"`
+	Patch string    `json:"patch,omitempty"`
+	Tree  string    `json:"tree,omitempty"`
+}
+
+// DepsArgs is a package folder (relative to the project, "." = the top)
+// and what installs it (pnpm, npm, yarn, bun, uv, pip; "" = read from it).
+type DepsArgs struct {
+	Dir     string `json:"dir"`
+	Manager string `json:"manager,omitempty"`
 }
 
 // RecordRef names a record of a project's collection.

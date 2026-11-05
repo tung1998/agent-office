@@ -55,6 +55,7 @@ var Kinds = map[string]string{
 	"import_project":    "Nhập project",
 	"data_delete":       "Xóa bản ghi dữ liệu",
 	"install_skill":     "Cài skill cho agent",
+	"deps_install":      "Cài thư viện",
 }
 
 // Projects makes the projects the office assistant proposes (ADR-170).
@@ -380,6 +381,10 @@ func (s *Service) Propose(ctx context.Context, sc Scope, kind, target, reason st
 		} else if err := s.checkGit(ctx, &a); err != nil {
 			return a, err
 		}
+	} else if kind == "deps_install" { // a package's dependencies, in the run's worktree or the project (ADR-251)
+		if err := s.checkDeps(ctx, sc, &a); err != nil {
+			return a, err
+		}
 	} else if kind == "run_command" {
 		args, err := perm.SplitCommand(target)
 		if err != nil {
@@ -426,7 +431,7 @@ func (s *Service) Propose(ctx context.Context, sc Scope, kind, target, reason st
 				// the same command in another folder (an agent's worktree, a
 				// workflow's check step in the project) is another card: else
 				// the step waits on a card left on an agent's finished turn
-				if a.Kind == "run_command" && x.Args.Dir != a.Args.Dir {
+				if (a.Kind == "run_command" || a.Kind == "deps_install") && x.Args.Dir != a.Args.Dir {
 					continue
 				}
 				return x, nil
@@ -603,6 +608,15 @@ func (s *Service) autoAllowed(ctx context.Context, a storage.Action, acc perm.Ac
 		return false // a new folder and project on the machine: a person decides
 	case "data_delete":
 		return false // a person decides
+	case "deps_install":
+		// in the run's own worktree nothing reaches the project, but an install
+		// runs the packages' scripts on the machine: an agent that edits on
+		// its own (or runs commands) does it; in the project: when the project
+		// installs merged dependency changes on its own, or the run may run commands
+		if a.Args.Dir != "" {
+			return perm.AtLeast(acc.Level, perm.Edit) || acc.Can(perm.CapCommands)
+		}
+		return perm.LoadPolicy(ctx, s.store, a.ProjectID).AutoDeps || acc.Can(perm.CapCommands)
 	case "send_message": // never on and on: what a relayed message started asks a person
 		if s.sender == nil {
 			return false
@@ -690,6 +704,10 @@ func (s *Service) Decide(ctx context.Context, id string, approve bool, by string
 		if out != "" {
 			a.Detail += "\n" + out
 		}
+		return a, s.store.Actions().Update(ctx, a)
+	}
+	if a.Kind == "deps_install" {
+		a.Status, a.Detail = s.installDeps(ctx, a)
 		return a, s.store.Actions().Update(ctx, a)
 	}
 	if a.Kind == "mcp_call" {

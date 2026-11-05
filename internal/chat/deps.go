@@ -1,0 +1,89 @@
+package chat
+
+import (
+	"context"
+	"errors"
+	"log/slog"
+
+	"github.com/tung1998/agent-office/internal/actions"
+	"github.com/tung1998/agent-office/internal/deps"
+	"github.com/tung1998/agent-office/internal/storage"
+)
+
+// ErrNoDeps: the diff is not merged, or changes no dependencies.
+var ErrNoDeps = errors.New("diff chưa gộp vào project hoặc không đổi thư viện nào")
+
+// InstallDeps proposes again the install of a merged diff's dependencies
+// (after one failed, or the project's folders were cleaned): the cards made,
+// or the one still waiting.
+func (e *Engine) InstallDeps(ctx context.Context, patchID string) ([]ActionDTO, error) {
+	p, err := e.store.Chat().GetPatch(ctx, patchID)
+	if err != nil {
+		return nil, err
+	}
+	if p.Status != "applied" {
+		return nil, ErrNoDeps
+	}
+	projectID := ""
+	if p.TaskID != "" {
+		t, err := e.store.Tasks().Get(ctx, p.TaskID)
+		if err != nil {
+			return nil, err
+		}
+		projectID = t.ProjectID
+	} else {
+		c, err := e.store.Chat().GetConversation(ctx, p.ConversationID)
+		if err != nil {
+			return nil, err
+		}
+		projectID = c.ProjectID
+	}
+	project, err := e.store.Repos().Get(ctx, projectID)
+	if err != nil {
+		return nil, err
+	}
+	acts := e.proposeDeps(ctx, project, p)
+	if len(acts) == 0 {
+		return nil, ErrNoDeps
+	}
+	out := make([]ActionDTO, len(acts))
+	for i, a := range acts {
+		out[i] = ToActionDTO(a)
+	}
+	return out, nil
+}
+
+// depsAgent proposes the install a merged diff needs (it is no agent's).
+const depsAgent = "office"
+
+// proposeDeps: a diff just merged into the project changes its dependencies
+// (ADR-251): one deps_install card per package, next to the diff, so the
+// project's node_modules/.venv follow the new lockfile. The project may
+// install them at once (policy AutoDeps). A card never holds the chat's other
+// proposals back (followUp). The cards made.
+func (e *Engine) proposeDeps(ctx context.Context, project storage.Repo, p storage.Patch) []storage.Action {
+	if e.acts == nil || project.Path == "" {
+		return nil
+	}
+	changes := deps.Changes(project.Path, p.Files)
+	if len(changes) == 0 {
+		return nil
+	}
+	sc := actions.Scope{ProjectID: project.ID, ConversationID: p.ConversationID, TaskID: p.TaskID, Agent: depsAgent}
+	tree := e.treeOf(project.ID, p)
+	var out []storage.Action
+	for _, c := range changes {
+		args := storage.ActionArgs{Deps: &storage.DepsArgs{Dir: c.Dir, Manager: c.Manager}, Patch: p.ID, Tree: tree}
+		a, err := e.acts.Propose(ctx, sc, "deps_install", c.Dir, "Diff vừa gộp đổi thư viện của "+c.Dir+": cài lại để project chạy đúng bản trong lockfile mới", args) // i18n-ignore
+		if err != nil {
+			slog.Warn("chat: deps install card", "patch", p.ID, "dir", c.Dir, "err", err)
+			continue
+		}
+		if a.MessageID != p.MessageID { // shown with the diff it follows
+			a.MessageID = p.MessageID
+			_ = e.store.Actions().Update(context.WithoutCancel(ctx), a)
+		}
+		out = append(out, a)
+	}
+	return out
+}

@@ -56,7 +56,7 @@ func (e *Engine) cardSeqs(ctx context.Context, conversationID string, acts []sto
 	}
 	byMsg := map[string][]string{}
 	for _, a := range acts {
-		if !a.Args.AfterDiff {
+		if !a.Args.AfterDiff && !followUp(a) {
 			byMsg[a.MessageID] = append(byMsg[a.MessageID], a.ID)
 		}
 	}
@@ -65,6 +65,11 @@ func (e *Engine) cardSeqs(ctx context.Context, conversationID string, acts []sto
 	}
 	for _, a := range acts { // a commit waiting for its answer's diff comes after it (ADR-189)
 		if a.Args.AfterDiff {
+			byMsg[a.MessageID] = append(byMsg[a.MessageID], a.ID)
+		}
+	}
+	for _, a := range acts { // then what its merge asks (ADR-251)
+		if followUp(a) {
 			byMsg[a.MessageID] = append(byMsg[a.MessageID], a.ID)
 		}
 	}
@@ -94,6 +99,9 @@ func (e *Engine) waiting(ctx context.Context, conversationID string) ([]waitingC
 	}
 	var out []waitingCard
 	for _, a := range acts {
+		if followUp(a) {
+			continue // a merged diff's install: decided whenever, nothing waits on it (ADR-251)
+		}
 		if a.Status == "pending" || a.Status == "queued" {
 			out = append(out, waitingCard{id: a.ID, label: cmp.Or(actions.Kinds[a.Kind], a.Kind) + ": " + truncate(a.Target, 80), kind: "action",
 				queued: a.Status == "queued", by: a.DecidedBy, seq: seq[a.ID], at: a.CreatedAt})
@@ -147,7 +155,7 @@ func numberCards(msgs []MessageDTO) {
 	n := 0
 	for _, m := range msgs {
 		for i := range m.Actions {
-			if !m.Actions[i].AfterDiff {
+			if !m.Actions[i].AfterDiff && m.Actions[i].Patch == "" {
 				n++
 				m.Actions[i].Seq = n
 			}
@@ -158,6 +166,12 @@ func numberCards(msgs []MessageDTO) {
 		}
 		for i := range m.Actions { // after the answer's diff (ADR-189)
 			if m.Actions[i].AfterDiff {
+				n++
+				m.Actions[i].Seq = n
+			}
+		}
+		for i := range m.Actions { // then its merge's install (ADR-251)
+			if m.Actions[i].Patch != "" {
 				n++
 				m.Actions[i].Seq = n
 			}

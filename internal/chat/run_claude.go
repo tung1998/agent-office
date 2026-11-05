@@ -525,6 +525,8 @@ func toolSummary(name string, input json.RawMessage) string {
 		return "Xem git log"
 	case "run_command":
 		return "Chạy lệnh " + str("command")
+	case "deps_install":
+		return "Cài thư viện " + str("path")
 	case "propose_action":
 		return "Đề xuất " + strings.ReplaceAll(str("action"), "_", " ") + " " + str("target")
 	case "read", "read_file":
