@@ -41,6 +41,7 @@ const en: Record<keyof typeof vi, string> = {
   'theme.backdropDeleteConfirm': 'Remove this file from the library?',
   'theme.backdropGlass': 'Pane opacity',
   'theme.backdropBlur': 'Background blur',
+  'theme.transparency': 'Card transparency',
   'theme.pack': '{name} pack · {n}',
   'theme.regions.title': 'Advanced: colors by region',
   'theme.regions.hint': 'A background and text color of their own for each region. Left on automatic, a region uses the theme\'s; muted text and raised surfaces are worked out from what you pick.',

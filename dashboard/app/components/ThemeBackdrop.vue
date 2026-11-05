@@ -7,7 +7,10 @@ import { backdropSrc, type Backdrop } from '~/composables/useTheme'
 const props = defineProps<{ bg: Backdrop }>()
 const src = computed(() => backdropSrc(props.bg))
 // a blurred background is scaled up a little so its edges stay covered
-const style = computed(() => props.bg.blur ? { filter: `blur(${props.bg.blur}px)`, transform: `scale(${1 + props.bg.blur / 100})` } : undefined)
+const style = computed(() => ({
+  opacity: props.bg.strength ?? 1,
+  ...(props.bg.blur ? { filter: `blur(${props.bg.blur}px)`, transform: `scale(${1 + props.bg.blur / 100})` } : {})
+}))
 const still = ref(false)
 onMounted(() => { still.value = window.matchMedia('(prefers-reduced-motion: reduce)').matches })
 </script>

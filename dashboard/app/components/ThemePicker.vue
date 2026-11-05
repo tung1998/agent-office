@@ -5,13 +5,13 @@
 // colors worked out from it (useTheme, utils/backdropColors).
 import type { MessageKey } from '~/locales/vi'
 import { COLOR_THEMES, WALLPAPER_THEMES, wallGlassFloor, DEFAULT_CUSTOM, EXTRA_COLORS, autoColors, contrast, isHex, type ExtraColor, type Theme, type ThemeColors } from '~/utils/themes'
-import { BG_MAX, BLUR_MAX, GLASS_MIN, backdropFloor, backdropGlass, backdropSrc, bgKind, bgVersion, type BgItem } from '~/composables/useTheme'
-import { suggestColors } from '~/utils/backdropColors'
+import { BG_MAX, BLUR_MAX, CLEAR_MAX, GLASS_MIN, backdropFloor, backdropGlass, backdropSrc, bgKind, bgVersion, type BgItem } from '~/composables/useTheme'
+import { cssHex, suggestColors } from '~/utils/backdropColors'
 import { BACKGROUND_PACKS } from '~/utils/backgroundPacks'
 
 const { t } = useLang()
 const toast = useToast()
-const { saved, theme, look, library, setWallGlass, previewWallGlass, setTheme, setCustom, setLook, loadLibrary, pickBackground, setBackground, clearBackground, deleteBackground, sampleSaved, setGlass, previewGlass, setBlur, previewBlur, pickPackImage } = useTheme()
+const { saved, theme, look, library, setWallGlass, previewWallGlass, setTheme, setCustom, setLook, loadLibrary, pickBackground, setBackground, clearBackground, deleteBackground, sampleSaved, setGlass, previewGlass, previewBg, keepBg, previewWall, keepWall, previewClear, keepClear, pickPackImage } = useTheme()
 const colorMode = useColorMode()
 const custom = reactive<ThemeColors>({ ...DEFAULT_CUSTOM, ...saved.value.custom })
 const auto = computed(() => autoColors(custom))
@@ -34,7 +34,26 @@ async function run(p: Promise<void>) {
     toast.add({ title: apiError(e), color: 'error' })
   }
 }
-const pick = (id: string) => saved.value.id !== id && run(setTheme(id))
+// own colors start from the look in use (the theme's colors, or the default
+// look's as the page shows them), not from a fixed set
+function currentColors(): ThemeColors {
+  const th = theme.value
+  if (th) {
+    const c: ThemeColors = { bg: th.bg, text: th.text, accent: th.accent }
+    for (const k of EXTRA_COLORS) if (th[k]) c[k] = th[k]
+    return c
+  }
+  const bg = cssHex('var(--ui-bg)'), text = cssHex('var(--ui-text)'), accent = cssHex('var(--ui-primary)')
+  return bg && text && accent ? { bg, text, accent } : { ...DEFAULT_CUSTOM }
+}
+function pick(id: string) {
+  if (saved.value.id === id) return
+  if (id !== 'custom') return run(setTheme(id))
+  const c = currentColors()
+  for (const k of EXTRA_COLORS) delete custom[k]
+  Object.assign(custom, c)
+  run(setCustom({ ...c }))
+}
 function pickColor(k: ColorKey, v: string) {
   custom[k] = v
   if (isHex(v)) run(setCustom({ ...custom }))
@@ -43,8 +62,6 @@ function autoColor(k: ExtraColor) {
   delete custom[k]
   run(setCustom({ ...custom }))
 }
-// dragging shows the strength at once; it is saved when let go
-const preview = (v: number) => { saved.value = { ...saved.value, wall: { ...saved.value.wall, strength: v } } }
 // a background image or video of the person's own, on top of any theme
 const fileInput = ref<HTMLInputElement>()
 const uploading = ref(false)
@@ -106,7 +123,7 @@ async function pickPack(src: string) {
   await run(pickPackImage(src))
   packBusy.value = ''
 }
-const keepBlur = () => { const p = setBlur(); if (p) run(p) }
+const keepBackdrop = () => { const p = keepBg(); if (p) run(p) }
 const nameOf = (id: string) => t(`theme.name.${id}` as MessageKey)
 const swatch = (th: Theme) => ({ background: th.wallpaper?.sky ?? th.bg, color: th.text })
 </script>
@@ -266,9 +283,17 @@ const swatch = (th: Theme) => ({ background: th.wallpaper?.sky ?? th.bg, color: 
       <UFormField v-if="saved.bg" :label="t('theme.backdropGlass')" :help="floor ? t('theme.backdropFloor', { n: Math.round(floor * 100) }) : undefined">
         <USlider :model-value="glass" :min="GLASS_MIN" :max="0.99" :step="0.01" @update:model-value="(v) => previewGlass(v as number)" @change="keepGlass" />
       </UFormField>
-      <UFormField v-if="saved.bg" :label="t('theme.backdropBlur')">
-        <USlider :model-value="saved.bg.blur ?? 0" :min="0" :max="BLUR_MAX" :step="1" @update:model-value="(v) => previewBlur(v as number)" @change="keepBlur" />
-      </UFormField>
+      <template v-if="saved.bg">
+        <UFormField :label="t('theme.strength')">
+          <USlider :model-value="saved.bg.strength ?? 1" :min="0.15" :max="1" :step="0.05" @update:model-value="(v) => previewBg({ strength: v as number })" @change="keepBackdrop" />
+        </UFormField>
+        <UFormField :label="t('theme.transparency')">
+          <USlider :model-value="saved.clear ?? 0" :min="0" :max="CLEAR_MAX" :step="0.05" @update:model-value="(v) => previewClear(v as number)" @change="run(keepClear())" />
+        </UFormField>
+        <UFormField :label="t('theme.backdropBlur')">
+          <USlider :model-value="saved.bg.blur ?? 0" :min="0" :max="BLUR_MAX" :step="1" @update:model-value="(v) => previewBg({ blur: v as number })" @change="keepBackdrop" />
+        </UFormField>
+      </template>
     </div>
 
     <div v-if="theme?.wallpaper && !saved.bg" class="space-y-3 rounded-lg border border-(--ui-border) p-3">
@@ -276,7 +301,13 @@ const swatch = (th: Theme) => ({ background: th.wallpaper?.sky ?? th.bg, color: 
         <USlider :model-value="wallGlass" :min="GLASS_MIN" :max="0.99" :step="0.01" @update:model-value="(v) => previewWallGlass(v as number)" @change="keepWallGlass" />
       </UFormField>
       <UFormField :label="t('theme.strength')">
-        <USlider :model-value="look.strength" :min="0.15" :max="1" :step="0.05" @update:model-value="(v) => preview(v as number)" @change="run(setLook({ strength: look.strength }))" />
+        <USlider :model-value="look.strength" :min="0.15" :max="1" :step="0.05" @update:model-value="(v) => previewWall({ strength: v as number })" @change="run(keepWall())" />
+      </UFormField>
+      <UFormField :label="t('theme.transparency')">
+        <USlider :model-value="saved.clear ?? 0" :min="0" :max="CLEAR_MAX" :step="0.05" @update:model-value="(v) => previewClear(v as number)" @change="run(keepClear())" />
+      </UFormField>
+      <UFormField :label="t('theme.backdropBlur')">
+        <USlider :model-value="look.blur" :min="0" :max="BLUR_MAX" :step="1" @update:model-value="(v) => previewWall({ blur: v as number })" @change="run(keepWall())" />
       </UFormField>
       <div class="grid grid-cols-2 gap-3">
         <UFormField :label="t('theme.speed')">

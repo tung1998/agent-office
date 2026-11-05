@@ -9,18 +9,23 @@ import { cssHex, minGlass, sampleBackdrop } from '~/utils/backdropColors'
 import { regionCss, type RegionColors } from '~/utils/regionColors'
 import { isPackSrc } from '~/utils/backgroundPacks'
 
-export interface WallLook { strength: number, speed: number, cell: number, still: boolean }
+// blur: px, 0 = sharp
+export interface WallLook { strength: number, speed: number, cell: number, still: boolean, blur: number }
 // a background of the person's own (/api/me/background), on any theme: the
 // file's kind, its version (the cache key), how opaque the panes over it are,
 // a swatch of its colors (utils/backdropColors) to keep text readable on it,
-// and how blurred it is (px, 0 = sharp); src: an image of a pack the
-// dashboard ships (utils/backgroundPacks.ts) instead of the person's file
-export interface Backdrop { kind: 'image' | 'video', v: number, src?: string, glass?: number, swatch?: string[], blur?: number }
+// how strongly it shows (0–1, 1 by default) and how blurred it is (px, 0 =
+// sharp); src: an image of a pack the dashboard ships (utils/backgroundPacks.ts)
+// instead of the person's file
+export interface Backdrop { kind: 'image' | 'video', v: number, src?: string, glass?: number, swatch?: string[], strength?: number, blur?: number }
 export const BLUR_MAX = 30
+export const CLEAR_MAX = 0.9
 // wallGlass: how opaque the panes over a wallpaper theme are, the person's own;
-// regions: the custom theme's advanced colors (utils/regionColors.ts)
-export interface SavedTheme { id: string, custom?: ThemeColors, regions?: RegionColors, wall?: Partial<WallLook>, wallGlass?: number, bg?: Backdrop }
-export const WALL_LOOK: WallLook = { strength: 0.45, speed: 1, cell: 18, still: false }
+// regions: the custom theme's advanced colors (utils/regionColors.ts);
+// clear: how see-through the cards are over a background or wallpaper (0–0.9)
+export interface SavedTheme { id: string, custom?: ThemeColors, regions?: RegionColors, wall?: Partial<WallLook>, wallGlass?: number, bg?: Backdrop, clear?: number }
+export const WALL_LOOK: WallLook = { strength: 0.45, speed: 1, cell: 18, still: false, blur: 0 }
+const CLEAR_ID = 'office-clear'
 const PREF_URL = '/api/me/prefs/theme'
 const KEY = 'office.theme'
 const STYLE_ID = 'office-theme'
@@ -82,7 +87,22 @@ export function readSavedTheme(): SavedTheme {
 export function paintTheme(s: SavedTheme): Theme | undefined {
   const t = paintColors(s)
   paintBackdrop(s.bg) // after: its glass depends on the theme's colors
+  paintClear(s.bg || t?.wallpaper ? s.clear : undefined)
   return t
+}
+// The cards over a background or wallpaper: see-through by clear (none: solid)
+function paintClear(clear: number | undefined) {
+  let style = document.getElementById(CLEAR_ID)
+  if (!clear) {
+    style?.remove()
+    return
+  }
+  if (!style) {
+    style = document.createElement('style')
+    style.id = CLEAR_ID
+  }
+  style.textContent = `html .office-card{background-color:color-mix(in srgb,var(--ui-bg) ${Math.round((1 - Math.min(clear, CLEAR_MAX)) * 100)}%,transparent)}`
+  document.head.append(style)
 }
 function paintColors(s: SavedTheme): Theme | undefined {
   const root = document.documentElement
@@ -218,12 +238,23 @@ export function useTheme() {
   }
 
   const setRegions = (regions: RegionColors) => save({ ...saved.value, regions })
-  const setBlur = () => saved.value.bg && save({ ...saved.value })
-  // dragging blurs the background at once; setBlur keeps it when let go
-  function previewBlur(blur: number) {
+  // the background's strength and blur: dragging shows them at once,
+  // keepBg saves them when let go
+  function previewBg(o: Pick<Backdrop, 'strength' | 'blur'>) {
     if (!saved.value.bg) return
-    saved.value = { ...saved.value, bg: { ...saved.value.bg, blur } }
+    saved.value = { ...saved.value, bg: { ...saved.value.bg, ...o } }
   }
+  const keepBg = () => saved.value.bg && save({ ...saved.value })
+  // the wallpaper's look the same way (setLook saves a change at once)
+  function previewWall(o: Partial<WallLook>) {
+    saved.value = { ...saved.value, wall: { ...saved.value.wall, ...o } }
+  }
+  const keepWall = () => save({ ...saved.value })
+  function previewClear(clear: number) {
+    saved.value = { ...saved.value, clear }
+    paintClear(clear)
+  }
+  const keepClear = () => save({ ...saved.value })
 
   const setWallGlass = (v: number | undefined) => save({ ...saved.value, wallGlass: v })
   function previewWallGlass(v: number) {
@@ -231,5 +262,5 @@ export function useTheme() {
     paintColors(saved.value)
   }
 
-  return { setWallGlass, previewWallGlass, saved, theme, look, library, load, setTheme, setCustom, setLook, loadLibrary, pickBackground, setBackground, clearBackground, deleteBackground, sampleSaved, setGlass, previewGlass, setBlur, previewBlur, setRegions, pickPackImage }
+  return { setWallGlass, previewWallGlass, saved, theme, look, library, load, setTheme, setCustom, setLook, loadLibrary, pickBackground, setBackground, clearBackground, deleteBackground, sampleSaved, setGlass, previewGlass, previewBg, keepBg, previewWall, keepWall, previewClear, keepClear, setRegions, pickPackImage }
 }
