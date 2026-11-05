@@ -2,6 +2,7 @@ package channels_test
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -152,8 +153,14 @@ func TestPendingTellsOncePerSpell(t *testing.T) {
 	}
 }
 
-// A busy notice the chat never got is sent again on the next turned-away message.
+// A busy notice the chat never got is sent again on the next turned-away
+// message, whether the lost one was a message's notice or a slash command's reply.
 func TestBusyNoticeRetriedAfterSendFailure(t *testing.T) {
+	t.Run("message", func(t *testing.T) { busyNoticeRetried(t, false) })
+	t.Run("slash", func(t *testing.T) { busyNoticeRetried(t, true) })
+}
+
+func busyNoticeRetried(t *testing.T, slash bool) {
 	ctx := context.Background()
 	tmp := t.TempDir()
 	st, _ := sqlite.Open(filepath.Join(tmp, "o.db"))
@@ -204,10 +211,15 @@ func TestBusyNoticeRetriedAfterSendFailure(t *testing.T) {
 		send("tin " + string(rune('a'+i)))
 	}
 	waitFor("queued", func() bool { return count(rule.ID, "") == channels.MaxPending })
-	bot.mu.Lock()
-	bot.failNext["42"] = 1 // the first notice is lost
-	bot.mu.Unlock()
-	send("tin thừa 1")
+	if slash { // the first refusal is a slash command whose reply fails
+		bot.in <- channels.Incoming{ChatID: "42", UserID: "7", UserName: "an", Text: "tin thừa 1", Private: true, Addressed: true,
+			Respond: func(context.Context, string) (string, error) { return "", errors.New("fake: reply failure") }}
+	} else {
+		bot.mu.Lock()
+		bot.failNext["42"] = 1 // the first notice is lost
+		bot.mu.Unlock()
+		send("tin thừa 1")
+	}
 	waitFor("first skipped", func() bool { return count(ch.ID, "skipped") == 1 })
 	send("tin thừa 2")
 	got := bot.wait(t, "42", 1)

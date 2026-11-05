@@ -318,13 +318,20 @@ func (m *Manager) handle(ctx context.Context, channelID string, ad Adapter, in I
 	}
 	if ok, tell := m.pending.Take(key); !ok { // a flood from one chat: the rest is turned away, never silently
 		slog.Info("channels: busy, message dropped", "channel", ch.ID, "chat", in.ChatID, "user", in.UserID)
-		if in.Respond != nil { // a slash command waits for an answer
-			say(BusyNotice)
-		} else if tell != 0 { // a message: once per busy spell, again if the notice did not get through
-			if ids, err := ad.Send(ctx, in.ChatID, BusyNotice); err != nil && len(ids) == 0 {
-				slog.Warn("channels: busy notice not sent", "channel", ch.ID, "chat", in.ChatID, "err", err)
-				m.pending.Untell(key, tell)
+		// a slash command waits for an answer; a message is told once per busy
+		// spell, again if the notice (either kind) did not get through
+		var err error
+		if in.Respond != nil {
+			_, err = in.Respond(ctx, BusyNotice)
+		} else if tell != 0 {
+			var ids []string
+			if ids, err = ad.Send(ctx, in.ChatID, BusyNotice); len(ids) > 0 {
+				err = nil // a part landed: the chat was told
 			}
+		}
+		if err != nil {
+			slog.Warn("channels: busy notice not sent", "channel", ch.ID, "chat", in.ChatID, "err", err)
+			m.pending.Untell(key, tell)
 		}
 		_, _ = m.store.Jobs().Create(ctx, storage.Job{ProjectID: ch.ProjectID, Kind: "chat_turn", Origin: "user", OriginID: ch.ID, Trigger: ch.Kind,
 			CreatedBy: fmt.Sprintf("%s:%s", ch.Kind, firstNonEmpty(in.UserName, in.UserID)), Title: truncate(in.Text, 80),
