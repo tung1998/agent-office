@@ -30,9 +30,9 @@ export const COLOR_THEMES: Theme[] = [
   { id: 'sunset-cloud', bg: '#2b2030', text: '#f7e8e2', accent: '#ff8a6b' },
   { id: 'night-sea', bg: '#0f1a2c', text: '#dce6fa', accent: '#5aaeff' },
   { id: 'terminal', bg: '#0a110c', text: '#b9f6c6', accent: '#39e87a', font: MONO },
-  { id: 'sakura', bg: '#fff4f6', text: '#4b2a35', accent: '#e0567f' },
+  { id: 'sakura', bg: '#fff4f6', text: '#4b2a35', accent: '#c23a66' },
   { id: 'old-paper', bg: '#f2e9d6', text: '#3a2f22', accent: '#a5522c', font: SERIF },
-  { id: 'mint', bg: '#f3faf6', text: '#1f3a30', accent: '#14a37f' }
+  { id: 'mint', bg: '#f3faf6', text: '#1f3a30', accent: '#0b7a5f' }
 ]
 
 export const WALLPAPER_THEMES: Theme[] = [
@@ -46,7 +46,7 @@ export const WALLPAPER_THEMES: Theme[] = [
   live('jellyfish', ['#0a1830', '#dfe7fb', '#a58cf0'], bands(0.07, 'linear-gradient(#174784, #0c2b58 50%, #071a3a)'), 'rgba(12, 28, 58, .7)'),
   live('koi-pond', ['#11332d', '#e4f2ea', '#ef8a4a'], bands(0.12, 'linear-gradient(175deg, #4aa08c, #2f8070 50%, #1f6156)'), 'rgba(17, 51, 45, .72)'),
   live('honu-lagoon', ['#0f3a44', '#e3f6f2', '#5fd0b8'], bands(0.14, 'linear-gradient(#35a6f0, #1d7ad8 45%, #1650b2)'), 'rgba(15, 58, 68, .72)'),
-  live('cloud-drift', ['#d8ecfa', '#1d3447', '#2f78bd'], bands(0.22, 'linear-gradient(#4fa3e8, #86c3f0 55%, #b6dbf6)'), 'rgba(255, 255, 255, .7)')
+  live('cloud-drift', ['#d8ecfa', '#1d3447', '#1f5f99'], bands(0.22, 'linear-gradient(#4fa3e8, #86c3f0 55%, #b6dbf6)'), 'rgba(255, 255, 255, .7)')
 ]
 
 export const DEFAULT_CUSTOM: ThemeColors = { bg: '#1b1d24', text: '#e4e6ee', accent: '#8b7cf6' }
@@ -57,6 +57,17 @@ const hex = (c: number[]) => '#' + c.map(v => Math.round(Math.max(0, Math.min(1,
 const mix = (a: string, b: string, k: number) => { const x = rgb(a), y = rgb(b); return hex(x.map((v, i) => v + (y[i]! - v) * k)) }
 const luma = (c: string) => { const [r, g, b] = rgb(c); return 0.2126 * r + 0.7152 * g + 0.0722 * b }
 export const isDark = (t: ThemeColors) => luma(t.bg) < 0.5
+// WCAG contrast ratio (1–21): body text wants 4.5, large text and icons 3
+const lum = (c: string) => { const [r, g, b] = rgb(c).map(v => v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4); return 0.2126 * r! + 0.7152 * g! + 0.0722 * b! }
+export const contrast = (a: string, b: string) => { const x = lum(a), y = lum(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05) }
+// The text on an accent fill (solid buttons, the person's chat bubble) and on
+// the inverted fill (the theme's text color): white or a near-black of the
+// theme, whichever reads better on both.
+export function onAccent(t: ThemeColors): string {
+  const darkInk = luma(t.bg) < luma(t.text) ? t.bg : mix(t.text, '#000000', 0.6)
+  const score = (c: string) => Math.min(contrast(c, t.accent), contrast(c, t.text))
+  return score('#ffffff') >= score(darkInk) ? '#ffffff' : darkInk
+}
 
 export function findTheme(id: string, custom?: ThemeColors): Theme | undefined {
   if (id === 'custom') {
@@ -69,7 +80,7 @@ export function findTheme(id: string, custom?: ThemeColors): Theme | undefined {
 const SHADES = [50, 100, 200, 300, 400, 500, 600, 700, 800, 900, 950] as const
 // how much of the text color each neutral shade carries over the background:
 // the light scale runs from the page (50) to ink (950), the dark one back
-const INK_LIGHT = [0.03, 0.07, 0.14, 0.26, 0.42, 0.55, 0.66, 0.78, 0.88, 0.95, 1]
+const INK_LIGHT = [0.03, 0.07, 0.14, 0.26, 0.56, 0.7, 0.78, 0.86, 0.92, 0.96, 1]
 const INK_DARK = [1, 0.95, 0.88, 0.76, 0.6, 0.45, 0.32, 0.2, 0.1, 0, -0.25]
 // the accent toward white (light shades) and black (dark ones)
 const ACCENT = [0.9, 0.8, 0.62, 0.42, 0.2, 0, -0.16, -0.32, -0.48, -0.62, -0.74]
@@ -90,7 +101,7 @@ export function themeCss(t: Theme): string {
     '--ui-bg': t.bg,
     '--ui-text-highlighted': t.text,
     '--ui-bg-inverted': t.text,
-    '--ui-text-inverted': luma(t.accent) > 0.55 ? mix(t.bg, '#000000', dark ? 0 : 0.85) : '#ffffff'
+    '--ui-text-inverted': onAccent(t)
   })
   if (t.font) vars['--font-sans'] = t.font
   let css = `html[data-theme="${t.id}"]{${Object.entries(vars).map(([k, v]) => `${k}:${v}`).join(';')}}`

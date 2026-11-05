@@ -256,7 +256,7 @@ const needsLabel = computed<Record<string, string>>(() => ({ key: t('setup.needs
         <template #header>
           <div class="flex items-center justify-between gap-2">
             <div class="flex items-center gap-2">
-              <span class="flex size-6 items-center justify-center rounded-full bg-(--ui-primary) text-xs font-semibold text-white">1</span>
+              <span class="flex size-6 items-center justify-center rounded-full bg-(--ui-primary) text-xs font-semibold text-(--ui-text-inverted)">1</span>
               <p class="font-medium">{{ t('setup.step1') }}</p>
             </div>
             <UButton v-if="project.scope === 'folder'" icon="i-lucide-refresh-cw" size="xs" color="neutral" variant="ghost" :loading="scanning" :label="t('setup.rescan')" @click="runScan" />
@@ -305,7 +305,7 @@ const needsLabel = computed<Record<string, string>>(() => ({ key: t('setup.needs
       <UCard>
         <template #header>
           <div class="flex items-center gap-2">
-            <span class="flex size-6 items-center justify-center rounded-full bg-(--ui-primary) text-xs font-semibold text-white">2</span>
+            <span class="flex size-6 items-center justify-center rounded-full bg-(--ui-primary) text-xs font-semibold text-(--ui-text-inverted)">2</span>
             <p class="font-medium">{{ t('setup.step2') }}</p>
           </div>
         </template>
@@ -334,7 +334,7 @@ const needsLabel = computed<Record<string, string>>(() => ({ key: t('setup.needs
         <template #header>
           <div class="flex flex-wrap items-center justify-between gap-2">
             <div class="flex items-center gap-2">
-              <span class="flex size-6 items-center justify-center rounded-full bg-(--ui-primary) text-xs font-semibold text-white">3</span>
+              <span class="flex size-6 items-center justify-center rounded-full bg-(--ui-primary) text-xs font-semibold text-(--ui-text-inverted)">3</span>
               <p class="font-medium">{{ t('setup.step3') }}</p>
             </div>
             <span class="text-xs text-(--ui-text-muted)">

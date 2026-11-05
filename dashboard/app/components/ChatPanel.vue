@@ -1105,7 +1105,7 @@ onBeforeUnmount(() => {
                   <div class="markdown mt-1.5 min-w-0" @click="onMarkdownClick" v-html="renderMarkdown(reportBody(m.content), true, projectId)" />
                 </details>
               </div>
-              <div v-else-if="m.content" class="min-w-0 whitespace-pre-wrap rounded-2xl rounded-br-sm bg-(--ui-primary) px-3.5 py-2 text-sm text-white @max-[420px]/chat:px-2 @max-[420px]/chat:py-1 @max-[420px]/chat:text-xs"><template v-for="(p, i) in tagged(m.content)" :key="i"><span v-if="p.tag" class="rounded bg-white/20 px-0.5 font-medium">{{ p.text }}</span><template v-else>{{ p.text }}</template></template></div>
+              <div v-else-if="m.content" class="min-w-0 whitespace-pre-wrap rounded-2xl rounded-br-sm bg-(--ui-primary) px-3.5 py-2 text-sm text-(--ui-text-inverted) @max-[420px]/chat:px-2 @max-[420px]/chat:py-1 @max-[420px]/chat:text-xs"><template v-for="(p, i) in tagged(m.content)" :key="i"><span v-if="p.tag" class="rounded bg-white/20 px-0.5 font-medium">{{ p.text }}</span><template v-else>{{ p.text }}</template></template></div>
             </div>
           </div>
           <div v-else-if="m.role === 'error'" class="flex items-start gap-2 text-sm text-(--ui-error)">
