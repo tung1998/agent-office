@@ -115,6 +115,15 @@ func TestLibraryPacksImport(t *testing.T) {
 					t.Fatalf("trading: %d agents, %d workflows, %d schedules, %d tables", len(agents), len(wfs), len(autos), len(cols))
 				}
 			}
+			// a web app team and a TikTok channel: their tables, four workflows, three schedules off
+			for name, want := range map[string][4]int{"@agentoffice/webapp": {3, 4, 3, 4}, "@agentoffice/tiktok": {4, 4, 3, 4}} {
+				if b.Name == name {
+					cols, _ := o.st.Collections().List(ctx, repo.ID)
+					if got := [4]int{len(agents), len(wfs), len(autos), len(cols)}; got != want {
+						t.Fatalf("%s: agents, workflows, schedules, tables = %v, want %v", name, got, want)
+					}
+				}
+			}
 			if e.Key == "cskh" {
 				if fc := features.LoadConfig(ctx, o.st, repo.ID); !fc.Packs["support"] {
 					t.Fatalf("cskh: support pack off: %+v", fc)

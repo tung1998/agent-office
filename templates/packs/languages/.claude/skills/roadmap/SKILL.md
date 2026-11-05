@@ -49,7 +49,7 @@ At the weekly check (the schedule, or when asked), and at once when the learner 
 2. Decide by the numbers:
    - On track (≥ 85% done, checkpoint passed): keep it, schedule the next 2 weeks.
    - A phase ending: check its gate (section 3). Passed: open the next phase. Not passed: keep the phase one more week on what is under box 3 and the checkpoint's `weak_tags` (review and focused practice, few new items), then check again; failed twice: say so and re-plan with section 2, never move on silently.
-   - Behind (< 70% done, or the review backlog over a day's session): lower the new material, never the review; spread what was missed over the next weeks within the buffer; the buffer used up: say so and offer a choice (more time, later date, narrower goal).
+   - Behind (< 70% done, or the review backlog over a day's session): lower the new material, never the review (new items paused: write the date new items resume in the week table, words the learner still sends are recorded with that date and the tag `paused`, skill `notes` section 3; once they resume, remove `paused` from the items now due); spread what was missed over the next weeks within the buffer; the buffer used up: say so and offer a choice (more time, later date, narrower goal).
    - Ahead (everything done, high scores): offer more, or an earlier mock test.
    - Review accuracy keeps learning in its best band, about 70-85%: under 60%, too much new at once (fewer new items, more grammar in context); above 90% for two weeks, room for more.
    - A weak area: the week's 3 most frequent mistake kinds (`mistakes` by `kind` and `count`, tags `error:*`) and `weak_tags`; one seen two weeks running gets more time next week and a focused exercise.

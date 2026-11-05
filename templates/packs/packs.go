@@ -21,7 +21,7 @@ import (
 	"strings"
 )
 
-//go:embed all:startup all:languages all:trading
+//go:embed all:startup all:languages all:trading all:webapp all:tiktok
 var files embed.FS
 
 // Scope prefixes every pack name of the library.

@@ -318,6 +318,8 @@ func TestLibraryPackRequirements(t *testing.T) {
 		"office/teacher":           "@agentoffice/languages",
 		"office/ceo":               "@agentoffice/startup",
 		"office/portfolio-manager": "@agentoffice/trading",
+		"office/web-lead":          "@agentoffice/webapp",
+		"office/channel-manager":   "@agentoffice/tiktok",
 		"office/researcher":        "", // pack origin alone is not a dependency
 		"office/backend-dev":       "",
 	} {

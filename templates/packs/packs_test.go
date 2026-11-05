@@ -91,6 +91,21 @@ func TestLibrary(t *testing.T) {
 			t.Fatalf("trading: %s missing", f)
 		}
 	}
+	// a web app team and a TikTok channel: their skills and documents
+	for ref, files := range map[string][]string{
+		"@agentoffice/webapp": {"office.pack.json", ".claude/skills/spec/SKILL.md", ".claude/skills/verify-ui/SKILL.md", "docs/stack.md"},
+		"@agentoffice/tiktok": {"office.pack.json", ".claude/skills/production/SKILL.md", ".claude/skills/guidelines/SKILL.md", "docs/channel.md"},
+	} {
+		dir := repo()
+		if _, err := packs.Write(ctx, ref, dir, true); err != nil {
+			t.Fatal(err)
+		}
+		for _, f := range files {
+			if _, err := os.Stat(filepath.Join(dir, f)); err != nil {
+				t.Fatalf("%s: %s missing", ref, f)
+			}
+		}
+	}
 	if _, e, err := packs.Find("@agentoffice/company/marketing"); err != nil || e.Ref != "@agentoffice/startup/marketing" {
 		t.Fatalf("old name: %+v %v", e, err)
 	}

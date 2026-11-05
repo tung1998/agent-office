@@ -1,0 +1,13 @@
+{
+  "title": "Làm video TikTok",
+  "description": "Một nhà sáng tạo với bốn agent: Quản lý kênh điều phối và lên lịch nội dung, Biên kịch tra trend và viết kịch bản, Dựng video cắt ghép video dọc có phụ đề, Soát nội dung kiểm quy định, bản quyền và sức hút trước khi đăng. Office không tự đăng.",
+  "packs": [
+    {
+      "key": "",
+      "title": "Làm video TikTok",
+      "description": "Hồ sơ kênh → ý tưởng theo trend có nguồn, có điểm → kịch bản có hook theo từng giây → dựng video 1080x1920 bằng ffmpeg, phụ đề whisper, ảnh bìa → soát quy định, bản quyền, nhãn AI → bạn đăng → số liệu tuần, bài học cho lần sau. Có quy trình cắt video dài thành nhiều video ngắn. Ba lịch (quét trend, kế hoạch tuần, đánh giá tuần), tắt sẵn.",
+      "file": "office.pack.json",
+      "root": true
+    }
+  ]
+}

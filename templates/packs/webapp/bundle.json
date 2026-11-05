@@ -1,0 +1,13 @@
+{
+  "title": "Phát triển ứng dụng web",
+  "description": "Một ứng dụng web với ba agent: Trưởng dự án viết spec và giữ backlog, Lập trình web làm full-stack theo test trước, Soát và kiểm thử soát code và kiểm trên trình duyệt thật.",
+  "packs": [
+    {
+      "key": "",
+      "title": "Phát triển ứng dụng web",
+      "description": "Từ ý tưởng tới bản chạy: spec có tiêu chí chấp nhận → làm tính năng (test trước) → soát diff và kiểm trên trình duyệt (Playwright) → sửa lỗi có test tái hiện → kiểm tra trước phát hành (build, test, audit thư viện, a11y, hiệu năng). Backlog, lỗi, phát hành, quyết định trong bảng dữ liệu. Ba lịch kiểm tra, tắt sẵn.",
+      "file": "office.pack.json",
+      "root": true
+    }
+  ]
+}

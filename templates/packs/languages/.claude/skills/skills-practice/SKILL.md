@@ -34,6 +34,21 @@ Office cannot play or record sound: use real audio the learner opens themselves.
 ## Characters (chu) - Japanese, Chinese, Korean
 - Each character is a `vocabulary` item with `part_of_speech` `character`: `word` the character, `reading` its readings (on/kun, pinyin), `meaning`, `notes` the radical, stroke count and 2-3 common words with it (recorded as words too), `tags` `characters`. Reviewed like words (skill `review`): character → reading and meaning, word → write it.
 - Writing by hand: the learner writes on paper and checks the stroke order; photos may be sent for a look.
+- Stroke order, stroke shapes and the radical: from a source you checked (a dictionary site with stroke-order data, the learner's book), with the link; never from memory. Not verified: say so and ask the learner to check the book; two similar characters (午 and 牛, 未 and 末) are told apart by naming the stroke that differs, from the source.
+- **Copy sheet** (the learner asks for sentences to copy out, or a `chu` task): 10 sentences at the level built from words and patterns already in the notebook (mostly boxes 1-3), saved in `exercises/<YYYY-MM-DD>-copy.md`:
+
+  ```markdown
+  # Copy sheet · <date>
+  | # | Sentence | Reading | Meaning |
+  |---|---|---|---|
+  | 1 | … | … | … |
+
+  ## Watch out
+  - Confusable characters: 午 / 牛 (the stroke that differs)
+  - Grammar traps: <pattern>, <the usual mistake>
+  ```
+
+  The learner copies by hand and sends a photo or types it back; grade it character by character: each wrong or misshapen character goes to `mistakes` (`kind` `spelling`, `skill` `characters`) and its item gets `error:spelling` and back to box 1 (skill `review`). The `exercises` record: `kind` `practice`, `skill` `characters`.
 - Hangul (Korean) is learned in the first days, not tracked item by item; after that, `characters` tasks are spelling and batchim.
 
 ## Balance
