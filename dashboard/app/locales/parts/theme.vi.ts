@@ -38,7 +38,7 @@ export default {
   'theme.backdropOff': 'Tắt ảnh nền',
   'theme.backdropDelete': 'Xóa khỏi thư viện',
   'theme.backdropDeleteConfirm': 'Xóa file này khỏi thư viện?',
-  'theme.backdropGlass': 'Độ đục của khung (dễ đọc chữ)',
+  'theme.backdropGlass': 'Độ đậm của khung',
   'theme.backdropTooBig': 'File quá lớn (tối đa 25 MB)',
   'theme.custom.muted': 'Chữ phụ (xám)',
   'theme.custom.surface': 'Nền khung',
@@ -48,5 +48,5 @@ export default {
   'theme.contrast': 'Tương phản {n} (WCAG: chữ thường cần 4.5, chữ lớn và icon cần 3)',
   'theme.backdropSuggest': 'Dùng màu theo ảnh',
   'theme.backdropSuggestHint': 'Tạo bộ màu tự chọn từ ảnh: nền và chữ ngả theo màu ảnh, màu nhấn là màu nổi nhất của ảnh, chỉnh cho đủ tương phản.',
-  'theme.backdropFloor': 'Thấp nhất {n}% để chữ xám dễ đọc trên nền này'
+  'theme.backdropFloor': 'Từ {n}% trở lên thì chữ xám dễ đọc trên nền này'
 }

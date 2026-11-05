@@ -102,24 +102,54 @@ export function autoColors(t: ThemeColors): Record<ExtraColor, string> {
 
 // The glass over a wallpaper's sky, at least as opaque as its own and as much
 // more as muted text (--ui-text-muted) needs for 4.5 and dimmed text for 3
-// over every color of the sky (WCAG, ADR-249)
-function readableGlass(w: { sky: string, glass: string }, muted: string, dimmed: string): string {
+// over every color of the sky (WCAG, ADR-249): its color and that opacity
+function readableGlass(w: { sky: string, glass: string }, muted: string, dimmed: string): { rgb: string, a: number } | undefined {
   const m = w.glass.match(/rgba\((\d+),\s*(\d+),\s*(\d+),\s*([\d.]+)\)/)
+  if (!m) return undefined
+  const rgb = `${m[1]}, ${m[2]}, ${m[3]}`
   const stops = w.sky.match(/#[0-9a-f]{6}/gi) ?? []
-  if (!m || !stops.length) return w.glass
+  let a = Number(m[4])
+  if (!stops.length) return { rgb, a }
   const g = hex([m[1], m[2], m[3]].map(v => Number(v) / 255))
   const ok = (a: number) => stops.every((s) => {
     const under = mix(s, g, a)
     return contrast(muted, under) >= 4.6 && contrast(dimmed, under) >= 3.1
   })
-  let a = Number(m[4])
   while (a < 0.95 && !ok(a)) a = Math.round((a + 0.01) * 100) / 100
-  return `rgba(${m[1]}, ${m[2]}, ${m[3]}, ${a})`
+  return { rgb, a }
 }
 
 // The CSS a theme sets on <html data-theme>: unlayered, so it wins over Nuxt
 // UI's theme layer; the light/dark class is set to match (useTheme).
-export function themeCss(t: Theme): string {
+// glass: the person's own opacity of the panes over a wallpaper (0–1); left
+// out, the readable one.
+export function themeCss(t: Theme, glass?: number): string {
+  const dark = isDark(t)
+  const vars = themeVars(t)
+  let css = `html[data-theme="${t.id}"]{${Object.entries(vars).map(([k, v]) => `${k}:${v}`).join(';')}}`
+  if (t.wallpaper) {
+    // the scene shows through: the page has no background of its own; the
+    // sidebar and the page (PageShell) are glass, as opaque as the sky needs
+    // for muted text to read, or as the person set it (cards, menus and
+    // dialogs keep theirs)
+    const r = readableGlass(t.wallpaper, vars['--ui-text-muted'] ?? vars[`--ui-color-neutral-${dark ? 400 : 500}`]!, vars['--ui-text-dimmed'] ?? vars[`--ui-color-neutral-${dark ? 500 : 400}`]!)
+    const g = r ? `rgba(${r.rgb}, ${glass ?? r.a})` : t.wallpaper.glass
+    css += `html[data-theme="${t.id}"]{background:${t.wallpaper.sky} fixed;--wall-glass:${g}}`
+      + `html[data-theme="${t.id}"] body{background:transparent}`
+      + `html[data-theme="${t.id}"] .office-sidebar,html[data-theme="${t.id}"] .office-main{background:var(--wall-glass)}`
+  }
+  return css
+}
+
+// the least glass over a wallpaper for its muted text to read (0: none)
+export function wallGlassFloor(t: Theme): number {
+  if (!t.wallpaper) return 0
+  const dark = isDark(t)
+  const vars = themeVars(t)
+  return readableGlass(t.wallpaper, vars['--ui-text-muted'] ?? vars[`--ui-color-neutral-${dark ? 400 : 500}`]!, vars['--ui-text-dimmed'] ?? vars[`--ui-color-neutral-${dark ? 500 : 400}`]!)?.a ?? 0
+}
+
+function themeVars(t: Theme): Record<string, string> {
   const dark = isDark(t)
   const ink = (k: number) => k < 0 ? mix(t.bg, '#000000', -k) : mix(t.bg, t.text, k)
   const vars: Record<string, string> = {}
@@ -139,15 +169,5 @@ export function themeCss(t: Theme): string {
     '--ui-text-inverted': onAccent(t)
   })
   if (t.font) vars['--font-sans'] = t.font
-  let css = `html[data-theme="${t.id}"]{${Object.entries(vars).map(([k, v]) => `${k}:${v}`).join(';')}}`
-  if (t.wallpaper) {
-    // the scene shows through: the page has no background of its own; the
-    // sidebar and the page (PageShell) are glass, as opaque as the sky needs
-    // for muted text to read (cards, menus and dialogs keep theirs)
-    const glass = readableGlass(t.wallpaper, vars['--ui-text-muted'] ?? vars[`--ui-color-neutral-${dark ? 400 : 500}`]!, vars['--ui-text-dimmed'] ?? vars[`--ui-color-neutral-${dark ? 500 : 400}`]!)
-    css += `html[data-theme="${t.id}"]{background:${t.wallpaper.sky} fixed;--wall-glass:${glass}}`
-      + `html[data-theme="${t.id}"] body{background:transparent}`
-      + `html[data-theme="${t.id}"] .office-sidebar,html[data-theme="${t.id}"] .office-main{background:var(--wall-glass)}`
-  }
-  return css
+  return vars
 }

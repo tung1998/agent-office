@@ -12,7 +12,8 @@ export interface WallLook { strength: number, speed: number, cell: number, still
 // file's kind, its version (the cache key), how opaque the panes over it are,
 // and a swatch of its colors (utils/backdropColors) to keep text readable on it
 export interface Backdrop { kind: 'image' | 'video', v: number, glass?: number, swatch?: string[] }
-export interface SavedTheme { id: string, custom?: ThemeColors, wall?: Partial<WallLook>, bg?: Backdrop }
+// wallGlass: how opaque the panes over a wallpaper theme are, the person's own
+export interface SavedTheme { id: string, custom?: ThemeColors, wall?: Partial<WallLook>, wallGlass?: number, bg?: Backdrop }
 export const WALL_LOOK: WallLook = { strength: 0.45, speed: 1, cell: 18, still: false }
 const PREF_URL = '/api/me/prefs/theme'
 const KEY = 'office.theme'
@@ -36,8 +37,11 @@ export function backdropFloor(b: Backdrop): number {
   const bg = cssHex('var(--ui-bg)'), muted = cssHex('var(--ui-text-muted)'), dimmed = cssHex('var(--ui-text-dimmed)')
   return bg && muted && dimmed ? minGlass(b.swatch, bg, muted, dimmed) : 0
 }
-// the glass in use: the person's, never below the floor
-export const backdropGlass = (b: Backdrop, floor = backdropFloor(b)) => Math.max(b.glass ?? (floor ? Math.max(floor, 0.6) : BG_GLASS), floor)
+// the glass in use: the person's (lighter than the floor if they like), else
+// the floor or more
+export const backdropGlass = (b: Backdrop, floor = backdropFloor(b)) => b.glass ?? (floor ? Math.max(floor, 0.6) : BG_GLASS)
+// the lightest glass the slider goes to
+export const GLASS_MIN = 0.2
 
 // The page over a background: no fill of its own, the sidebar and the page
 // panes are the theme's background color, see-through by glass.
@@ -87,7 +91,7 @@ function paintColors(s: SavedTheme): Theme | undefined {
     style = document.createElement('style')
     style.id = STYLE_ID
   }
-  style.textContent = themeCss(t)
+  style.textContent = themeCss(t, s.wallGlass)
   document.head.append(style) // last: after Nuxt UI's sheets
   root.dataset.theme = t.id
   const dark = isDark(t)
@@ -147,7 +151,8 @@ export function useTheme() {
     }
   }
 
-  const setTheme = (id: string) => save({ ...saved.value, id })
+  // a new theme starts with its own readable glass
+  const setTheme = (id: string) => save({ ...saved.value, id, wallGlass: undefined })
   const setCustom = (custom: ThemeColors) => save({ ...saved.value, id: 'custom', custom })
   const setLook = (o: Partial<WallLook>) => save({ ...saved.value, wall: { ...saved.value.wall, ...o } })
 
@@ -199,5 +204,11 @@ export function useTheme() {
     paintBackdrop(saved.value.bg)
   }
 
-  return { saved, theme, look, library, load, setTheme, setCustom, setLook, loadLibrary, pickBackground, setBackground, clearBackground, deleteBackground, sampleSaved, setGlass, previewGlass }
+  const setWallGlass = (v: number | undefined) => save({ ...saved.value, wallGlass: v })
+  function previewWallGlass(v: number) {
+    saved.value = { ...saved.value, wallGlass: v }
+    paintColors(saved.value)
+  }
+
+  return { setWallGlass, previewWallGlass, saved, theme, look, library, load, setTheme, setCustom, setLook, loadLibrary, pickBackground, setBackground, clearBackground, deleteBackground, sampleSaved, setGlass, previewGlass }
 }

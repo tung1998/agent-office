@@ -655,7 +655,7 @@ async function capture({ ao, shop, lead }) {
   // the account's own (a picture drawn here, uploaded like the picker does);
   // put back to the default after, so no later shot carries them
   const setTheme = v => page.eval(`fetch('/api/me/prefs/theme', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ value: ${JSON.stringify(v)} }) }).then(r => { localStorage.setItem('office.theme', ${JSON.stringify(JSON.stringify(v))}); return r.ok })`)
-  const openSettings = async () => {
+  const openTheme = async () => {
     // the account menu (sidebar footer) opens on a pointer press, its item on a click
     const ok = await page.eval(`(async () => {
       const btn = [...document.querySelectorAll('.office-sidebar [aria-haspopup="menu"]')].pop()
@@ -663,23 +663,23 @@ async function capture({ ao, shop, lead }) {
       const o = { bubbles: true, button: 0, pointerType: 'mouse', isPrimary: true }
       btn.dispatchEvent(new PointerEvent('pointerdown', o)); btn.dispatchEvent(new PointerEvent('pointerup', o)); btn.click()
       await new Promise(r => setTimeout(r, 500))
-      const item = [...document.querySelectorAll('[role="menuitem"]')].find(e => /^(Settings|Cài đặt)$/.test(e.textContent.trim()))
+      const item = [...document.querySelectorAll('[role="menuitem"]')].find(e => /^(Theme|Giao diện)$/.test(e.textContent.trim()))
       if (!item) return false
       item.click()
       await new Promise(r => setTimeout(r, 900))
       return !!document.querySelector('[role="dialog"]')
     })()`)
-    if (!ok) throw new Error('settings panel did not open')
+    if (!ok) throw new Error('theme panel did not open')
   }
   const chat = `${P}?tab=chat&c=cnv_demo_theme`
   await take('51-theme-settings', chat, async () => {
     await setTheme({ id: 'moonlit' })
     await page.go(chat, 1500)
-    await openSettings()
-    // the theme part, not the projects part above it
+    await openTheme()
     await page.eval(`(() => { const h = [...document.querySelectorAll('[role="dialog"] h4')].find(e => /Live wallpapers|Hình nền động/.test(e.textContent)); h?.scrollIntoView({ block: 'center' }); return true })()`)
     await sleep(600)
   })
+  let ownBg = 0
   await take('52-own-background', chat, async () => {
     // a dusk sky with hills, as a PNG made in the page
     const v = await page.eval(`(async () => {
@@ -699,11 +699,12 @@ async function capture({ ao, shop, lead }) {
       return r.ok ? (await r.json()).version : 0
     })()`)
     if (!v) throw new Error('background upload failed')
+    ownBg = v
     await setTheme({ id: 'night-sea', bg: { kind: 'image', v, glass: 0.65 } })
     await page.go(chat, 1500)
   })
   if (want('51-theme-settings') || want('52-own-background')) {
-    await page.eval(`fetch('/api/me/background', { method: 'DELETE' }).then(() => true)`)
+    if (ownBg) await page.eval(`fetch('/api/me/background?v=${ownBg}', { method: 'DELETE' }).then(() => true)`)
     await setTheme({ id: 'default' })
   }
 

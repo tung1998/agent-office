@@ -4,13 +4,13 @@
 // its contrast), the live wallpapers, and a background of their own with
 // colors worked out from it (useTheme, utils/backdropColors).
 import type { MessageKey } from '~/locales/vi'
-import { COLOR_THEMES, WALLPAPER_THEMES, DEFAULT_CUSTOM, EXTRA_COLORS, autoColors, contrast, isHex, type ExtraColor, type Theme, type ThemeColors } from '~/utils/themes'
-import { BG_MAX, backdropFloor, backdropGlass, backdropSrc, bgKind, bgVersion, type BgItem } from '~/composables/useTheme'
+import { COLOR_THEMES, WALLPAPER_THEMES, wallGlassFloor, DEFAULT_CUSTOM, EXTRA_COLORS, autoColors, contrast, isHex, type ExtraColor, type Theme, type ThemeColors } from '~/utils/themes'
+import { BG_MAX, GLASS_MIN, backdropFloor, backdropGlass, backdropSrc, bgKind, bgVersion, type BgItem } from '~/composables/useTheme'
 import { suggestColors } from '~/utils/backdropColors'
 
 const { t } = useLang()
 const toast = useToast()
-const { saved, theme, look, library, setTheme, setCustom, setLook, loadLibrary, pickBackground, setBackground, clearBackground, deleteBackground, sampleSaved, setGlass, previewGlass } = useTheme()
+const { saved, theme, look, library, setWallGlass, previewWallGlass, setTheme, setCustom, setLook, loadLibrary, pickBackground, setBackground, clearBackground, deleteBackground, sampleSaved, setGlass, previewGlass } = useTheme()
 const colorMode = useColorMode()
 const custom = reactive<ThemeColors>({ ...DEFAULT_CUSTOM, ...saved.value.custom })
 const auto = computed(() => autoColors(custom))
@@ -90,6 +90,10 @@ async function upload(e: Event) {
   await run(setBackground(file))
   uploading.value = false
 }
+// the panes over a wallpaper theme: the readable glass, unless the person set theirs
+const wallFloor = computed(() => theme.value ? wallGlassFloor(theme.value) : 0)
+const wallGlass = computed(() => saved.value.wallGlass ?? wallFloor.value)
+const keepWallGlass = () => run(setWallGlass(saved.value.wallGlass))
 const keepGlass = () => { const p = setGlass(glass.value); if (p) run(p) }
 const nameOf = (id: string) => t(`theme.name.${id}` as MessageKey)
 const swatch = (th: Theme) => ({ background: th.wallpaper?.sky ?? th.bg, color: th.text })
@@ -210,11 +214,14 @@ const swatch = (th: Theme) => ({ background: th.wallpaper?.sky ?? th.bg, color: 
       </div>
       <input ref="fileInput" type="file" accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm" class="hidden" @change="upload">
       <UFormField v-if="saved.bg" :label="t('theme.backdropGlass')" :help="floor ? t('theme.backdropFloor', { n: Math.round(floor * 100) }) : undefined">
-        <USlider :model-value="glass" :min="floor || 0.65" :max="0.99" :step="0.01" @update:model-value="(v) => previewGlass(v as number)" @change="keepGlass" />
+        <USlider :model-value="glass" :min="GLASS_MIN" :max="0.99" :step="0.01" @update:model-value="(v) => previewGlass(v as number)" @change="keepGlass" />
       </UFormField>
     </div>
 
     <div v-if="theme?.wallpaper && !saved.bg" class="space-y-3 rounded-lg border border-(--ui-border) p-3">
+      <UFormField :label="t('theme.backdropGlass')" :help="wallFloor ? t('theme.backdropFloor', { n: Math.round(wallFloor * 100) }) : undefined">
+        <USlider :model-value="wallGlass" :min="GLASS_MIN" :max="0.99" :step="0.01" @update:model-value="(v) => previewWallGlass(v as number)" @change="keepWallGlass" />
+      </UFormField>
       <UFormField :label="t('theme.strength')">
         <USlider :model-value="look.strength" :min="0.15" :max="1" :step="0.05" @update:model-value="(v) => preview(v as number)" @change="run(setLook({ strength: look.strength }))" />
       </UFormField>

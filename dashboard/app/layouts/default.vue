@@ -213,10 +213,14 @@ const items = computed<NavigationMenuItem[][]>(() => {
 })
 
 const settingsOpen = ref(false)
+const themeOpen = ref(false)
 const userMenu = computed<DropdownMenuItem[][]>(() => [
   [{ label: user.value?.email ?? '', type: 'label' }],
   ...(viewedBy.value ? [[{ label: t('user.viewingAsEnd'), icon: 'i-lucide-undo-2', onSelect: () => endViewAs() }]] : []),
-  [{ label: t('settings.title'), icon: 'i-lucide-settings', onSelect: () => { settingsOpen.value = true } }],
+  [
+    { label: t('theme.title'), icon: 'i-lucide-palette', onSelect: () => { themeOpen.value = true } },
+    { label: t('settings.title'), icon: 'i-lucide-settings', onSelect: () => { settingsOpen.value = true } }
+  ],
   [{ label: t('user.changePassword'), icon: 'i-lucide-key-round', to: '/account' }],
   // the office's records and backups: an admin's, from its own menu
   ...(isOfficeAdmin.value
@@ -283,5 +287,6 @@ watch(() => colorMode.value, () => nextTick(() => paintBackdrop(savedTheme.value
     <ThemeBackdrop v-if="savedTheme.bg" :bg="savedTheme.bg" />
     <LazyThemeWallpaper v-else-if="theme?.wallpaper" :scene="theme.id" :look="themeLook" />
     <SettingsModal v-model:open="settingsOpen" />
+    <ThemePanel v-model:open="themeOpen" />
   </UDashboardGroup>
 </template>
