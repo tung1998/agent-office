@@ -4,11 +4,12 @@
 // A theme sets <html data-theme> plus one <style>, and the light/dark class
 // its background calls for; 'default' removes both and gives the light/dark
 // switch back. A wallpaper theme's scene is ThemeWallpaper's (lazy).
+import { componentColorsCss, readComponentColors, type ComponentColors } from '~/utils/component-colors'
 import { bounded, readMediaBackground, type MediaBackground } from '~/utils/backgrounds'
 import { findTheme, isDark, themeCss, type Theme, type ThemeColors } from '~/utils/themes'
 
 export interface WallLook { strength: number, speed: number, cell: number, still: boolean, transparency: number, blur: number }
-export interface SavedTheme { id: string, custom?: ThemeColors, wall?: Partial<WallLook>, background?: MediaBackground }
+export interface SavedTheme { id: string, custom?: ThemeColors, wall?: Partial<WallLook>, background?: MediaBackground, colors?: ComponentColors }
 export const WALL_LOOK: WallLook = { strength: 0.45, speed: 1, cell: 18, still: false, transparency: 0.3, blur: 0 }
 const PREF_URL = '/api/me/prefs/theme'
 const KEY = 'office.theme'
@@ -40,9 +41,11 @@ export function paintTheme(s: SavedTheme): Theme | undefined {
   let style = document.getElementById(STYLE_ID)
   if (!t) delete root.dataset.theme
   const background = readMediaBackground(s.background)
+  const colorsCss = componentColorsCss(s.colors)
+  root.toggleAttribute('data-component-colors', !!colorsCss)
   const hasWallpaper = !!background || !!t?.wallpaper
   root.toggleAttribute('data-wallpaper', hasWallpaper)
-  if (!t && !hasWallpaper) {
+  if (!t && !hasWallpaper && !colorsCss) {
     style?.remove()
     return undefined
   }
@@ -57,7 +60,7 @@ export function paintTheme(s: SavedTheme): Theme | undefined {
     html[data-wallpaper] body{background:transparent;--ui-bg:color-mix(in srgb,var(--office-surface) calc(var(--office-glass)*100%),transparent)}
     html[data-wallpaper] .office-sidebar{background:var(--ui-bg)}
     html[data-wallpaper] :is([role="dialog"],[role="menu"],[role="listbox"]){--ui-bg:var(--office-surface)}
-  ` : '')
+  ` : '') + colorsCss
   document.head.append(style) // last: after Nuxt UI's sheets
   if (!t) return undefined
   root.dataset.theme = t.id
@@ -135,10 +138,11 @@ export function useTheme() {
     preview.value = { ...preview.value, ...o }
     paintTheme({ ...saved.value, wall: { ...saved.value.wall, ...preview.value } })
   }
+  const setColors = (colors: ComponentColors) => save({ ...saved.value, colors: readComponentColors(colors) })
   const setBackground = (background?: MediaBackground) => save({ ...saved.value, background })
   const setTheme = (id: string) => save({ ...saved.value, id, background: findTheme(id)?.wallpaper ? undefined : saved.value.background })
   const setCustom = (custom: ThemeColors) => save({ ...saved.value, id: 'custom', custom })
   const setLook = (o: Partial<WallLook>) => save({ ...saved.value, wall: { ...saved.value.wall, ...o } })
 
-  return { saved, theme, look, background, saving, load, setTheme, setCustom, setLook, setBackground, previewLook }
+  return { saved, theme, look, background, saving, load, setTheme, setCustom, setLook, setBackground, previewLook, setColors }
 }

@@ -19,3 +19,9 @@ A read-only Codex simplification review identified ASCII sky replacement, local-
 Cross-provider Claude review could not run: aisync reports the Codex bridge's claude-work target logged out. Do not treat Codex's review as a completed Claude review. The installed Node 24.10.0 raises Nuxt's supported-version warning, although checks/build succeed. Native Safari/iOS playback and real backend multi-device synchronization were not verified. Local picked media remains in IndexedDB on the current browser; direct URLs and preset choices synchronize through existing account preferences.
 
 > Historical work record — not durable authority. Prefer docs/specs/ADRs for current decisions.
+
+## Advanced colors follow-up
+
+After the maintainer requested color controls, the user approved independent background/text colors for sidebar, header, content, cards/watch widgets, inputs and menus/dialogs, plus shared border/link/accent colors. Added a collapsed editor with theme inheritance and per-group/all reset; selections persist with the existing account preference and resets retain media/effects/base palette. Shared accent generation keeps hover shades and button text coherent. Existing generated CSS variables were compared with the committed source for all 17 preset palettes/ASCII themes and remained unchanged. Chromium checked actual component classes, nested independence, light/dark, reload, failed-save rollback and reset at desktop/mobile widths using mocked account APIs. Original media regression checks also pass. Popup colors cover menus, dialogs and popovers; tooltip contrast remains owned by the existing tooltip theme.
+
+Publication target was corrected to upstream `tung1998/agent-office` PR #1; the superseded fork PR was closed. Claude review is still unavailable because the bridge target is logged out; PR remains draft.

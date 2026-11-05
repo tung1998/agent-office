@@ -172,5 +172,6 @@ const swatch = (th: Theme) => ({ background: th.wallpaper?.sky ?? th.bg, color: 
       </div>
       <USwitch v-if="background?.kind === 'video' || (theme?.wallpaper && !background)" :disabled="saving || busy" :model-value="look.still" :label="t('theme.still')" @update:model-value="(v: boolean) => run(setLook({ still: v }))" />
     </div>
+    <ThemeComponentColors />
   </fieldset>
 </template>

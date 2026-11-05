@@ -8,6 +8,8 @@ Menu tài khoản → Cài đặt → Giao diện giữ các bảng màu và c�
 
 Độ đậm hình nền, độ trong suốt giao diện và blur nền có thanh chỉnh riêng, xem ngay khi kéo và lưu khi thả. Chữ giữ nguyên độ đậm; menu và hộp thoại có nền đặc. Video lặp, tắt tiếng, có nút đứng yên; tự dừng khi tab ẩn hoặc hệ thống yêu cầu giảm chuyển động. Trình duyệt chặn tự phát thì hiện nút Phát. File/link lỗi có thông báo và vẫn dùng được giao diện.
 
+Phần **Màu nâng cao** thu gọn mặc định, cho chọn nền và chữ riêng của thanh bên, thanh tiêu đề, vùng nội dung, thẻ nội dung, ô nhập và menu/hộp thoại; có màu viền, liên kết và màu nhấn chung. Mục chưa chỉnh kế thừa theme hiện tại. Có thể khôi phục từng nhóm hoặc toàn bộ màu nâng cao mà không đổi hình nền, hiệu ứng hay bảng màu của theme. Màu nền các vùng vẫn theo thanh trong suốt; ô nhập và menu/hộp thoại giữ nền đặc. Thiết lập màu dùng cùng `/api/me/prefs/theme`, tương thích với tài khoản chưa có tuỳ chỉnh.
+
 Thiết lập đồng bộ theo tài khoản qua `/api/me/prefs/theme`. File cá nhân nằm trong IndexedDB của trình duyệt, không tải lên máy chủ; thiết bị khác cần chọn lại file (hoặc dùng link/nền có sẵn để đồng bộ). Bộ nền phân phối trong `dashboard/public/backgrounds/`; nguồn và cách xử lý ở [README của bộ nền](../dashboard/public/backgrounds/README.md).
 
 ## Màn hình

@@ -74,23 +74,32 @@ const INK_DARK = [1, 0.95, 0.88, 0.76, 0.6, 0.45, 0.32, 0.2, 0.1, 0, -0.25]
 // the accent toward white (light shades) and black (dark ones)
 const ACCENT = [0.9, 0.8, 0.62, 0.42, 0.2, 0, -0.16, -0.32, -0.48, -0.62, -0.74]
 
+// Keep the accent scale and solid-button text coherent when just the accent changes.
+export function primaryVariables(accent: string, darkText = '#18181b'): Record<string, string> {
+  const vars: Record<string, string> = {
+    '--ui-primary': accent,
+    '--ui-text-inverted': luma(accent) > 0.55 ? darkText : '#ffffff'
+  }
+  SHADES.forEach((shade, i) => {
+    const a = ACCENT[i]!
+    vars[`--ui-color-primary-${shade}`] = a >= 0 ? mix(accent, '#ffffff', a) : mix(accent, '#000000', -a)
+  })
+  return vars
+}
+
 // The CSS a theme sets on <html data-theme>: unlayered, so it wins over Nuxt
 // UI's theme layer; the light/dark class is set to match (useTheme).
 export function themeCss(t: Theme): string {
   const dark = isDark(t)
   const ink = (k: number) => k < 0 ? mix(t.bg, '#000000', -k) : mix(t.bg, t.text, k)
-  const vars: Record<string, string> = {}
+  const vars = primaryVariables(t.accent, dark ? t.bg : mix(t.bg, '#000000', 0.85))
   SHADES.forEach((s, i) => {
     vars[`--ui-color-neutral-${s}`] = ink((dark ? INK_DARK : INK_LIGHT)[i]!)
-    const a = ACCENT[i]!
-    vars[`--ui-color-primary-${s}`] = a >= 0 ? mix(t.accent, '#ffffff', a) : mix(t.accent, '#000000', -a)
   })
   Object.assign(vars, {
-    '--ui-primary': t.accent,
     '--ui-bg': t.bg,
     '--ui-text-highlighted': t.text,
-    '--ui-bg-inverted': t.text,
-    '--ui-text-inverted': luma(t.accent) > 0.55 ? mix(t.bg, '#000000', dark ? 0 : 0.85) : '#ffffff'
+    '--ui-bg-inverted': t.text
   })
   if (t.font) vars['--font-sans'] = t.font
   let css = `html[data-theme="${t.id}"]{${Object.entries(vars).map(([k, v]) => `${k}:${v}`).join(';')}}`

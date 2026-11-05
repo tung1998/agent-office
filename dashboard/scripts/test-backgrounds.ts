@@ -1,4 +1,6 @@
+import { primaryVariables } from '../app/utils/themes.ts'
 import assert from 'node:assert/strict'
+import { COLOR_GROUPS, readComponentColors, componentColorsCss } from '../app/utils/component-colors.ts'
 import { existsSync } from 'node:fs'
 import { MEDIA_BACKGROUNDS, validMediaSource, readMediaBackground, mediaFileKind, bounded } from '../app/utils/backgrounds.ts'
 
@@ -27,3 +29,22 @@ for (const b of MEDIA_BACKGROUNDS) {
   if (b.poster) assert.ok(existsSync(new URL(`../public${b.poster}`, import.meta.url)), b.poster)
 }
 console.log('backgrounds: URL safety, file limits, bounds and bundled assets passed')
+
+// Component overrides reject unknown groups/CSS and disappear completely on reset.
+assert.deepEqual(readComponentColors({ accent: 'red;display:none', border: '#123456', surfaces: { sidebar: { bg: '#abcdef', text: 'var(--bad)' }, unknown: { bg: '#123456' } } }), { border: '#123456', surfaces: { sidebar: { bg: '#abcdef' } } })
+assert.equal(componentColorsCss({}), '')
+assert.equal(componentColorsCss({ surfaces: { sidebar: {} } }), '')
+assert.equal(componentColorsCss({ surfaces: { card: { bg: 'url(evil)' } } }), '')
+for (const group of COLOR_GROUPS) {
+  const css = componentColorsCss({ surfaces: { [group]: { bg: '#102030', text: '#f1f2f3' } } })
+  assert.ok(css.includes(`.office-${group}{--ui-bg:#102030`))
+  assert.ok(css.includes(`.office-${group}{--ui-text:#f1f2f3`))
+  assert.ok(css.includes('--office-base-text:var(--ui-text)'), 'nested groups inherit theme rather than the parent override')
+  assert.equal(css.includes(`html[data-component-colors][data-wallpaper] .office-${group}{`), !['input', 'popup'].includes(group))
+}
+assert.ok(componentColorsCss({ link: '#123456' }).includes('a:not([data-slot]):not([role="button"])'))
+console.log('component colors: validation, reset, isolated groups and wallpaper transparency passed')
+
+assert.equal(primaryVariables('#ffffff')['--ui-text-inverted'], '#18181b')
+assert.equal(primaryVariables('#112233')['--ui-text-inverted'], '#ffffff')
+assert.equal(primaryVariables('#123456')['--ui-color-primary-500'], '#123456')
