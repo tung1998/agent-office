@@ -98,10 +98,29 @@ type waiter struct {
 // MaxPending is how many messages of one outside chat may wait at once.
 const MaxPending = 3
 
+// BusyNotice tells a chat that a message was turned away while it is busy.
+const BusyNotice = "⏳ Mình đang xử lý mấy tin trước, tin này chưa được nhận. Gửi lại sau, hoặc /push … để dừng việc đang chạy và gửi tin mới."
+
 // Pending counts the messages of each chat waiting or being answered.
 type Pending struct {
-	mu sync.Mutex
-	n  map[string]int
+	mu   sync.Mutex
+	n    map[string]int
+	told map[string]bool // the chat was told it is busy: once per busy spell
+}
+
+// Refused notes a message of key turned away because too many wait; true the
+// first time in a busy spell (the chat is told once, not on every message).
+func (p *Pending) Refused(key string) bool {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.told == nil {
+		p.told = map[string]bool{}
+	}
+	if p.told[key] {
+		return false
+	}
+	p.told[key] = true
+	return true
 }
 
 // Take reserves a place for a message of key; false = too many waiting.
@@ -124,6 +143,7 @@ func (p *Pending) Done(key string) {
 	defer p.mu.Unlock()
 	if p.n[key]--; p.n[key] <= 0 {
 		delete(p.n, key)
+		delete(p.told, key) // the busy spell is over: the next one is told again
 	}
 }
 
@@ -287,8 +307,15 @@ func (m *Manager) handle(ctx context.Context, channelID string, ad Adapter, in I
 		m.waitIdle(ctx, convs) // the stopped answer ends first: the new one is not put back as busy
 		in.Text = arg
 	}
-	if !m.pending.Take(key) {
-		return // a flood from one chat: the rest is dropped
+	if !m.pending.Take(key) { // a flood from one chat: the rest is turned away, never silently
+		slog.Info("channels: busy, message dropped", "channel", ch.ID, "chat", in.ChatID, "user", in.UserID)
+		if in.Respond != nil || m.pending.Refused(key) { // a slash command waits for an answer; a message: once per busy spell
+			say(BusyNotice)
+		}
+		_, _ = m.store.Jobs().Create(ctx, storage.Job{ProjectID: ch.ProjectID, Kind: "chat_turn", Origin: "user", OriginID: ch.ID, Trigger: ch.Kind,
+			CreatedBy: fmt.Sprintf("%s:%s", ch.Kind, firstNonEmpty(in.UserName, in.UserID)), Title: truncate(in.Text, 80),
+			Status: "skipped", ErrorCode: "busy", Error: "chat đang bận: tin này không được nhận"})
+		return
 	}
 	held := true
 	defer func() {
