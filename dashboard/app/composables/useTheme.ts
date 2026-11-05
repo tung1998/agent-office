@@ -21,7 +21,13 @@ const BACKDROP_ID = 'office-backdrop'
 export const BG_URL = '/api/me/background'
 export const BG_MAX = 25 << 20
 export const BG_GLASS = 0.82
-export const backdropSrc = (b: Backdrop) => `${BG_URL}?v=${b.v}`
+export const backdropSrc = (b: Pick<Backdrop, 'v'>) => `${BG_URL}?v=${b.v}`
+// a file of the person's background library (/api/me/backgrounds)
+export interface BgItem { mime: string, size: number, version: number }
+export const bgKind = (mime: string): Backdrop['kind'] => mime.startsWith('video/') ? 'video' : 'image'
+// a background saved before the library had its version in nanoseconds: the
+// server reads it as its millisecond, and so does this
+export const bgVersion = (v: number) => v > 1e15 ? Math.floor(v / 1e6) : v
 
 // The least glass over a background for the current theme's muted text to
 // read on every color of it (0 when its colors are not known)
@@ -95,6 +101,7 @@ export function useTheme() {
   const colorMode = useColorMode()
   const saved = useState<SavedTheme>('theme', () => import.meta.client ? readSavedTheme() : { id: 'default' })
   const loadedFor = useState('theme:user', () => '')
+  const library = useState<BgItem[]>('theme:backgrounds', () => [])
   const theme = computed(() => saved.value.id === 'default' ? undefined : findTheme(saved.value.id, saved.value.custom))
   const look = computed<WallLook>(() => ({ ...WALL_LOOK, ...saved.value.wall }))
 
@@ -144,7 +151,18 @@ export function useTheme() {
   const setCustom = (custom: ThemeColors) => save({ ...saved.value, id: 'custom', custom })
   const setLook = (o: Partial<WallLook>) => save({ ...saved.value, wall: { ...saved.value.wall, ...o } })
 
-  // the file goes up first, then the theme points at it
+  async function loadLibrary() {
+    library.value = await $fetch<BgItem[]>(`${BG_URL}s`)
+  }
+  // a file of the library becomes the background
+  async function pickBackground(item: BgItem) {
+    if (saved.value.bg && bgVersion(saved.value.bg.v) === item.version) return
+    const bg: Backdrop = { kind: bgKind(item.mime), v: item.version }
+    // its colors, for the glass's floor and the "colors from the picture" button
+    bg.swatch = await sampleBackdrop(backdropSrc(bg), bg.kind).catch(() => undefined)
+    await save({ ...saved.value, bg })
+  }
+  // the file goes into the library, then becomes the background
   async function setBackground(file: File) {
     const data = await new Promise<string>((resolve, reject) => {
       const r = new FileReader()
@@ -152,16 +170,19 @@ export function useTheme() {
       r.onerror = () => reject(r.error)
       r.readAsDataURL(file)
     })
-    const m = await $fetch<{ mime: string, version: number }>(BG_URL, { method: 'PUT', body: { data } })
-    const bg: Backdrop = { kind: m.mime.startsWith('video/') ? 'video' : 'image', v: m.version }
-    // its colors, for the glass's floor and the "colors from the picture" button
-    bg.swatch = await sampleBackdrop(backdropSrc(bg), bg.kind).catch(() => undefined)
-    await save({ ...saved.value, bg })
+    const item = await $fetch<BgItem>(BG_URL, { method: 'PUT', body: { data } })
+    library.value = [item, ...library.value]
+    await pickBackground(item)
   }
+  // no background; the file stays in the library
   async function clearBackground() {
     const { bg: _, ...rest } = saved.value
     await save(rest)
-    await $fetch(BG_URL, { method: 'DELETE' })
+  }
+  async function deleteBackground(item: BgItem) {
+    if (saved.value.bg && bgVersion(saved.value.bg.v) === item.version) await clearBackground()
+    await $fetch(BG_URL, { method: 'DELETE', query: { v: item.version } })
+    library.value = library.value.filter(i => i.version !== item.version)
   }
   // a background from before swatches: its colors, once
   async function sampleSaved() {
@@ -178,5 +199,5 @@ export function useTheme() {
     paintBackdrop(saved.value.bg)
   }
 
-  return { saved, theme, look, load, setTheme, setCustom, setLook, setBackground, clearBackground, sampleSaved, setGlass, previewGlass }
+  return { saved, theme, look, library, load, setTheme, setCustom, setLook, loadLibrary, pickBackground, setBackground, clearBackground, deleteBackground, sampleSaved, setGlass, previewGlass }
 }

@@ -66,6 +66,7 @@ func (s *server) orgRoutes(mux *http.ServeMux) {
 	mux.Handle("GET /api/me/background", auth(s.getBackground))
 	mux.Handle("PUT /api/me/background", auth(s.setBackground))
 	mux.Handle("DELETE /api/me/background", auth(s.deleteBackground))
+	mux.Handle("GET /api/me/backgrounds", auth(s.listBackgrounds))
 	mux.Handle("GET /api/actions/pending", admin(s.pendingActions))
 	mux.Handle("GET /api/bots", admin(s.listAllBots)) // every project's, to borrow one for a notice
 	mux.Handle("GET /api/projects/{id}/channels", admin(s.listChannels))
