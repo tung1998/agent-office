@@ -13,7 +13,10 @@ const { t, when } = useLang()
 
 const since = ref(props.since ?? '24h')
 const category = ref('all') // a select item cannot be ''
-const data = ref<{ groups: FailureGroup[], total: number, categories: Record<string, number> } | null>(null)
+// truncated: the range holds more failures than the server reads (max_rows of
+// each source): the counts are a floor (ADR-254)
+interface FailureDigest { groups: FailureGroup[], total: number, categories: Record<string, number>, truncated?: boolean, max_rows?: number }
+const data = ref<FailureDigest | null>(null)
 const error = ref<unknown>(null)
 let token = 0
 async function load() {
@@ -24,7 +27,7 @@ async function load() {
   if (props.project) q.set('project', props.project)
   if (category.value !== 'all') q.set('category', category.value)
   try {
-    const res = await $fetch<{ groups: FailureGroup[], total: number, categories: Record<string, number> }>(`/api/jobs/failures?${q}`)
+    const res = await $fetch<FailureDigest>(`/api/jobs/failures?${q}`)
     if (my === token) data.value = res
   } catch (e) {
     if (my === token) error.value = e
@@ -57,6 +60,10 @@ const detail = ref<string | null>(null)
           <span v-if="data" class="text-xs text-(--ui-text-muted)">{{ t('fail.total', { n: data.total }) }}</span>
           <InfoTip :text="t('fail.info')" />
         </div>
+        <UAlert
+          v-if="data?.truncated" color="warning" variant="subtle" icon="i-lucide-triangle-alert"
+          :title="t('fail.truncated', { n: data.max_rows ?? 0 })"
+        />
         <UAlert v-if="error" color="error" variant="subtle" :title="apiError(error)">
           <template #actions><UButton size="xs" color="neutral" variant="outline" :label="t('common.refresh')" @click="load" /></template>
         </UAlert>

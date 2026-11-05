@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/tung1998/agent-office/internal/assistant"
+	"github.com/tung1998/agent-office/internal/errdigest"
 	"github.com/tung1998/agent-office/internal/storage"
 )
 
@@ -116,6 +117,23 @@ func TestJobFailuresAPI(t *testing.T) {
 	gs, _ = groups(admin, "?project="+own)
 	if len(gs) != 1 || gs[0].(map[string]any)["signature"] != "my own fault" {
 		t.Fatalf("assistant chat groups = %v", gs)
+	}
+
+	// the window: days and since bound it (7 days by default)
+	if gs, b := groups(nil, "?days=1"); len(gs) != 3 || b["truncated"] != false {
+		t.Fatalf("days=1 = %v %v", gs, b["truncated"])
+	}
+	time.Sleep(20 * time.Millisecond)
+	if gs, b := groups(nil, "?since=10ms"); len(gs) != 0 || b["total"].(float64) != 0 {
+		t.Fatalf("since=10ms = %v", gs)
+	}
+
+	// more failures in the window than are read: the answer says the counts
+	// are a floor (ADR-254), it does not pass them off as the whole
+	defer func(n int) { errdigest.MaxRows = n }(errdigest.MaxRows)
+	errdigest.MaxRows = 2
+	if _, b := groups(nil, ""); b["truncated"] != true || b["max_rows"].(float64) != 2 || b["total"].(float64) > 4 {
+		t.Fatalf("cut window = truncated %v max_rows %v total %v", b["truncated"], b["max_rows"], b["total"])
 	}
 }
 

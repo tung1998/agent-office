@@ -107,6 +107,20 @@ exit 1
 		{"lost session", `echo "Error: thread s1 not found" >&2
 exit 1
 `, 2},
+		{"no rollout", `echo "Error: no rollout found for thread id s1" >&2
+exit 1
+`, 2},
+		// a passing failure: the thread is still there, running afresh would
+		// lose its context and pay twice (ADR-254)
+		{"503", `echo '{"type":"turn.failed","error":{"message":"unexpected status 503 Service Unavailable: upstream connect error"}}'
+exit 1
+`, 1},
+		{"stream dropped", `echo '{"type":"turn.failed","error":{"message":"stream disconnected before completion: error sending request for url (https://chatgpt.com/backend-api/codex/responses)"}}'
+exit 1
+`, 1},
+		{"crash", `echo "thread 'main' panicked at core/src/exec.rs:12:5" >&2
+exit 101
+`, 1},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			bin, runs := codexBin(t, tc.body)

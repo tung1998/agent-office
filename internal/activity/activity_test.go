@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/tung1998/agent-office/internal/activity"
+	"github.com/tung1998/agent-office/internal/errdigest"
 	"github.com/tung1998/agent-office/internal/officetools"
 	"github.com/tung1998/agent-office/internal/perm"
 	"github.com/tung1998/agent-office/internal/storage"
@@ -107,6 +108,17 @@ func TestFailureDigest(t *testing.T) {
 	if out := call(`{"category":"cli_broken"}`); strings.Contains(out, "exit status 1") || !strings.Contains(out, ": 3,") {
 		t.Fatalf("category filter:\n%s", out)
 	}
+	if strings.Contains(out, "lower than the truth") {
+		t.Fatalf("a whole window said to be cut:\n%s", out)
+	}
+	// more failures than are read: the tool says its totals are a floor (ADR-254)
+	func() {
+		defer func(n int) { errdigest.MaxRows = n }(errdigest.MaxRows)
+		errdigest.MaxRows = 2
+		if out := call(`{}`); !strings.Contains(out, "only the latest 2 failed jobs") || !strings.Contains(out, "lower than the truth") {
+			t.Fatalf("cut window:\n%s", out)
+		}
+	}()
 	if out, isErr := tools.Call(ctx, officetools.Scope{ProjectID: p.ID}, "failure_digest", []byte(`{"agent":"nobody"}`)); !isErr {
 		t.Fatalf("unknown agent accepted: %s", out)
 	}

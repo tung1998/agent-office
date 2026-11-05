@@ -511,7 +511,10 @@ func (e *Engine) officeAccess(ctx context.Context, sc officetools.Scope) (*Offic
 	if e.office == nil || e.mcp == nil {
 		return nil, func() {}
 	}
-	token, revoke := e.mcp.Grant(sc, 30*time.Minute)
+	// the token lives as long as the run (revoked when it ends, at most
+	// mcpserver.MaxRun): a turn has no time limit, and a token that died
+	// after 30 minutes cut long runs off office's tools (ADR-254)
+	token, revoke := e.mcp.Grant(sc, mcpserver.MaxRun)
 	oa := &OfficeAccess{MCPURL: e.mcpURL, Token: token, Scope: sc, Tools: e.office, Other: len(e.office.OtherTools(ctx, sc)) > 0}
 	if e.gateway != nil && !sc.Consult && !sc.Limited { // an expert: its project's knowledge only (ADR-177); the assistant of a non-admin: no office MCP (ADR-240)
 		oa.Gateway, oa.GatewayOthers, oa.GatewayTools = e.gateway(ctx, sc)

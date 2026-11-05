@@ -6,6 +6,7 @@
 package mcpserver
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/hex"
@@ -29,42 +30,104 @@ const OtherPath = "/" + officetools.OtherServer
 
 type grant struct {
 	scope   officetools.Scope
+	issued  time.Time
 	expires time.Time
+}
+
+// MaxRun bounds a run's token (ADR-254): it lives until the run revokes it
+// (a turn has no time limit of its own), at most this long, so a token whose
+// revoke never ran does not stay valid for good.
+const MaxRun = 24 * time.Hour
+
+// keepEnded: how long office remembers a token that ended, to tell its run
+// why it is refused (ADR-254).
+const keepEnded = 6 * time.Hour
+
+type ended struct {
+	revoked bool
+	issued  time.Time
+	at      time.Time
 }
 
 // Server is the MCP endpoint.
 type Server struct {
 	tools   *officetools.Toolbox
 	version string
+	// Now is the clock (nil: time.Now); tests move it.
+	Now func() time.Time
 
 	mu     sync.Mutex
 	grants map[string]grant
+	ended  map[string]ended
 }
 
 // New builds a Server.
 func New(tools *officetools.Toolbox, version string) *Server {
-	return &Server{tools: tools, version: version, grants: map[string]grant{}}
+	return &Server{tools: tools, version: version, grants: map[string]grant{}, ended: map[string]ended{}}
+}
+
+func (s *Server) now() time.Time {
+	if s.Now != nil {
+		return s.Now()
+	}
+	return time.Now()
 }
 
 // Grant issues a token for one run (scope: project, conversation/task, run)
-// valid for ttl; call revoke when done.
+// valid until revoke, at most ttl (<= 0 or over MaxRun: MaxRun); call revoke
+// when the run ends.
 func (s *Server) Grant(scope officetools.Scope, ttl time.Duration) (token string, revoke func()) {
+	if ttl <= 0 || ttl > MaxRun {
+		ttl = MaxRun
+	}
 	b := make([]byte, 24)
 	_, _ = rand.Read(b)
 	token = hex.EncodeToString(b)
 	s.mu.Lock()
-	now := time.Now()
-	for k, g := range s.grants { // drop expired grants
-		if now.After(g.expires) {
-			delete(s.grants, k)
-		}
-	}
-	s.grants[token] = grant{scope: scope, expires: now.Add(ttl)}
+	now := s.now()
+	s.sweepLocked(now)
+	s.grants[token] = grant{scope: scope, issued: now, expires: now.Add(ttl)}
 	s.mu.Unlock()
 	return token, func() {
 		s.mu.Lock()
-		delete(s.grants, token)
+		if g, ok := s.grants[token]; ok {
+			delete(s.grants, token)
+			s.ended[token] = ended{revoked: true, issued: g.issued, at: s.now()}
+		}
 		s.mu.Unlock()
+	}
+}
+
+// sweepLocked moves expired grants to ended and forgets ended tokens past
+// keepEnded.
+func (s *Server) sweepLocked(now time.Time) {
+	for k, g := range s.grants {
+		if !now.Before(g.expires) {
+			delete(s.grants, k)
+			s.ended[k] = ended{issued: g.issued, at: g.expires}
+		}
+	}
+	for k, e := range s.ended {
+		if now.Sub(e.at) > keepEnded {
+			delete(s.ended, k)
+		}
+	}
+}
+
+// Sweep drops expired grants every tick until ctx ends: a run that never
+// comes back would otherwise leave its token in memory (ADR-254).
+func (s *Server) Sweep(ctx context.Context, tick time.Duration) {
+	t := time.NewTicker(tick)
+	defer t.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+			s.mu.Lock()
+			s.sweepLocked(s.now())
+			s.mu.Unlock()
+		}
 	}
 }
 
@@ -78,18 +141,70 @@ func (s *Server) Authorized(r *http.Request) bool {
 // assignment go by it (ADR-093).
 func (s *Server) ScopeOf(r *http.Request) (officetools.Scope, bool) { return s.scope(r) }
 
+// Live reports whether token is a run's that has not ended: a stdio server a
+// live run called keeps running (ADR-254).
+func (s *Server) Live(token string) bool {
+	if token == "" {
+		return false
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	g, ok := s.grants[token]
+	return ok && s.now().Before(g.expires)
+}
+
+// RunToken is the bearer token r carries ("" if none).
+func RunToken(r *http.Request) string {
+	tok, _ := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")
+	return strings.TrimSpace(tok)
+}
+
 func (s *Server) scope(r *http.Request) (officetools.Scope, bool) {
-	tok, ok := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")
-	if !ok || tok == "" {
+	tok := RunToken(r)
+	if tok == "" || !strings.HasPrefix(r.Header.Get("Authorization"), "Bearer ") {
 		return officetools.Scope{}, false
 	}
 	s.mu.Lock()
+	defer s.mu.Unlock()
 	g, ok := s.grants[tok]
-	s.mu.Unlock()
-	if ok && time.Now().Before(g.expires) {
+	if ok && s.now().Before(g.expires) {
 		return g.scope, true
 	}
+	if ok { // expired: remembered to say why
+		delete(s.grants, tok)
+		s.ended[tok] = ended{issued: g.issued, at: g.expires}
+	}
 	return officetools.Scope{}, false
+}
+
+// Why says why r's token is refused, for the run (and office's log) to
+// read instead of a bare 401 (ADR-254); "" when it is not refused.
+func (s *Server) Why(r *http.Request) string {
+	if _, ok := s.scope(r); ok {
+		return ""
+	}
+	tok := RunToken(r)
+	if tok == "" {
+		return "thiếu token của lượt chạy (header Authorization: Bearer …)"
+	}
+	s.mu.Lock()
+	e, ok := s.ended[tok]
+	s.mu.Unlock()
+	switch {
+	case !ok:
+		return "token của lượt chạy không hợp lệ: office không cấp token này (office đã khởi động lại?)"
+	case e.revoked:
+		return "token của lượt chạy đã bị thu hồi lúc " + e.at.Local().Format("15:04") + ": lượt đã kết thúc, lượt mới có token mới"
+	default:
+		return "token của lượt chạy đã hết hạn lúc " + e.at.Local().Format("15:04") + ", sau " + e.at.Sub(e.issued).Round(time.Minute).String() + " kể từ khi cấp"
+	}
+}
+
+// deny answers a refused request with why.
+func (s *Server) deny(w http.ResponseWriter, r *http.Request) {
+	why := s.Why(r)
+	w.Header().Set("WWW-Authenticate", "Bearer")
+	http.Error(w, "unauthorized: "+why, http.StatusUnauthorized)
 }
 
 // Protocol versions served (ADR-091): the modern one is stateless (per-request
@@ -143,8 +258,7 @@ type rpcError struct {
 func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	sc, ok := s.scope(r)
 	if !ok {
-		w.Header().Set("WWW-Authenticate", "Bearer")
-		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		s.deny(w, r)
 		return
 	}
 	switch r.Method {

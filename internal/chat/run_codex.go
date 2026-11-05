@@ -264,13 +264,38 @@ func (codexRunner) run(ctx context.Context, req RunRequest, emit func(Event)) (R
 
 // codexLostSession: the resumed session is one Codex no longer has. Only
 // then is the turn worth running again afresh: a CLI that cannot start, an
-// account signed out or out of quota, a stopped turn fail the same way again.
+// account signed out or out of quota, a stopped turn fail the same way again,
+// and a passing failure (a 503, a dropped stream) would lose the thread's
+// context and pay for the whole turn twice (ADR-254): it takes the error
+// saying the session is gone.
 func codexLostSession(ctx context.Context, err error) bool {
 	if ctx.Err() != nil || errors.Is(err, ErrSilent) || connectionBroken(err) || OutOfTokens(err) {
 		return false
 	}
 	var be *usage.BudgetError
-	return !errors.As(err, &be)
+	if errors.As(err, &be) {
+		return false
+	}
+	return codexSessionGone(err.Error())
+}
+
+// codexSessionGone reads an error that says the session to resume is gone:
+// "thread s1 not found", "no rollout found for thread id …", "no saved
+// session found with ID …".
+func codexSessionGone(msg string) bool {
+	m := strings.ToLower(msg)
+	if strings.Contains(m, "no rollout") || strings.Contains(m, "no saved session") || strings.Contains(m, "no such session") {
+		return true
+	}
+	if !strings.Contains(m, "not found") && !strings.Contains(m, "does not exist") && !strings.Contains(m, "unknown") {
+		return false
+	}
+	for _, w := range []string{"thread", "session", "rollout", "conversation"} {
+		if strings.Contains(m, w) {
+			return true
+		}
+	}
+	return false
 }
 
 // codexLimits reads the usage windows Codex wrote to the session's rollout

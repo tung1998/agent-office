@@ -27,6 +27,9 @@ type Caller struct {
 	CanWrite, CanPropose bool
 	// Scope is the run's own scope, handed back to Propose.
 	Scope any
+	// Run names the run (its token): Gateway.Alive tells whether it still
+	// lives, so a stdio server it called is not stopped under it (ADR-254).
+	Run string
 }
 
 // AssistantID stands for the office assistant in a server's agent list.
@@ -185,7 +188,7 @@ func batchCalls(body []byte) bool {
 // CallTool calls one tool of the server named server, as office (an API
 // run, or a call a person approved). It applies no policy: callers do.
 func (g *Gateway) CallTool(ctx context.Context, server, tool string, args json.RawMessage) (string, bool, error) {
-	raw, err := g.callToolResult(ctx, server, tool, args)
+	raw, err := g.callToolResult(ctx, server, tool, args, "")
 	if err != nil {
 		return "", true, err
 	}
@@ -195,7 +198,8 @@ func (g *Gateway) CallTool(ctx context.Context, server, tool string, args json.R
 
 // callToolResult preserves all MCP content blocks and structured output.
 // Like CallTool, it applies no policy: callers must do so first.
-func (g *Gateway) callToolResult(ctx context.Context, server, tool string, args json.RawMessage) (json.RawMessage, error) {
+// run names the run that calls ("" for office itself, ADR-254).
+func (g *Gateway) callToolResult(ctx context.Context, server, tool string, args json.RawMessage, run string) (json.RawMessage, error) {
 	m, err := g.Store.MCPServers().GetByName(ctx, server)
 	if err != nil || !m.Enabled {
 		return nil, fmt.Errorf("office không có MCP %s đang bật", server)
@@ -208,6 +212,7 @@ func (g *Gateway) callToolResult(ctx context.Context, server, tool string, args 
 		if perr != nil {
 			return nil, perr
 		}
+		p.hold(run)
 		raw, err = p.call(ctx, "tools/call", toolParams(tool, args))
 	} else {
 		headers, herr := OpenMap(g.Box, m.HeadersEnc)
@@ -300,7 +305,7 @@ func (g *Gateway) invoke(ctx context.Context, c Caller, server, tool string, arg
 		return toolResult(text, isErr)
 	}
 	start := time.Now()
-	raw, err := g.callToolResult(ctx, server, tool, args)
+	raw, err := g.callToolResult(ctx, server, tool, args, c.Run)
 	ms := time.Since(start).Milliseconds()
 	size := callSize{in: int64(len(args))}
 	if err != nil {

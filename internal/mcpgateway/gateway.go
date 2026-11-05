@@ -38,6 +38,12 @@ type Gateway struct {
 	// agent assignment and the tool policy (ADR-093). With only Auth every
 	// caller counts as a person who may only read (fail closed, ADR-094).
 	Identify func(r *http.Request) (Caller, bool)
+	// Deny, when set, says why a request is refused (a run's token that
+	// expired or was revoked): the 401 carries it and office logs it (ADR-254).
+	Deny func(r *http.Request) string
+	// Alive reports whether the run a Caller.Run names has not ended: a
+	// stdio server a live run called keeps running past StdioIdle (ADR-254).
+	Alive func(run string) bool
 	// Propose turns a call of a tool that writes into a proposal (nil: such
 	// calls are refused for agents that may not write).
 	Propose Proposer
@@ -48,7 +54,8 @@ type Gateway struct {
 	OnStatus func(storage.MCPServer)
 	// Env is what stdio servers run with (nil: office's own environment).
 	Env []string
-	// StdioIdle stops a stdio server nobody called for this long (0: 10 minutes).
+	// StdioIdle stops a stdio server nobody called for this long (0: 10
+	// minutes), unless a run that called it is still alive (Alive, ADR-254).
 	StdioIdle time.Duration
 	// MaxResult: a tool result's text longer than this reaches a run cut
 	// (0: DefaultMaxResult, <0: never, ADR-183).
@@ -257,8 +264,15 @@ var passResponse = []string{"Content-Type", "Mcp-Session-Id", "Mcp-Protocol-Vers
 func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	c, authed := g.caller(r)
 	if !authed {
+		msg := "unauthorized"
+		if g.Deny != nil {
+			if why := g.Deny(r); why != "" {
+				msg += ": " + why
+				g.log().Warn("mcp gateway: refused", "server", r.PathValue("name"), "why", why)
+			}
+		}
 		w.Header().Set("WWW-Authenticate", "Bearer")
-		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		http.Error(w, msg, http.StatusUnauthorized)
 		return
 	}
 	switch r.Method {

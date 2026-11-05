@@ -227,6 +227,7 @@ func serveCmd() *cobra.Command {
 			acts.SetProjects(transfers)
 			office.SetProjects(transfers, h.Dir)
 			mcp := mcpserver.New(office, version)
+			go mcp.Sweep(ctx, time.Minute) // tokens of runs that never came back (ADR-254)
 			chatEngine.SetOffice(office, mcp, "http://"+loopback(addr)+"/mcp")
 			monitors := monitor.New(a.store, procs, chatEngine)
 			// schedules and webhooks start chats as jobs (ADR-040)
@@ -353,7 +354,8 @@ func serveCmd() *cobra.Command {
 			// the MCP servers office manages, at /mcp/s/<name> with the runs' tokens (ADR-091);
 			// who calls, and tools that write (ADR-093)
 			gateway := &mcpgateway.Gateway{Store: a.store, Box: a.providers.Box(), Auth: mcp.Authorized, Log: log, Env: a.cli.Env(),
-				Identify: gatewayIdentify(a.store, mcp), Propose: gatewayProposer(acts)}
+				Identify: gatewayIdentify(a.store, mcp), Propose: gatewayProposer(acts),
+				Deny: mcp.Why, Alive: mcp.Live} // a refused token says why; a live run keeps its stdio servers (ADR-254)
 			defer gateway.Close() // stdio servers office runs (ADR-092)
 			// an approved mcp_call runs through it
 			acts.SetMCP(gateway)

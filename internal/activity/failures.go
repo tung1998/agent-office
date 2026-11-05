@@ -38,7 +38,7 @@ func failureDigest(ctx context.Context, st storage.Store, projectID string, days
 	if category != "" && !slices.Contains(errdigest.AllCategories, category) {
 		return "", fmt.Errorf("unknown category %q (one of %s)", category, strings.Join(errdigest.AllCategories, ", "))
 	}
-	groups, err := errdigest.Load(ctx, st, storage.JobFilter{ProjectID: projectID, AgentID: agentID, Since: since})
+	groups, truncated, err := errdigest.Load(ctx, st, storage.JobFilter{ProjectID: projectID, AgentID: agentID, Since: since})
 	if err != nil {
 		return "", err
 	}
@@ -81,7 +81,11 @@ func failureDigest(ctx context.Context, st storage.Store, projectID string, days
 	if shown < len(groups) && category == "" {
 		head += fmt.Sprintf(", %d of %d causes shown", shown, len(groups))
 	}
-	return head + "):\n" + b.String(), nil
+	out := head + "):\n" + b.String()
+	if truncated {
+		out += fmt.Sprintf("\nNote: only the latest %d failed jobs and %d failed model calls of the window were read; older failures are not counted, so the totals are lower than the truth. Ask for fewer days.\n", errdigest.MaxRows, errdigest.MaxRows)
+	}
+	return out, nil
 }
 
 func cmpOr(a, b string) string {

@@ -222,7 +222,7 @@ func (s *server) jobFailures(w http.ResponseWriter, r *http.Request) {
 	if own != "" {
 		f.HideOthersIn, f.Me = own, me // an assistant chat is its creator's alone (ADR-046)
 	}
-	groups, err := errdigest.Load(r.Context(), s.cfg.Store, f)
+	groups, truncated, err := errdigest.Load(r.Context(), s.cfg.Store, f)
 	if err != nil {
 		s.internal(w, r, err)
 		return
@@ -256,7 +256,10 @@ func (s *server) jobFailures(w http.ResponseWriter, r *http.Request) {
 		}
 		out = append(out, d)
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"groups": out, "total": total, "categories": categories, "since": f.Since})
+	// truncated: more failures in the window than Load reads, the counts are
+	// a floor (ADR-254)
+	writeJSON(w, http.StatusOK, map[string]any{"groups": out, "total": total, "categories": categories, "since": f.Since,
+		"truncated": truncated, "max_rows": errdigest.MaxRows})
 }
 
 // cancelJobRaceHook runs right after cancelJob's initial Get, before it acts

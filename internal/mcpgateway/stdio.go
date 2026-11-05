@@ -95,7 +95,8 @@ type proc struct {
 	exitErr  error
 	readErr  error
 	stopping bool
-	init     json.RawMessage // the server's answer to office's initialize
+	init     json.RawMessage     // the server's answer to office's initialize
+	holders  map[string]struct{} // runs that called it (Caller.Run, ADR-254)
 }
 
 // stdioKey changes when what the process runs with changes.
@@ -186,7 +187,9 @@ func (g *Gateway) watch(id string, np *proc) {
 			}
 			return
 		case <-tick.C:
-			if np.idleFor() > idle {
+			// a run that called it and still lives may come back to its
+			// browser tab or session: not stopped under it (ADR-254)
+			if np.idleFor() > idle && !np.held(g.Alive) {
 				pl.mu.Lock()
 				if pl.procs[id] == np {
 					delete(pl.procs, id)
@@ -340,6 +343,44 @@ func (p *proc) touch() {
 	p.mu.Lock()
 	p.lastUsed = time.Now()
 	p.mu.Unlock()
+}
+
+// hold records that run called p: while it lives, p is not idle (ADR-254).
+func (p *proc) hold(run string) {
+	if run == "" {
+		return
+	}
+	p.mu.Lock()
+	if p.holders == nil {
+		p.holders = map[string]struct{}{}
+	}
+	p.holders[run] = struct{}{}
+	p.mu.Unlock()
+}
+
+// held reports whether a run that called p still lives, forgetting the
+// ones that ended.
+func (p *proc) held(alive func(string) bool) bool {
+	if alive == nil {
+		return false
+	}
+	p.mu.Lock()
+	runs := make([]string, 0, len(p.holders))
+	for r := range p.holders {
+		runs = append(runs, r)
+	}
+	p.mu.Unlock()
+	live := false
+	for _, r := range runs {
+		if alive(r) {
+			live = true
+			continue
+		}
+		p.mu.Lock()
+		delete(p.holders, r)
+		p.mu.Unlock()
+	}
+	return live
 }
 
 func (p *proc) idleFor() time.Duration {
@@ -718,6 +759,7 @@ func (g *Gateway) serveStdio(w http.ResponseWriter, r *http.Request, m storage.M
 		return http.StatusBadGateway, err.Error()
 	}
 	g.note(r.Context(), m, nil) // it runs (and answered office's initialize)
+	p.hold(c.Run)
 	ctx, cancel := context.WithTimeout(r.Context(), CallTimeout)
 	defer cancel()
 	var out []json.RawMessage

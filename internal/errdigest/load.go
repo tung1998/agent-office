@@ -11,10 +11,20 @@ import (
 // fail while its job ends well). f.Since bounds both. A model call of a
 // project hidden by f.HideOthersIn counts only when its job is f.Me's (ADR-046).
 // A connection test (provider_test) is not work that failed: left out.
-func Load(ctx context.Context, st storage.Store, f storage.JobFilter) ([]Group, error) {
+// Each source is read up to f.Limit rows (0: MaxRows); truncated says one had
+// more in the window, so the counts are lower than the truth (ADR-254).
+func Load(ctx context.Context, st storage.Store, f storage.JobFilter) (groups []Group, truncated bool, err error) {
+	limit := f.Limit
+	if limit <= 0 {
+		limit = MaxRows
+	}
+	f.Limit = limit + 1 // one more to tell a full window from a cut one
 	jobs, err := st.Jobs().Failed(ctx, f)
 	if err != nil {
-		return nil, err
+		return nil, false, err
+	}
+	if len(jobs) > limit {
+		jobs, truncated = jobs[:limit], true
 	}
 	events := make([]Event, 0, len(jobs))
 	for _, j := range jobs {
@@ -34,7 +44,10 @@ func Load(ctx context.Context, st storage.Store, f storage.JobFilter) ([]Group, 
 		runs, err := st.Runs().Errors(ctx, storage.RunFilter{ProjectID: f.ProjectID, ProjectIDs: f.ProjectIDs,
 			ExcludeProjectID: f.ExcludeProjectID, AgentID: f.AgentID, Since: f.Since, Limit: f.Limit})
 		if err != nil {
-			return nil, err
+			return nil, false, err
+		}
+		if len(runs) > limit {
+			runs, truncated = runs[:limit], true
 		}
 		owner := map[string]string{} // job id → its creator, for hidden projects
 		for _, r := range runs {
@@ -60,5 +73,9 @@ func Load(ctx context.Context, st storage.Store, f storage.JobFilter) ([]Group, 
 				Provider: r.ProviderName, Call: true, At: r.CreatedAt})
 		}
 	}
-	return Gather(events), nil
+	return Gather(events), truncated, nil
 }
+
+// MaxRows is how many failed jobs, and failed model calls, Load reads by
+// default: the newest ones of the window (a var: tests shrink it).
+var MaxRows = 2000

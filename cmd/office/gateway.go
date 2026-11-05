@@ -64,7 +64,9 @@ func gatewayIdentify(st storage.Store, mcp *mcpserver.Server) func(r *http.Reque
 		if kind != "codex" && kind != "gemini" && kind != "antigravity" && kind != "dsh" {
 			kind = "claude"
 		}
-		return gatewayCaller(r.Context(), st, sc, kind), true
+		c := gatewayCaller(r.Context(), st, sc, kind)
+		c.Run = mcpserver.RunToken(r) // a stdio server it calls stays while the run lives (ADR-254)
+		return c, true
 	}
 }
 
