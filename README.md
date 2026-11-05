@@ -46,7 +46,7 @@ AI coding tools are great one chat at a time. Real work is more than that: sever
 | 🔌 **One MCP gateway** · the office holds MCP servers (HTTP, stdio, OAuth login) and forwards them to every AI with per-tool permissions and a call log | ![MCP](docs/guide/images/15-mcp.png) |
 | 💸 **Costs & limits** · every AI call logged with real or estimated cost, daily budgets per office/project/automation, fallback connections when one fails | ![Costs](docs/guide/images/27-stats.png) |
 
-More: **data collections** (structured data kept in the office; agents read and write it with `data_*` tools, scripts with `office data`), **linked projects** (an agent hands work to another project's agent in a chat there, hears back on its own, and you approve the other side's cards from your chat), a notification bell and browser notifications with Approve / Skip buttons, long-term agent memory, **skills each agent keeps at hand** (its prompt lists only names; the agent loads one when a task needs it, finds more in the office library and asks you to install them), office assistant across projects, **Watch** dashboards (a grid of 20 widgets: chats, consoles, figures, charts, approvals…), change log of who did what and who approved it, Files tab with an editor, users & roles, personal API tokens, export/import config, backup, self-update from source, light/dark, English/Vietnamese.
+More: **data collections** (structured data kept in the office; agents read and write it with `data_*` tools, scripts with `office data`), **linked projects** (an agent hands work to another project's agent in a chat there, hears back on its own, and you approve the other side's cards from your chat), a notification bell and browser notifications with Approve / Skip buttons, long-term agent memory, **skills each agent keeps at hand** (its prompt lists only names; the agent loads one when a task needs it, finds more in the office library and asks you to install them), office assistant across projects, **Watch** dashboards (a grid of 20 widgets: chats, consoles, figures, charts, approvals…), change log of who did what and who approved it, Files tab with an editor, users & roles, personal API tokens, export/import config, backup, self-update from source, light/dark, **themes** (color themes, live ASCII wallpapers or your own background image/video, kept with your account and checked for readable contrast), English/Vietnamese.
 
 ## An office that upgrades itself
 
@@ -232,6 +232,7 @@ Projects agent-office borrows ideas or content from (each with its license; deta
 - [headcount](https://github.com/cbrock84/headcount): business skills
 - [Better Harness](https://github.com/QoderAI/better-harness) and [Harness²](https://github.com/google-research/harness2): the `better-harness` workflow
 - [ai-chat-themes](https://github.com/Aohkne/ai-chat-themes): the dashboard's color themes and live ASCII wallpapers
+- [WCAG 2.2](https://www.w3.org/TR/WCAG22/#contrast-minimum): the contrast ratio every theme is checked against
 
 ## License
 
