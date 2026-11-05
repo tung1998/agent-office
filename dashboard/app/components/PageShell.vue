@@ -10,7 +10,7 @@ const fabVisible = useFabVisible()
 <template>
   <!-- the page never scrolls sideways: wide tables scroll inside their own box;
        each block takes the full width (a centered max-w one never grows to its content) -->
-  <UDashboardPanel :ui="{ body: props.body ?? `overflow-x-hidden min-w-0 max-sm:p-3 *:w-full ${fabVisible ? 'pb-20 max-sm:pb-20' : ''}` }">
+  <UDashboardPanel class="office-main" :ui="{ body: props.body ?? `overflow-x-hidden min-w-0 max-sm:p-3 *:w-full ${fabVisible ? 'pb-20 max-sm:pb-20' : ''}` }">
     <template #header>
       <UDashboardNavbar :title="title" :ui="{ root: 'max-sm:px-3' }">
         <template #leading>

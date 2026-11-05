@@ -1,16 +1,29 @@
 <script setup lang="ts">
 // Settings › Theme: the default look, the color themes, the person's own
 // three colors, and the live wallpapers with how they move (useTheme).
+import { BG_MAX, backdropFloor, backdropGlass, backdropSrc } from '~/composables/useTheme'
+import { suggestColors } from '~/utils/backdropColors'
 import type { WallLook } from '~/composables/useTheme'
 import { MEDIA_BACKGROUNDS, mediaFileKind, validMediaSource, type MediaBackground } from '~/utils/backgrounds'
 import { storeBackgroundFile, removeBackgroundFile } from '~/utils/localBackground'
 import type { MessageKey } from '~/locales/vi'
-import { COLOR_THEMES, WALLPAPER_THEMES, DEFAULT_CUSTOM, isHex, type Theme } from '~/utils/themes'
+import { COLOR_THEMES, WALLPAPER_THEMES, DEFAULT_CUSTOM, EXTRA_COLORS, autoColors, contrast, isHex, type ExtraColor, type ThemeColors, type Theme } from '~/utils/themes'
 
 const { t } = useLang()
 const toast = useToast()
-const { saved, theme, look, background, saving, setTheme, setCustom, setLook, setBackground, previewLook } = useTheme()
-const custom = reactive({ ...DEFAULT_CUSTOM, ...saved.value.custom })
+const { saved, theme, look, background, saving, setTheme, setCustom, setLook, setMediaBackground, setBackground, clearBackground, sampleSaved, setGlass, previewGlass, previewLook } = useTheme()
+const colorMode = useColorMode()
+const custom = reactive<ThemeColors>({ ...DEFAULT_CUSTOM, ...saved.value.custom })
+const auto = computed(() => autoColors(custom))
+const BASE = ['bg', 'text', 'accent'] as const
+type ColorKey = typeof BASE[number] | ExtraColor
+const colorOf = (k: ColorKey) => custom[k] ?? auto.value[k as ExtraColor]
+// the contrast each color is read at (WCAG): text, muted and accent on the
+// background, text on cards; borders and the background itself have none
+const ratio = (k: ColorKey) => k === 'text' || k === 'muted' || k === 'accent'
+  ? contrast(colorOf(k)!, custom.bg)
+  : k === 'surface' ? contrast(custom.text, colorOf(k)!) : undefined
+const tone = (r: number) => r >= 4.5 ? 'text-(--ui-success)' : r >= 3 ? 'text-(--ui-warning)' : 'text-(--ui-error)'
 const speeds = computed(() => [0.5, 1, 2, 4].map(v => ({ label: `${v}×`, value: v })))
 const cells = computed(() => ([[14, 'small'], [18, 'medium'], [22, 'large']] as const).map(([v, k]) => ({ label: t(`theme.cell.${k}`), value: v as number })))
 
@@ -22,9 +35,13 @@ async function run(p: Promise<void>) {
   }
 }
 const pick = (id: string) => (saved.value.id !== id || background.value) && run(setTheme(id))
-function pickColor(k: keyof typeof custom, v: string) {
+function pickColor(k: ColorKey, v: string) {
   custom[k] = v
   if (isHex(v)) run(setCustom({ ...custom }))
+}
+function autoColor(k: ExtraColor) {
+  delete custom[k]
+  run(setCustom({ ...custom }))
 }
 // Media files stay on this device; only their selection is saved to the account.
 const busy = ref(false)
@@ -35,7 +52,7 @@ const mediaError = ref('')
 async function chooseMedia(next?: MediaBackground) {
   busy.value = true
   try {
-    await setBackground(next)
+    await setMediaBackground(next)
   } catch (e) { toast.add({ title: apiError(e), color: 'error' }) }
   finally { busy.value = false }
 }
@@ -51,7 +68,7 @@ async function chooseFile(event: Event) {
   busy.value = true
   try {
     await storeBackgroundFile(src, file)
-    try { await setBackground({ kind, src, name: file.name }) }
+    try { await setMediaBackground({ kind, src, name: file.name }) }
     catch (e) { await removeBackgroundFile(src); throw e }
   } catch (e) { toast.add({ title: apiError(e), color: 'error' }) }
   finally { busy.value = false }
@@ -67,12 +84,46 @@ async function commitLook(key: keyof WallLook) {
   await nextTick()
   await run(setLook({ [key]: look.value[key] }))
 }
+// a background image or video of the person's own, on top of any theme
+const fileInput = ref<HTMLInputElement>()
+const uploading = ref(false)
+// the least glass this background needs for the theme's muted text (the
+// page is painted by then: the colors are read from it)
+const floor = computed(() => {
+  void colorMode.value
+  return saved.value.bg ? backdropFloor(saved.value.bg) : 0
+})
+const glass = computed(() => saved.value.bg ? backdropGlass(saved.value.bg, floor.value) : 0)
+const suggested = computed(() => suggestColors(saved.value.bg?.swatch ?? []))
+function useSuggested() {
+  if (!suggested.value) return
+  Object.assign(custom, suggested.value)
+  for (const k of EXTRA_COLORS) delete custom[k]
+  run(setCustom({ ...suggested.value }))
+}
+onMounted(() => run(sampleSaved()))
+async function upload(e: Event) {
+  const input = e.target as HTMLInputElement
+  const file = input.files?.[0]
+  input.value = ''
+  if (!file) return
+  if (file.size > BG_MAX) {
+    toast.add({ title: t('theme.backdropTooBig'), color: 'error' })
+    return
+  }
+  uploading.value = true
+  await run(setBackground(file))
+  uploading.value = false
+}
+const glassDraft = ref<number>()
+function updateGlass(v: number) { glassDraft.value = v; previewGlass(v) }
+async function keepGlass() { await nextTick(); const p = setGlass(glassDraft.value ?? glass.value); if (p) await run(p); glassDraft.value = undefined }
 const nameOf = (id: string) => t(`theme.name.${id}` as MessageKey)
 const swatch = (th: Theme) => ({ background: th.wallpaper?.sky ?? th.bg, color: th.text })
 </script>
 
 <template>
-  <fieldset :disabled="saving || busy" class="min-w-0 space-y-4">
+  <fieldset :disabled="saving || busy || uploading" class="min-w-0 space-y-4">
     <div class="grid grid-cols-2 gap-2 sm:grid-cols-3">
       <button
         v-for="th in [{ id: 'default' }, ...COLOR_THEMES, { id: 'custom' }]"
@@ -91,11 +142,20 @@ const swatch = (th: Theme) => ({ background: th.wallpaper?.sky ?? th.bg, color: 
     </div>
 
     <div v-if="saved.id === 'custom'" class="grid grid-cols-3 gap-2">
-      <label v-for="k in (['bg', 'text', 'accent'] as const)" :key="k" class="flex flex-col gap-1 text-xs text-(--ui-text-muted)">
-        {{ t(`theme.custom.${k}`) }}
+      <label v-for="k in ([...BASE, ...EXTRA_COLORS] as ColorKey[])" :key="k" class="flex min-w-0 flex-col gap-1 text-xs text-(--ui-text-muted)">
+        <span class="flex items-center gap-1">
+          <span class="truncate">{{ t(`theme.custom.${k}`) }}</span>
+          <UTooltip v-if="ratio(k) !== undefined" :text="t('theme.contrast', { n: ratio(k)!.toFixed(1) })">
+            <span class="ms-auto tabular-nums" :class="tone(ratio(k)!)">{{ ratio(k)!.toFixed(1) }}</span>
+          </UTooltip>
+        </span>
         <span class="flex items-center gap-1.5 rounded-md border border-(--ui-border) p-1">
-          <input type="color" :value="custom[k]" class="size-7 shrink-0 cursor-pointer rounded border-0 bg-transparent p-0" @change="pickColor(k, ($event.target as HTMLInputElement).value)">
-          <code class="truncate text-(--ui-text)">{{ custom[k] }}</code>
+          <input type="color" :value="colorOf(k)" class="size-7 shrink-0 cursor-pointer rounded border-0 bg-transparent p-0" @change="pickColor(k, ($event.target as HTMLInputElement).value)">
+          <code v-if="custom[k]" class="min-w-0 truncate text-(--ui-text)">{{ custom[k] }}</code>
+          <span v-else class="min-w-0 truncate italic">{{ t('theme.custom.auto') }}</span>
+          <button v-if="custom[k] && (EXTRA_COLORS as readonly string[]).includes(k)" type="button" class="ms-auto shrink-0 rounded p-0.5 hover:bg-(--ui-bg-elevated)" :aria-label="t('theme.custom.reset')" :title="t('theme.custom.reset')" @click.prevent="autoColor(k as ExtraColor)">
+            <UIcon name="i-lucide-rotate-ccw" class="size-3.5" />
+          </button>
         </span>
       </label>
     </div>
@@ -125,7 +185,7 @@ const swatch = (th: Theme) => ({ background: th.wallpaper?.sky ?? th.bg, color: 
     <div class="space-y-3 border-t border-(--ui-border) pt-4">
       <div class="flex items-center justify-between gap-2">
         <h4 class="text-xs font-semibold text-(--ui-text-muted)">{{ t('theme.media') }}</h4>
-        <UButton v-if="background" size="xs" color="neutral" variant="ghost" :label="t('theme.removeMedia')" :disabled="saving || busy" @click="chooseMedia()" />
+        <UButton v-if="background" size="xs" color="neutral" variant="ghost" :label="t('theme.removeMedia')" :disabled="saving || busy" @click="saved.bg ? run(clearBackground()) : chooseMedia()" />
       </div>
       <div class="grid grid-cols-2 gap-2 sm:grid-cols-3">
         <button v-for="b in MEDIA_BACKGROUNDS" :key="b.src" type="button" :disabled="saving || busy"
@@ -156,7 +216,7 @@ const swatch = (th: Theme) => ({ background: th.wallpaper?.sky ?? th.bg, color: 
       <UFormField :label="t('theme.strength')">
         <USlider :disabled="saving || busy" :aria-label="t('theme.strength')" :tooltip="true" :model-value="look.strength" :min="0" :max="1" :step="0.05" @update:model-value="(v) => previewLook({ strength: v as number })" @change="commitLook('strength')" />
       </UFormField>
-      <UFormField :label="t('theme.transparency')">
+      <UFormField v-if="!saved.bg" :label="t('theme.transparency')">
         <USlider :disabled="saving || busy" :aria-label="t('theme.transparency')" :tooltip="true" :model-value="look.transparency" :min="0" :max="0.9" :step="0.05" @update:model-value="(v) => previewLook({ transparency: v as number })" @change="commitLook('transparency')" />
       </UFormField>
       <UFormField :label="t('theme.blur')">
@@ -172,6 +232,34 @@ const swatch = (th: Theme) => ({ background: th.wallpaper?.sky ?? th.bg, color: 
       </div>
       <USwitch v-if="background?.kind === 'video' || (theme?.wallpaper && !background)" :disabled="saving || busy" :model-value="look.still" :label="t('theme.still')" @update:model-value="(v: boolean) => run(setLook({ still: v }))" />
     </div>
+    <div class="space-y-2">
+      <h4 class="flex items-center gap-1 text-xs font-semibold text-(--ui-text-muted)">
+        {{ t('theme.backdrop') }}
+        <UTooltip :text="t('theme.backdropHint')"><UIcon name="i-lucide-info" class="size-3.5" /></UTooltip>
+      </h4>
+      <div class="flex flex-wrap items-center gap-2">
+        <template v-if="saved.bg">
+          <video v-if="saved.bg.kind === 'video'" :src="backdropSrc(saved.bg)" muted class="h-12 w-20 rounded-md border border-(--ui-border) object-cover" />
+          <img v-else :src="backdropSrc(saved.bg)" alt="" class="h-12 w-20 rounded-md border border-(--ui-border) object-cover">
+        </template>
+        <UButton size="sm" color="neutral" variant="outline" icon="i-lucide-upload" :loading="uploading" :label="saved.bg ? t('theme.backdropChange') : t('theme.backdropUpload')" @click="fileInput?.click()" />
+        <UButton v-if="saved.bg" size="sm" color="neutral" variant="ghost" icon="i-lucide-trash-2" :disabled="uploading || saving" :label="t('theme.backdropRemove')" @click="run(clearBackground())" />
+        <UTooltip v-if="suggested" :text="t('theme.backdropSuggestHint')">
+          <UButton size="sm" color="neutral" variant="outline" :disabled="uploading || saving" :label="t('theme.backdropSuggest')" @click="useSuggested">
+            <template #leading>
+              <span class="flex -space-x-1">
+                <span v-for="c in [suggested.bg, suggested.text, suggested.accent]" :key="c" class="size-3.5 rounded-full ring-1 ring-(--ui-border)" :style="{ background: c }" />
+              </span>
+            </template>
+          </UButton>
+        </UTooltip>
+        <input ref="fileInput" type="file" accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm" class="hidden" @change="upload">
+      </div>
+      <UFormField v-if="saved.bg" :label="t('theme.backdropGlass')" :help="floor ? t('theme.backdropFloor', { n: Math.round(floor * 100) }) : undefined">
+        <USlider :disabled="saving || uploading" :aria-label="t('theme.backdropGlass')" :model-value="glassDraft ?? glass" :min="floor || 0.65" :max="0.99" :step="0.01" @update:model-value="(v) => updateGlass(v as number)" @change="keepGlass" />
+      </UFormField>
+    </div>
+
     <ThemeComponentColors />
   </fieldset>
 </template>

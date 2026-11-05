@@ -1,4 +1,4 @@
-import { primaryVariables } from '../app/utils/themes.ts'
+import { primaryVariables, onAccent, COLOR_THEMES } from '../app/utils/themes.ts'
 import assert from 'node:assert/strict'
 import { COLOR_GROUPS, readComponentColors, componentColorsCss } from '../app/utils/component-colors.ts'
 import { existsSync } from 'node:fs'
@@ -37,7 +37,7 @@ assert.equal(componentColorsCss({ surfaces: { sidebar: {} } }), '')
 assert.equal(componentColorsCss({ surfaces: { card: { bg: 'url(evil)' } } }), '')
 for (const group of COLOR_GROUPS) {
   const css = componentColorsCss({ surfaces: { [group]: { bg: '#102030', text: '#f1f2f3' } } })
-  assert.ok(css.includes(`.office-${group}{--ui-bg:#102030`))
+  assert.ok(css.includes(`.office-${group}{--office-backdrop-surface:#102030;--ui-bg:#102030`))
   assert.ok(css.includes(`.office-${group}{--ui-text:#f1f2f3`))
   assert.ok(css.includes('--office-base-text:var(--ui-text)'), 'nested groups inherit theme rather than the parent override')
   assert.equal(css.includes(`html[data-component-colors][data-wallpaper] .office-${group}{`), !['input', 'popup'].includes(group))
@@ -48,3 +48,8 @@ console.log('component colors: validation, reset, isolated groups and wallpaper 
 assert.equal(primaryVariables('#ffffff')['--ui-text-inverted'], '#18181b')
 assert.equal(primaryVariables('#112233')['--ui-text-inverted'], '#ffffff')
 assert.equal(primaryVariables('#123456')['--ui-color-primary-500'], '#123456')
+
+for (const theme of COLOR_THEMES) {
+  const accent = '#000000'
+  assert.ok(componentColorsCss({ accent }, theme).includes('--ui-text-inverted:' + onAccent({ ...theme, accent })))
+}

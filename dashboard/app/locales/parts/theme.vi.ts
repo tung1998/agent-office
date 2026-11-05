@@ -65,5 +65,21 @@ export default {
   'theme.cell.small': 'Nhỏ',
   'theme.cell.medium': 'Vừa',
   'theme.cell.large': 'Lớn',
-  'theme.still': 'Đứng yên (không chuyển động)'
+  'theme.still': 'Đứng yên (không chuyển động)',
+  'theme.backdrop': 'Ảnh hoặc video nền',
+  'theme.backdropHint': 'Ảnh (JPG, PNG, WebP, GIF) hoặc video (MP4, WebM), tối đa 25 MB, lưu theo tài khoản. Dùng được với mọi theme; video chạy không tiếng, lặp lại.',
+  'theme.backdropUpload': 'Tải lên',
+  'theme.backdropChange': 'Đổi file',
+  'theme.backdropRemove': 'Bỏ nền',
+  'theme.backdropGlass': 'Độ đục của khung (dễ đọc chữ)',
+  'theme.backdropTooBig': 'File quá lớn (tối đa 25 MB)',
+  'theme.custom.muted': 'Chữ phụ (xám)',
+  'theme.custom.surface': 'Nền khung',
+  'theme.custom.border': 'Viền',
+  'theme.custom.auto': 'Tự động',
+  'theme.custom.reset': 'Về tự động',
+  'theme.contrast': 'Tương phản {n} (WCAG: chữ thường cần 4.5, chữ lớn và icon cần 3)',
+  'theme.backdropSuggest': 'Dùng màu theo ảnh',
+  'theme.backdropSuggestHint': 'Tạo bộ màu tự chọn từ ảnh: nền và chữ ngả theo màu ảnh, màu nhấn là màu nổi nhất của ảnh, chỉnh cho đủ tương phản.',
+  'theme.backdropFloor': 'Thấp nhất {n}% để chữ xám dễ đọc trên nền này'
 }

@@ -62,19 +62,21 @@ type Config struct {
 	Logger         *slog.Logger
 	Version        string
 
-	Providers  *provider.Service // nil disables the provider/model/repo routes (auth-only tests)
-	Team       *team.Service
-	Trigger    *trigger.Runner // automations: schedules and webhooks (nil = none)
-	Setup      *setup.Assistant
-	Transfer   *transfer.Service
-	Usage      *usage.Service
-	CLITools   *clitools.Manager // nil: installing/signing in CLIs from the dashboard is off
-	Chat       *chat.Engine
-	Burn       *burn.Service       // a project's agent running on its own (nil = off)
-	Cleanup    *cleanup.Service    // data management (ADR-095; nil = off)
-	Automation *automation.Service // nil: skills/agents/MCP management is off
-	Ops        *ops.Manager        // nil: running project processes is off
-	Monitors   *monitor.Service    // nil: health checks are off
+	Providers *provider.Service // nil disables the provider/model/repo routes (auth-only tests)
+	Team      *team.Service
+	Trigger   *trigger.Runner // automations: schedules and webhooks (nil = none)
+	Setup     *setup.Assistant
+	Transfer  *transfer.Service
+	Usage     *usage.Service
+	CLITools  *clitools.Manager // nil: installing/signing in CLIs from the dashboard is off
+	Chat      *chat.Engine
+	// BackgroundsDir keeps each account's dashboard background ("" = off)
+	BackgroundsDir string
+	Burn           *burn.Service       // a project's agent running on its own (nil = off)
+	Cleanup        *cleanup.Service    // data management (ADR-095; nil = off)
+	Automation     *automation.Service // nil: skills/agents/MCP management is off
+	Ops            *ops.Manager        // nil: running project processes is off
+	Monitors       *monitor.Service    // nil: health checks are off
 	// MCP serves the office tools to agent runs (bearer token per run, no session).
 	MCP http.Handler
 	// Gateway forwards runs to the MCP servers office manages, /mcp/s/<name> (ADR-091; nil = off).
@@ -298,6 +300,9 @@ func (s *server) csrf(next http.Handler) http.Handler {
 		}
 		if strings.HasSuffix(r.URL.Path, "/attachments") || strings.HasSuffix(r.URL.Path, "/file/upload") {
 			limit = 15 << 20 // 10 MB file as base64
+		}
+		if r.URL.Path == "/api/me/background" {
+			limit = 35 << 20 // 25 MB image or video as base64
 		}
 		r.Body = http.MaxBytesReader(w, r.Body, limit)
 		next.ServeHTTP(w, r)

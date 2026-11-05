@@ -2,29 +2,8 @@
 import type { DropdownMenuItem, NavigationMenuItem } from '@nuxt/ui'
 
 const route = useRoute()
-const { user, build, viewedBy, isOfficeAdmin, canCreateProject, manages, logout, endViewAs } = useAuth()
-const { t, when: fmtWhen } = useLang()
-
-// which office is running, above the user (from /api/auth/me)
-const buildLabel = computed(() => {
-  const b = build.value
-  if (!b) return ''
-  return b.revision ? `${b.version} · ${b.revision.slice(0, 7)}` : b.version
-})
-const buildText = computed(() => build.value?.dirty ? `${buildLabel.value} · ${t('build.dirty')}` : buildLabel.value)
-const buildTime = computed(() => {
-  const at = build.value?.time
-  return at ? t('build.time', { time: fmtWhen(at) }) : ''
-})
-const buildInfoOpen = ref(false)
-// a dot when the source moved past the running build (admins, once per load)
-const hasUpdate = ref(false)
-watch(isOfficeAdmin, async (admin) => {
-  if (!admin || !import.meta.client) return
-  try {
-    hasUpdate.value = (await $fetch<{ changed: boolean }>('/api/system/update/changes')).changed
-  } catch { /* no source to compare with */ }
-}, { immediate: true })
+const { user, viewedBy, isOfficeAdmin, canCreateProject, manages, logout, endViewAs } = useAuth()
+const { t } = useLang()
 
 const bareLayout = computed(() => route.path === '/login' || route.path === '/setup-account')
 
@@ -249,8 +228,11 @@ const userMenu = computed<DropdownMenuItem[][]>(() => [
   [{ label: t('user.logout'), icon: 'i-lucide-log-out', color: 'error', onSelect: () => logout() }]
 ])
 // the account's theme (useTheme): checked once the person is known
-const { theme, look: themeLook, background, load: loadTheme } = useTheme()
+const { saved: savedTheme, background, theme, look: themeLook, load: loadTheme } = useTheme()
 watch(() => user.value?.id, () => loadTheme(), { immediate: true })
+// light/dark changes the default theme's colors: the background's glass follows
+const colorMode = useColorMode()
+watch(() => colorMode.value, () => nextTick(() => paintBackdrop(savedTheme.value.bg)))
 </script>
 
 <template>
@@ -274,24 +256,6 @@ watch(() => user.value?.id, () => loadTheme(), { immediate: true })
 
       <template #footer="{ collapsed }">
         <div class="flex w-full min-w-0 flex-col gap-1">
-          <div v-if="isOfficeAdmin && buildLabel && !collapsed" class="flex min-w-0 items-center gap-1 px-2.5 text-xs text-(--ui-text-dimmed)">
-            <!-- the running build, and the update page: an admin's -->
-            <NuxtLink to="/admin/update" class="flex min-w-0 items-center gap-1 hover:text-(--ui-text-muted)">
-              <span v-if="hasUpdate" class="size-1.5 shrink-0 rounded-full bg-primary" :title="t('build.hasUpdate')" />
-              <span class="truncate">{{ buildText }}</span>
-            </NuxtLink>
-            <UTooltip v-model:open="buildInfoOpen" :content="{ side: 'top' }">
-              <button type="button" class="shrink-0" :aria-label="build?.subject || t('build.noSubject')" @click="buildInfoOpen = !buildInfoOpen">
-                <UIcon name="i-lucide-info" class="size-3.5" />
-              </button>
-              <template #content>
-                <div class="max-w-72 space-y-0.5 text-xs">
-                  <p class="font-medium">{{ build?.subject || t('build.noSubject') }}</p>
-                  <p v-if="buildTime" class="text-(--ui-text-muted)">{{ buildTime }}</p>
-                </div>
-              </template>
-            </UTooltip>
-          </div>
           <UDropdownMenu :items="userMenu" :content="{ align: 'start' }" class="w-full">
             <UButton
               color="neutral"

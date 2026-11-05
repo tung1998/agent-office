@@ -6,7 +6,11 @@
 // and the sky behind it. Palettes and scenes from ai-chat-themes by Aohkne
 // (MIT): https://github.com/Aohkne/ai-chat-themes
 
-export interface ThemeColors { bg: string, text: string, accent: string }
+// muted (secondary text: times, names, hints), surface (cards, menus, inputs)
+// and border are optional: left out, they follow from bg and text
+export interface ThemeColors { bg: string, text: string, accent: string, muted?: string, surface?: string, border?: string }
+export const EXTRA_COLORS = ['muted', 'surface', 'border'] as const
+export type ExtraColor = typeof EXTRA_COLORS[number]
 export interface Theme extends ThemeColors {
   id: string
   font?: string
@@ -30,9 +34,9 @@ export const COLOR_THEMES: Theme[] = [
   { id: 'sunset-cloud', bg: '#2b2030', text: '#f7e8e2', accent: '#ff8a6b' },
   { id: 'night-sea', bg: '#0f1a2c', text: '#dce6fa', accent: '#5aaeff' },
   { id: 'terminal', bg: '#0a110c', text: '#b9f6c6', accent: '#39e87a', font: MONO },
-  { id: 'sakura', bg: '#fff4f6', text: '#4b2a35', accent: '#e0567f' },
+  { id: 'sakura', bg: '#fff4f6', text: '#4b2a35', accent: '#c23a66' },
   { id: 'old-paper', bg: '#f2e9d6', text: '#3a2f22', accent: '#a5522c', font: SERIF },
-  { id: 'mint', bg: '#f3faf6', text: '#1f3a30', accent: '#14a37f' }
+  { id: 'mint', bg: '#f3faf6', text: '#1f3a30', accent: '#0b7a5f' }
 ]
 
 export const WALLPAPER_THEMES: Theme[] = [
@@ -46,22 +50,35 @@ export const WALLPAPER_THEMES: Theme[] = [
   live('jellyfish', ['#0a1830', '#dfe7fb', '#a58cf0'], bands(0.07, 'linear-gradient(#174784, #0c2b58 50%, #071a3a)'), 'rgba(12, 28, 58, .7)'),
   live('koi-pond', ['#11332d', '#e4f2ea', '#ef8a4a'], bands(0.12, 'linear-gradient(175deg, #4aa08c, #2f8070 50%, #1f6156)'), 'rgba(17, 51, 45, .72)'),
   live('honu-lagoon', ['#0f3a44', '#e3f6f2', '#5fd0b8'], bands(0.14, 'linear-gradient(#35a6f0, #1d7ad8 45%, #1650b2)'), 'rgba(15, 58, 68, .72)'),
-  live('cloud-drift', ['#d8ecfa', '#1d3447', '#2f78bd'], bands(0.22, 'linear-gradient(#4fa3e8, #86c3f0 55%, #b6dbf6)'), 'rgba(255, 255, 255, .7)')
+  live('cloud-drift', ['#d8ecfa', '#1d3447', '#1f5f99'], bands(0.22, 'linear-gradient(#4fa3e8, #86c3f0 55%, #b6dbf6)'), 'rgba(255, 255, 255, .78)')
 ]
 
 export const DEFAULT_CUSTOM: ThemeColors = { bg: '#1b1d24', text: '#e4e6ee', accent: '#8b7cf6' }
 
 export const isHex = (c: unknown): c is string => typeof c === 'string' && /^#[0-9a-f]{6}$/i.test(c)
-const rgb = (c: string) => [1, 3, 5].map(i => parseInt(c.slice(i, i + 2), 16) / 255) as [number, number, number]
-const hex = (c: number[]) => '#' + c.map(v => Math.round(Math.max(0, Math.min(1, v)) * 255).toString(16).padStart(2, '0')).join('')
-const mix = (a: string, b: string, k: number) => { const x = rgb(a), y = rgb(b); return hex(x.map((v, i) => v + (y[i]! - v) * k)) }
-const luma = (c: string) => { const [r, g, b] = rgb(c); return 0.2126 * r + 0.7152 * g + 0.0722 * b }
+export const rgb = (c: string) => [1, 3, 5].map(i => parseInt(c.slice(i, i + 2), 16) / 255) as [number, number, number]
+export const hex = (c: number[]) => '#' + c.map(v => Math.round(Math.max(0, Math.min(1, v)) * 255).toString(16).padStart(2, '0')).join('')
+export const mix = (a: string, b: string, k: number) => { const x = rgb(a), y = rgb(b); return hex(x.map((v, i) => v + (y[i]! - v) * k)) }
+export const luma = (c: string) => { const [r, g, b] = rgb(c); return 0.2126 * r + 0.7152 * g + 0.0722 * b }
 export const isDark = (t: ThemeColors) => luma(t.bg) < 0.5
+// WCAG contrast ratio (1–21): body text wants 4.5, large text and icons 3
+const lum = (c: string) => { const [r, g, b] = rgb(c).map(v => v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4); return 0.2126 * r! + 0.7152 * g! + 0.0722 * b! }
+export const contrast = (a: string, b: string) => { const x = lum(a), y = lum(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05) }
+// The text on an accent fill (solid buttons, the person's chat bubble) and on
+// the inverted fill (the theme's text color): white or a near-black of the
+// theme, whichever reads better on both.
+export function onAccent(t: ThemeColors): string {
+  const darkInk = luma(t.bg) < luma(t.text) ? t.bg : mix(t.text, '#000000', 0.6)
+  const score = (c: string) => Math.min(contrast(c, t.accent), contrast(c, t.text))
+  return score('#ffffff') >= score(darkInk) ? '#ffffff' : darkInk
+}
 
 export function findTheme(id: string, custom?: ThemeColors): Theme | undefined {
   if (id === 'custom') {
     const c = custom && isHex(custom.bg) && isHex(custom.text) && isHex(custom.accent) ? custom : DEFAULT_CUSTOM
-    return { id, bg: c.bg, text: c.text, accent: c.accent }
+    const t: Theme = { id, bg: c.bg, text: c.text, accent: c.accent }
+    for (const k of EXTRA_COLORS) if (isHex(c[k])) t[k] = c[k]
+    return t
   }
   return COLOR_THEMES.find(t => t.id === id) ?? WALLPAPER_THEMES.find(t => t.id === id)
 }
@@ -69,7 +86,7 @@ export function findTheme(id: string, custom?: ThemeColors): Theme | undefined {
 const SHADES = [50, 100, 200, 300, 400, 500, 600, 700, 800, 900, 950] as const
 // how much of the text color each neutral shade carries over the background:
 // the light scale runs from the page (50) to ink (950), the dark one back
-const INK_LIGHT = [0.03, 0.07, 0.14, 0.26, 0.42, 0.55, 0.66, 0.78, 0.88, 0.95, 1]
+const INK_LIGHT = [0.03, 0.07, 0.14, 0.26, 0.56, 0.7, 0.78, 0.86, 0.92, 0.96, 1]
 const INK_DARK = [1, 0.95, 0.88, 0.76, 0.6, 0.45, 0.32, 0.2, 0.1, 0, -0.25]
 // the accent toward white (light shades) and black (dark ones)
 const ACCENT = [0.9, 0.8, 0.62, 0.42, 0.2, 0, -0.16, -0.32, -0.48, -0.62, -0.74]
@@ -78,7 +95,7 @@ const ACCENT = [0.9, 0.8, 0.62, 0.42, 0.2, 0, -0.16, -0.32, -0.48, -0.62, -0.74]
 export function primaryVariables(accent: string, darkText = '#18181b'): Record<string, string> {
   const vars: Record<string, string> = {
     '--ui-primary': accent,
-    '--ui-text-inverted': luma(accent) > 0.55 ? darkText : '#ffffff'
+    '--ui-text-inverted': contrast('#ffffff', accent) >= contrast(darkText, accent) ? '#ffffff' : darkText
   }
   SHADES.forEach((shade, i) => {
     const a = ACCENT[i]!
@@ -87,28 +104,63 @@ export function primaryVariables(accent: string, darkText = '#18181b'): Record<s
   return vars
 }
 
+// What muted, surface and border are when the theme leaves them out: Nuxt
+// UI's neutral shades (dark: muted 400, cards 800, borders 800; light: 500,
+// 100, 200), from the theme's ink scale
+export function autoColors(t: ThemeColors): Record<ExtraColor, string> {
+  const dark = isDark(t)
+  const ink = (i: number) => { const k = (dark ? INK_DARK : INK_LIGHT)[i]!; return k < 0 ? mix(t.bg, '#000000', -k) : mix(t.bg, t.text, k) }
+  return dark ? { muted: ink(4), surface: ink(8), border: ink(8) } : { muted: ink(5), surface: ink(1), border: ink(2) }
+}
+
+// The glass over a wallpaper's sky, at least as opaque as its own and as much
+// more as muted text (--ui-text-muted) needs for 4.5 and dimmed text for 3
+// over every color of the sky (WCAG, ADR-249)
+function readableGlass(w: { sky: string, glass: string }, muted: string, dimmed: string): string {
+  const m = w.glass.match(/rgba\((\d+),\s*(\d+),\s*(\d+),\s*([\d.]+)\)/)
+  const stops = w.sky.match(/#[0-9a-f]{6}/gi) ?? []
+  if (!m || !stops.length) return w.glass
+  const g = hex([m[1], m[2], m[3]].map(v => Number(v) / 255))
+  const ok = (a: number) => stops.every((s) => {
+    const under = mix(s, g, a)
+    return contrast(muted, under) >= 4.6 && contrast(dimmed, under) >= 3.1
+  })
+  let a = Number(m[4])
+  while (a < 0.95 && !ok(a)) a = Math.round((a + 0.01) * 100) / 100
+  return `rgba(${m[1]}, ${m[2]}, ${m[3]}, ${a})`
+}
+
 // The CSS a theme sets on <html data-theme>: unlayered, so it wins over Nuxt
 // UI's theme layer; the light/dark class is set to match (useTheme).
 export function themeCss(t: Theme): string {
   const dark = isDark(t)
   const ink = (k: number) => k < 0 ? mix(t.bg, '#000000', -k) : mix(t.bg, t.text, k)
-  const vars = primaryVariables(t.accent, dark ? t.bg : mix(t.bg, '#000000', 0.85))
+  const vars: Record<string, string> = {}
   SHADES.forEach((s, i) => {
     vars[`--ui-color-neutral-${s}`] = ink((dark ? INK_DARK : INK_LIGHT)[i]!)
+    const a = ACCENT[i]!
+    vars[`--ui-color-primary-${s}`] = a >= 0 ? mix(t.accent, '#ffffff', a) : mix(t.accent, '#000000', -a)
   })
+  if (t.muted) Object.assign(vars, { '--ui-text-muted': t.muted, '--ui-text-dimmed': mix(t.muted, t.bg, 0.3) })
+  if (t.surface) Object.assign(vars, { '--ui-bg-elevated': t.surface, '--ui-bg-muted': mix(t.bg, t.surface, 0.5), '--ui-bg-accented': mix(t.surface, t.text, 0.1) })
+  if (t.border) Object.assign(vars, { '--ui-border': t.border, '--ui-border-muted': t.border, '--ui-border-accented': mix(t.border, t.text, 0.2) })
   Object.assign(vars, {
+    '--ui-primary': t.accent,
     '--ui-bg': t.bg,
     '--ui-text-highlighted': t.text,
-    '--ui-bg-inverted': t.text
+    '--ui-bg-inverted': t.text,
+    '--ui-text-inverted': onAccent(t)
   })
   if (t.font) vars['--font-sans'] = t.font
   let css = `html[data-theme="${t.id}"]{${Object.entries(vars).map(([k, v]) => `${k}:${v}`).join(';')}}`
   if (t.wallpaper) {
-    // the scene shows through: the page has no background of its own, the
-    // sidebar is glass; cards, menus and dialogs keep theirs
-    css += `html[data-theme="${t.id}"]{background:${t.wallpaper.sky} fixed;--wall-glass:${t.wallpaper.glass}}`
+    // the scene shows through: the page has no background of its own; the
+    // sidebar and the page (PageShell) are glass, as opaque as the sky needs
+    // for muted text to read (cards, menus and dialogs keep theirs)
+    const glass = readableGlass(t.wallpaper, vars['--ui-text-muted'] ?? vars[`--ui-color-neutral-${dark ? 400 : 500}`]!, vars['--ui-text-dimmed'] ?? vars[`--ui-color-neutral-${dark ? 500 : 400}`]!)
+    css += `html[data-theme="${t.id}"]{background:${t.wallpaper.sky} fixed;--wall-glass:${glass}}`
       + `html[data-theme="${t.id}"] body{background:transparent}`
-      + `html[data-theme="${t.id}"] .office-sidebar{background:var(--wall-glass)}`
+      + `html[data-theme="${t.id}"] .office-sidebar,html[data-theme="${t.id}"] .office-main{background:var(--wall-glass)}`
   }
   return css
 }

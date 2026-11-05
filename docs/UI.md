@@ -10,7 +10,7 @@ Menu tài khoản → Cài đặt → Giao diện giữ các bảng màu và c�
 
 Phần **Màu nâng cao** thu gọn mặc định, cho chọn nền và chữ riêng của thanh bên, thanh tiêu đề, vùng nội dung, thẻ nội dung, ô nhập và menu/hộp thoại; có màu viền, liên kết và màu nhấn chung. Mục chưa chỉnh kế thừa theme hiện tại. Có thể khôi phục từng nhóm hoặc toàn bộ màu nâng cao mà không đổi hình nền, hiệu ứng hay bảng màu của theme. Màu nền các vùng vẫn theo thanh trong suốt; ô nhập và menu/hộp thoại giữ nền đặc. Thiết lập màu dùng cùng `/api/me/prefs/theme`, tương thích với tài khoản chưa có tuỳ chỉnh.
 
-Thiết lập đồng bộ theo tài khoản qua `/api/me/prefs/theme`. File cá nhân nằm trong IndexedDB của trình duyệt, không tải lên máy chủ; thiết bị khác cần chọn lại file (hoặc dùng link/nền có sẵn để đồng bộ). Bộ nền phân phối trong `dashboard/public/backgrounds/`; nguồn và cách xử lý ở [README của bộ nền](../dashboard/public/backgrounds/README.md).
+Thiết lập đồng bộ theo tài khoản qua `/api/me/prefs/theme`. Mục chọn file trên máy (100 MB) giữ file trong IndexedDB của trình duyệt; thiết bị khác cần chọn lại file. Mục **Tải lên** của upstream (25 MB, JPEG/PNG/WebP/GIF/MP4/WebM) lưu file trên máy chủ theo tài khoản, lấy mẫu màu để gợi ý bảng màu và giữ độ đục không thấp hơn mức cần cho chữ dễ đọc. Cả hai cách dùng chung bộ hiển thị; chỉ một nền được chọn tại một thời điểm. Nền upload có sẵn giữ nguyên độ đậm nếu chưa từng chỉnh hiệu ứng. Bộ nền phân phối trong `dashboard/public/backgrounds/`; nguồn và cách xử lý ở [README của bộ nền](../dashboard/public/backgrounds/README.md).
 
 ## Màn hình
 
@@ -37,6 +37,7 @@ Dự án thật (`dashboard/app/pages/`) là projects-based, không phải sơ �
 | `/watch` | Theo dõi | Nhiều dashboard (tối đa 5, nằm trong submenu Theo dõi ở sidebar kèm + thêm; ⚙ trên trang: tên, project mặc định); mỗi dashboard là lưới 12 cột (8/4 cột khi hẹp) các box: kéo tay nắm để di chuyển, kéo góc đổi cỡ trong giới hạn của widget; 24 widget xếp theo nhóm Agent & công việc, Chạy & giám sát, AI & chi phí, Số liệu & khác (chat, tiến trình, container, nhiều console, giám sát, con số, job, biểu đồ, sự cố, chờ duyệt, máy, ngân sách AI, hạn mức AI, kết nối AI, agent, chi phí theo nhóm, bảng đèn, git, bảng điều khiển, lịch tự động, Burn, việc của Burn, xem trang web, ghi chú). Widget đổi cách thể hiện theo số ô (huy hiệu 1×1, dải 1 hàng, cột 1 ô rộng, thẻ, bảng). Lưu theo tài khoản trên office (`/api/me/prefs/watch`), mở ở máy nào cũng thấy; bản cũ trong trình duyệt được chuyển lên một lần (ADR-159) | Thêm box, ⚙ cài đặt box, nhân bản, đổi cỡ |
 | `/assistant` | Trợ lý office | Chat với trợ lý office (project ảo, không gắn thư mục, dùng để quản lý chính office) | |
 | `/account` | Tài khoản | Đổi tên/mật khẩu, ngôn ngữ, giao diện sáng/tối, cài CLI | |
+| (menu tài khoản › Cài đặt) | Cài đặt | Panel phải, lưu theo tài khoản: project ở sidebar, và **Giao diện**: mặc định (sáng/tối), 6 theme màu, tự chọn 3 màu, 11 hình nền ASCII động (độ đậm, tốc độ, cỡ ô, đứng yên), **ảnh hoặc video nền** của riêng mình (JPG/PNG/WebP/GIF, MP4/WebM, ≤ 25 MB) trên mọi theme với thanh độ đục của khung (không xuống dưới mức để chữ xám đọc được trên ảnh đó) và nút **Dùng màu theo ảnh**; màu tự chọn có thêm chữ phụ, nền khung, viền (bỏ trống = tự động), mỗi màu hiện tương phản. Chữ trên nền màu nhấn tự chọn trắng/tối theo tương phản WCAG (ADR-249) | Tải lên, đổi file, bỏ nền |
 | `/admin/users` (admin) | Người dùng | Danh sách tài khoản, tạo, đặt lại mật khẩu, gắn Discord/Telegram ID (tin gửi bot từ ID đó hiện tên tài khoản; chỉ nhận diện, không cấp quyền), bật/tắt (tắt thu hồi session) | |
 | `/admin/audit` (admin) | Nhật ký thao tác | Lịch sử thay đổi cấu hình/quyền toàn máy | |
 | `/admin/transfer` (admin) | Chuyển máy | Export/import toàn bộ cấu hình (backup sang máy khác) | |
@@ -216,6 +217,8 @@ Dashboard mặc định chạy ở cổng **2704** (`make dev-ui`, `make ui-star
 | PATCH | `/api/users/:id` | admin | `{disabled}`; không tự vô hiệu hóa chính mình |
 | POST | `/api/users/:id/reset-password` | admin | `{password}`, thu hồi mọi phiên |
 | GET | `/api/audit?limit=` | admin | Audit log mới nhất |
+| GET/PUT | `/api/me/prefs/:key` | đăng nhập | Cài đặt dashboard của tài khoản: `watch`, `projects`, `theme` (`{id, custom, wall, bg: {kind, v, glass}}`) |
+| GET/PUT/DELETE | `/api/me/background` | đăng nhập | Ảnh/video nền của tài khoản: PUT `{data}` base64 ≤ 25 MB, loại lấy từ nội dung (jpeg/png/webp/gif/mp4/webm, khác thì 415), trả `{mime, size, version}`; GET phục vụ `nosniff`, sandbox, Range (ADR-249) |
 
 ### Config
 | Method | Path | Mô tả |
