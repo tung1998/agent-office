@@ -2,6 +2,14 @@
 
 Nuxt 4 + @nuxt/ui, app riêng trong `dashboard/` (ADR-010). Gọi REST + SSE của `office` server. Ngôn ngữ vi/en.
 
+## Giao diện và hình nền
+
+Menu tài khoản → Cài đặt → Giao diện giữ các bảng màu và cảnh ASCII sẵn có, đồng thời có 14 ảnh J2TEAM và video FJ2 - DG. Có thể chọn ảnh/MP4 bằng link HTTP(S) trực tiếp hoặc file trên máy (tối đa 100 MB). Link trang xem Drive không phải link media trực tiếp. Chọn cảnh ASCII sẽ thay nền ảnh/video; thay bảng màu vẫn giữ nền đã chọn. Bỏ ảnh/video quay lại nền của theme hiện tại.
+
+Độ đậm hình nền, độ trong suốt giao diện và blur nền có thanh chỉnh riêng, xem ngay khi kéo và lưu khi thả. Chữ giữ nguyên độ đậm; menu và hộp thoại có nền đặc. Video lặp, tắt tiếng, có nút đứng yên; tự dừng khi tab ẩn hoặc hệ thống yêu cầu giảm chuyển động. Trình duyệt chặn tự phát thì hiện nút Phát. File/link lỗi có thông báo và vẫn dùng được giao diện.
+
+Thiết lập đồng bộ theo tài khoản qua `/api/me/prefs/theme`. File cá nhân nằm trong IndexedDB của trình duyệt, không tải lên máy chủ; thiết bị khác cần chọn lại file (hoặc dùng link/nền có sẵn để đồng bộ). Bộ nền phân phối trong `dashboard/public/backgrounds/`; nguồn và cách xử lý ở [README của bộ nền](../dashboard/public/backgrounds/README.md).
+
 ## Màn hình
 
 Dự án thật (`dashboard/app/pages/`) là projects-based, không phải sơ đồ tổ chức/blackboard như bản thiết kế sơ khai; bảng dưới đây khớp code hiện tại.
