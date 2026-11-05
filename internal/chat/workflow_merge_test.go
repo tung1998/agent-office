@@ -184,3 +184,36 @@ func TestStepWaitsForRunDiffs(t *testing.T) {
 		t.Fatal("a stopped run still waits")
 	}
 }
+
+// cancelChat cancels the step's context while the store reads, the way a
+// run's deadline lands in the middle of a query under load.
+type cancelChat struct {
+	storage.ChatRepo
+	cancel context.CancelFunc
+}
+
+func (c cancelChat) ListPatches(ctx context.Context, id string) ([]storage.Patch, error) {
+	c.cancel()
+	<-ctx.Done()
+	return nil, ctx.Err()
+}
+
+type cancelStore struct {
+	storage.Store
+	cancel context.CancelFunc
+}
+
+func (s cancelStore) Chat() storage.ChatRepo { return cancelChat{s.Store.Chat(), s.cancel} }
+
+// A step stopped while waitMerged read the store went on as if every diff
+// were merged: the store's error (the deadline's) read as "unknown, run as
+// before" (TestWaitMergedDepsOnlyShortCap failed so under load, ADR-254).
+func TestWaitMergedStoppedWhileReading(t *testing.T) {
+	st, _, own := mergeStore(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	e := &Engine{store: cancelStore{st, cancel}}
+	if err := e.waitMerged(ctx, own, workflow.Step{ID: "kiem", Type: workflow.StepCheck}); err == nil {
+		t.Fatal("a step stopped mid-read ran on")
+	}
+}

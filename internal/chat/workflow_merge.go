@@ -118,6 +118,11 @@ func (e *Engine) waitMerged(ctx context.Context, own storage.Conversation, s wor
 			return err
 		}
 		waiting, err := e.unmergedWork(ctx, own)
+		if err != nil && ctx.Err() != nil {
+			// stopped while reading: a stopped step, not one whose diffs are
+			// in (the store's error was the deadline's, ADR-254)
+			return ctx.Err()
+		}
 		if err != nil || len(waiting) == 0 {
 			return nil // unknown: the step runs as before
 		}

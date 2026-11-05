@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"slices"
+	"syscall"
 	"testing"
 	"time"
 )
@@ -35,6 +36,7 @@ func TestTreeAndKill(t *testing.T) {
 		}
 	}
 	i := slices.IndexFunc(list, func(p Proc) bool { return p.PID == int32(cmd.Process.Pid) })
+	k := slices.IndexFunc(list, func(p Proc) bool { return p.Name == "sleep" && p.Depth == 1 })
 	if i < 0 || list[i].Depth != 0 || !slices.ContainsFunc(list, func(p Proc) bool { return p.Name == "sleep" && p.Depth == 1 }) {
 		t.Fatalf("tree = %+v", list)
 	}
@@ -48,8 +50,19 @@ func TestTreeAndKill(t *testing.T) {
 	case <-time.After(3 * time.Second):
 		t.Fatal("not killed")
 	}
-	time.Sleep(100 * time.Millisecond)
-	if _, l, _ := s.Tree(ctx, int32(os.Getpid())); slices.ContainsFunc(l, func(p Proc) bool { return p.Name == "sleep" }) {
+	// the grandchild itself must be gone, not just out of the tree: an
+	// orphan moves to launchd and slipped past a check of the tree alone.
+	// A killed one leaves the process table once reaped (under load, past
+	// a fixed 100ms)
+	if k < 0 {
+		t.Fatalf("no sleep in %+v", list)
+	}
+	sleepPID := int(list[k].PID)
+	sleeping := func() bool { return syscall.Kill(sleepPID, 0) == nil }
+	for deadline := time.Now().Add(3 * time.Second); sleeping() && time.Now().Before(deadline); {
+		time.Sleep(50 * time.Millisecond)
+	}
+	if sleeping() {
 		t.Fatal("its child lives on")
 	}
 }
@@ -65,8 +78,10 @@ func TestTreeAdopted(t *testing.T) {
 		if err := c.Start(); err != nil {
 			t.Fatal(err)
 		}
-		defer c.Process.Kill()
 	}
+	// the shell's own sleep too: Kill alone left it running 30s after the
+	// test, where a later test's tree check could meet it
+	defer func() { KillTree(ctx, int32(run.Process.Pid)); run.Wait(); root.Process.Kill(); root.Wait() }()
 	rootPID, runPID := int32(root.Process.Pid), int32(run.Process.Pid)
 	var list []Proc
 	for deadline := time.Now().Add(3 * time.Second); ; time.Sleep(50 * time.Millisecond) {
