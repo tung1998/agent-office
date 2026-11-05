@@ -376,7 +376,7 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, refused, http.StatusBadGateway)
 		return
 	}
-	if resp.StatusCode < http.StatusInternalServerError { // it answered: it works
+	if resp.StatusCode >= 200 && resp.StatusCode < 300 { // it answered: it works (a 404 of a wrong URL does not)
 		g.note(ctx, m, nil)
 	}
 	for _, h := range passResponse {

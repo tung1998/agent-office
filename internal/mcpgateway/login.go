@@ -262,13 +262,20 @@ func (g *Gateway) Logout(ctx context.Context, m storage.MCPServer) (storage.MCPS
 }
 
 // setStatus records a status office found on its own and tells open pages.
+// Through save, so when it broke is kept like a check's (ADR-250).
 func (g *Gateway) setStatus(ctx context.Context, m storage.MCPServer, status, msg string) (storage.MCPServer, error) {
-	now := time.Now().UTC()
-	if err := g.Store.MCPServers().SetCheck(context.WithoutCancel(ctx), m.ID, status, msg, m.LastTools, now); err != nil {
+	ctx = context.WithoutCancel(ctx)
+	if fresh, err := g.Store.MCPServers().Get(ctx, m.ID); err == nil {
+		m.LastCheckStatus = fresh.LastCheckStatus
+	}
+	unchanged := m.LastCheckStatus == status
+	g.health.mu.Lock()
+	m, err := g.save(ctx, m, status, msg, m.LastTools)
+	g.health.mu.Unlock()
+	if err != nil {
 		return m, err
 	}
-	m.LastCheckAt, m.LastCheckStatus, m.LastCheckError = &now, status, msg
-	if g.OnStatus != nil {
+	if unchanged && g.OnStatus != nil { // save tells only a change; open pages still hear of it
 		g.OnStatus(m)
 	}
 	return m, nil

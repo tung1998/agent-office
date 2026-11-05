@@ -114,6 +114,36 @@ func TestHealthFromCalls(t *testing.T) {
 	}
 }
 
+// A server already broken before office kept when (fetch without uvx on
+// the day ADR-250 shipped) gets its break kept at the next check, and later
+// checks keep that same moment: the person's "Bỏ qua" holds until a new break.
+func TestBrokenSinceForServerBrokenBefore(t *testing.T) {
+	st, box := openStore(t)
+	ctx := context.Background()
+	m, _ := st.MCPServers().Create(ctx, storage.MCPServer{Name: "fetch", Kind: "stdio", Command: filepath.Join(t.TempDir(), "uvx"), Enabled: true, Scope: "machine"})
+	if err := st.MCPServers().SetCheck(ctx, m.ID, "error", "máy chưa có lệnh uvx", nil, time.Now().UTC().Add(-time.Hour)); err != nil {
+		t.Fatal(err)
+	}
+	gw := &mcpgateway.Gateway{Store: st, Box: box}
+	t.Cleanup(gw.Close)
+	m, _ = st.MCPServers().Get(ctx, m.ID)
+	if _, err := gw.CheckServer(ctx, m); err != nil {
+		t.Fatal(err)
+	}
+	first := mcpgateway.BrokenSince(ctx, st, m.ID)
+	if first.IsZero() {
+		t.Fatal("break of a server broken before not kept")
+	}
+	time.Sleep(1100 * time.Millisecond) // a later check, a later LastCheckAt
+	m, _ = st.MCPServers().Get(ctx, m.ID)
+	if _, err := gw.CheckServer(ctx, m); err != nil {
+		t.Fatal(err)
+	}
+	if again := mcpgateway.BrokenSince(ctx, st, m.ID); !again.Equal(first) {
+		t.Fatalf("break moved: %v then %v", first, again)
+	}
+}
+
 func TestInstallCommand(t *testing.T) {
 	missing := func(cmd string) storage.MCPServer {
 		return storage.MCPServer{Kind: "stdio", Command: cmd, LastCheckStatus: "error", LastCheckError: "máy chưa có lệnh " + cmd + ": …"}

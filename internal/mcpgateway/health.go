@@ -98,14 +98,18 @@ func (g *Gateway) save(ctx context.Context, m storage.MCPServer, status, msg str
 		return m, err
 	}
 	m.LastCheckAt, m.LastCheckStatus, m.LastCheckError, m.LastTools = &now, status, msg, tools
-	if prev == status {
-		return m, nil
-	}
 	switch {
 	case status == "ok":
-		_ = g.Store.Settings().Set(ctx, BrokenSinceKey(m.ID), time.Time{})
+		if prev != status {
+			_ = g.Store.Settings().Set(ctx, BrokenSinceKey(m.ID), time.Time{})
+		}
 	case !Broken(storage.MCPServer{LastCheckStatus: prev}) || BrokenSince(ctx, g.Store, m.ID).IsZero():
+		// a new break, or one from before office kept when (still broken
+		// at this check): kept once, so its alert's key stays the same
 		_ = g.Store.Settings().Set(ctx, BrokenSinceKey(m.ID), now)
+	}
+	if prev == status {
+		return m, nil
 	}
 	g.log().Info("mcp gateway: status changed", "server", m.Name, "from", prev, "to", status)
 	if g.OnStatus != nil {
