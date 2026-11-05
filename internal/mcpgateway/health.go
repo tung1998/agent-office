@@ -1,6 +1,7 @@
 package mcpgateway
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -169,13 +170,36 @@ func (g *Gateway) CheckDue(ctx context.Context, now time.Time, all bool) (int, e
 		} else if !Due(m, now) || m.LastCheckStatus == "needs_login" {
 			continue
 		}
-		if _, err := g.CheckServer(ctx, m); err != nil {
+		if err := g.checkBounded(ctx, m); err != nil {
 			g.log().Warn("mcp gateway: check", "server", m.Name, "err", err)
 			continue
 		}
 		n++
 	}
 	return n, nil
+}
+
+// DefaultCheckTimeout bounds one server's check when CheckTimeout is 0.
+const DefaultCheckTimeout = 45 * time.Second
+
+// checkBounded checks m within CheckTimeout: one that never answers is
+// recorded broken ("không trả lời"), and the servers after it still get
+// their check. Office going down (ctx) is not the server's fault: nothing saved.
+func (g *Gateway) checkBounded(ctx context.Context, m storage.MCPServer) error {
+	limit := cmp.Or(g.CheckTimeout, DefaultCheckTimeout)
+	cctx, cancel := context.WithTimeout(ctx, limit)
+	defer cancel()
+	_, err := g.CheckServer(cctx, m)
+	if err == nil || ctx.Err() != nil || !errors.Is(cctx.Err(), context.DeadlineExceeded) {
+		return err
+	}
+	g.health.mu.Lock()
+	defer g.health.mu.Unlock()
+	if fresh, ferr := g.Store.MCPServers().Get(ctx, m.ID); ferr == nil {
+		m = fresh // the status stored now
+	}
+	_, err = g.save(ctx, m, "error", fmt.Sprintf("không trả lời sau %s", limit), m.LastTools)
+	return err
 }
 
 // Sweep rechecks due servers every tick until ctx ends (0: a minute).

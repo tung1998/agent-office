@@ -136,6 +136,37 @@ func TestDiscoveredCallKeepsGatewayPolicy(t *testing.T) {
 	}
 }
 
+// ADR-250: an API run finds a broken server as not available (with why) and
+// a call to it fails at once, without reaching upstream, as a CLI run never
+// gets it in its config.
+func TestDiscoverySkipsBrokenServers(t *testing.T) {
+	st, box := openStore(t)
+	ctx := context.Background()
+	var seen []string
+	srv := fakeMCP(t, false, &seen)
+	m, err := st.MCPServers().Create(ctx, storage.MCPServer{Name: "fetch", URL: srv.URL, Enabled: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	tools := []storage.MCPTool{{Name: "resolve", Description: "Fetch a page"}}
+	if err := st.MCPServers().SetCheck(ctx, m.ID, "error", "uvx: not found", tools, time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	gw := &mcpgateway.Gateway{Store: st, Box: box}
+	c := mcpgateway.Caller{Kind: "api", AgentID: "me", ConversationID: "conv", JobID: "job"}
+	out, err := gw.FindTools(ctx, c, "fetch page", 0)
+	if err != nil || len(out.Tools) != 0 || !strings.Contains(out.Hint, "fetch") || !strings.Contains(out.Hint, "uvx") {
+		t.Fatalf("broken server found as usable: %+v %v", out, err)
+	}
+	if out, _ := gw.FindTools(ctx, c, "", 0); len(out.Servers) != 1 || out.Servers[0].Available || out.Servers[0].Status != "error" {
+		t.Fatalf("listing: %+v", out)
+	}
+	text, failed := gw.InvokeFound(ctx, c, "fetch", "resolve", json.RawMessage(`{}`))
+	if !failed || !strings.Contains(text, "hỏng") || !strings.Contains(text, "uvx") || len(seen) != 0 {
+		t.Fatalf("call to a broken server: %q %v, upstream %v", text, failed, seen)
+	}
+}
+
 func TestFindToolsEmptyCatalogAndVietnamese(t *testing.T) {
 	st, box := openStore(t)
 	ctx := context.Background()

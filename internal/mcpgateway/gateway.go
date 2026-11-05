@@ -53,6 +53,9 @@ type Gateway struct {
 	// MaxResult: a tool result's text longer than this reaches a run cut
 	// (0: DefaultMaxResult, <0: never, ADR-183).
 	MaxResult int
+	// CheckTimeout bounds one server's check in a sweep or "Kiểm tất cả"
+	// (0: DefaultCheckTimeout): one that never answers fails, not the rest.
+	CheckTimeout time.Duration
 
 	logins logins
 	pool   pool
@@ -107,17 +110,22 @@ func (g *Gateway) BrokenFor(ctx context.Context, c Caller) []string {
 	var out []string
 	for _, m := range list {
 		if m.Enabled && (m.Kind == "http" || m.Kind == "stdio") && m.Scope == "machine" && Assigned(m, c) && Broken(m) {
-			why := m.LastCheckError
-			if m.LastCheckStatus == "needs_login" {
-				why = "cần đăng nhập"
-			}
-			if r := []rune(why); len(r) > 120 {
-				why = string(r[:119]) + "…"
-			}
-			out = append(out, m.Name+" ("+why+")")
+			out = append(out, m.Name+" ("+brokenWhy(m)+")")
 		}
 	}
 	return out
+}
+
+// brokenWhy: why a broken server does not work, short.
+func brokenWhy(m storage.MCPServer) string {
+	why := m.LastCheckError
+	if m.LastCheckStatus == "needs_login" {
+		why = "cần đăng nhập"
+	}
+	if r := []rune(why); len(r) > 120 {
+		why = string(r[:119]) + "…"
+	}
+	return why
 }
 
 // NotFor lists the enabled servers of the machine c's run does not get: they

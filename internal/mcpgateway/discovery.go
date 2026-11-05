@@ -59,11 +59,17 @@ func (g *Gateway) FindTools(ctx context.Context, c Caller, query string, offset 
 		score int
 	}
 	var hits []hit
+	var broken []string // assigned, matching, but broken now (ADR-250)
 	for _, m := range list {
 		if !catalogServer(m) {
 			continue
 		}
-		available := Assigned(m, c)
+		// a broken server is left out as for a CLI run (NamesFor): calling it
+		// would only try to connect again
+		available := Assigned(m, c) && !Broken(m)
+		if query != "" && Assigned(m, c) && Broken(m) && matches(m, query, terms) {
+			broken = append(broken, m.Name+" ("+brokenWhy(m)+")")
+		}
 		if query == "" || strings.Contains(searchWords(m.Name), query) {
 			catalog := "ready"
 			switch {
@@ -113,8 +119,11 @@ func (g *Gateway) FindTools(ctx context.Context, c Caller, query string, offset 
 		}
 		return hits[i].tool.Tool < hits[j].tool.Tool
 	})
+	if len(broken) > 0 {
+		out.Hint = "Broken now, left out: " + strings.Join(broken, ", ") + ". Office checks it again on its own; tell the person, do not call it."
+	}
 	if offset >= len(hits) {
-		if query != "" && len(hits) == 0 {
+		if query != "" && len(hits) == 0 && out.Hint == "" {
 			out.Hint = "No matching tools. Retry with English keywords or the server name; an unchecked or empty catalog needs an MCP check in office. Not-assigned servers need the person's permission."
 		}
 		return out, nil
@@ -143,6 +152,22 @@ func searchWords(s string) string {
 	}, norm.NFD.String(strings.ToLower(s)))
 }
 
+// matches: the query names the server, or one of its tools has a term.
+func matches(m storage.MCPServer, query string, terms []string) bool {
+	if strings.Contains(searchWords(m.Name), query) {
+		return true
+	}
+	for _, t := range m.LastTools {
+		text := searchWords(m.Name + " " + t.Name + " " + t.Description)
+		for _, term := range terms {
+			if strings.Contains(text, term) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 func catalogServer(m storage.MCPServer) bool {
 	return m.Enabled && m.Scope == "machine" && (m.Kind == "http" || m.Kind == "stdio")
 }
@@ -163,6 +188,9 @@ func (g *Gateway) invokeFound(ctx context.Context, c Caller, server, tool string
 	m, err := g.Store.MCPServers().GetByName(ctx, server)
 	if err != nil || !catalogServer(m) || !Assigned(m, c) {
 		return toolResult("MCP không có hoặc chưa được cấp cho lượt này; dùng find_tool để kiểm tra", true)
+	}
+	if Broken(m) { // ADR-250: no connection tried again and again from a run
+		return toolResult("MCP "+m.Name+" đang hỏng ("+brokenWhy(m)+"): office tự kiểm lại định kỳ; báo người dùng, đừng gọi lại ngay", true)
 	}
 	for _, t := range m.LastTools {
 		if t.Name == tool {

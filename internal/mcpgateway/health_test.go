@@ -192,6 +192,47 @@ func TestDue(t *testing.T) {
 }
 
 // The background sweep heals a broken server once what it needs is there.
+// ADR-250: a server that never answers is one check that fails after
+// CheckTimeout, recorded broken, not a "Kiểm tất cả" (or the sweep) stuck on
+// it while the servers after it wait.
+func TestCheckDueTimesOutAHangingServer(t *testing.T) {
+	st, box := openStore(t)
+	ctx := context.Background()
+	hang := make(chan struct{})
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		select {
+		case <-hang:
+		case <-r.Context().Done():
+		}
+	}))
+	t.Cleanup(func() { close(hang); srv.Close() })
+	var seen []string
+	ok := fakeMCP(t, false, &seen)
+	slow, _ := st.MCPServers().Create(ctx, storage.MCPServer{Name: "a-slow", URL: srv.URL, Enabled: true, Scope: "machine"})
+	enc, _ := mcpgateway.SealMap(box, map[string]string{"Authorization": upstreamSecret})
+	fine, _ := st.MCPServers().Create(ctx, storage.MCPServer{Name: "b-fine", URL: ok.URL, Enabled: true, Scope: "machine", HeadersEnc: enc})
+	gw := &mcpgateway.Gateway{Store: st, Box: box, CheckTimeout: 200 * time.Millisecond}
+	t.Cleanup(gw.Close)
+	done := make(chan struct{})
+	var n int
+	var err error
+	go func() { n, err = gw.CheckDue(ctx, time.Now(), true); close(done) }()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("check-all stuck on a server that never answers")
+	}
+	if err != nil || n != 2 {
+		t.Fatalf("checked %d %v", n, err)
+	}
+	if got, _ := st.MCPServers().Get(ctx, slow.ID); got.LastCheckStatus != "error" || !strings.Contains(got.LastCheckError, "không trả lời") {
+		t.Fatalf("slow = %q %q", got.LastCheckStatus, got.LastCheckError)
+	}
+	if got, _ := st.MCPServers().Get(ctx, fine.ID); got.LastCheckStatus != "ok" {
+		t.Fatalf("fine = %q %q", got.LastCheckStatus, got.LastCheckError)
+	}
+}
+
 func TestCheckDueHeals(t *testing.T) {
 	st, box := openStore(t)
 	ctx := context.Background()
