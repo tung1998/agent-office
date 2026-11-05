@@ -397,3 +397,95 @@ steps:
 		t.Fatal("a done run went on again")
 	}
 }
+
+// A step the restart cut is told so once: when its loop comes back to it,
+// it runs anew. A wait waits its whole time again (not the old deadline),
+// an approval asks again on a new card (not the old decision).
+func TestResumedLoopRunsStepsAnew(t *testing.T) {
+	g := newWFGroup(t)
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	acts := actions.New(g.f.st, nil)
+	g.engine.SetActions(acts)
+	src := `---
+key: vong
+name: Vòng
+roles:
+  - { key: viet, name: Người viết, access: analyze }
+steps:
+  - id: dem
+    type: code
+    lang: bash
+    script: echo x >> "$HOME/.lan"; wc -l < "$HOME/.lan" | tr -d ' '
+    next: du
+  - id: du
+    type: condition
+    if: "{{steps.dem.output}} >= 3"
+    then: xong
+    else: cho
+  - id: cho
+    type: wait
+    for: 1s
+    next: hoi
+  - id: hoi
+    type: approve
+    note: "Lần nữa?"
+    next: dem
+  - id: xong
+    type: end
+    summary: "lần {{steps.dem.output}}"
+---
+`
+	if _, err := g.svc.Create(g.context, g.f.project.ID, src, map[string]string{"viet": g.dev.ID}); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := g.engine.Send(g.context, g.conv.ID, "#vong", nil); err != nil {
+		t.Fatal(err)
+	}
+	// the first approval: cut while it waits on the person
+	var r storage.WorkflowRun
+	until(t, "the first card", func() bool {
+		r = g.runningStep(t, "hoi")
+		return r.Checkpoint.Marks["hoi"].ActionID != ""
+	})
+	first := r.Checkpoint.Marks["hoi"].ActionID
+	g.engine.Shutdown(2 * time.Second)
+	_, _ = g.f.st.Jobs().FailRunning(g.context, "restart", "x", time.Now().UTC())
+	next := chat.NewEngine(g.f.st, g.f.provs, usage.New(g.f.st, time.UTC))
+	next.SetActions(acts)
+	keep := next.ResumableRuns(g.context)
+	if n := next.ResumeWorkflows(g.context, "", keep); n != 1 {
+		t.Fatalf("resumed %d", n)
+	}
+	// the marks the last office left are kept until the step marks again
+	if got, _ := g.f.st.WorkflowRuns().Get(g.context, r.ID); got.Checkpoint.Marks["hoi"].ActionID != first {
+		t.Fatalf("marks after going on = %+v", got.Checkpoint.Marks)
+	}
+	if _, err := acts.Decide(g.context, first, true, "admin"); err != nil {
+		t.Fatal(err)
+	}
+	// the loop comes back: the wait waits its whole second, the approval asks again
+	start := time.Now()
+	var second string
+	until(t, "a second card", func() bool {
+		got, _ := g.f.st.WorkflowRuns().Get(g.context, r.ID)
+		if got.Checkpoint == nil {
+			return false
+		}
+		_, running := got.Checkpoint.Running["hoi"]
+		second = got.Checkpoint.Marks["hoi"].ActionID
+		return got.Status != storage.RunRunning || running && second != "" && second != first
+	})
+	if second == first || second == "" {
+		t.Fatalf("the approval reused the old card %s", first)
+	}
+	if took := time.Since(start); took < 900*time.Millisecond {
+		t.Fatalf("the wait did not wait again: %v", took)
+	}
+	if _, err := acts.Decide(g.context, second, true, "admin"); err != nil {
+		t.Fatal(err)
+	}
+	if got := g.ended(t, r.ID); got.Status != storage.RunDone || got.Result != "lần 3" {
+		t.Fatalf("run = %s %q %q", got.Status, got.Result, got.Error)
+	}
+}

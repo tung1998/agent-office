@@ -38,12 +38,24 @@ func (e *Engine) runHeld(r storage.WorkflowRun) *wfRun {
 	return nil
 }
 
-// markBefore is what step id waited on when the last office went down.
+// markBefore is what step id waited on when the last office went down,
+// read once: the step's next turn in a loop starts anew (a new card, a
+// whole wait, a new sub-run).
 func (e *Engine) markBefore(run *wfRun, id string) (storage.StepMark, bool) {
 	e.wf.mu.Lock()
 	defer e.wf.mu.Unlock()
 	m, ok := run.before[id]
+	delete(run.before, id)
 	return m, ok
+}
+
+// wasCut says, once, whether the restart cut step id in the middle.
+func (e *Engine) wasCut(run *wfRun, id string) bool {
+	e.wf.mu.Lock()
+	defer e.wf.mu.Unlock()
+	cut := run.resumed[id]
+	delete(run.resumed, id)
+	return cut
 }
 
 // ResumableRuns are the runs left running that the next office goes on
@@ -152,6 +164,7 @@ func (e *Engine) resumeRun(ctx context.Context, rec storage.WorkflowRun, parent 
 	}
 	run.cp = cp
 	run.before = maps.Clone(cp.Marks)
+	run.marks = maps.Clone(cp.Marks) // kept until each step marks again: a second restart loses none
 	run.resumed = map[string]bool{}
 	for id := range cp.Running {
 		run.resumed[id] = true

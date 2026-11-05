@@ -321,6 +321,8 @@ func (e *Engine) runStepsFrom(ctx context.Context, own storage.Conversation, run
 		delete(running, s.ID)
 		e.wf.mu.Lock()
 		delete(run.marks, s.ID)
+		delete(run.before, s.ID) // its next turn in a loop starts anew
+		delete(run.resumed, s.ID)
 		e.wf.mu.Unlock()
 		if err != nil { // a failure is an output too, for the steps after it
 			r.res.Status = cmp.Or(r.res.Status, "error")
@@ -507,10 +509,7 @@ func (e *Engine) stepAgent(ctx context.Context, own storage.Conversation, projec
 	if run.ceiling != "" {
 		level = perm.Min(level, run.ceiling)
 	}
-	e.wf.mu.Lock()
-	cut := run.resumed[s.ID]
-	e.wf.mu.Unlock()
-	if cut { // its session keeps what it did before office went down (ADR-256)
+	if e.wasCut(run, s.ID) { // its session keeps what it did before office went down (ADR-256)
 		prompt = prompts.Render("workflow/step-resumed", nil) + "\n\n" + prompt
 	}
 	key := run.rec.ID + "#" + s.ID
