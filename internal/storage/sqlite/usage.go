@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/tung1998/agent-office/internal/ids"
@@ -51,6 +52,28 @@ func (r runRepo) query(ctx context.Context, f storage.RunFilter, limit int) ([]s
 	if f.ProjectID != "" {
 		q += ` AND project_id = ?`
 		args = append(args, f.ProjectID)
+	}
+	if f.ProjectIDs != nil {
+		if len(f.ProjectIDs) == 0 {
+			q += ` AND 0`
+		} else {
+			q += ` AND project_id IN (?` + strings.Repeat(",?", len(f.ProjectIDs)-1) + `)`
+			for _, id := range f.ProjectIDs {
+				args = append(args, id)
+			}
+		}
+	}
+	if f.ExcludeProjectID != "" {
+		q += ` AND COALESCE(project_id,'') <> ?`
+		args = append(args, f.ExcludeProjectID)
+	}
+	if f.AgentID != "" {
+		q += ` AND agent_id = ?`
+		args = append(args, f.AgentID)
+	}
+	if f.Status != "" {
+		q += ` AND status = ?`
+		args = append(args, f.Status)
 	}
 	if f.Before != "" {
 		q += ` AND (created_at, id) < (SELECT created_at, id FROM runs WHERE id = ?)`
@@ -156,6 +179,20 @@ func (r runRepo) group(ctx context.Context, since time.Time, key, label, join st
 
 func (r runRepo) Since(ctx context.Context, t time.Time) ([]storage.Run, error) {
 	return r.all(ctx, t)
+}
+
+func (r runRepo) Errors(ctx context.Context, f storage.RunFilter) ([]storage.Run, error) {
+	f.Status, f.Before = "error", ""
+	return r.query(ctx, f, bigLimit(f.Limit))
+}
+
+// bigLimit is the page of a listing made for in-Go grouping: 2000 by
+// default, 5000 at most.
+func bigLimit(n int) int {
+	if n <= 0 {
+		return 2000
+	}
+	return min(n, 5000)
 }
 
 func (r runRepo) all(ctx context.Context, since time.Time) ([]storage.Run, error) {

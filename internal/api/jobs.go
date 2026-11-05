@@ -1,10 +1,12 @@
 package api
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"github.com/tung1998/agent-office/internal/assistant"
 	"github.com/tung1998/agent-office/internal/chat"
+	"github.com/tung1998/agent-office/internal/errdigest"
 	"net/http"
 	"strconv"
 	"strings"
@@ -178,9 +180,9 @@ func (s *server) jobStats(w http.ResponseWriter, r *http.Request) {
 	now := storage.JobFilter{ProjectID: f.ProjectID, ProjectIDs: f.ProjectIDs, Kind: f.Kind, Origin: f.Origin, OriginID: f.OriginID, AgentID: f.AgentID, HideOthersIn: f.HideOthersIn, Me: f.Me}
 	count := func(status string, since time.Time) int {
 		x := now
-		x.Status, x.Since, x.Limit = status, since, 200
-		list, _ := s.cfg.Store.Jobs().List(r.Context(), x)
-		return len(list)
+		x.Status, x.Since = status, since
+		n, _ := s.cfg.Store.Jobs().Count(r.Context(), x) // not List: it stops at 200
+		return n
 	}
 	day := time.Now().UTC().Add(-24 * time.Hour)
 	x := now
@@ -195,6 +197,66 @@ func (s *server) jobStats(w http.ResponseWriter, r *http.Request) {
 		"running": count("running", time.Time{}), "pending": count("pending", time.Time{}), "needs_input": count("needs_input", day),
 		"failed_24h": count("failed", day), "cost_24h": cost,
 	}})
+}
+
+// failureDTO is one cause of failures with the names a page shows.
+type failureDTO struct {
+	errdigest.Group
+	AgentNames   []string `json:"agent_names"`
+	ProjectNames []string `json:"project_names"`
+}
+
+// maxFailureGroups is how many causes a listing returns, the biggest first.
+const maxFailureGroups = 100
+
+// jobFailures groups the failed jobs and model calls by cause (ADR-253):
+// the same filters as /api/jobs (project, agent, since/days; 7 days by
+// default), plus category.
+func (s *server) jobFailures(w http.ResponseWriter, r *http.Request) {
+	f := s.jobFilter(r)
+	if f.Since.IsZero() {
+		f.Since = time.Now().UTC().AddDate(0, 0, -7)
+	}
+	f.Status, f.Before, f.Limit = "", "", 0
+	own, me := assistant.ID(r.Context(), s.cfg.Store), "human:"+userFrom(r).Email
+	if own != "" {
+		f.HideOthersIn, f.Me = own, me // an assistant chat is its creator's alone (ADR-046)
+	}
+	groups, err := errdigest.Load(r.Context(), s.cfg.Store, f)
+	if err != nil {
+		s.internal(w, r, err)
+		return
+	}
+	cat := r.URL.Query().Get("category")
+	categories := map[string]int{}
+	total := 0
+	n := &names{map[string]string{}, map[string]string{}, map[string]string{}}
+	out := []failureDTO{}
+	for _, g := range groups {
+		categories[g.Category] += g.Count
+		if cat != "" && g.Category != cat {
+			continue
+		}
+		total += g.Count
+		if len(out) >= maxFailureGroups {
+			continue
+		}
+		d := failureDTO{Group: g, AgentNames: []string{}, ProjectNames: []string{}}
+		for _, id := range g.AgentIDs {
+			d.AgentNames = append(d.AgentNames, cmp.Or(look(n.agents, id, func() (string, error) {
+				a, err := s.cfg.Store.Agents().Get(r.Context(), id)
+				return a.Name, err
+			}), id))
+		}
+		for _, id := range g.ProjectIDs {
+			d.ProjectNames = append(d.ProjectNames, cmp.Or(look(n.projects, id, func() (string, error) {
+				p, err := s.cfg.Store.Repos().Get(r.Context(), id)
+				return p.Name, err
+			}), id))
+		}
+		out = append(out, d)
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"groups": out, "total": total, "categories": categories, "since": f.Since})
 }
 
 // cancelJobRaceHook runs right after cancelJob's initial Get, before it acts

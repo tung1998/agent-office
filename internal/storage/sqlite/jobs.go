@@ -363,6 +363,20 @@ func (r jobRepo) List(ctx context.Context, f storage.JobFilter) ([]storage.Job, 
 	return r.query(ctx, `SELECT `+jobCols+` FROM jobs`+w+` ORDER BY created_at DESC, id DESC LIMIT ?`, args...)
 }
 
+func (r jobRepo) Count(ctx context.Context, f storage.JobFilter) (int, error) {
+	w, args := r.where(f)
+	var n int
+	err := r.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM jobs`+w, args...).Scan(&n)
+	return n, err
+}
+
+func (r jobRepo) Failed(ctx context.Context, f storage.JobFilter) ([]storage.Job, error) {
+	f.Status = "failed"
+	w, args := r.where(f)
+	args = append(args, bigLimit(f.Limit))
+	return r.query(ctx, `SELECT `+jobCols+` FROM jobs`+w+` ORDER BY created_at DESC, id DESC LIMIT ?`, args...)
+}
+
 func (r jobRepo) query(ctx context.Context, q string, args ...any) ([]storage.Job, error) {
 	rows, err := r.db.QueryContext(ctx, q, args...)
 	if err != nil {

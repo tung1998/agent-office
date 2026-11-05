@@ -174,6 +174,11 @@ type JobRepo interface {
 	// (0 = none); an origin missing from it has nothing running yet.
 	Claim(ctx context.Context, now time.Time, limit int, remaining map[string]int) ([]Job, error)
 	List(ctx context.Context, f JobFilter) ([]Job, error)
+	// Count is how many jobs f matches (List stops at 200).
+	Count(ctx context.Context, f JobFilter) (int, error)
+	// Failed lists the failed jobs of f, newest first (at most f.Limit, 2000
+	// by default, 5000 at most): what errdigest groups (ADR-253).
+	Failed(ctx context.Context, f JobFilter) ([]Job, error)
 	// Active counts pending and running jobs of an origin.
 	Active(ctx context.Context, origin, originID string) (int, error)
 	ByDedupe(ctx context.Context, originID, key string, since time.Time) (Job, error)

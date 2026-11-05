@@ -51,10 +51,66 @@ func TestActivity(t *testing.T) {
 		t.Fatalf("report:\n%s", r)
 	}
 	tools := activity.NewTools(st)
-	if len(tools.Tools(officetools.Scope{ProjectID: hq.ID})) != 1 || len(tools.Tools(officetools.Scope{ProjectID: hq.ID, Office: true})) != 0 {
-		t.Fatal("project_report missing, or given to the office assistant")
+	if len(tools.Tools(officetools.Scope{ProjectID: hq.ID})) != 2 || len(tools.Tools(officetools.Scope{ProjectID: hq.ID, Office: true})) != 0 {
+		t.Fatal("project_report/failure_digest missing, or given to the office assistant")
 	}
 	if out, isErr := tools.Call(ctx, officetools.Scope{ProjectID: hq.ID}, "project_report", nil); isErr || !strings.Contains(out, "Theme Studio") {
 		t.Fatalf("tool: %s", out)
+	}
+}
+
+// ADR-253: failure_digest groups one project's failed jobs and model calls by
+// cause; another project's failures are not in it; agent and category narrow it.
+func TestFailureDigest(t *testing.T) {
+	ctx := context.Background()
+	st, _ := sqlite.Open(filepath.Join(t.TempDir(), "o.db"))
+	defer st.Close()
+	st.Migrate(ctx)
+	p, _ := st.Repos().Create(ctx, storage.Repo{Name: "P", Path: t.TempDir()})
+	other, _ := st.Repos().Create(ctx, storage.Repo{Name: "Other", Path: t.TempDir()})
+	ai, _ := st.Agents().Create(ctx, storage.Agent{ProjectID: p.ID, Key: "openai", Name: "openAI", ModelTier: storage.TierBalanced})
+	dev, _ := st.Agents().Create(ctx, storage.Agent{ProjectID: p.ID, Key: "dev", Name: "Dev", ModelTier: storage.TierBalanced})
+	fail := func(proj, agent, msg string) {
+		j, _ := st.Jobs().Create(ctx, storage.Job{ProjectID: proj, AgentID: agent, Kind: "chat_turn", Origin: "user", Status: "running"})
+		st.Jobs().Finish(ctx, j.ID, "failed", "agent_error", msg, time.Now().UTC())
+	}
+	for _, u := range []string{"a", "b", "c"} {
+		st.Runs().Create(ctx, storage.Run{Kind: "chat", ProjectID: p.ID, AgentID: ai.ID, ProviderName: "Codex", Status: "error",
+			Error: "codex: Error: spawn /Users/" + u + "/codex ENOENT"})
+	}
+	fail(p.ID, dev.ID, "claude: exit status 1")
+	fail(other.ID, "", "secret fault of another project")
+
+	tools := activity.NewTools(st)
+	call := func(args string) string {
+		t.Helper()
+		out, isErr := tools.Call(ctx, officetools.Scope{ProjectID: p.ID}, "failure_digest", []byte(args))
+		if isErr {
+			t.Fatalf("failure_digest %s: %s", args, out)
+		}
+		return out
+	}
+	out := call(`{}`)
+	if !strings.Contains(out, "Failures in the last 7 days: 4") || !strings.Contains(out, "3× [cli_broken] codex: Error: spawn <path> ENOENT") ||
+		!strings.Contains(out, "agents: openAI") || !strings.Contains(out, "connections: Codex") || !strings.Contains(out, "1× [other] claude: exit status 1") {
+		t.Fatalf("digest:\n%s", out)
+	}
+	if strings.Index(out, "cli_broken") > strings.Index(out, "[other]") {
+		t.Fatalf("biggest cause not first:\n%s", out)
+	}
+	if strings.Contains(out, "another project") {
+		t.Fatalf("another project's failure leaked:\n%s", out)
+	}
+	if out := call(`{"agent":"dev"}`); strings.Contains(out, "cli_broken") || !strings.Contains(out, "exit status 1") {
+		t.Fatalf("agent filter:\n%s", out)
+	}
+	if out := call(`{"category":"cli_broken"}`); strings.Contains(out, "exit status 1") || !strings.Contains(out, ": 3,") {
+		t.Fatalf("category filter:\n%s", out)
+	}
+	if out, isErr := tools.Call(ctx, officetools.Scope{ProjectID: p.ID}, "failure_digest", []byte(`{"agent":"nobody"}`)); !isErr {
+		t.Fatalf("unknown agent accepted: %s", out)
+	}
+	if out := call(`{"category":"quota"}`); !strings.Contains(out, "No failures") {
+		t.Fatalf("empty digest: %s", out)
 	}
 }

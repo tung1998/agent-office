@@ -20,6 +20,7 @@ const incKind = (k: string) => t(`incidents.kind.${k}` as 'incidents.kind.monito
 const incLine = (x: Incident) => [x.project_name, x.at && !x.at.startsWith('0001-') ? when(x.at) : '', x.detail].filter(Boolean).join(' · ')
 const _f7 = useLiveFetch<{ totals: { running: number, pending: number, failed_24h: number, cost_24h: number } }>('/api/jobs/stats?since=24h', { lazy: true })
 const { data: stats } = _f7
+const failOpen = ref(false)
 // none is awaited: the page shows at once (a phone over a VPN), each block
 // with its skeleton until its data comes (they all start together)
 // what can be done from the list: decide a card; try again, let go or
@@ -236,10 +237,13 @@ const steps = computed(() => [
         <p class="text-xs text-(--ui-text-muted)">{{ t('job.running') }}</p>
         <div class="text-xl font-semibold tabular-nums sm:text-2xl"><USkeleton v-if="!stats" class="mt-1 h-7 w-12" /><template v-else>{{ (stats?.totals.running ?? 0) + (stats?.totals.pending ?? 0) }}</template></div>
       </UCard>
-      <UCard :ui="{ body: 'p-3 sm:p-4' }">
-        <p class="text-xs text-(--ui-text-muted)">{{ t('job.failed24') }}</p>
-        <div class="text-xl font-semibold tabular-nums sm:text-2xl" :class="stats?.totals.failed_24h ? 'text-(--ui-error)' : ''"><USkeleton v-if="!stats" class="mt-1 h-7 w-12" /><template v-else>{{ stats?.totals.failed_24h ?? 0 }}</template></div>
-      </UCard>
+      <!-- the failures of the day, grouped by cause, a tap away (ADR-253) -->
+      <button type="button" class="text-left" :aria-label="t('fail.open')" @click="failOpen = true">
+        <UCard :ui="{ body: 'p-3 sm:p-4' }" class="h-full hover:bg-(--ui-bg-elevated)/40">
+          <p class="flex items-center gap-1 text-xs text-(--ui-text-muted)">{{ t('job.failed24') }}<UIcon name="i-lucide-chevron-right" class="size-3.5 text-(--ui-text-dimmed)" /></p>
+          <div class="text-xl font-semibold tabular-nums sm:text-2xl" :class="stats?.totals.failed_24h ? 'text-(--ui-error)' : ''"><USkeleton v-if="!stats" class="mt-1 h-7 w-12" /><template v-else>{{ stats?.totals.failed_24h ?? 0 }}</template></div>
+        </UCard>
+      </button>
       <UCard :ui="{ body: 'p-3 sm:p-4' }">
         <p class="text-xs text-(--ui-text-muted)">{{ t('job.cost24') }}</p>
         <div class="text-xl font-semibold tabular-nums sm:text-2xl"><USkeleton v-if="!stats" class="mt-1 h-7 w-12" /><template v-else>${{ (stats?.totals.cost_24h ?? 0).toFixed(2) }}</template></div>
@@ -281,6 +285,7 @@ const steps = computed(() => [
     <!-- every piece of work: what runs, failed, and what it cost -->
     <JobGroups :projects="projects.map(p => ({ id: p.id, name: p.name }))" />
 
+  <FailureDigestModal v-model:open="failOpen" since="24h" />
   <WorkDetailModal
     v-if="shown" v-model:open="shownOpen" :title="shown.title" :subtitle="`${incKind(shown.kind)} · ${shown.project_name}`" :query="runsQuery(shown)"
   >

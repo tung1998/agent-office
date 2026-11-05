@@ -40,6 +40,7 @@ func (s *server) triggerRoutes(mux *http.ServeMux) {
 	mux.Handle("POST /api/incidents/dismiss", admin(s.dismissIncident))
 	mux.Handle("POST /api/incidents/retry", admin(s.retryIncident))
 	mux.Handle("GET /api/jobs/stats", auth(s.jobStats))
+	mux.Handle("GET /api/jobs/failures", auth(s.jobFailures)) // ADR-253: failures by cause
 	mux.Handle("GET /api/jobs/{id}", auth(s.getJob))
 	mux.Handle("POST /api/jobs/{id}/cancel", admin(s.cancelJob))
 	mux.Handle("POST /api/jobs/{id}/retry", admin(s.retryJob))

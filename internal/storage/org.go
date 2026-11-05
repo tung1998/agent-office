@@ -374,9 +374,14 @@ type Run struct {
 // RunFilter narrows a run listing.
 type RunFilter struct {
 	ProjectID string
-	Since     time.Time
-	Limit     int
-	Before    string // a run id: only the runs older than it (the next page)
+	// ProjectIDs: only these projects' runs (nil = every project; empty = none)
+	ProjectIDs       []string
+	ExcludeProjectID string
+	AgentID          string
+	Status           string // ok | error | blocked
+	Since            time.Time
+	Limit            int
+	Before           string // a run id: only the runs older than it (the next page)
 }
 
 // UsageRow is spend aggregated by one dimension.
@@ -398,6 +403,9 @@ type RunRepo interface {
 	Spent(ctx context.Context, since time.Time, projectID string) (float64, error)
 	// Since returns every run since t, newest first (for in-Go statistics).
 	Since(ctx context.Context, t time.Time) ([]Run, error)
+	// Errors lists the failed runs of f, newest first (at most f.Limit, 2000
+	// by default, 5000 at most): what errdigest groups (ADR-253).
+	Errors(ctx context.Context, f RunFilter) ([]Run, error)
 	// Aggregate groups runs since t by "day" (in loc), "project" or "model".
 	Aggregate(ctx context.Context, since time.Time, by string, loc *time.Location) ([]UsageRow, error)
 }
