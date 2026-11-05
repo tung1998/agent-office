@@ -1555,6 +1555,8 @@ type actionsProposer interface {
 	Propose(ctx context.Context, sc actions.Scope, kind, target, reason string, args ...storage.ActionArgs) (storage.Action, error)
 	// RunDeferred: a commit held for its turn's diff, once that is merged (ADR-189)
 	RunDeferred(ctx context.Context, sc actions.Scope, id string, blocked bool) (storage.Action, error)
+	// Decide: a merged diff's install the project runs on its own (ADR-251)
+	Decide(ctx context.Context, id string, approve bool, by string) (storage.Action, error)
 }
 
 // SetActions lets workflows open gates (approval cards, check commands).

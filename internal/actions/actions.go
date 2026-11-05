@@ -434,6 +434,9 @@ func (s *Service) Propose(ctx context.Context, sc Scope, kind, target, reason st
 				if (a.Kind == "run_command" || a.Kind == "deps_install") && x.Args.Dir != a.Args.Dir {
 					continue
 				}
+				if a.Kind == "deps_install" && x.Args.Patch != a.Args.Patch { // another merged diff's install
+					continue
+				}
 				return x, nil
 			}
 		}
@@ -609,14 +612,12 @@ func (s *Service) autoAllowed(ctx context.Context, a storage.Action, acc perm.Ac
 	case "data_delete":
 		return false // a person decides
 	case "deps_install":
-		// in the run's own worktree nothing reaches the project, but an install
-		// runs the packages' scripts on the machine: an agent that edits on
-		// its own (or runs commands) does it; in the project: when the project
-		// installs merged dependency changes on its own, or the run may run commands
-		if a.Args.Dir != "" {
-			return perm.AtLeast(acc.Level, perm.Edit) || acc.Can(perm.CapCommands)
-		}
-		return perm.LoadPolicy(ctx, s.store, a.ProjectID).AutoDeps || acc.Can(perm.CapCommands)
+		// an install runs the packages' scripts (preinstall, postinstall…) on
+		// the machine, in a worktree as in the project: only a run that may run
+		// commands on its own does it; else a person decides. A merged diff's
+		// install the project lets run on its own (AutoDeps) is started by the
+		// chat engine, in the background (ADR-251)
+		return acc.Can(perm.CapCommands)
 	case "send_message": // never on and on: what a relayed message started asks a person
 		if s.sender == nil {
 			return false

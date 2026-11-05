@@ -165,6 +165,32 @@ const outMax = 8000
 // ErrNoManager: what installs this package is not known.
 var ErrNoManager = errors.New("không rõ trình quản lý gói (pnpm, npm, uv…) của thư mục này")
 
+// envKeep are the variables an install keeps of office's environment (and
+// those with envPrefixes): what the package tools need to find themselves,
+// their store and caches. Office's own settings and secrets (API keys,
+// tokens) never reach a package's install scripts.
+var (
+	envKeep     = []string{"PATH", "HOME", "USER", "LOGNAME", "SHELL", "TMPDIR", "TMP", "TEMP", "LANG", "TERM", "PNPM_HOME", "SSL_CERT_FILE", "SSL_CERT_DIR", "HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY", "http_proxy", "https_proxy", "no_proxy"}
+	envPrefixes = []string{"LC_", "XDG_", "npm_config_", "NPM_CONFIG_", "COREPACK_", "VOLTA_", "NVM_", "UV_", "PIP_"}
+)
+
+// Env is the environment an install runs with: office's, kept to envKeep,
+// plus CI=true (no tool asks anything).
+func Env() []string {
+	var out []string
+	for _, kv := range os.Environ() {
+		k, _, _ := strings.Cut(kv, "=")
+		keep := slices.Contains(envKeep, k)
+		for _, p := range envPrefixes {
+			keep = keep || strings.HasPrefix(k, p)
+		}
+		if keep && k != "CI" {
+			out = append(out, kv)
+		}
+	}
+	return append(out, "CI=true")
+}
+
 // Install runs c's install in root (the project or a worktree) and returns
 // the end of its output.
 func Install(ctx context.Context, root string, c Change) (string, error) {
@@ -179,20 +205,29 @@ func Install(ctx context.Context, root string, c Change) (string, error) {
 	if rel, err := filepath.Rel(root, dir); err != nil || strings.HasPrefix(rel, "..") {
 		return "", errors.New("thư mục gói nằm ngoài project")
 	}
-	if c.Manager == "pip" && !exists(filepath.Join(dir, ".venv", "bin", "python")) {
-		return "", errors.New("chưa có .venv trong " + c.Dir + ": tạo nó trước (python -m venv .venv)")
-	}
 	ctx, cancel := context.WithTimeout(ctx, Timeout)
 	defer cancel()
-	cmd := exec.CommandContext(ctx, argv[0], argv[1:]...)
-	if c.Manager == "pip" {
-		cmd = exec.CommandContext(ctx, filepath.Join(dir, argv[0]), argv[1:]...)
-	}
-	cmd.Dir = dir
-	cmd.Env = append(os.Environ(), "CI=true")
 	var buf bytes.Buffer
-	cmd.Stdout, cmd.Stderr = &buf, &buf
-	err := cmd.Run()
+	run := func(name string, args ...string) error {
+		cmd := exec.CommandContext(ctx, name, args...)
+		cmd.Dir = dir
+		cmd.Env = Env()
+		cmd.Stdout, cmd.Stderr = &buf, &buf
+		return cmd.Run()
+	}
+	var err error
+	if c.Manager == "pip" && !exists(filepath.Join(dir, ".venv", "bin", "python")) {
+		// a worktree's own virtualenv (its link to the project's was taken
+		// away), or a package that never had one: made first
+		err = run("python3", "-m", "venv", ".venv")
+	}
+	if err == nil {
+		if c.Manager == "pip" {
+			err = run(filepath.Join(dir, argv[0]), argv[1:]...)
+		} else {
+			err = run(argv[0], argv[1:]...)
+		}
+	}
 	out := strings.TrimSpace(buf.String())
 	if len(out) > outMax {
 		out = "…\n" + out[len(out)-outMax:]

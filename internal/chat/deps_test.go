@@ -5,9 +5,12 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/tung1998/agent-office/internal/actions"
+	"github.com/tung1998/agent-office/internal/perm"
 	"github.com/tung1998/agent-office/internal/storage"
 )
 
@@ -24,6 +27,71 @@ diff --git a/web/pnpm-lock.yaml b/web/pnpm-lock.yaml
 -nuxt: 4.5.2
 +nuxt: 4.6.4
 `
+
+// depsChat is a project with web/ on Nuxt 4.5.2, a chat, and a pending diff
+// that bumps it (depDiff).
+func depsChat(t *testing.T) (*Engine, storage.Store, storage.Repo, storage.Conversation, storage.Patch) {
+	t.Helper()
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git missing")
+	}
+	st, p, own := mergeStore(t)
+	ctx := context.Background()
+	os.MkdirAll(filepath.Join(p.Path, "web"), 0o755)
+	os.WriteFile(filepath.Join(p.Path, "web", "package.json"), []byte(`{"dependencies":{"nuxt":"4.5.2"}}`+"\n"), 0o644)
+	os.WriteFile(filepath.Join(p.Path, "web", "pnpm-lock.yaml"), []byte("nuxt: 4.5.2\n"), 0o644)
+	e := &Engine{store: st, acts: actions.New(st, nil)}
+	msg, _ := st.Chat().AddMessage(ctx, storage.Message{ConversationID: own.ID, Role: "assistant", Content: "done"})
+	pat, err := st.Chat().AddPatch(ctx, storage.Patch{ConversationID: own.ID, MessageID: msg.ID, Diff: depDiff, Files: []string{"web/package.json", "web/pnpm-lock.yaml"}, Status: "pending"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return e, st, p, own, pat
+}
+
+// The project installs merged dependency changes on its own (auto_deps):
+// approving the diff does not wait for the install, which runs in the
+// background, holds a workflow check step until it ends, and fills the
+// project's node_modules.
+func TestAutoDepsInstallsInBackground(t *testing.T) {
+	bin := t.TempDir()
+	release := filepath.Join(bin, "go")
+	os.WriteFile(filepath.Join(bin, "pnpm"), []byte("#!/bin/sh\nwhile [ ! -e "+release+" ]; do sleep 0.02; done\nmkdir -p node_modules/nuxt && echo 4.6.4 > node_modules/nuxt/v\n"), 0o755)
+	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+	e, st, p, own, pat := depsChat(t)
+	ctx := context.Background()
+	pol := perm.LoadPolicy(ctx, st, p.ID)
+	pol.AutoDeps = true
+	if err := perm.SavePolicy(ctx, st, p.ID, pol); err != nil {
+		t.Fatal(err)
+	}
+	ended := make(chan storage.Action, 1)
+	depsInstalled = func(a storage.Action) { ended <- a }
+	defer func() { depsInstalled = nil }()
+
+	d, err := e.DecidePatch(ctx, pat.ID, true) // returns while pnpm still runs
+	if err != nil || d.Status != "applied" {
+		t.Fatalf("merge = %s %v", d.Status, err)
+	}
+	if work, _ := e.unmergedWork(ctx, own); len(work) != 1 || !strings.Contains(work[0], "web (pnpm)") {
+		t.Fatalf("a check step does not wait for the install: %v", work)
+	}
+	os.WriteFile(release, nil, 0o644)
+	select {
+	case a := <-ended:
+		if a.Status != "done" || !strings.HasPrefix(a.DecidedBy, "auto:office") {
+			t.Fatalf("install = %s %q %q", a.Status, a.DecidedBy, a.Detail)
+		}
+	case <-time.After(10 * time.Second):
+		t.Fatal("the background install never ended")
+	}
+	if b, _ := os.ReadFile(filepath.Join(p.Path, "web", "node_modules", "nuxt", "v")); strings.TrimSpace(string(b)) != "4.6.4" {
+		t.Fatalf("project's node_modules = %q", b)
+	}
+	if work, _ := e.unmergedWork(ctx, own); len(work) != 0 {
+		t.Fatalf("still waiting after the install: %v", work)
+	}
+}
 
 // A merged diff that changes a package's dependencies leaves a "Cài thư
 // viện" card next to it for that package; it is shown after the diff and

@@ -45,8 +45,9 @@ func (e *Engine) runChats(ctx context.Context, own storage.Conversation) []strin
 }
 
 // unmergedWork lists what of the run (its chat, its sub-runs' chats) still
-// waits to reach the project: a diff pending for a person or queued, or a
-// commit held for one (ADR-189).
+// waits to reach the project: a diff pending for a person or queued, a
+// commit held for one (ADR-189), or the install of a merged diff's
+// dependencies (ADR-251).
 func (e *Engine) unmergedWork(ctx context.Context, own storage.Conversation) ([]string, error) {
 	var out []string
 	for _, id := range e.runChats(ctx, own) {
@@ -66,6 +67,11 @@ func (e *Engine) unmergedWork(ctx context.Context, own storage.Conversation) ([]
 		for _, a := range acts {
 			if a.Kind == "git_commit" && a.Args.AfterDiff && (a.Status == "pending" || a.Status == "queued") {
 				out = append(out, "commit "+truncate(a.Target, 80))
+			}
+			// a merged diff's dependencies not installed in the project yet
+			// (a card waiting, or installing): a check would run on the old ones (ADR-251)
+			if followUp(a) && (a.Status == "pending" || a.Status == "queued") {
+				out = append(out, "cài thư viện "+truncate(a.Target, 80)) // i18n-ignore
 			}
 		}
 	}
@@ -96,7 +102,7 @@ func (e *Engine) waitMerged(ctx context.Context, own storage.Conversation, s wor
 				waited(now.Sub(start)), what))
 			return nil
 		case told.IsZero():
-			e.post(own, s, "Chờ diff (và commit đi kèm) của lượt trước được duyệt và gộp vào project rồi mới chạy bước này: "+what+".") // i18n-ignore
+			e.post(own, s, "Chờ diff (và commit, cài thư viện đi kèm) của lượt trước được duyệt và gộp vào project rồi mới chạy bước này: "+what+".") // i18n-ignore
 			told = now
 		case now.Sub(told) >= mergeWaitRemind:
 			e.post(own, s, fmt.Sprintf("Bước này vẫn đợi (đã %s, tối đa %s): %s. Duyệt hoặc từ chối các thẻ đó trong chat.", // i18n-ignore

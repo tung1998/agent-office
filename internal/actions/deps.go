@@ -74,7 +74,7 @@ func (s *Service) installDeps(ctx context.Context, a storage.Action) (string, st
 	if err != nil {
 		return "failed", err.Error()
 	}
-	where := "project"
+	project, where := root, "project"
 	if a.Args.Dir != "" {
 		root, where = a.Args.Dir, "worktree"
 		if _, err := os.Stat(root); err != nil {
@@ -88,6 +88,11 @@ func (s *Service) installDeps(ctx context.Context, a storage.Action) (string, st
 	status, detail := "done", "Đã cài thư viện "+c.Label()+" trong "+where
 	if err != nil {
 		status, detail = "failed", "Cài thư viện "+c.Label()+" lỗi: "+err.Error()
+		if a.Args.Dir != "" { // the worktree is not left without any: the project's again
+			if back, rerr := worktree.Relink(project, root, c.Dir); rerr == nil && len(back) > 0 {
+				detail += " (worktree dùng lại thư viện của project)"
+			}
+		}
 	} else if a.Args.Dir == "" && a.Args.Tree != "" {
 		if _, serr := os.Stat(a.Args.Tree); serr == nil {
 			_, _ = worktree.Relink(root, a.Args.Tree, c.Dir) // its copy is the project's now

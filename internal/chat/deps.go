@@ -7,6 +7,7 @@ import (
 
 	"github.com/tung1998/agent-office/internal/actions"
 	"github.com/tung1998/agent-office/internal/deps"
+	"github.com/tung1998/agent-office/internal/perm"
 	"github.com/tung1998/agent-office/internal/storage"
 )
 
@@ -71,6 +72,7 @@ func (e *Engine) proposeDeps(ctx context.Context, project storage.Repo, p storag
 	}
 	sc := actions.Scope{ProjectID: project.ID, ConversationID: p.ConversationID, TaskID: p.TaskID, Agent: depsAgent}
 	tree := e.treeOf(project.ID, p)
+	auto := perm.LoadPolicy(ctx, e.store, project.ID).AutoDeps
 	var out []storage.Action
 	for _, c := range changes {
 		args := storage.ActionArgs{Deps: &storage.DepsArgs{Dir: c.Dir, Manager: c.Manager}, Patch: p.ID, Tree: tree}
@@ -84,6 +86,30 @@ func (e *Engine) proposeDeps(ctx context.Context, project storage.Repo, p storag
 			_ = e.store.Actions().Update(context.WithoutCancel(ctx), a)
 		}
 		out = append(out, a)
+		if auto && a.Status == "pending" {
+			e.autoInstall(ctx, a)
+		}
 	}
 	return out
+}
+
+// depsInstalled (tests only) is told each time a background install ends.
+var depsInstalled func(storage.Action)
+
+// autoInstall carries out a merged diff's install the project lets run on
+// its own, in the background: approving the diff (a person's request, a
+// bot's) does not wait minutes for it, and nothing it was asked from can cut
+// it half-way (Decide goes on without the caller). Its card says pending
+// (being decided) until it ends, so a workflow step waits for it.
+func (e *Engine) autoInstall(ctx context.Context, a storage.Action) {
+	ctx = context.WithoutCancel(ctx)
+	safeGo("deps-install", func() {
+		done, err := e.acts.Decide(ctx, a.ID, true, "auto:"+depsAgent+" (tự cài thư viện sau khi gộp)") // i18n-ignore
+		if err != nil {
+			slog.Warn("chat: deps install", "action", a.ID, "err", err)
+		}
+		if depsInstalled != nil {
+			depsInstalled(done)
+		}
+	})
 }
