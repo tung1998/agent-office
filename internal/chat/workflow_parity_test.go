@@ -138,6 +138,16 @@ func TestWorkflowToolsOverTheAPIAndMCP(t *testing.T) {
 	if last.Message == nil || !strings.Contains(last.Message.Content, "Kết luận: làm A.") {
 		t.Fatalf("caller's answer = %+v", last)
 	}
+	// the caller's answer comes from workflow_done, while the coordinator's
+	// own turn still sends that tool's result for its last word: wait for the
+	// turn to end before counting its calls (under load it was read early)
+	if runs, _ := f.st.WorkflowRuns().List(ctx, f.project.ID, conv.ID, 1); len(runs) == 1 {
+		for deadline := time.Now().Add(10 * time.Second); time.Now().Before(deadline); time.Sleep(5 * time.Millisecond) {
+			if _, busy := f.engine.Active(runs[0].ConversationID); !busy {
+				break
+			}
+		}
+	}
 	mu.Lock()
 	defer mu.Unlock()
 	if len(problems) > 0 || coord != 4 {

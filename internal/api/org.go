@@ -185,6 +185,8 @@ func (s *server) orgRoutes(mux *http.ServeMux) {
 	mux.Handle("GET /api/system/update", admin(s.updateStatus))
 	if s.cfg.Updater != nil {
 		mux.Handle("POST /api/system/update", admin(s.startUpdate))
+		mux.Handle("DELETE /api/system/update", admin(s.cancelUpdate))
+		mux.Handle("PUT /api/system/update/auto", admin(s.setAutoUpdate))
 		mux.Handle("GET /api/system/update/stream", admin(s.streamUpdate))
 		mux.Handle("GET /api/system/update/changes", admin(s.updateChanges))
 	}

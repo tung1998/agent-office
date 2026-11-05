@@ -51,6 +51,7 @@ const vi = {
   'nav.data': 'Quản lý dữ liệu',
 'nav.peers': 'Office khác',
   'nav.update': 'Cập nhật office',
+  'nav.updateNew': '{n} mới',
   'nav.chat': 'Chat',
   'nav.tasks': 'Việc',
   'nav.ops': 'Vận hành',

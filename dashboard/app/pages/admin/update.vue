@@ -1,12 +1,22 @@
 <script setup lang="ts">
 // Rebuild office from its source and restart on the new build; the supervisor
 // (office run) rolls back to the previous build if the new one fails.
-interface UpdateState { status: 'idle' | 'running' | 'failed' | 'restarting', step?: string, error?: string, started_at?: string, finished_at?: string }
+// waiting: built, the new build waits for office to be idle (ADR-255)
+interface UpdateState {
+  status: 'idle' | 'running' | 'waiting' | 'failed' | 'cancelled' | 'restarting'
+  step?: string, error?: string, started_at?: string, finished_at?: string
+  when_idle?: boolean, by?: string, waiting_since?: string, wait_until?: string, busy?: string
+}
+// the work a restart cuts off, by kind
+interface BusyItem { id: string, name: string, project_id: string, link: string }
+interface Busy { chats: number, chat_items: BusyItem[], workflows: BusyItem[], automations: BusyItem[], burn: BusyItem[], tasks: BusyItem[] }
 interface Status {
   supervised: boolean
   build: { version: string, revision?: string, time?: string, dirty: boolean }
   last: { state: 'ok' | 'rolled_back' | 'failed', message: string, at: string } | null
-  busy: { chats: number }
+  busy: Busy
+  auto: { enabled: boolean }
+  behind: number // commits of the source the running build lacks (-1: unknown)
   source?: { root: string, ui_dir: string }
   state?: UpdateState
 }
@@ -20,6 +30,23 @@ const starting = ref(false)
 const restarting = ref(false)
 const state = computed(() => data.value?.state)
 const running = computed(() => state.value?.status === 'running')
+const waiting = computed(() => state.value?.status === 'waiting')
+const busyCount = computed(() => {
+  const b = data.value?.busy
+  return b ? b.chats + b.workflows.length + b.automations.length + b.burn.length + b.tasks.length : 0
+})
+// what runs, by kind, for the list under the buttons
+const busyGroups = computed(() => {
+  const b = data.value?.busy
+  if (!b) return []
+  return [
+    { key: 'chats', label: t('admin.updateBusyChats'), items: b.chat_items, more: Math.max(b.chats - b.chat_items.length, 0) },
+    { key: 'workflows', label: t('admin.updateBusyWorkflows'), items: b.workflows, more: 0 },
+    { key: 'automations', label: t('admin.updateBusyAutomations'), items: b.automations, more: 0 },
+    { key: 'burn', label: t('admin.updateBusyBurn'), items: b.burn, more: 0 },
+    { key: 'tasks', label: t('admin.updateBusyTasks'), items: b.tasks, more: 0 }
+  ].filter(g => g.items.length || g.more)
+})
 const showLog = ref(false)
 const streamKey = ref(0) // new stream per update
 
@@ -31,20 +58,22 @@ function watchUpdate() {
     try {
       await refresh()
       if (state.value?.status === 'restarting') waitForRestart()
-      if (state.value?.status !== 'running') clearInterval(poll)
+      if (state.value?.status !== 'running' && state.value?.status !== 'waiting') clearInterval(poll)
     } catch { waitForRestart() } // the server went away: it is restarting
   }, 1500)
 }
 watch(() => state.value?.status, (status) => {
-  if (status === 'running') { showLog.value = true; watchUpdate() }
+  if (status === 'running' || status === 'waiting') { showLog.value = true; watchUpdate() }
   else if (status === 'restarting') { showLog.value = true; waitForRestart() }
 }, { immediate: true })
 onBeforeUnmount(() => { clearInterval(poll); clearInterval(restartPoll) })
 
-async function start(force = false) {
+// whenIdle: build now, restart once nothing runs (the default); else now,
+// cutting off what runs (after a confirm)
+async function start(force = false, whenIdle = false) {
   starting.value = true
   try {
-    await $fetch('/api/system/update', { method: 'POST', body: { test: runTests.value, pull: pull.value && !!changes.value?.remote?.behind, force } })
+    await $fetch('/api/system/update', { method: 'POST', body: { test: runTests.value, pull: pull.value && !!changes.value?.remote?.behind, force, when_idle: whenIdle } })
     showLog.value = true
     streamKey.value++
     await refresh()
@@ -55,11 +84,52 @@ async function start(force = false) {
       // the confirm already says it: no toast when the person declines
       if (!confirm(t('admin.updateBusyConfirm', { msg: d.error ?? '' }))) return
       starting.value = false
-      return start(true)
+      return start(true, false)
     }
     toast.add({ title: apiError(e), color: 'error' })
   } finally {
     starting.value = false
+  }
+}
+
+// a waiting update: drop it, or swap it in now (cutting off what runs)
+const settling = ref(false)
+async function cancelWaiting() {
+  settling.value = true
+  try {
+    await $fetch('/api/system/update', { method: 'DELETE' })
+    await refresh()
+  } catch (e) {
+    toast.add({ title: apiError(e), color: 'error' })
+  } finally {
+    settling.value = false
+  }
+}
+async function hurry() {
+  if (!confirm(t('admin.updateHurryConfirm', { msg: state.value?.busy ?? '' }))) return
+  settling.value = true
+  try {
+    await $fetch('/api/system/update', { method: 'POST', body: { force: true } })
+    await refresh()
+    watchUpdate()
+  } catch (e) {
+    toast.add({ title: apiError(e), color: 'error' })
+  } finally {
+    settling.value = false
+  }
+}
+
+// update on its own when the source gets new commits (ADR-255)
+const savingAuto = ref(false)
+async function setAuto(enabled: boolean) {
+  savingAuto.value = true
+  try {
+    await $fetch('/api/system/update/auto', { method: 'PUT', body: { enabled } })
+    await refresh()
+  } catch (e) {
+    toast.add({ title: apiError(e), color: 'error' })
+  } finally {
+    savingAuto.value = false
   }
 }
 
@@ -158,7 +228,7 @@ const lastMeta = computed(() => ({
                 <span class="font-medium">{{ upToDate ? t('admin.updateLatest') : t('admin.updateHasChanges') }}</span>
               </template>
               <span v-else-if="changesError" class="text-(--ui-text-muted)">{{ t('admin.updateChangesUnknown', { msg: changesError }) }}</span>
-              <UButton class="ms-auto" size="xs" color="neutral" variant="ghost" icon="i-lucide-refresh-cw" :label="t('admin.updateCheckAgain')" :loading="checkingChanges" :disabled="running" @click="checkChanges" />
+              <UButton class="ms-auto" size="xs" color="neutral" variant="ghost" icon="i-lucide-refresh-cw" :label="t('admin.updateCheckAgain')" :loading="checkingChanges" :disabled="running || waiting" @click="checkChanges" />
             </div>
             <template v-if="changes && !upToDate">
               <ul v-if="changes.commits.length" class="mt-2 space-y-1">
@@ -194,21 +264,49 @@ const lastMeta = computed(() => ({
             </template>
           </div>
           <template v-if="!upToDate">
-            <UCheckbox v-if="changes?.remote?.behind" v-model="pull" :label="t('admin.updatePull', { branch: changes.remote.branch })" :disabled="running" />
-            <UCheckbox v-model="runTests" :label="t('admin.updateRunTests')" :disabled="running" />
-            <p v-if="data.busy.chats" class="text-sm text-(--ui-warning)">
-              <UIcon name="i-lucide-triangle-alert" class="align-middle" />
-              {{ t('admin.updateBusy', { chats: data.busy.chats }) }}
-            </p>
-            <p class="text-xs text-(--ui-text-muted)">{{ t('admin.updateProcessNote') }}</p>
+            <UCheckbox v-if="changes?.remote?.behind" v-model="pull" :label="t('admin.updatePull', { branch: changes.remote.branch })" :disabled="running || waiting" />
+            <UCheckbox v-model="runTests" :label="t('admin.updateRunTests')" :disabled="running || waiting" />
           </template>
-          <div class="flex items-center gap-3">
-            <UButton v-if="!upToDate || running" icon="i-lucide-refresh-cw" :label="t('admin.updateStart')" :loading="starting || running" :disabled="restarting" @click="start()" />
+          <!-- what a restart would cut off now: an update when idle waits for it -->
+          <div v-if="busyCount" class="rounded-lg border border-(--ui-border) p-3 text-sm">
+            <p class="flex items-center gap-1.5 font-medium">
+              <UIcon name="i-lucide-activity" class="size-4 text-(--ui-warning)" />
+              <InfoLabel :label="t('admin.updateBusyTitle', { n: busyCount })" :info="t('admin.updateBusyInfo')" />
+            </p>
+            <div v-for="g in busyGroups" :key="g.key" class="mt-2">
+              <p class="text-xs text-(--ui-text-muted)">{{ g.label }}</p>
+              <ul class="mt-0.5 space-y-0.5">
+                <li v-for="it in g.items.slice(0, 8)" :key="it.id" class="truncate text-xs">
+                  <NuxtLink :to="it.link" class="hover:underline">{{ it.name }}</NuxtLink>
+                </li>
+                <li v-if="g.items.length > 8 || g.more" class="text-xs text-(--ui-text-dimmed)">{{ t('admin.updateBusyMore', { n: Math.max(g.items.length - 8, 0) + g.more }) }}</li>
+              </ul>
+            </div>
+          </div>
+          <UAlert
+            v-if="waiting" color="primary" variant="subtle" icon="i-lucide-hourglass" :title="t('admin.updateWaitingTitle')"
+            :description="t('admin.updateWaitingDesc', { busy: state?.busy ?? '', until: state?.wait_until ? when(state.wait_until) : '' })"
+            :actions="[
+              { label: t('admin.updateHurry'), color: 'warning', variant: 'outline', loading: settling, onClick: hurry },
+              { label: t('admin.updateCancel'), color: 'neutral', variant: 'outline', loading: settling, onClick: cancelWaiting }
+            ]"
+          />
+          <div v-else class="flex flex-wrap items-center gap-3">
+            <template v-if="!upToDate || running">
+              <UButton icon="i-lucide-clock" :label="t('admin.updateWhenIdle')" :title="t('admin.updateWhenIdleHelp')" :loading="(starting || running) && state?.when_idle !== false" :disabled="restarting || running" @click="start(false, true)" />
+              <UButton color="neutral" variant="outline" icon="i-lucide-zap" :label="t('admin.updateNow')" :loading="starting && !running" :disabled="restarting || running" @click="start()" />
+            </template>
             <!-- up to date by the source; dependencies or the toolchain may still have moved -->
-            <UButton v-else size="xs" color="neutral" variant="link" :label="t('admin.updateRebuildAnyway')" :loading="starting" :disabled="restarting" @click="start()" />
+            <UButton v-else size="xs" color="neutral" variant="link" :label="t('admin.updateRebuildAnyway')" :loading="starting" :disabled="restarting" @click="start(false, true)" />
             <span v-if="running" class="text-sm text-(--ui-text-muted)">{{ state?.step }}…</span>
             <span v-else-if="state?.status === 'failed'" class="text-sm text-(--ui-error)">{{ state.error }}</span>
+            <span v-else-if="state?.status === 'cancelled'" class="text-sm text-(--ui-text-muted)">{{ state.error }}</span>
           </div>
+          <p class="text-xs text-(--ui-text-muted)">{{ t('admin.updateProcessNote') }}</p>
+          <USwitch
+            :model-value="data.auto.enabled" :loading="savingAuto" :label="t('admin.updateAuto')" :description="t('admin.updateAutoDesc')"
+            @update:model-value="setAuto"
+          />
         </div>
       </UCard>
 

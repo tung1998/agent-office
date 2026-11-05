@@ -32,7 +32,7 @@ Dự án thật (`dashboard/app/pages/`) là projects-based, không phải sơ �
 | `/admin/audit` (admin) | Nhật ký thao tác | Lịch sử thay đổi cấu hình/quyền toàn máy | |
 | `/admin/transfer` (admin) | Chuyển máy | Export/import toàn bộ cấu hình (backup sang máy khác) | |
 | `/admin/peers` (admin) | Office khác | Ghép nối với office khác bằng mã mời dùng một lần; chọn project bên kia được dùng, xem project bên kia mở cho mình (ADR-167) |
-| `/admin/update` (admin) | Cập nhật office | Build lại từ mã nguồn (kéo trước commit mới của nhánh trên origin, main hay master), xem log trực tiếp, tự quay về bản cũ nếu lỗi | Cập nhật, kiểm tra có bản mới |
+| `/admin/update` (admin) | Cập nhật office | Build lại từ mã nguồn (kéo trước commit mới của nhánh trên origin, main hay master), xem log trực tiếp, tự quay về bản cũ nếu lỗi; danh sách việc đang chạy (có link), cập nhật khi rảnh hay ngay, đang chờ thì hủy hoặc khởi động lại ngay, công tắc tự cập nhật (ADR-255) | Cập nhật khi rảnh, cập nhật ngay, hủy, kiểm tra có bản mới |
 | `/login` | Đăng nhập | | |
 
 `/costs` và `/incidents` đã bỏ, gộp vào Tổng quan (`/`): biểu đồ chi phí + danh sách cần xử lý (ADR-060, ADR-051); hai đường dẫn cũ chuyển hướng về `/`. Không có trang `/setup` (chỉ `/projects/:id/setup`), `/agents/:id` (thay bằng `/projects/:id/agents/:agentId`), `/blackboard`, hay `/ask` — đó là thiết kế sơ khai ban đầu, chưa từng lên app thật.

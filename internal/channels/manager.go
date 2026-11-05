@@ -65,6 +65,7 @@ type Manager struct {
 	// ProgressAfter: a run longer than this shows its steps in a status message
 	ProgressAfter time.Duration
 	decider       Decider // decides proposals from the chat (nil = only on the dashboard)
+	updater       Updater // office's self-update, /update (nil = none, ADR-255)
 	tap           Tap     // a feature pack taking messages before the rules (nil = none)
 }
 
@@ -367,6 +368,10 @@ func (m *Manager) handle(ctx context.Context, channelID string, ad Adapter, in I
 			}
 			return
 		}
+	}
+	if isCmd && cmd == "update" { // /update [status|cancel]: office's own update (ADR-255)
+		say(m.updateCommand(ctx, ch, in, arg, who))
+		return
 	}
 	if isCmd && cmd == "thread" { // /create-thread [name]: only when asked
 		if msg := m.makeThread(ctx, ch, ad, in, arg); msg != "" {
@@ -750,6 +755,8 @@ func command(text string) (cmd, arg string, ok bool) {
 		return "stop", "", true
 	case "push":
 		return "push", rest, true
+	case "update", "cap-nhat":
+		return "update", rest, true
 	}
 	return "", "", false
 }
@@ -757,6 +764,9 @@ func command(text string) (cmd, arg string, ok bool) {
 // commands are a bot's menu: its own, then its automations' custom ones.
 func (m *Manager) commands(ctx context.Context, ch storage.Channel) []Command {
 	out := Builtins()
+	if m.updater != nil {
+		out = append(out, UpdateCommand)
+	}
 	if ch.Kind != "discord" { // threads are Discord's
 		out = slices.DeleteFunc(out, func(c Command) bool { return c.Name == "create-thread" })
 	}

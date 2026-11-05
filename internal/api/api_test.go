@@ -34,6 +34,7 @@ import (
 	"github.com/tung1998/agent-office/internal/perm"
 	"github.com/tung1998/agent-office/internal/provider"
 	"github.com/tung1998/agent-office/internal/secrets"
+	"github.com/tung1998/agent-office/internal/selfupdate"
 	officesetup "github.com/tung1998/agent-office/internal/setup"
 	"github.com/tung1998/agent-office/internal/storage"
 	"github.com/tung1998/agent-office/internal/storage/sqlite"
@@ -68,6 +69,9 @@ func (idleExec) RunTask(context.Context, string, string, string, string) (string
 func (idleExec) RunQueuedTask(context.Context, string, string) (string, error) { return "", nil }
 
 func setup(t *testing.T) *env { return setupWith(t, nil) }
+
+// testUpdater, when set before setupWith, is the office's self-update.
+var testUpdater *selfupdate.Updater
 
 // cliPath, when set before setupWith, enables CLI tools with that PATH.
 var cliPath string
@@ -128,7 +132,7 @@ func setupWithStore(t *testing.T, proxies []netip.Prefix, wrap func(storage.Stor
 		Providers: provs, Team: org, Setup: officesetup.New(st, provs, org), Transfer: transfers, Workflows: wfs, Usage: u, CLITools: cliManager(), Chat: chatEng, BackgroundsDir: t.TempDir(),
 		Trigger: trigger.New(st, idleExec{}), Actions: acts, Office: office, MCP: mcp, Memory: mem, Events: bus, Automation: testAutomation(t, st),
 		Monitors: monitor.New(st, nil, chatEng), Ops: ops.NewManager(st, t.TempDir(), []string{}), Burn: burn.New(st, chatEng, nil),
-		Gateway: &mcpgateway.Gateway{Store: st, Box: box, Auth: mcp.Authorized, Identify: testIdentify(mcp)}})
+		Gateway: &mcpgateway.Gateway{Store: st, Box: box, Auth: mcp.Authorized, Identify: testIdentify(mcp)}, Updater: testUpdater, Supervised: testUpdater != nil})
 	srv := httptest.NewServer(h)
 	t.Cleanup(srv.Close)
 	ctx := context.Background()

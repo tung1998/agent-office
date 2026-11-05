@@ -411,14 +411,18 @@ func cmpOr(a, b string) string {
 
 // EndInterrupted ends the runs the office restarted under (their turns do
 // not run again) and tells each chat that called one: a chat would
-// otherwise wait for an output that never comes.
-func (s *Service) EndInterrupted(ctx context.Context) (int, error) {
+// otherwise wait for an output that never comes. why is why office went
+// down (an update, a stop, a crash: ADR-255); "" says nothing of it.
+func (s *Service) EndInterrupted(ctx context.Context, why string) (int, error) {
 	runs, err := s.Store.WorkflowRuns().List(ctx, "", "", 500)
 	if err != nil {
 		return 0, err
 	}
-	const why = "office khởi động lại khi quy trình đang chạy"
-	if _, err := s.Store.WorkflowRuns().FailRunning(ctx, why, time.Now().UTC()); err != nil {
+	detail := "office khởi động lại khi quy trình đang chạy"
+	if why != "" {
+		detail += ": " + why
+	}
+	if _, err := s.Store.WorkflowRuns().FailRunning(ctx, detail, time.Now().UTC()); err != nil {
 		return 0, err
 	}
 	n := 0
@@ -427,7 +431,11 @@ func (s *Service) EndInterrupted(ctx context.Context) (int, error) {
 			continue
 		}
 		n++
-		note := "⚠️ Quy trình " + r.WorkflowName + " đã dừng vì office khởi động lại. Gõ lại /" + r.WorkflowKey + " để chạy lại."
+		note := "⚠️ Quy trình " + r.WorkflowName + " đã dừng vì office khởi động lại"
+		if why != "" {
+			note += " (" + why + ")"
+		}
+		note += ". Gõ lại /" + r.WorkflowKey + " để chạy lại."
 		if r.ConversationID != "" {
 			_, _ = s.Store.Chat().AddMessage(ctx, storage.Message{ConversationID: r.ConversationID, Role: "error", Content: note})
 		}

@@ -5,6 +5,7 @@
 package actions
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -56,7 +57,18 @@ var Kinds = map[string]string{
 	"data_delete":       "Xóa bản ghi dữ liệu",
 	"install_skill":     "Cài skill cho agent",
 	"deps_install":      "Cài thư viện",
+	"office_update":     "Cập nhật office khi rảnh",
 }
+
+// OfficeUpdater rebuilds office from its source and restarts it once no work
+// runs (ADR-255): an approved office_update.
+type OfficeUpdater interface {
+	// UpdateWhenIdle starts it; by: who approved, why: what the agent said
+	UpdateWhenIdle(ctx context.Context, by, why string) error
+}
+
+// SetUpdater turns on office_update proposals (nil: office cannot update itself).
+func (s *Service) SetUpdater(u OfficeUpdater) { s.updater = u }
 
 // Projects makes the projects the office assistant proposes (ADR-170).
 type Projects interface {
@@ -202,6 +214,7 @@ type Service struct {
 	sender   Sender
 	peers    *peer.Service // other offices' linked projects (ADR-167; nil = none)
 	projects Projects
+	updater  OfficeUpdater
 }
 
 // SetPeers lets send_message reach linked projects in other offices.
@@ -341,6 +354,11 @@ func (s *Service) Propose(ctx context.Context, sc Scope, kind, target, reason st
 			return a, fmt.Errorf("không có bản ghi %q trong %q", r.ID, r.Collection)
 		}
 		a.Target, a.TargetID = recordLabel(c, x), x.ID
+	} else if kind == "office_update" { // a restart of the whole office: a person (or an administrator's run) decides
+		if s.updater == nil {
+			return a, errors.New("office này không tự cập nhật được: cần chạy dưới `office run` và có mã nguồn")
+		}
+		a.Target = "office"
 	} else if kind == "run_automation" { // costs tokens: a person always decides
 		if s.runner == nil {
 			return a, errors.New("không giao việc được ở đây")
@@ -601,6 +619,8 @@ func (s *Service) autoAllowed(ctx context.Context, a storage.Action, acc perm.Ac
 		return acc.Can(perm.CapSelf) && s.selfChange(ctx, a.ProjectID, a.Args.Change)
 	case "run_automation":
 		return false // code that runs unattended, or settings: a person always decides
+	case "office_update":
+		return false // the whole office restarts: a person decides
 	case "install_skill":
 		return false // files written into the project: a person decides
 	case "mcp_call":
@@ -993,6 +1013,12 @@ func (s *Service) run(ctx context.Context, a storage.Action) error {
 		}
 		_, err := s.skills.Install(ctx, a.ProjectID, a.TargetID, a.Target, a.Args.Summary)
 		return err
+	}
+	if a.Kind == "office_update" {
+		if s.updater == nil {
+			return errors.New("office này không tự cập nhật được")
+		}
+		return s.updater.UpdateWhenIdle(ctx, cmp.Or(a.DecidedBy, a.ProposedBy), a.Reason)
 	}
 	if a.Kind == "run_automation" {
 		if s.runner == nil {

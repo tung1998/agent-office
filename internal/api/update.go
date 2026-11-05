@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/tung1998/agent-office/internal/busywork"
 	"github.com/tung1998/agent-office/internal/selfupdate"
 )
 
@@ -60,18 +61,21 @@ func currentBuild(version string) buildInfo {
 }
 
 // updateStatus tells the dashboard whether office can update itself, what is
-// running, and how the last update went.
+// running, how far the running build is behind its source, and how the last
+// update went.
 func (s *server) updateStatus(w http.ResponseWriter, r *http.Request) {
 	out := map[string]any{
 		"supervised": s.cfg.Supervised,
 		"build":      s.build,
 		"last":       selfupdate.LoadResult(s.cfg.System.HomeDir),
-		"busy":       s.busyWork(),
+		"busy":       s.busyWork(r.Context()),
+		"auto":       s.autoUpdate(r.Context()),
+		"behind":     -1,
 	}
 	if s.cfg.Updater != nil {
 		src := s.cfg.Updater.Source()
-		_, _, st := s.cfg.Updater.Since(0)
-		out["source"], out["state"] = src, st
+		out["source"], out["state"] = src, s.cfg.Updater.State()
+		out["behind"] = src.Behind(r.Context(), s.build.Revision)
 	}
 	writeJSON(w, http.StatusOK, out)
 }
@@ -87,14 +91,24 @@ func (s *server) updateChanges(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, c)
 }
 
-// busyWork lists work an update restart would cut off: answers being
-// written (they go on after it); project processes run on.
-func (s *server) busyWork() map[string]int {
-	b := map[string]int{"chats": 0}
+// busyWork lists the work a restart would cut off (ADR-255): answers being
+// written (they go on after it), workflows, automation runs, Burn pieces and
+// tasks (they end as failed). Project processes run on.
+func (s *server) busyWork(ctx context.Context) busywork.Report {
+	c := busywork.Counter{Store: s.cfg.Store}
 	if s.cfg.Chat != nil {
-		b["chats"] = s.cfg.Chat.ActiveTurns()
+		c.Chat = s.cfg.Chat
 	}
-	return b
+	return c.Count(ctx)
+}
+
+// autoUpdate reads the "update on its own when idle" switch.
+func (s *server) autoUpdate(ctx context.Context) selfupdate.AutoSetting {
+	var a selfupdate.AutoSetting
+	if s.cfg.Store != nil {
+		_, _ = s.cfg.Store.Settings().Get(ctx, selfupdate.AutoSettingKey, &a)
+	}
+	return a
 }
 
 func (s *server) startUpdate(w http.ResponseWriter, r *http.Request) {
@@ -102,16 +116,38 @@ func (s *server) startUpdate(w http.ResponseWriter, r *http.Request) {
 		Test  bool `json:"test"`
 		Pull  bool `json:"pull"` // bring in the remote's new commits first
 		Force bool `json:"force"`
+		// WhenIdle: build now, restart only once nothing runs (ADR-255)
+		WhenIdle bool `json:"when_idle"`
+		// MaxWaitMinutes: how long it waits at most (0 = 2 hours)
+		MaxWaitMinutes int `json:"max_wait_minutes"`
 	}
 	if !decode(w, r, &in) {
 		return
 	}
-	if b := s.busyWork(); !in.Force && b["chats"] > 0 {
-		writeJSON(w, http.StatusConflict, map[string]any{"code": "busy", "busy": b,
-			"error": fmt.Sprintf("Đang có %d lượt chat trả lời; khởi động lại sẽ ngắt chúng, office lên lại thì chúng tự làm tiếp", b["chats"])})
+	// a built update waiting for idle: "now" swaps it in at once
+	if in.Force && s.cfg.Updater.Waiting() {
+		if err := s.cfg.Updater.Hurry(); err != nil {
+			writeError(w, http.StatusConflict, err.Error())
+			return
+		}
+		s.auditAction(r, "system.update", "", map[string]any{"hurry": true})
+		writeJSON(w, http.StatusAccepted, map[string]any{"ok": true})
 		return
 	}
-	if err := s.cfg.Updater.Start(selfupdate.Options{Test: in.Test, Pull: in.Pull}); err != nil {
+	if !in.WhenIdle && !in.Force {
+		if b := s.busyWork(r.Context()); b.Total() > 0 {
+			writeJSON(w, http.StatusConflict, map[string]any{"code": "busy", "busy": b,
+				"error": "Đang chạy: " + b.Summary() + ". Khởi động lại sẽ ngắt chúng (lượt chat tự làm tiếp sau đó; quy trình, tự động hóa và Việc thì dừng lỗi). Chọn \"Cập nhật khi rảnh\" để chờ chúng xong."})
+			return
+		}
+	}
+	if in.MaxWaitMinutes < 0 || time.Duration(in.MaxWaitMinutes)*time.Minute > selfupdate.MaxMaxWait {
+		writeError(w, http.StatusBadRequest, fmt.Sprintf("max_wait_minutes: từ 0 tới %d", int(selfupdate.MaxMaxWait/time.Minute)))
+		return
+	}
+	o := selfupdate.Options{Test: in.Test, Pull: in.Pull, WhenIdle: in.WhenIdle,
+		MaxWait: time.Duration(in.MaxWaitMinutes) * time.Minute, By: userFrom(r).Email}
+	if err := s.cfg.Updater.Start(o); err != nil {
 		if errors.Is(err, selfupdate.ErrBusy) {
 			writeError(w, http.StatusConflict, err.Error())
 			return
@@ -119,8 +155,33 @@ func (s *server) startUpdate(w http.ResponseWriter, r *http.Request) {
 		s.internal(w, r, err)
 		return
 	}
-	s.auditAction(r, "system.update", "", map[string]any{"test": in.Test, "pull": in.Pull, "force": in.Force})
+	s.auditAction(r, "system.update", "", map[string]any{"test": in.Test, "pull": in.Pull, "force": in.Force, "when_idle": in.WhenIdle})
 	writeJSON(w, http.StatusAccepted, map[string]any{"ok": true})
+}
+
+// cancelUpdate drops the update in progress (waiting for idle, or still
+// building): the running build stays.
+func (s *server) cancelUpdate(w http.ResponseWriter, r *http.Request) {
+	if err := s.cfg.Updater.Cancel(); err != nil {
+		writeError(w, http.StatusConflict, err.Error())
+		return
+	}
+	s.auditAction(r, "system.update.cancel", "", nil)
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
+}
+
+// setAutoUpdate turns updating on its own when idle on or off (ADR-255).
+func (s *server) setAutoUpdate(w http.ResponseWriter, r *http.Request) {
+	var in selfupdate.AutoSetting
+	if !decode(w, r, &in) {
+		return
+	}
+	if err := s.cfg.Store.Settings().Set(r.Context(), selfupdate.AutoSettingKey, in); err != nil {
+		s.internal(w, r, err)
+		return
+	}
+	s.auditAction(r, "system.update.auto", "", map[string]any{"enabled": in.Enabled})
+	writeJSON(w, http.StatusOK, in)
 }
 
 // streamUpdate streams the build output and state as SSE (`lines`, `state`).

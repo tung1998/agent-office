@@ -52,6 +52,7 @@ const en: Record<MessageKey, string> = {
   'nav.data': 'Data management',
 'nav.peers': 'Other offices',
   'nav.update': 'Update office',
+  'nav.updateNew': '{n} new',
   'nav.chat': 'Chat',
   'nav.tasks': 'Tasks',
   'nav.ops': 'Operations',

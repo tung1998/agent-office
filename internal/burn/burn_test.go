@@ -782,3 +782,31 @@ func TestBurnTurnsOnBySchedule(t *testing.T) {
 		t.Fatalf("turned on again after being turned off: %s", b.State)
 	}
 }
+
+// While an update waits for office to be idle (ADR-255), a Burn takes no new
+// piece; once the hold lets go it does.
+func TestBurnHoldTakesNoNewPiece(t *testing.T) {
+	f := setup(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	var held atomic.Bool
+	held.Store(true)
+	f.svc.SetHold(held.Load)
+	f.svc.SetFindWork(false)
+	f.svc.Start(ctx)
+	f.st.Burn().SaveSession(ctx, storage.BurnSession{ProjectID: f.project.ID, ModelTier: "fast", ResultMode: "branch", State: "stopped"})
+	b, err := f.svc.Begin(ctx, f.project.ID, "admin@x.io")
+	if err != nil {
+		t.Fatal(err)
+	}
+	it, _ := f.st.Burn().AddItem(ctx, storage.BurnItem{SessionID: b.ID, Title: "việc mới", Kind: "unfinished", Status: "queued"})
+	f.svc.Wake(f.project.ID)
+	time.Sleep(300 * time.Millisecond)
+	if cur, _ := f.st.Burn().Item(ctx, it.ID); cur.Status != "queued" {
+		t.Fatalf("a piece started while held: %s", cur.Status)
+	}
+	held.Store(false)
+	f.svc.Wake(f.project.ID)
+	waitItem(t, f.st, it.ID, "doing")
+	f.svc.Stop(ctx, f.project.ID)
+}

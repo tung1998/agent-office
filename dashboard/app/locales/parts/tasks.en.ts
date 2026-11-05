@@ -159,6 +159,7 @@ const en: Record<keyof typeof vi, string> = {
   'action.kind.forget': 'Forget notes',
   'action.kind.install_skill': 'Install a skill for the agent',
   'action.kind.deps_install': 'Install dependencies',
+  'action.kind.office_update': 'Update office when idle',
   'action.depsWorktree': 'In the agent\'s own worktree, in dependency folders of its own: the project is untouched',
   'action.depsProject': 'In the project folder, so the project runs the versions of the lockfile just merged',
   'patch.deps': 'Changes dependencies: {deps}',

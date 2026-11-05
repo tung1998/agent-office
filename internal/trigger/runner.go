@@ -63,7 +63,28 @@ type Runner struct {
 	onProgress OnProgress
 	onNotify   OnNotify
 	onDone     []OnDone
-	quests     GiveQuests // a script's @@quest lines to the Burn (ADR-132); nil = none
+	quests     GiveQuests  // a script's @@quest lines to the Burn (ADR-132); nil = none
+	hold       func() bool // true: start no unattended job now (an update waits for office to be idle, ADR-255)
+}
+
+// SetHold sets what holds the unattended jobs (schedules, webhooks,
+// monitors, retries): queued, they start once it lets go (or after the
+// restart). A message from a bot's chat still runs: someone waits for it.
+func (r *Runner) SetHold(fn func() bool) { r.hold = fn }
+
+// heldOrigins are the origins of the pending jobs a hold keeps waiting.
+func (r *Runner) heldOrigins(ctx context.Context) []string {
+	jobs, err := r.store.Jobs().List(ctx, storage.JobFilter{Status: "pending", Limit: 500})
+	if err != nil {
+		return nil
+	}
+	var out []string
+	for _, j := range jobs {
+		if j.OriginID != "" && !IsChannel(j.Trigger) {
+			out = append(out, j.OriginID)
+		}
+	}
+	return out
 }
 
 // OnReply gets what a run from a chat channel answers (ADR-049): origin is
@@ -193,6 +214,11 @@ reserve:
 		remaining[id] = max(r.cap[id]-n, 0) // how many more of it may run now
 	}
 	r.mu.Unlock()
+	if r.hold != nil && r.hold() { // an update waits for office to be idle: nothing unattended starts (ADR-255)
+		for _, id := range r.heldOrigins(ctx) {
+			remaining[id] = 0
+		}
+	}
 	jobs, err := r.store.Jobs().Claim(ctx, now, free, remaining)
 	if err != nil {
 		jobs = nil

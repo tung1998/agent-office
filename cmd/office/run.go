@@ -12,6 +12,7 @@ import (
 	"github.com/tung1998/agent-office/internal/attach"
 	"github.com/tung1998/agent-office/internal/automation"
 	"github.com/tung1998/agent-office/internal/burn"
+	"github.com/tung1998/agent-office/internal/busywork"
 	"github.com/tung1998/agent-office/internal/channels"
 	"github.com/tung1998/agent-office/internal/cleanup"
 	"github.com/tung1998/agent-office/internal/deciding"
@@ -38,6 +39,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -118,16 +120,19 @@ func serveCmd() *cobra.Command {
 			if cliSetup {
 				cliTools = a.cli
 			}
+			// why office went down last (an update, a stop, else a crash): told
+			// to the chats whose work it cut (ADR-255)
+			downWhy := selfupdate.TakeRestart(h.Dir)
 			// chat answers cut off by the last shutdown go on (below); other jobs do not run again (ADR-040)
 			interrupted, _ := a.store.Jobs().List(ctx, storage.JobFilter{Kind: "chat_turn", Status: "running", Limit: 200})
-			if n, err := a.store.Jobs().FailRunning(ctx, "restart", "office khởi động lại khi job đang chạy", time.Now().UTC()); err == nil && n > 0 {
+			if n, err := a.store.Jobs().FailRunning(ctx, "restart", "office khởi động lại khi job đang chạy: "+downWhy, time.Now().UTC()); err == nil && n > 0 {
 				fmt.Fprintf(cmd.ErrOrStderr(), "office: %d job đang chạy dở được đánh dấu lỗi (khởi động lại)\n", n)
 			}
 			// and their tasks, so the tasks list is right and "Chạy lại" works
-			_, _ = a.store.Tasks().FailRunning(ctx, "Office khởi động lại khi Việc đang chạy", time.Now().UTC())
+			_, _ = a.store.Tasks().FailRunning(ctx, "Office khởi động lại khi Việc đang chạy: "+downWhy, time.Now().UTC())
 			// and the workflows they were part of (their turns do not run again);
 			// the chats that called them are told
-			if n, err := a.workflows.EndInterrupted(ctx); err == nil && n > 0 {
+			if n, err := a.workflows.EndInterrupted(ctx, downWhy); err == nil && n > 0 {
 				fmt.Fprintf(cmd.ErrOrStderr(), "office: %d quy trình đang chạy dở được đánh dấu lỗi (khởi động lại)\n", n)
 			}
 			chatEngine := chat.NewEngine(a.store, a.providers, a.usage)
@@ -346,6 +351,21 @@ func serveCmd() *cobra.Command {
 					if src, ok := selfupdate.FindSource(exe); ok {
 						var once sync.Once
 						updater = selfupdate.New(src, h.Dir, a.cli.Env(), func() { once.Do(func() { close(restart) }) })
+						// what a restart would cut off: an update that waits for office to
+						// be idle waits for it; meanwhile nothing unattended starts (ADR-255)
+						counter := busywork.Counter{Store: a.store, Chat: chatEngine}
+						updater.SetBusy(func(ctx context.Context) string { return counter.Count(ctx).Summary() })
+						runner.SetHold(updater.Waiting)
+						burner.SetHold(updater.Waiting)
+						go updater.Watch(ctx, func(ctx context.Context) bool {
+							var auto selfupdate.AutoSetting
+							_, _ = a.store.Settings().Get(ctx, selfupdate.AutoSettingKey, &auto)
+							return auto.Enabled
+						}, selfupdate.Revision(), time.Minute, 5*time.Minute)
+						// an agent that changed office's own code asks for the update itself
+						acts.SetUpdater(officeUpdater{updater})
+						bots.SetUpdater(botUpdater{updater}) // /update from a bot's chat
+						office.AddProvider(officetools.UpdateTools{Store: a.store, Actions: acts, Root: src.Root})
 					}
 				}
 			}
@@ -436,6 +456,7 @@ func serveCmd() *cobra.Command {
 				a.Close()
 				os.Exit(selfupdate.RestartCode)
 			case <-ctx.Done():
+				selfupdate.SaveRestart(h.Dir, selfupdate.Restart{Reason: "office được tắt (office stop, tắt dịch vụ hoặc tắt máy)", At: time.Now().UTC()})
 				chatEngine.Shutdown(turnStopWait)
 				shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 				defer cancel()
@@ -562,3 +583,65 @@ func exitWithParent(ctx context.Context) {
 		}
 	}
 }
+
+// officeUpdater is an approved office_update (ADR-255): a when-idle update
+// with tests, waiting long enough for a day's workflow to end.
+type officeUpdater struct{ u *selfupdate.Updater }
+
+func (o officeUpdater) UpdateWhenIdle(_ context.Context, by, why string) error {
+	if by == "" {
+		by = "agent"
+	}
+	if why = strings.TrimSpace(why); why != "" {
+		if r := []rune(why); len(r) > 80 {
+			why = string(r[:79]) + "…"
+		}
+		by += " (" + why + ")"
+	}
+	// one built before these commits waits: built again so it has them
+	if o.u.Waiting() {
+		_ = o.u.Cancel()
+		for deadline := time.Now().Add(5 * time.Second); o.u.Waiting() && time.Now().Before(deadline); {
+			time.Sleep(50 * time.Millisecond)
+		}
+	}
+	err := o.u.Start(selfupdate.Options{WhenIdle: true, Test: true, MaxWait: 12 * time.Hour, By: by})
+	if errors.Is(err, selfupdate.ErrBusy) && o.u.State().WhenIdle {
+		return nil // one is building: it waits for idle all the same
+	}
+	return err
+}
+
+// botUpdater is /update from a bot's chat (ADR-255).
+type botUpdater struct{ u *selfupdate.Updater }
+
+func (b botUpdater) Status(context.Context) string {
+	st := b.u.State()
+	switch st.Status {
+	case "running":
+		return "Đang build bản mới: " + st.Step
+	case "waiting":
+		until := ""
+		if st.WaitUntil != nil {
+			until = " (tối đa tới " + st.WaitUntil.Local().Format("15:04 02/01") + ")"
+		}
+		return "Đã build xong, chờ hết việc đang chạy" + until + ": " + st.Busy
+	case "restarting":
+		return "Đang khởi động lại bằng bản mới."
+	case "failed", "cancelled":
+		return "Lần cập nhật gần nhất không xong: " + st.Error
+	}
+	return "Không có bản cập nhật nào đang chạy."
+}
+
+func (b botUpdater) WhenIdle(_ context.Context, by string) (string, error) {
+	if err := b.u.Start(selfupdate.Options{WhenIdle: true, Test: true, By: by}); err != nil {
+		if errors.Is(err, selfupdate.ErrBusy) {
+			return b.Status(context.Background()), nil
+		}
+		return "", err
+	}
+	return "Office đang build bản mới (có chạy test); xong thì chờ hết việc đang chạy rồi mới khởi động lại, không ngắt việc nào. Xem bằng /update status, hủy bằng /update cancel.", nil
+}
+
+func (b botUpdater) Cancel() error { return b.u.Cancel() }

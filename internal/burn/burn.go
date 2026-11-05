@@ -180,8 +180,15 @@ type Service struct {
 	find   bool                          // a free slot gets a worker finding its own piece (off: only the queued ones)
 	runMu  sync.Mutex                    // a run's worktree: made, and pieces merged into it, one at a time
 
-	notify Notify // a run's summary to a bot's chat (ADR-120); nil: none
+	notify Notify      // a run's summary to a bot's chat (ADR-120); nil: none
+	hold   func() bool // true: no new piece or scan starts (an update waits for office to be idle, ADR-255)
 }
+
+// SetHold sets what holds the Burns' new work: while it holds, a Burn only
+// goes on with what it has in progress, as when it waits for a review.
+func (s *Service) SetHold(fn func() bool) { s.hold = fn }
+
+func (s *Service) holding() bool { return s.hold != nil && s.hold() }
 
 // Notify posts text to a bot's chat (the channels manager).
 type Notify func(ctx context.Context, channelID, chatID, text string) error
@@ -509,7 +516,8 @@ func (s *Service) loop(ctx context.Context, projectID string, wake chan struct{}
 			continue
 		}
 		// waiting for the person's review (ADR-135): only what is in progress
-		held := !draining && s.heldForReview(ctx, b)
+		// or an update waiting for office to be idle (ADR-255)
+		held := !draining && (s.holding() || s.heldForReview(ctx, b))
 		mu.Lock()
 		started := 0
 		run := func(it storage.BurnItem) {

@@ -640,7 +640,7 @@ func withProject(x Tool) Tool {
 // proposes: a tool that proposes a change or runs something (none for an
 // assistant that only answers).
 func proposes(name string) bool {
-	return strings.HasPrefix(name, "propose") || name == "export_project" || name == "run_automation" || name == "send_to_chat" || name == "run_workflow"
+	return strings.HasPrefix(name, "propose") || name == "export_project" || name == "run_automation" || name == "send_to_chat" || name == "run_workflow" || name == "request_update"
 }
 
 // Has reports whether name is one of the tools.

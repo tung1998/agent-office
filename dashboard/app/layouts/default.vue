@@ -118,6 +118,26 @@ const attention = computed(() => incData.value?.count ?? 0)
 const { data: provData } = useLiveFetch<{ providers: Provider[] }>('/api/providers', { lazy: true })
 const brokenProviders = computed(() => provData.value?.providers.filter(p => p.enabled && p.status === 'error').length ?? 0)
 
+// the running build behind its source (merged commits not built yet), or an
+// update waiting for office to be idle: marked on "Cập nhật office" (ADR-255)
+const updateBehind = ref(0)
+const updateWaiting = ref(false)
+async function checkUpdate() {
+  if (!isOfficeAdmin.value) return
+  try {
+    const s = await $fetch<{ behind: number, state?: { status: string } }>('/api/system/update')
+    updateBehind.value = Math.max(s.behind, 0)
+    updateWaiting.value = s.state?.status === 'waiting'
+  } catch { /* not supervised, or restarting */ }
+}
+let updateTimer: ReturnType<typeof setInterval> | undefined
+onMounted(() => {
+  checkUpdate()
+  updateTimer = setInterval(checkUpdate, 120_000)
+})
+onBeforeUnmount(() => clearInterval(updateTimer))
+watch(isOfficeAdmin, checkUpdate)
+
 // the watch dashboards sit under "Theo dõi" (at most 5, ADR-159), + for a new one
 const watchLayout = useWatchLayout()
 const boardLabel = (b: { name: string }, i: number) => b.name || t('watchW.board.default', { n: i + 1 })
@@ -189,7 +209,12 @@ const items = computed<NavigationMenuItem[][]>(() => {
         { label: t('nav.admin'), type: 'label' },
         { label: t('nav.users'), icon: 'i-lucide-users', to: '/admin/users' },
         { label: t('nav.peers'), icon: 'i-lucide-building-2', to: '/admin/peers' },
-        { label: t('nav.update'), icon: 'i-lucide-package', to: '/admin/update' }
+        {
+          label: t('nav.update'), icon: 'i-lucide-package', to: '/admin/update',
+          badge: updateWaiting.value
+            ? { icon: 'i-lucide-hourglass', color: 'primary' as const, variant: 'subtle' as const }
+            : updateBehind.value ? { label: t('nav.updateNew', { n: updateBehind.value }), color: 'primary' as const, variant: 'subtle' as const } : undefined
+        }
       ]
     : canCreateProject.value // a manager: its members (ADR-239)
       ? [{ label: t('nav.admin'), type: 'label' }, { label: t('nav.users'), icon: 'i-lucide-users', to: '/admin/users' }]
