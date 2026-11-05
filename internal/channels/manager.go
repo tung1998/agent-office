@@ -103,38 +103,46 @@ const BusyNotice = "⏳ Mình đang xử lý mấy tin trước, tin này chưa 
 
 // Pending counts the messages of each chat waiting or being answered.
 type Pending struct {
-	mu   sync.Mutex
-	n    map[string]int
-	told map[string]bool // the chat was told it is busy: once per busy spell
+	mu    sync.Mutex
+	n     map[string]int
+	spell map[string]uint64 // the busy spell of a chat with messages in flight
+	last  uint64
+	told  map[string]bool // the chat was told it is busy: once per busy spell
 }
 
-// Refused notes a message of key turned away because too many wait; true the
-// first time in a busy spell (the chat is told once, not on every message).
-func (p *Pending) Refused(key string) bool {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	if p.told == nil {
-		p.told = map[string]bool{}
-	}
-	if p.told[key] {
-		return false
-	}
-	p.told[key] = true
-	return true
-}
-
-// Take reserves a place for a message of key; false = too many waiting.
-func (p *Pending) Take(key string) bool {
+// Take reserves a place for a message of key. When too many wait, ok is false
+// and tell is the busy spell to tell the chat about (0: already told in this
+// spell). The place and the notice are decided under one lock, so answers
+// ending in between cannot leave a "told" behind for the next spell.
+func (p *Pending) Take(key string) (ok bool, tell uint64) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	if p.n == nil {
-		p.n = map[string]int{}
+		p.n, p.spell, p.told = map[string]int{}, map[string]uint64{}, map[string]bool{}
 	}
 	if p.n[key] >= MaxPending {
-		return false
+		if p.told[key] {
+			return false, 0
+		}
+		p.told[key] = true
+		return false, p.spell[key]
+	}
+	if p.n[key] == 0 {
+		p.last++
+		p.spell[key] = p.last
 	}
 	p.n[key]++
-	return true
+	return true, 0
+}
+
+// Untell undoes a notice of spell that did not reach the chat: the next
+// message turned away in that spell tries again.
+func (p *Pending) Untell(key string, spell uint64) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if spell != 0 && p.spell[key] == spell {
+		delete(p.told, key)
+	}
 }
 
 // Done frees the place of a message of key.
@@ -143,6 +151,7 @@ func (p *Pending) Done(key string) {
 	defer p.mu.Unlock()
 	if p.n[key]--; p.n[key] <= 0 {
 		delete(p.n, key)
+		delete(p.spell, key)
 		delete(p.told, key) // the busy spell is over: the next one is told again
 	}
 }
@@ -307,10 +316,15 @@ func (m *Manager) handle(ctx context.Context, channelID string, ad Adapter, in I
 		m.waitIdle(ctx, convs) // the stopped answer ends first: the new one is not put back as busy
 		in.Text = arg
 	}
-	if !m.pending.Take(key) { // a flood from one chat: the rest is turned away, never silently
+	if ok, tell := m.pending.Take(key); !ok { // a flood from one chat: the rest is turned away, never silently
 		slog.Info("channels: busy, message dropped", "channel", ch.ID, "chat", in.ChatID, "user", in.UserID)
-		if in.Respond != nil || m.pending.Refused(key) { // a slash command waits for an answer; a message: once per busy spell
+		if in.Respond != nil { // a slash command waits for an answer
 			say(BusyNotice)
+		} else if tell != 0 { // a message: once per busy spell, again if the notice did not get through
+			if ids, err := ad.Send(ctx, in.ChatID, BusyNotice); err != nil && len(ids) == 0 {
+				slog.Warn("channels: busy notice not sent", "channel", ch.ID, "chat", in.ChatID, "err", err)
+				m.pending.Untell(key, tell)
+			}
 		}
 		_, _ = m.store.Jobs().Create(ctx, storage.Job{ProjectID: ch.ProjectID, Kind: "chat_turn", Origin: "user", OriginID: ch.ID, Trigger: ch.Kind,
 			CreatedBy: fmt.Sprintf("%s:%s", ch.Kind, firstNonEmpty(in.UserName, in.UserID)), Title: truncate(in.Text, 80),
