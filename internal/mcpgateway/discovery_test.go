@@ -158,8 +158,21 @@ func TestDiscoverySkipsBrokenServers(t *testing.T) {
 	if err != nil || len(out.Tools) != 0 || !strings.Contains(out.Hint, "fetch") || !strings.Contains(out.Hint, "uvx") {
 		t.Fatalf("broken server found as usable: %+v %v", out, err)
 	}
-	if out, _ := gw.FindTools(ctx, c, "", 0); len(out.Servers) != 1 || out.Servers[0].Available || out.Servers[0].Status != "error" {
+	// listed with no query: marked broken with why, and a hint not to ask the
+	// person for a permission the agent already has
+	out, _ = gw.FindTools(ctx, c, "", 0)
+	if len(out.Servers) != 1 || out.Servers[0].Available || out.Servers[0].Status != "error" ||
+		!out.Servers[0].Broken || !strings.Contains(out.Servers[0].Reason, "uvx") || !strings.Contains(out.Hint, "Broken now") {
 		t.Fatalf("listing: %+v", out)
+	}
+	// a server the caller is not given is not marked broken: that one is permission
+	other, _ := st.MCPServers().Create(ctx, storage.MCPServer{Name: "zz-other", URL: srv.URL, Enabled: true, Agents: []string{"someone"}})
+	_ = st.MCPServers().SetCheck(ctx, other.ID, "error", "down", tools, time.Now())
+	out, _ = gw.FindTools(ctx, c, "", 0)
+	for _, s := range out.Servers {
+		if s.Name == "zz-other" && (s.Broken || s.Available) {
+			t.Fatalf("unassigned server: %+v", s)
+		}
 	}
 	text, failed := gw.InvokeFound(ctx, c, "fetch", "resolve", json.RawMessage(`{}`))
 	if !failed || !strings.Contains(text, "hỏng") || !strings.Contains(text, "uvx") || len(seen) != 0 {

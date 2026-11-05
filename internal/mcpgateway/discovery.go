@@ -20,6 +20,10 @@ type FoundServer struct {
 	Status        string `json:"status,omitempty"`
 	ToolCount     int    `json:"tool_count"`
 	CatalogStatus string `json:"catalog_status"` // unchecked | empty | ready | stale
+	// Broken: assigned to the caller but broken now (ADR-250), why in Reason;
+	// not available for that, not for want of the person's permission
+	Broken bool   `json:"broken,omitempty"`
+	Reason string `json:"reason,omitempty"`
 }
 
 type FoundTool struct {
@@ -67,7 +71,8 @@ func (g *Gateway) FindTools(ctx context.Context, c Caller, query string, offset 
 		// a broken server is left out as for a CLI run (NamesFor): calling it
 		// would only try to connect again
 		available := Assigned(m, c) && !Broken(m)
-		if query != "" && Assigned(m, c) && Broken(m) && matches(m, query, terms) {
+		down := Assigned(m, c) && Broken(m) // its own: not a matter of permission
+		if down && (query == "" || matches(m, query, terms)) {
 			broken = append(broken, m.Name+" ("+brokenWhy(m)+")")
 		}
 		if query == "" || strings.Contains(searchWords(m.Name), query) {
@@ -80,7 +85,11 @@ func (g *Gateway) FindTools(ctx context.Context, c Caller, query string, offset 
 			case m.LastCheckStatus != "ok":
 				catalog = "stale"
 			}
-			out.Servers = append(out.Servers, FoundServer{Name: m.Name, Available: available, Status: m.LastCheckStatus, ToolCount: len(m.LastTools), CatalogStatus: catalog})
+			fs := FoundServer{Name: m.Name, Available: available, Status: m.LastCheckStatus, ToolCount: len(m.LastTools), CatalogStatus: catalog}
+			if down {
+				fs.Broken, fs.Reason = true, brokenWhy(m)
+			}
+			out.Servers = append(out.Servers, fs)
 		}
 		if query == "" || !available {
 			continue
