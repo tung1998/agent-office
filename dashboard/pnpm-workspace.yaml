@@ -1,3 +1,5 @@
 allowBuilds:
   esbuild: true
   vue-demi: true
+overrides:
+  vue: 3.5.44

@@ -110,13 +110,13 @@ useLive(['audit_log'], () => load())
       <p v-else-if="!entries.length" class="p-4 text-sm text-(--ui-text-muted)">{{ t('audit.empty') }}</p>
       <div class="overflow-x-auto">
         <table v-if="entries.length" class="w-full table-fixed text-sm">
-          <thead class="text-left text-xs text-(--ui-text-muted)">
+          <thead class="text-left text-xs whitespace-nowrap text-(--ui-text-muted)">
             <tr class="border-b border-(--ui-border)">
               <th class="w-20 px-2 py-2 font-medium sm:w-28 sm:px-4">{{ t('audit.colTime') }}</th>
-              <th class="w-36 px-2 py-2 font-medium max-sm:hidden">{{ t('audit.colWho') }}</th>
-              <th class="w-20 px-2 py-2 font-medium sm:w-28">{{ t('audit.colChange') }}</th>
+              <th class="w-48 px-2 py-2 font-medium max-sm:hidden">{{ t('audit.colWho') }}</th>
+              <th class="w-28 px-2 py-2 font-medium sm:w-44">{{ t('audit.colChange') }}</th>
               <th class="px-2 py-2 font-medium">{{ t('audit.colTarget') }}</th>
-              <th v-if="!compact" class="w-16 px-2 py-2 font-medium sm:w-36 sm:px-4">{{ t('audit.colSource') }}</th>
+              <th v-if="!compact" class="w-16 px-2 py-2 font-medium sm:w-32 sm:px-4">{{ t('audit.colSource') }}</th>
             </tr>
           </thead>
           <tbody>
@@ -126,15 +126,15 @@ useLive(['audit_log'], () => load())
                 <td class="px-2 py-2 max-sm:hidden">
                   <span class="flex items-center gap-1.5">
                     <UIcon :name="whoIcon(e.actor_kind)" class="size-3.5 shrink-0 text-(--ui-text-muted)" :title="label('audit.kind.', e.actor_kind)" />
-                    <span class="truncate">{{ e.actor_name || label('audit.kind.', e.actor_kind) }}</span>
+                    <span class="truncate" :title="e.actor_name">{{ e.actor_name || label('audit.kind.', e.actor_kind) }}</span>
                   </span>
                   <span v-if="e.approved_by" class="block truncate text-xs text-(--ui-text-muted)">{{ t('audit.approvedBy', { name: e.approved_by }) }}</span>
                   <span v-else-if="e.actor_kind === 'agent' && e.detail?.auto" class="block truncate text-xs text-(--ui-text-muted)">{{ t('audit.autoApplied') }}</span>
                 </td>
                 <td class="px-2 py-2">
-                  <span class="flex items-center gap-1.5">
-                    <span>{{ label('audit.action.', e.action) }}</span>
-                    <UBadge v-if="!e.ok" color="error" variant="subtle" size="sm" :label="t('audit.failed')" />
+                  <span class="flex min-w-0 items-center gap-1.5">
+                    <span class="truncate" :title="label('audit.action.', e.action)">{{ label('audit.action.', e.action) }}</span>
+                    <UBadge v-if="!e.ok" color="error" variant="subtle" size="sm" :label="t('audit.failed')" class="shrink-0" />
                   </span>
                 </td>
                 <td class="px-2 py-2">

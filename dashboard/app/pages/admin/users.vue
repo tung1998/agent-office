@@ -38,13 +38,15 @@ function toOffices(list: string[]) {
 const officeLabel = (peer: string, p: string) => officeItems.value.find(x => x.value === `${peer}/${p}`)?.label ?? `${peer}/${p}`
 const roleColor = (r: string) => r === 'admin' ? 'primary' : r === 'manager' ? 'info' : 'neutral'
 
+// a phone keeps email, role and the menu (a disabled account shows under its role)
+const phoneHidden = { class: { th: 'max-sm:hidden', td: 'max-sm:hidden' } }
 const columns = computed<TableColumn<OfficeUser>[]>(() => [
   { accessorKey: 'email', header: t('admin.usersEmail') },
-  { accessorKey: 'name', header: t('admin.usersName') },
+  { accessorKey: 'name', header: t('admin.usersName'), meta: phoneHidden },
   { accessorKey: 'role', header: t('admin.usersRole') },
-  { id: 'chat_ids', header: t('admin.usersChatIds') },
-  { accessorKey: 'disabled', header: t('admin.usersStatus') },
-  { accessorKey: 'last_login_at', header: t('admin.usersLastLogin') },
+  { id: 'chat_ids', header: t('admin.usersChatIds'), meta: phoneHidden },
+  { accessorKey: 'disabled', header: t('admin.usersStatus'), meta: phoneHidden },
+  { accessorKey: 'last_login_at', header: t('admin.usersLastLogin'), meta: phoneHidden },
   { id: 'actions' }
 ])
 
@@ -206,10 +208,11 @@ function rowActions(u: OfficeUser) {
       <UButton icon="i-lucide-user-plus" :label="t('admin.usersAdd')" @click="createOpen = true" />
     </template>
 
-    <UTable :data="users" :columns="columns" :loading="status === 'pending'">
+    <UTable :data="users" :columns="columns" :loading="status === 'pending'" :ui="{ th: 'whitespace-nowrap' }">
       <template #role-cell="{ row }">
         <div class="flex flex-col items-start gap-1">
           <UBadge :label="row.original.role" :color="roleColor(row.original.role)" variant="subtle" />
+          <UBadge v-if="row.original.disabled" class="sm:hidden" :label="t('admin.usersDisabled')" color="error" variant="subtle" />
           <span class="text-xs text-(--ui-text-muted)">
             {{ row.original.role === 'admin' ? t('admin.usersAllProjects') : row.original.projects?.length ? row.original.projects.map(projectName).join(', ') : t('admin.usersNoProject') }}
           </span>

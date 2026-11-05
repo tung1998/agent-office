@@ -19,7 +19,7 @@ const { data: incData } = useNuxtData<{ count: number }>('incidents')
 <template>
   <PageShell :title="t('nav.overview')">
     <UTabs
-      v-model="tab" :content="false" variant="link" class="mb-4"
+      v-model="tab" :content="false" variant="link" class="mb-4" :ui="{ list: 'overflow-x-auto', trigger: 'shrink-0' }"
       :items="[
         { value: 'work', label: t('home.tabWork'), icon: 'i-lucide-list-checks', badge: incData?.count ? { label: String(incData.count), color: 'error', variant: 'subtle' } : undefined },
         { value: 'stats', label: t('home.tabStats'), icon: 'i-lucide-chart-column' },

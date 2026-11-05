@@ -208,13 +208,17 @@ async function save() {
 
 <template>
   <section id="office-mcp" class="scroll-mt-20 space-y-2">
-    <h3 class="flex items-center gap-2 text-sm font-semibold">
-      <UIcon name="i-lucide-network" class="text-(--ui-text-muted)" />
-      {{ t('tools.gwTitle') }}
-      <span class="font-normal text-(--ui-text-muted)">· {{ list.length }}</span>
-      <InfoTip :text="t('tools.gwInfo')" icon-class="text-(--ui-text-dimmed)" />
-      <UButton class="ms-auto" size="xs" color="neutral" variant="outline" icon="i-lucide-arrow-right-to-line" :label="t('tools.gwImport')" @click="importOpen = true" />
-      <UButton size="xs" icon="i-lucide-plus" :label="t('tools.gwAdd')" @click="openForm()" />
+    <h3 class="flex flex-wrap items-center gap-2 text-sm font-semibold">
+      <span class="flex items-center gap-2 whitespace-nowrap">
+        <UIcon name="i-lucide-network" class="text-(--ui-text-muted)" />
+        {{ t('tools.gwTitle') }}
+        <span class="font-normal text-(--ui-text-muted)">· {{ list.length }}</span>
+        <InfoTip :text="t('tools.gwInfo')" icon-class="text-(--ui-text-dimmed)" />
+      </span>
+      <span class="ms-auto flex gap-2">
+        <UButton size="xs" color="neutral" variant="outline" icon="i-lucide-arrow-right-to-line" :label="t('tools.gwImport')" @click="importOpen = true" />
+        <UButton size="xs" icon="i-lucide-plus" :label="t('tools.gwAdd')" @click="openForm()" />
+      </span>
     </h3>
     <div v-if="!data && !loadError" class="rounded-lg border border-(--ui-border)"><LoadingRows :n="3" /></div>
     <p v-else-if="!list.length" class="rounded-lg border border-dashed border-(--ui-border) px-4 py-3 text-sm text-(--ui-text-muted)">{{ t('tools.gwEmpty') }}</p>

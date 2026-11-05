@@ -233,7 +233,7 @@ async function saveAuto() {
       <p class="flex items-center gap-2 text-sm font-semibold"><UIcon name="i-lucide-eraser" class="size-4" />{{ t('data.cleanTitle') }}</p>
       <div class="grid gap-3 sm:grid-cols-3">
         <UFormField :label="t('data.project')"><USelect v-model="form.project" :items="projectItems" class="w-full" /></UFormField>
-        <UFormField :label="t('data.olderThan')" :hint="t('data.olderThanHint')">
+        <UFormField :label="t('data.olderThan')" :help="t('data.olderThanHint')">
           <div class="flex items-center gap-2"><UInputNumber v-model="form.days" :min="0" class="w-32" /><span class="text-sm text-(--ui-text-muted)">{{ t('data.days') }}</span></div>
         </UFormField>
         <UFormField :label="t('data.kinds')">

@@ -127,21 +127,21 @@ useLive(['jobs'], () => load())
       <p v-if="!jobs.length && !loading" class="p-4 text-sm text-(--ui-text-muted)">{{ t('job.empty') }}</p>
       <div class="overflow-x-auto">
         <table v-if="jobs.length" class="w-full table-fixed text-sm">
-          <thead class="text-left text-xs text-(--ui-text-muted)">
+          <thead class="text-left text-xs whitespace-nowrap text-(--ui-text-muted)">
             <tr class="border-b border-(--ui-border)">
-              <th class="w-14 px-4 py-2 font-medium">{{ t('job.colStatus') }}</th>
+              <th class="w-12 px-4 py-2 font-medium max-sm:px-2 sm:w-32"><span class="max-sm:sr-only">{{ t('job.colStatus') }}</span></th>
               <th class="px-2 py-2 font-medium">{{ t('job.colTitle') }}</th>
               <th class="w-32 px-2 py-2 font-medium max-sm:hidden">{{ t('job.colSource') }}</th>
               <th class="w-28 px-2 py-2 font-medium max-sm:hidden">{{ t('job.colAgent') }}</th>
               <th class="w-20 px-2 py-2 text-right font-medium">{{ t('job.colCost') }}</th>
-              <th class="w-16 px-2 py-2 text-right font-medium max-sm:hidden">{{ t('job.colTime') }}</th>
+              <th class="w-20 px-2 py-2 text-right font-medium max-sm:hidden">{{ t('job.colTime') }}</th>
               <th class="w-28 px-2 py-2 font-medium max-sm:hidden">{{ t('job.colCreated') }}</th>
               <th class="w-20 px-4 py-2" />
             </tr>
           </thead>
           <tbody>
             <tr v-for="j in jobs" :key="j.id" class="border-b border-(--ui-border) last:border-0 hover:bg-(--ui-bg-elevated)/40">
-              <td class="px-4 py-2"><JobStatusBadge :status="j.status" /></td>
+              <td class="px-4 py-2 max-sm:px-2"><JobStatusBadge :status="j.status" icon-only-on-mobile /></td>
               <td class="px-2 py-2">
                 <span class="flex items-center gap-1.5">
                   <UIcon :name="j.kind === 'task' ? 'i-lucide-list-todo' : j.kind === 'script' ? 'i-lucide-square-terminal' : 'i-lucide-messages-square'" class="size-3.5 shrink-0 text-(--ui-text-muted)" />
