@@ -651,6 +651,62 @@ async function capture({ ao, shop, lead }) {
   for (const [name, path, prep] of screens) await take(name, path, prep)
   if (MOBILE) return // the guide's extras (dark, the update page) are not for a phone review
 
+  // themes (ADR-249): the Settings panel's theme picker, then a background of
+  // the account's own (a picture drawn here, uploaded like the picker does);
+  // put back to the default after, so no later shot carries them
+  const setTheme = v => page.eval(`fetch('/api/me/prefs/theme', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ value: ${JSON.stringify(v)} }) }).then(r => { localStorage.setItem('office.theme', ${JSON.stringify(JSON.stringify(v))}); return r.ok })`)
+  const openSettings = async () => {
+    // the account menu (sidebar footer) opens on a pointer press, its item on a click
+    const ok = await page.eval(`(async () => {
+      const btn = [...document.querySelectorAll('.office-sidebar [aria-haspopup="menu"]')].pop()
+      if (!btn) return false
+      const o = { bubbles: true, button: 0, pointerType: 'mouse', isPrimary: true }
+      btn.dispatchEvent(new PointerEvent('pointerdown', o)); btn.dispatchEvent(new PointerEvent('pointerup', o)); btn.click()
+      await new Promise(r => setTimeout(r, 500))
+      const item = [...document.querySelectorAll('[role="menuitem"]')].find(e => /^(Settings|Cài đặt)$/.test(e.textContent.trim()))
+      if (!item) return false
+      item.click()
+      await new Promise(r => setTimeout(r, 900))
+      return !!document.querySelector('[role="dialog"]')
+    })()`)
+    if (!ok) throw new Error('settings panel did not open')
+  }
+  const chat = `${P}?tab=chat&c=cnv_demo_theme`
+  await take('51-theme-settings', chat, async () => {
+    await setTheme({ id: 'moonlit' })
+    await page.go(chat, 1500)
+    await openSettings()
+    // the theme part, not the projects part above it
+    await page.eval(`(() => { const h = [...document.querySelectorAll('[role="dialog"] h4')].find(e => /Live wallpapers|Hình nền động/.test(e.textContent)); h?.scrollIntoView({ block: 'center' }); return true })()`)
+    await sleep(600)
+  })
+  await take('52-own-background', chat, async () => {
+    // a dusk sky with hills, as a PNG made in the page
+    const v = await page.eval(`(async () => {
+      const c = document.createElement('canvas'); c.width = 1600; c.height = 1000
+      const x = c.getContext('2d')
+      const sky = x.createLinearGradient(0, 0, 0, 1000)
+      sky.addColorStop(0, '#1b2a55'); sky.addColorStop(0.55, '#7a4f8c'); sky.addColorStop(1, '#f0a07a')
+      x.fillStyle = sky; x.fillRect(0, 0, 1600, 1000)
+      x.fillStyle = 'rgba(255, 236, 200, .9)'; x.beginPath(); x.arc(1150, 560, 90, 0, Math.PI * 2); x.fill()
+      for (const [y, col] of [[700, '#3b2d5c'], [800, '#2a2146'], [900, '#1a1530']]) {
+        x.fillStyle = col; x.beginPath(); x.moveTo(0, 1000)
+        for (let i = 0; i <= 1600; i += 40) x.lineTo(i, y + Math.sin(i / 170 + y) * 45)
+        x.lineTo(1600, 1000); x.fill()
+      }
+      const data = c.toDataURL('image/png').split(',')[1]
+      const r = await fetch('/api/me/background', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ data }) })
+      return r.ok ? (await r.json()).version : 0
+    })()`)
+    if (!v) throw new Error('background upload failed')
+    await setTheme({ id: 'night-sea', bg: { kind: 'image', v, glass: 0.65 } })
+    await page.go(chat, 1500)
+  })
+  if (want('51-theme-settings') || want('52-own-background')) {
+    await page.eval(`fetch('/api/me/background', { method: 'DELETE' }).then(() => true)`)
+    await setTheme({ id: 'default' })
+  }
+
   // dark mode and phone
   const mode = m => page.eval(`localStorage.setItem('nuxt-color-mode', '${m}'); true`).catch(() => {})
   await mode('dark')
