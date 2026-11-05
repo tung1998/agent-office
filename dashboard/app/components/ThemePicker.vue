@@ -114,7 +114,7 @@ const swatch = (th: Theme) => ({ background: th.wallpaper?.sky ?? th.bg, color: 
         <input ref="fileInput" type="file" accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm" class="hidden" @change="upload">
       </div>
       <UFormField v-if="saved.bg" :label="t('theme.backdropGlass')">
-        <USlider :model-value="glass" :min="0.5" :max="0.97" :step="0.01" @update:model-value="(v) => previewGlass(v as number)" @change="keepGlass" />
+        <USlider :model-value="glass" :min="0.65" :max="0.97" :step="0.01" @update:model-value="(v) => previewGlass(v as number)" @change="keepGlass" />
       </UFormField>
     </div>
 

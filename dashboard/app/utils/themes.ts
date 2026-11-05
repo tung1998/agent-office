@@ -85,6 +85,23 @@ const INK_DARK = [1, 0.95, 0.88, 0.76, 0.6, 0.45, 0.32, 0.2, 0.1, 0, -0.25]
 // the accent toward white (light shades) and black (dark ones)
 const ACCENT = [0.9, 0.8, 0.62, 0.42, 0.2, 0, -0.16, -0.32, -0.48, -0.62, -0.74]
 
+// The glass over a wallpaper's sky, at least as opaque as its own and as much
+// more as muted text (--ui-text-muted) needs for 4.5 and dimmed text for 3
+// over every color of the sky (WCAG, ADR-249)
+function readableGlass(w: { sky: string, glass: string }, muted: string, dimmed: string): string {
+  const m = w.glass.match(/rgba\((\d+),\s*(\d+),\s*(\d+),\s*([\d.]+)\)/)
+  const stops = w.sky.match(/#[0-9a-f]{6}/gi) ?? []
+  if (!m || !stops.length) return w.glass
+  const g = hex([m[1], m[2], m[3]].map(v => Number(v) / 255))
+  const ok = (a: number) => stops.every((s) => {
+    const under = mix(s, g, a)
+    return contrast(muted, under) >= 4.6 && contrast(dimmed, under) >= 3.1
+  })
+  let a = Number(m[4])
+  while (a < 0.95 && !ok(a)) a = Math.round((a + 0.01) * 100) / 100
+  return `rgba(${m[1]}, ${m[2]}, ${m[3]}, ${a})`
+}
+
 // The CSS a theme sets on <html data-theme>: unlayered, so it wins over Nuxt
 // UI's theme layer; the light/dark class is set to match (useTheme).
 export function themeCss(t: Theme): string {
@@ -106,14 +123,13 @@ export function themeCss(t: Theme): string {
   if (t.font) vars['--font-sans'] = t.font
   let css = `html[data-theme="${t.id}"]{${Object.entries(vars).map(([k, v]) => `${k}:${v}`).join(';')}}`
   if (t.wallpaper) {
-    // the scene shows through: the page has no background of its own, the
-    // sidebar is glass; cards, menus and dialogs keep theirs
-    css += `html[data-theme="${t.id}"]{background:${t.wallpaper.sky} fixed;--wall-glass:${t.wallpaper.glass}}`
+    // the scene shows through: the page has no background of its own; the
+    // sidebar and the page (PageShell) are glass, as opaque as the sky needs
+    // for muted text to read (cards, menus and dialogs keep theirs)
+    const glass = readableGlass(t.wallpaper, vars[`--ui-color-neutral-${dark ? 400 : 500}`]!, vars[`--ui-color-neutral-${dark ? 500 : 400}`]!)
+    css += `html[data-theme="${t.id}"]{background:${t.wallpaper.sky} fixed;--wall-glass:${glass}}`
       + `html[data-theme="${t.id}"] body{background:transparent}`
-      + `html[data-theme="${t.id}"] .office-sidebar{background:var(--wall-glass)}`
-    // a light theme's text is dark: on a bright, saturated sky its muted
-    // shades fade, so the page (PageShell) is glass too
-    if (!dark) css += `html[data-theme="${t.id}"] .office-main{background:var(--wall-glass)}`
+      + `html[data-theme="${t.id}"] .office-sidebar,html[data-theme="${t.id}"] .office-main{background:var(--wall-glass)}`
   }
   return css
 }
