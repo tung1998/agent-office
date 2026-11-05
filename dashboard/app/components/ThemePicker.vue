@@ -46,14 +46,18 @@ function currentColors(): ThemeColors {
   const bg = cssHex('var(--ui-bg)'), text = cssHex('var(--ui-text)'), accent = cssHex('var(--ui-primary)')
   return bg && text && accent ? { bg, text, accent } : { ...DEFAULT_CUSTOM }
 }
-function pick(id: string) {
-  if (saved.value.id === id) return
-  if (id !== 'custom') return run(setTheme(id))
+const pick = (id: string) => saved.value.id !== id && run(setTheme(id))
+// the color form always shows the colors in use; changing one makes them the
+// person's own (the custom theme), starting from those
+function fillFromTheme() {
+  if (saved.value.id === 'custom') return
   const c = currentColors()
   for (const k of EXTRA_COLORS) delete custom[k]
   Object.assign(custom, c)
-  run(setCustom({ ...c }))
 }
+onMounted(fillFromTheme)
+// after the new theme is painted: the default look's colors are read from the page
+watch(() => [saved.value.id, colorMode.value], () => nextTick(fillFromTheme))
 function pickColor(k: ColorKey, v: string) {
   custom[k] = v
   if (isHex(v)) run(setCustom({ ...custom }))
@@ -132,7 +136,7 @@ const swatch = (th: Theme) => ({ background: th.wallpaper?.sky ?? th.bg, color: 
   <div class="space-y-4">
     <div class="grid grid-cols-2 gap-2 sm:grid-cols-3">
       <button
-        v-for="th in [{ id: 'default' }, ...COLOR_THEMES, { id: 'custom' }]"
+        v-for="th in [{ id: 'default' }, ...COLOR_THEMES]"
         :key="th.id"
         type="button"
         class="flex h-14 flex-col justify-between rounded-lg border p-2 text-start text-xs transition"
@@ -143,31 +147,10 @@ const swatch = (th: Theme) => ({ background: th.wallpaper?.sky ?? th.bg, color: 
       >
         <span class="font-medium" :style="'font' in th ? { fontFamily: (th as Theme).font } : undefined">{{ nameOf(th.id) }}</span>
         <span v-if="'accent' in th" class="h-1.5 w-8 rounded-full" :style="{ background: (th as Theme).accent }" />
-        <UIcon v-else :name="th.id === 'custom' ? 'i-lucide-palette' : 'i-lucide-sun-moon'" class="size-4 text-(--ui-text-muted)" />
+        <UIcon v-else name="i-lucide-sun-moon" class="size-4 text-(--ui-text-muted)" />
       </button>
     </div>
 
-    <div v-if="saved.id === 'custom'" class="space-y-3">
-    <div class="grid grid-cols-3 gap-2">
-      <label v-for="k in ([...BASE, ...EXTRA_COLORS] as ColorKey[])" :key="k" class="flex min-w-0 flex-col gap-1 text-xs text-(--ui-text-muted)">
-        <span class="flex items-center gap-1">
-          <span class="truncate">{{ t(`theme.custom.${k}`) }}</span>
-          <UTooltip v-if="ratio(k) !== undefined" :text="t('theme.contrast', { n: ratio(k)!.toFixed(1) })">
-            <span class="ms-auto tabular-nums" :class="tone(ratio(k)!)">{{ ratio(k)!.toFixed(1) }}</span>
-          </UTooltip>
-        </span>
-        <span class="flex items-center gap-1.5 rounded-md border border-(--ui-border) p-1">
-          <input type="color" :value="colorOf(k)" class="size-7 shrink-0 cursor-pointer rounded border-0 bg-transparent p-0" @change="pickColor(k, ($event.target as HTMLInputElement).value)">
-          <code v-if="custom[k]" class="min-w-0 truncate text-(--ui-text)">{{ custom[k] }}</code>
-          <span v-else class="min-w-0 truncate italic">{{ t('theme.custom.auto') }}</span>
-          <button v-if="custom[k] && (EXTRA_COLORS as readonly string[]).includes(k)" type="button" class="ms-auto shrink-0 rounded p-0.5 hover:bg-(--ui-bg-elevated)" :aria-label="t('theme.custom.reset')" :title="t('theme.custom.reset')" @click.prevent="autoColor(k as ExtraColor)">
-            <UIcon name="i-lucide-rotate-ccw" class="size-3.5" />
-          </button>
-        </span>
-      </label>
-    </div>
-    <ThemeRegionColors :base="custom" />
-    </div>
 
     <div class="space-y-2">
       <h4 class="flex items-center gap-1 text-xs font-semibold text-(--ui-text-muted)">
@@ -318,6 +301,32 @@ const swatch = (th: Theme) => ({ background: th.wallpaper?.sky ?? th.bg, color: 
         </UFormField>
       </div>
       <USwitch :model-value="look.still" :label="t('theme.still')" @update:model-value="(v: boolean) => run(setLook({ still: v }))" />
+    </div>
+
+    <div class="space-y-3">
+      <h4 class="flex items-center gap-1 text-xs font-semibold text-(--ui-text-muted)">
+        {{ t('theme.colorsTitle') }}
+        <UTooltip :text="t('theme.colorsHint')"><UIcon name="i-lucide-info" class="size-3.5" /></UTooltip>
+      </h4>
+      <div class="grid grid-cols-3 gap-2">
+        <label v-for="k in ([...BASE, ...EXTRA_COLORS] as ColorKey[])" :key="k" class="flex min-w-0 flex-col gap-1 text-xs text-(--ui-text-muted)">
+          <span class="flex items-center gap-1">
+            <span class="truncate">{{ t(`theme.custom.${k}`) }}</span>
+            <UTooltip v-if="ratio(k) !== undefined" :text="t('theme.contrast', { n: ratio(k)!.toFixed(1) })">
+              <span class="ms-auto tabular-nums" :class="tone(ratio(k)!)">{{ ratio(k)!.toFixed(1) }}</span>
+            </UTooltip>
+          </span>
+          <span class="flex items-center gap-1.5 rounded-md border border-(--ui-border) p-1">
+            <input type="color" :value="colorOf(k)" class="size-7 shrink-0 cursor-pointer rounded border-0 bg-transparent p-0" @change="pickColor(k, ($event.target as HTMLInputElement).value)">
+            <code v-if="custom[k]" class="min-w-0 truncate text-(--ui-text)">{{ custom[k] }}</code>
+            <span v-else class="min-w-0 truncate italic">{{ t('theme.custom.auto') }}</span>
+            <button v-if="custom[k] && (EXTRA_COLORS as readonly string[]).includes(k)" type="button" class="ms-auto shrink-0 rounded p-0.5 hover:bg-(--ui-bg-elevated)" :aria-label="t('theme.custom.reset')" :title="t('theme.custom.reset')" @click.prevent="autoColor(k as ExtraColor)">
+              <UIcon name="i-lucide-rotate-ccw" class="size-3.5" />
+            </button>
+          </span>
+        </label>
+      </div>
+      <ThemeRegionColors :base="custom" />
     </div>
   </div>
 </template>

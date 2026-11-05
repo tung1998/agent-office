@@ -26,6 +26,7 @@ export const CLEAR_MAX = 0.9
 export interface SavedTheme { id: string, custom?: ThemeColors, regions?: RegionColors, wall?: Partial<WallLook>, wallGlass?: number, bg?: Backdrop, clear?: number }
 export const WALL_LOOK: WallLook = { strength: 0.45, speed: 1, cell: 18, still: false, blur: 0 }
 const CLEAR_ID = 'office-clear'
+const REGIONS_ID = 'office-regions'
 const PREF_URL = '/api/me/prefs/theme'
 const KEY = 'office.theme'
 const STYLE_ID = 'office-theme'
@@ -88,7 +89,23 @@ export function paintTheme(s: SavedTheme): Theme | undefined {
   const t = paintColors(s)
   paintBackdrop(s.bg) // after: its glass depends on the theme's colors
   paintClear(s.bg || t?.wallpaper ? s.clear : undefined)
+  paintRegions(s.regions)
   return t
+}
+// the advanced colors by region, on any theme (last: they win over it)
+function paintRegions(regions: RegionColors | undefined) {
+  const css = regionCss('html', regions)
+  let style = document.getElementById(REGIONS_ID)
+  if (!css) {
+    style?.remove()
+    return
+  }
+  if (!style) {
+    style = document.createElement('style')
+    style.id = REGIONS_ID
+  }
+  style.textContent = css
+  document.head.append(style)
 }
 // The cards over a background or wallpaper: see-through by clear (none: solid)
 function paintClear(clear: number | undefined) {
@@ -117,7 +134,7 @@ function paintColors(s: SavedTheme): Theme | undefined {
     style = document.createElement('style')
     style.id = STYLE_ID
   }
-  style.textContent = themeCss(t, s.wallGlass) + (t.id === 'custom' ? regionCss('html[data-theme="custom"]', s.regions) : '')
+  style.textContent = themeCss(t, s.wallGlass)
   document.head.append(style) // last: after Nuxt UI's sheets
   root.dataset.theme = t.id
   const dark = isDark(t)
