@@ -254,10 +254,7 @@ func (r claudeRunner) run(ctx context.Context, req RunRequest, emit func(Event),
 		return RunResult{}, err
 	}
 	if err := cmd.Start(); err != nil {
-		if errors.Is(err, exec.ErrNotFound) {
-			return RunResult{}, fmt.Errorf("không tìm thấy lệnh %q", bin)
-		}
-		return RunResult{}, err
+		return RunResult{}, llm.StartError(bin, err) // gone from PATH or no file: the connection is broken
 	}
 	defer proctrack.Track(ctx, cmd.Process.Pid)() // the dashboard's process list says whose it is
 	var (

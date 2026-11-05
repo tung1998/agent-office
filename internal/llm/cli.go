@@ -38,19 +38,31 @@ func runEnv(ctx context.Context, bin string, stdin string, env []string, args ..
 	cmd.Stdout, cmd.Stderr = &stdout, &stderr
 	err := cmd.Run()
 	if errors.Is(err, exec.ErrNotFound) {
-		return "", fmt.Errorf("không tìm thấy lệnh %q trong PATH", bin)
+		return "", fmt.Errorf("không tìm thấy lệnh %q trong PATH (%w)", bin, ErrCLIBroken)
+	}
+	var exitErr *exec.ExitError
+	if err != nil && !errors.As(err, &exitErr) && ctx.Err() == nil {
+		return "", StartError(bin, err) // it never started: a file that is gone, not executable
 	}
 	if err != nil {
+		if CLIBroken(stderr.String()) { // npm's wrapper ran but the native binary is gone
+			return stdout.String(), &cliError{msg: CLIBrokenError(bin, stderr.String()).Error(), stderr: stderr.String(), cause: ErrCLIBroken}
+		}
 		return stdout.String(), &cliError{msg: fmt.Sprintf("%s: %v: %s", bin, err, cliFailure(stdout.String(), stderr.String())), stderr: stderr.String()}
 	}
 	return stdout.String(), nil
 }
 
 // cliError keeps a failed run's whole stderr for CLIs whose reason is not
-// at the end (Gemini prints it first, then a stack trace).
-type cliError struct{ msg, stderr string }
+// at the end (Gemini prints it first, then a stack trace); cause is
+// ErrCLIBroken when the CLI never started.
+type cliError struct {
+	msg, stderr string
+	cause       error
+}
 
 func (e *cliError) Error() string { return e.msg }
+func (e *cliError) Unwrap() error { return e.cause }
 
 // cliFailure turns a failed run's output into one readable line. CLIs print
 // their result as JSON whose reason (result/subtype/errors) sits at the END of

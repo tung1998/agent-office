@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -69,8 +70,56 @@ func limitsFromError(reported *Limits, err error, now time.Time) *Limits {
 		if d, perr := time.ParseDuration(strings.ToLower(m[1])); perr == nil && d > 0 {
 			l.Windows = map[string]LimitWindow{"quota": {Utilization: 1, ResetsAt: now.Add(d)}}
 		}
+	} else if at, ok := resetAtClock(err.Error(), now); ok {
+		l.Windows = map[string]LimitWindow{"quota": {Utilization: 1, ResetsAt: at}}
 	}
 	return l
+}
+
+// resetAt is how Codex says when its usage limit resets: a clock time on the
+// machine ("try again at 9:18 PM"), with the date first when it is not today
+// ("try again at Nov 6th, 2026 9:18 PM").
+var resetAt = regexp.MustCompile(`(?i)try again at (?:([a-z]{3})[a-z]* (\d{1,2})(?:st|nd|rd|th)?,? (\d{4}),? )?(\d{1,2}):(\d{2})\s*([ap]\.?m\.?)?`)
+
+// resetAtClock reads resetAt in now's time zone: a clock time already past
+// today is tomorrow's.
+func resetAtClock(msg string, now time.Time) (time.Time, bool) {
+	m := resetAt.FindStringSubmatch(msg)
+	if m == nil {
+		return time.Time{}, false
+	}
+	h, _ := strconv.Atoi(m[4])
+	mi, _ := strconv.Atoi(m[5])
+	if ampm := strings.ToLower(strings.ReplaceAll(m[6], ".", "")); ampm != "" {
+		if h < 1 || h > 12 {
+			return time.Time{}, false
+		}
+		h %= 12
+		if ampm == "pm" {
+			h += 12
+		}
+	}
+	if h > 23 || mi > 59 {
+		return time.Time{}, false
+	}
+	y, mo, d := now.Date()
+	if m[1] != "" {
+		t, err := time.Parse("Jan", strings.ToUpper(m[1][:1])+strings.ToLower(m[1][1:]))
+		if err != nil {
+			return time.Time{}, false
+		}
+		mo = t.Month()
+		d, _ = strconv.Atoi(m[2])
+		y, _ = strconv.Atoi(m[3])
+	}
+	at := time.Date(y, mo, d, h, mi, 0, 0, now.Location())
+	if m[1] == "" && !at.After(now) {
+		at = at.AddDate(0, 0, 1)
+	}
+	if !at.After(now) {
+		return time.Time{}, false
+	}
+	return at, true
 }
 
 // SetOnLimits hears every usage report of a provider (the limit alerts).

@@ -223,7 +223,7 @@ func (geminiRunner) run(ctx context.Context, req RunRequest, emit func(Event)) (
 		return RunResult{}, err
 	}
 	if err := cmd.Start(); err != nil {
-		return RunResult{}, fmt.Errorf("không chạy được %s: %w", bin, err)
+		return RunResult{}, llm.StartError(bin, err)
 	}
 	defer proctrack.Track(ctx, cmd.Process.Pid)()
 	res := RunResult{}

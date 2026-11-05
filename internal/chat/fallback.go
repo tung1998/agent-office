@@ -38,6 +38,9 @@ func (e *Engine) choices(ctx context.Context, agent storage.Agent) ([]provider.C
 			continue
 		}
 		if (has && overNow(l, now)) || c.Provider.Status == "error" { // a broken one too: its fallbacks answer first
+			if c.Provider.Status == "error" {
+				e.recheckBroken(c.Provider, now)
+			}
 			over = append(over, c)
 		} else {
 			ok = append(ok, c)
@@ -170,9 +173,34 @@ func choiceName(c, other provider.Choice) string {
 }
 
 // connectionBroken: a run failed on the connection itself, not on the task:
-// its account is signed out or its CLI never answered.
+// its account is signed out, its CLI never answered or cannot start at all.
 func connectionBroken(err error) bool {
-	return errors.Is(err, llm.ErrNeedsLogin) || errors.Is(err, ErrSilent)
+	return errors.Is(err, llm.ErrNeedsLogin) || errors.Is(err, ErrSilent) || errors.Is(err, llm.ErrCLIBroken)
+}
+
+// RecheckBroken is how often a connection marked broken is checked again
+// while turns run on its fallbacks: with them answering first, no run on it
+// would ever clear the mark once it is fixed (a CLI reinstalled, a sign-in).
+const RecheckBroken = 10 * time.Minute
+
+// recheckBroken checks p again in the background (Kết nối AI's Kiểm tra: no
+// tokens), at most once per RecheckBroken and not sooner after its last check.
+func (e *Engine) recheckBroken(p storage.Provider, now time.Time) {
+	if p.CheckedAt != nil && now.Sub(*p.CheckedAt) < RecheckBroken {
+		return
+	}
+	if last, ok := e.rechecks.Load(p.ID); ok && now.Sub(last.(time.Time)) < RecheckBroken {
+		return
+	}
+	e.rechecks.Store(p.ID, now)
+	check := e.recheck
+	if check == nil {
+		if e.providers == nil {
+			return
+		}
+		check = func(ctx context.Context, id string) { _, _ = e.providers.Test(ctx, id, "", "") }
+	}
+	safeGo("recheckBroken", func() { check(context.Background(), p.ID) })
 }
 
 // keepHealth writes what a run showed of its connection onto it, so Kết nối

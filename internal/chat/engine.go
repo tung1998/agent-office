@@ -329,6 +329,12 @@ type Engine struct {
 	peers       Peers           // linked projects in other offices (ADR-167; nil = none)
 	stopping    atomic.Bool     // office is going down: answers cut off now go on after it (Shutdown)
 
+	// rechecks: provider id → when a connection marked broken was last
+	// checked again in the background (recheckBroken)
+	rechecks sync.Map
+	// recheck checks a connection again (no tokens); nil = providers.Test
+	recheck func(ctx context.Context, providerID string)
+
 	// gatewayBroken: the run's servers left out as broken (ADR-250)
 	gatewayBroken func(ctx context.Context, sc officetools.Scope) []string
 

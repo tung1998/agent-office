@@ -21,6 +21,7 @@ import (
 	"github.com/tung1998/agent-office/internal/officetools"
 	"github.com/tung1998/agent-office/internal/proctrack"
 	"github.com/tung1998/agent-office/internal/storage"
+	"github.com/tung1998/agent-office/internal/usage"
 )
 
 // codexRunner drives `codex exec` with the run's effective permissions and
@@ -73,11 +74,16 @@ func (r codexRunner) Run(ctx context.Context, req RunRequest, emit func(Event)) 
 	res, err := r.run(ctx, req, emit)
 	// a session Codex no longer has: start over with the transcript (not a
 	// Codex that never answered: it would hang just as long again)
-	if err != nil && req.SessionID != "" && res.Text == "" && !errors.Is(err, ErrSilent) {
+	if err != nil && req.SessionID != "" && res.Text == "" && codexLostSession(ctx, err) {
 		req.SessionID = ""
 		return r.run(ctx, req, emit)
 	}
 	return res, err
+}
+
+// codexCutNote is the line put under an answer Codex stopped writing.
+func codexCutNote(why string) string {
+	return "⚠ Codex dừng giữa chừng, câu trả lời có thể chưa đủ: " + why
 }
 
 func codexSandbox(req RunRequest) string {
@@ -140,7 +146,7 @@ func (codexRunner) run(ctx context.Context, req RunRequest, emit func(Event)) (R
 		return RunResult{}, err
 	}
 	if err := cmd.Start(); err != nil {
-		return RunResult{}, fmt.Errorf("không chạy được %s: %w", bin, err)
+		return RunResult{}, llm.StartError(bin, err)
 	}
 	defer proctrack.Track(ctx, cmd.Process.Pid)()
 	res := RunResult{}
@@ -209,6 +215,19 @@ func (codexRunner) run(ctx context.Context, req RunRequest, emit func(Event)) (R
 	if scanErr != nil {
 		return res, scanErr
 	}
+	if res.Text != "" {
+		// it answered, then the turn failed (quota, a dropped stream): the
+		// answer is cut short, so say so under it, and a quota it ran out of
+		// still holds the connection back until its reset
+		if msg := llm.CodexFailure(strings.Join(failed, "\n")); msg != "" {
+			note := "\n\n_" + codexCutNote(truncate(msg, 300)) + "_"
+			res.Text += note
+			emit(Event{Type: "text", Text: note})
+			if l := limitsFromError(res.Limits, errors.New(msg), time.Now()); l != nil {
+				res.Limits = l
+			}
+		}
+	}
 	if res.Text == "" {
 		if msg := llm.CodexFailure(strings.Join(failed, "\n")); msg != "" {
 			if llm.CodexAuthFailed(msg) || llm.CodexAuthFailed(stderr.String()) {
@@ -227,9 +246,23 @@ func (codexRunner) run(ctx context.Context, req RunRequest, emit func(Event)) (R
 			llm.MarkCodexRejected(home)
 			return res, fmt.Errorf("%w: phiên Codex bị từ chối (%s), hãy bấm Đăng nhập ở Kết nối AI để ký lại", llm.ErrNeedsLogin, truncate(msg, 200))
 		}
+		if llm.CLIBroken(msg) { // npm's wrapper started, its native binary did not
+			return res, llm.CLIBrokenError(bin, msg)
+		}
 		return res, fmt.Errorf("codex: %s", truncate(msg, 500))
 	}
 	return res, nil
+}
+
+// codexLostSession: the resumed session is one Codex no longer has. Only
+// then is the turn worth running again afresh: a CLI that cannot start, an
+// account signed out or out of quota, a stopped turn fail the same way again.
+func codexLostSession(ctx context.Context, err error) bool {
+	if ctx.Err() != nil || errors.Is(err, ErrSilent) || connectionBroken(err) || OutOfTokens(err) {
+		return false
+	}
+	var be *usage.BudgetError
+	return !errors.As(err, &be)
 }
 
 // codexLimits reads the usage windows Codex wrote to the session's rollout
