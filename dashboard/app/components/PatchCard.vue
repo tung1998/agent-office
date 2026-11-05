@@ -16,7 +16,7 @@ export interface Patch {
   // its number among the chat's proposals: they are approved in that order
   seq?: number
   // the packages whose dependencies it changes (ADR-251): merged, the project installs them
-  deps?: { dir: string, manager?: string }[]
+  deps?: { dir: string, manager?: string, files?: string[] }[]
 }
 
 // stale: from an older answer of its agent
@@ -74,8 +74,13 @@ useQueuedWatch(() => props.patch.status === 'queued', async () => {
   if (res.patch.status !== 'queued') emit('updated', res.patch)
 })
 
-// the packages it changes the dependencies of: "dashboard (pnpm)"
-const depsLabel = computed(() => (props.patch.deps ?? []).map(d => d.manager ? `${d.dir} (${d.manager})` : d.dir).join(', '))
+// the packages it changes the dependencies of: "dashboard (pnpm)", "ml (pip: requirements-dev.txt)"
+const depLabel = (d: { dir: string, manager?: string, files?: string[] }) => {
+  if (!d.manager) return d.dir
+  const files = d.manager === 'pip' && d.files?.length ? `: ${d.files.join(', ')}` : ''
+  return `${d.dir} (${d.manager}${files})`
+}
+const depsLabel = computed(() => (props.patch.deps ?? []).map(depLabel).join(', '))
 // merged: its install in the project asked again (one failed, or the folders were cleaned)
 const installing = ref(false)
 async function installDeps() {

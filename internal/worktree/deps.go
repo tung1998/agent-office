@@ -7,6 +7,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // depDepth bounds how deep dependency folders are looked for under a package.
@@ -74,6 +75,13 @@ func Detach(dir, rel string) ([]string, error) {
 	return out, err
 }
 
+// keepPrefix names the folder a Keep copy sits in, next to the worktrees.
+const keepPrefix = ".deps-keep-"
+
+// KeepMaxAge: a Keep copy older than this was left by an office that died
+// mid-install (an install is bounded far below it): Sweep deletes it.
+const KeepMaxAge = 2 * time.Hour
+
 // Kept are the dependency folders of a package a worktree already had of
 // its own (an earlier install there), moved aside while a new install runs
 // (Keep): Restore puts them back when it failed, Drop deletes them when it
@@ -101,7 +109,7 @@ func Keep(dir, rel string) (*Kept, error) {
 	if len(own) == 0 {
 		return k, nil
 	}
-	tmp, err := os.MkdirTemp(filepath.Dir(dir), ".deps-keep-*")
+	tmp, err := os.MkdirTemp(filepath.Dir(dir), keepPrefix+"*")
 	if err != nil {
 		return nil, err
 	}
@@ -139,10 +147,13 @@ func (k *Kept) Restore() error {
 	}
 	var first error
 	for i, r := range k.paths {
-		p := filepath.Join(k.dir, r)
-		err := os.RemoveAll(p)
+		p, saved := filepath.Join(k.dir, r), filepath.Join(k.tmp, strconv.Itoa(i))
+		_, err := os.Lstat(saved) // the copy gone: what the install left stays rather than nothing
 		if err == nil {
-			err = os.Rename(filepath.Join(k.tmp, strconv.Itoa(i)), p)
+			err = os.RemoveAll(p)
+		}
+		if err == nil {
+			err = os.Rename(saved, p)
 		}
 		if err != nil && first == nil {
 			first = err

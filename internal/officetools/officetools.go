@@ -269,6 +269,7 @@ func (t *Toolbox) Tools() []Tool {
 			Schema: obj(map[string]any{
 				"path":   map[string]any{"type": "string", "description": "Package folder relative to the project, e.g. dashboard; \".\" = the top. A workspace package installs from its lockfile's folder"},
 				"reason": map[string]any{"type": "string", "description": "Why, e.g. Nuxt 4.5.2 → 4.6.4 in dashboard/package.json"},
+				"files":  map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "description": "pip only: the requirements files to install, relative to path (e.g. requirements-dev.txt); empty = requirements.txt"},
 			}, "path", "reason")})
 		list = append(list, Tool{Name: "propose_action", Description: "Propose an action for the person to approve (runs on its own if your permissions allow; git_push always needs approval). Use it to re-run build/test after a fix, restart a stuck service, or commit/push when asked.",
 			Schema: obj(map[string]any{
@@ -800,7 +801,11 @@ func (t *Toolbox) Call(ctx context.Context, sc Scope, name string, raw json.RawM
 			return "Ở mức " + perm.Label(sc.Level) + " bạn không cài thư viện được", true
 		}
 		var a storage.Action
-		if a, err = t.actions.Propose(ctx, sc, "deps_install", in.Path, in.Reason); err == nil {
+		var args []storage.ActionArgs
+		if len(in.Files) > 0 { // pip: the requirements files named
+			args = append(args, storage.ActionArgs{Deps: &storage.DepsArgs{Dir: in.Path, Files: in.Files}})
+		}
+		if a, err = t.actions.Propose(ctx, sc, "deps_install", in.Path, in.Reason, args...); err == nil {
 			where := "your worktree"
 			if sc.Dir == "" {
 				where = "the project"

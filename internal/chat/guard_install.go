@@ -18,11 +18,44 @@ var installVerbs = map[string][]string{
 	"pip":  {"install", "uninstall"},
 }
 
-// dirFlags take the folder a tool works in; valueFlags take a value to skip.
+// dirFlags take the folder a tool works in; valueFlags, by tool, take a
+// value to skip (pnpm's -w is --workspace-root, a switch; npm's takes the
+// workspace).
 var (
 	dirFlags   = []string{"-C", "--dir", "--prefix", "--cwd", "--directory", "--project"}
-	valueFlags = []string{"--filter", "-F", "--registry", "--python", "-p", "--index-url", "-i", "--extra-index-url", "--workspace", "-w", "--target", "-t"}
+	valueFlags = map[string][]string{
+		"npm":  {"--registry", "--workspace", "-w"},
+		"pnpm": {"--registry", "--filter", "-F"},
+		"yarn": {"--registry"},
+		"bun":  {"--registry", "--filter"},
+		"uv":   {"--python", "-p", "--index-url", "-i", "--extra-index-url", "--index", "--group", "--extra", "--package"},
+		"pip":  {"--index-url", "-i", "--extra-index-url", "--target", "-t", "--python"},
+	}
+	// globalFlags: the install goes into the tool's own folder, not the
+	// package's node_modules
+	globalFlags = []string{"-g", "--global", "--location=global"}
+	// shells run their -c string; runners run the command after them (and
+	// their own switches: npx -y pnpm@9 install)
+	shells  = []string{"bash", "sh", "zsh", "dash", "ksh"}
+	runners = []string{"corepack", "npx", "pnpx", "bunx", "nohup", "time", "nice"}
 )
+
+// shellScript is the script of a shell's -c (bash -lc "…"), "" if none.
+func shellScript(args []string) string {
+	for k, a := range args {
+		if !strings.HasPrefix(a, "-") || a == "--" {
+			return ""
+		}
+		if !strings.HasPrefix(a, "--") && strings.Contains(a, "c") {
+			s := strings.TrimSpace(strings.Join(args[k+1:], " "))
+			if len(s) >= 2 && (s[0] == '"' || s[0] == '\'') && s[len(s)-1] == s[0] {
+				s = s[1 : len(s)-1]
+			}
+			return s
+		}
+	}
+	return ""
+}
 
 // installInLinkedTree: a shell command that installs packages (pnpm/npm/
 // yarn/bun install, uv sync, pip install…) where the dependency folder is
@@ -42,9 +75,25 @@ func installInLinkedTree(cmd, cwd string, linked func(dir, folder string) bool) 
 	}
 	for _, seg := range strings.Split(split.Replace(cmd), "\n") {
 		f := strings.Fields(seg)
-		i := 0 // the command itself: past VAR=x, sudo, env, command
-		for i < len(f) && (strings.Contains(f[i], "=") && !strings.HasPrefix(f[i], "-") || f[i] == "sudo" || f[i] == "env" || f[i] == "command" || f[i] == "exec") {
-			i++
+		i := 0 // the command itself: past VAR=x, sudo, env (and its switches), command, npx…
+	prefix:
+		for i < len(f) {
+			w := strings.Trim(f[i], `"'`)
+			switch {
+			case strings.Contains(w, "=") && !strings.HasPrefix(w, "-"),
+				w == "sudo" || w == "command" || w == "exec":
+				i++
+			case w == "env" || contains(runners, w):
+				i++
+				for i < len(f) && strings.HasPrefix(f[i], "-") { // env -i, npx -y
+					if f[i] == "-u" || f[i] == "-p" || f[i] == "--package" {
+						i++
+					}
+					i++
+				}
+			default:
+				break prefix
+			}
 		}
 		if i >= len(f) {
 			continue
@@ -56,7 +105,18 @@ func installInLinkedTree(cmd, cwd string, linked func(dir, folder string) bool) 
 			}
 			continue
 		}
+		if contains(shells, filepath.Base(prog)) {
+			if s := shellScript(f[i+1:]); s != "" {
+				if why := installInLinkedTree(s, dir, linked); why != "" {
+					return why
+				}
+			}
+			continue
+		}
 		tool, base, args := "", filepath.Base(prog), f[i+1:]
+		if name, _, ok := strings.Cut(base, "@"); ok && name != "" { // npx pnpm@9
+			base = name
+		}
 		where := dir
 		if v, _, ok := strings.Cut(prog, ".venv/"); ok && strings.Contains(prog, ".venv/") { // a virtualenv's own pip or python
 			where = at(strings.TrimSuffix(v, "/"))
@@ -71,18 +131,20 @@ func installInLinkedTree(cmd, cwd string, linked func(dir, folder string) bool) 
 		default:
 			continue
 		}
-		verb := ""
+		verb, global := "", false
 		var rest []string
 		for j := 0; j < len(args); j++ {
 			a := strings.Trim(args[j], `"'`)
 			name, val, eq := strings.Cut(a, "=")
 			switch {
+			case contains(globalFlags, a) && tool != "pip" && tool != "uv":
+				global = true
 			case contains(dirFlags, a) && j+1 < len(args):
 				where = at(args[j+1])
 				j++
 			case eq && contains(dirFlags, name):
 				where = at(val)
-			case contains(valueFlags, a):
+			case contains(valueFlags[tool], a):
 				j++
 			case strings.HasPrefix(a, "-"):
 			case verb == "":
@@ -95,7 +157,7 @@ func installInLinkedTree(cmd, cwd string, linked func(dir, folder string) bool) 
 		if tool == "uv" && verb == "pip" {
 			installs = len(rest) > 0 && (rest[0] == "install" || rest[0] == "uninstall" || rest[0] == "sync")
 		}
-		if !installs {
+		if !installs || global {
 			continue
 		}
 		folder := "node_modules"

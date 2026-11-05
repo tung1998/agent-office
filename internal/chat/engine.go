@@ -28,6 +28,8 @@ import (
 	"github.com/tung1998/agent-office/internal/worktree"
 	"log/slog"
 	"os"
+	"path"
+	"path/filepath"
 	"runtime/debug"
 	"slices"
 	"strings"
@@ -137,6 +139,64 @@ func FullPatchDTO(p storage.Patch) PatchDTO {
 		}
 	}
 	return d
+}
+
+// FullPatch is FullPatchDTO with its dependency changes read against the
+// project's files.
+func (e *Engine) FullPatch(ctx context.Context, p storage.Patch) PatchDTO {
+	return withDeps(FullPatchDTO(p), p, e.patchRoot(ctx, p))
+}
+
+// patchDTO is toPatchDTO with its dependency changes read against the
+// project's files.
+func (e *Engine) patchDTO(ctx context.Context, p storage.Patch) PatchDTO {
+	return withDeps(toPatchDTO(p), p, e.patchRoot(ctx, p))
+}
+
+// withDeps reads d's dependency changes again against the project's files
+// (root): a package.json not indented by two spaces, or whose hunk is far
+// from its top, cannot be told from the diff alone (ADR-251).
+func withDeps(d PatchDTO, p storage.Patch, root string) PatchDTO {
+	if root != "" && hasManifest(p.Files) {
+		d.Deps = deps.ChangesOf(root, p.Diff, p.Files)
+	}
+	return d
+}
+
+// hasManifest: files hold a package.json or pyproject.toml, the only ones
+// the project's copy reads better.
+func hasManifest(files []string) bool {
+	for _, f := range files {
+		if b := path.Base(filepath.ToSlash(f)); b == "package.json" || b == "pyproject.toml" {
+			return true
+		}
+	}
+	return false
+}
+
+// patchRoot is the folder of p's project when its card needs it (a
+// manifest in its files), "" otherwise.
+func (e *Engine) patchRoot(ctx context.Context, p storage.Patch) string {
+	if !hasManifest(p.Files) {
+		return ""
+	}
+	projectID := ""
+	if p.TaskID != "" {
+		projectID = projectOfTask(ctx, e, p.TaskID)
+	}
+	if projectID == "" && p.ConversationID != "" {
+		if c, err := e.store.Chat().GetConversation(ctx, p.ConversationID); err == nil {
+			projectID = c.ProjectID
+		}
+	}
+	if projectID == "" {
+		return ""
+	}
+	r, err := e.store.Repos().Get(ctx, projectID)
+	if err != nil {
+		return ""
+	}
+	return r.Path
 }
 
 // Turn is an answer in progress; its events can be replayed from any point.
@@ -1556,7 +1616,7 @@ func (e *Engine) run(ctx context.Context, turn *Turn, conv storage.Conversation,
 			if saved.Status == "pending" && acc.Can(perm.CapApply) && !held {
 				saved = e.autoApply(conv, turn.JobID, agent.Name, level, saved)
 			}
-			pd := toPatchDTO(saved)
+			pd := withDeps(toPatchDTO(saved), saved, project.Path)
 			seq++
 			pd.Seq = seq
 			dto.Patches = append(dto.Patches, pd)
@@ -1582,7 +1642,7 @@ func (e *Engine) run(ctx context.Context, turn *Turn, conv storage.Conversation,
 				saved = e.autoApply(conv, turn.JobID, agent.Name, level, saved)
 			}
 			if err == nil {
-				pd := toPatchDTO(saved)
+				pd := withDeps(toPatchDTO(saved), saved, project.Path)
 				seq++
 				pd.Seq = seq
 				dto.Patches = append(dto.Patches, pd)
@@ -1944,8 +2004,16 @@ func (e *Engine) History(ctx context.Context, conversationID string) ([]MessageD
 		return nil, err
 	}
 	byMsg := map[string][]PatchDTO{}
+	root, rootRead := "", false // the chat's project, read once if a card needs it
 	for _, p := range patches {
-		byMsg[p.MessageID] = append(byMsg[p.MessageID], toPatchDTO(p))
+		d := toPatchDTO(p)
+		if hasManifest(p.Files) {
+			if !rootRead {
+				root, rootRead = e.patchRoot(ctx, p), true
+			}
+			d = withDeps(d, p, root)
+		}
+		byMsg[p.MessageID] = append(byMsg[p.MessageID], d)
 	}
 	acts, err := e.store.Actions().List(ctx, conversationID, "", "")
 	if err != nil {
@@ -1982,7 +2050,7 @@ func (e *Engine) DecidePatch(ctx context.Context, patchID string, approve bool) 
 		if err != nil {
 			return PatchDTO{}, err
 		}
-		return toPatchDTO(p), ErrDecided
+		return e.patchDTO(ctx, p), ErrDecided
 	}
 	defer deciding.End("patches", patchID)
 	p, err := e.store.Chat().GetPatch(ctx, patchID)
@@ -1990,7 +2058,7 @@ func (e *Engine) DecidePatch(ctx context.Context, patchID string, approve bool) 
 		return PatchDTO{}, err
 	}
 	if p.Status != "pending" && p.Status != "queued" { // queued: approved, applied once those before it are decided
-		return toPatchDTO(p), ErrDecided
+		return e.patchDTO(ctx, p), ErrDecided
 	}
 	projectID := ""
 	if p.TaskID != "" {
@@ -2047,7 +2115,7 @@ func (e *Engine) DecidePatch(ctx context.Context, patchID string, approve bool) 
 	if status == "applied" { // its dependencies follow it into the project (ADR-251)
 		e.proposeDeps(ctx, project, p)
 	}
-	return toPatchDTO(p), nil
+	return withDeps(toPatchDTO(p), p, project.Path), nil
 }
 
 func projectOfTask(ctx context.Context, e *Engine, taskID string) string {

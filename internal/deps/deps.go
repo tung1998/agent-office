@@ -250,6 +250,22 @@ func Env() []string {
 	return append(out, "CI=true")
 }
 
+// CleanFiles checks a pip change's requirements files: each one inside its
+// package folder (no "..", absolute path or option such as --index-url),
+// returned cleaned ("./requirements/dev.txt" → "requirements/dev.txt").
+func CleanFiles(files []string) ([]string, error) {
+	var out []string
+	for _, f := range files {
+		raw := strings.TrimSpace(f)
+		c := path.Clean(filepath.ToSlash(raw))
+		if raw == "" || c == "." || c == ".." || strings.HasPrefix(c, "../") || path.IsAbs(c) || filepath.IsAbs(raw) || strings.HasPrefix(raw, "-") || strings.HasPrefix(c, "-") {
+			return nil, errors.New("file requirements nằm ngoài thư mục gói: " + f)
+		}
+		out = append(out, c)
+	}
+	return out, nil
+}
+
 // Install runs c's install in root (the project or a worktree) and returns
 // the end of its output.
 func Install(ctx context.Context, root string, c Change) (string, error) {
@@ -264,11 +280,12 @@ func Install(ctx context.Context, root string, c Change) (string, error) {
 	if rel, err := filepath.Rel(root, dir); err != nil || strings.HasPrefix(rel, "..") {
 		return "", errors.New("thư mục gói nằm ngoài project")
 	}
-	for _, f := range c.Files {
-		if f = path.Clean(filepath.ToSlash(f)); f == ".." || strings.HasPrefix(f, "../") || path.IsAbs(f) || strings.HasPrefix(f, "-") {
-			return "", errors.New("file requirements nằm ngoài thư mục gói: " + f)
-		}
+	files, err := CleanFiles(c.Files)
+	if err != nil {
+		return "", err
 	}
+	c.Files = files
+	argv = Command(c)
 	ctx, cancel := context.WithTimeout(ctx, Timeout)
 	defer cancel()
 	var buf bytes.Buffer
@@ -279,7 +296,6 @@ func Install(ctx context.Context, root string, c Change) (string, error) {
 		cmd.Stdout, cmd.Stderr = &buf, &buf
 		return cmd.Run()
 	}
-	var err error
 	if c.Manager == "pip" && !exists(filepath.Join(dir, ".venv", "bin", "python")) {
 		// a worktree's own virtualenv (its link to the project's was taken
 		// away), or a package that never had one: made first

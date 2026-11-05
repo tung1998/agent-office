@@ -7,7 +7,57 @@ import (
 	"path/filepath"
 	"slices"
 	"testing"
+	"time"
 )
+
+// The copy Keep sets aside sits next to the worktrees: Sweep leaves one an
+// install still holds (it is no worktree; deleting it loses the libraries a
+// failed install gives back) and deletes one left by an office that died
+// mid-install, once older than any install.
+func TestStaleKeepDirsSwept(t *testing.T) {
+	m := New(t.TempDir())
+	tree := m.Path("p1", "chat-x")
+	os.MkdirAll(filepath.Join(tree, "web", "node_modules", "mine"), 0o755)
+	k, err := Keep(tree, "web")
+	if err != nil || k.Saved() != 1 {
+		t.Fatalf("keep: %v %d", err, k.Saved())
+	}
+	stale, _ := os.MkdirTemp(filepath.Dir(tree), ".deps-keep-*")
+	old := time.Now().Add(-2 * KeepMaxAge)
+	os.Chtimes(stale, old, old)
+	m.Sweep(context.Background(), "", "p1", func(name string) (bool, bool) { return name == "chat-x", false }, time.Hour)
+	if _, err := os.Stat(k.tmp); err != nil {
+		t.Fatal("Sweep deleted the copy an install still holds")
+	}
+	if _, err := os.Stat(stale); err == nil {
+		t.Fatal("a stale copy was left")
+	}
+	if err := k.Restore(); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(tree, "web", "node_modules", "mine")); err != nil {
+		t.Fatal("not restored")
+	}
+}
+
+// Restore never deletes what the install left when its saved copy is gone:
+// the worktree keeps something rather than nothing.
+func TestRestoreWithoutCopyKeepsFolder(t *testing.T) {
+	tree := filepath.Join(t.TempDir(), "wt")
+	os.MkdirAll(filepath.Join(tree, "web", "node_modules", "mine"), 0o755)
+	k, err := Keep(tree, "web")
+	if err != nil {
+		t.Fatal(err)
+	}
+	os.MkdirAll(filepath.Join(tree, "web", "node_modules", "half"), 0o755)
+	os.RemoveAll(k.tmp)
+	if err := k.Restore(); err == nil {
+		t.Fatal("a lost copy restored with no error")
+	}
+	if _, err := os.Stat(filepath.Join(tree, "web", "node_modules", "half")); err != nil {
+		t.Fatal("Restore deleted the folder with nothing to put back")
+	}
+}
 
 // An install in the worktree (after Detach) never touches the project's
 // node_modules, its workspace packages' included; the folders stay out of

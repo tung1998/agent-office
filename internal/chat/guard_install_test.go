@@ -68,6 +68,71 @@ func TestInstallInLinkedTreeRefused(t *testing.T) {
 	}
 }
 
+// pnpm's -w (--workspace-root) takes no value: the verb after it is still
+// read. npm's -w <workspace> does take one.
+func TestPnpmWorkspaceRootInstallRefused(t *testing.T) {
+	isLinked := func(dir, folder string) bool { return dir == "/w" }
+	for _, c := range []string{"pnpm -w add lodash", "pnpm --workspace-root add x", "yarn -W add x", "npm -w web install x", "npm --workspace web i"} {
+		if why := installInLinkedTree(c, "/w", isLinked); why == "" {
+			t.Errorf("%q: not refused", c)
+		}
+	}
+	// npm -w's value is not a verb: "npm -w install run build" runs a script
+	if why := installInLinkedTree("npm -w install run build", "/w", isLinked); why != "" {
+		t.Errorf("npm -w <ws> run: refused: %s", why)
+	}
+}
+
+// A global install writes the tool's own folder, never the worktree's
+// node_modules: allowed.
+func TestGlobalInstallAllowed(t *testing.T) {
+	isLinked := func(dir, folder string) bool { return dir == "/w" }
+	for _, c := range []string{"npm i -g typescript", "npm install --global pnpm", "npm install --location=global x", "pnpm add -g x", "pnpm add --global x", "bun add -g x", "yarn global add x"} {
+		if why := installInLinkedTree(c, "/w", isLinked); why != "" {
+			t.Errorf("%q: refused: %s", c, why)
+		}
+	}
+}
+
+// An install behind a shell, corepack, npx or env is still an install.
+func TestWrappedInstallRefused(t *testing.T) {
+	linked := map[string]bool{"/w|node_modules": true, "/w/web|node_modules": true, "/w|.venv": true}
+	isLinked := func(dir, folder string) bool { return linked[dir+"|"+folder] }
+	refused := []string{
+		`bash -c "pnpm i"`,
+		`sh -c 'npm install'`,
+		`bash -lc "cd web && pnpm add x"`,
+		`zsh -c "pip install x"`,
+		"corepack pnpm install",
+		"corepack yarn add x",
+		"npx pnpm add x",
+		"npx -y pnpm@9 install",
+		"pnpx pnpm i",
+		"bunx npm ci",
+		"env -i pnpm install",
+		"env X=1 pnpm i",
+		"nohup pnpm install",
+		"time npm ci",
+	}
+	for _, c := range refused {
+		if why := installInLinkedTree(c, "/w", isLinked); why == "" {
+			t.Errorf("%q: not refused", c)
+		}
+	}
+	allowed := []string{
+		`bash -c "pnpm test"`,
+		"npx vitest run",
+		"corepack enable",
+		"npx nuxi typecheck",
+		`sh -c 'echo pnpm install'`,
+	}
+	for _, c := range allowed {
+		if why := installInLinkedTree(c, "/w", isLinked); why != "" {
+			t.Errorf("%q: refused: %s", c, why)
+		}
+	}
+}
+
 // The hook itself, on a real worktree: node_modules linked from the project
 // refuses a pnpm install, the project's own goes through.
 func TestForegroundDeniesInstallInLinkedWorktree(t *testing.T) {

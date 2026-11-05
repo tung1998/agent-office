@@ -184,6 +184,28 @@ func TestFailedInstallKeepsPrivateDeps(t *testing.T) {
 	}
 }
 
+// A pip install's requirements files are checked when the card is made: one
+// outside the package (.., absolute, an option) or missing is refused before
+// a person is asked; a good one is cleaned and shows on the card.
+func TestCheckDepsRejectsBadFiles(t *testing.T) {
+	ctx, _, svc, proj := depsProject(t)
+	os.MkdirAll(filepath.Join(proj.Path, "ml", "requirements"), 0o755)
+	os.WriteFile(filepath.Join(proj.Path, "ml", "requirements.txt"), []byte("x\n"), 0o644)
+	os.WriteFile(filepath.Join(proj.Path, "ml", "requirements", "dev.txt"), []byte("x\n"), 0o644)
+	sc := Scope{ProjectID: proj.ID, RunRef: "f1", Agent: "a", Level: perm.Propose, Access: at(perm.Propose)}
+	for _, f := range []string{"../secret.txt", "/etc/passwd", "--index-url=http://x", "requirements/../../x.txt", "missing.txt"} {
+		args := storage.ActionArgs{Deps: &storage.DepsArgs{Dir: "ml", Manager: "pip", Files: []string{f}}}
+		if a, err := svc.Propose(ctx, sc, "deps_install", "ml", "x", args); err == nil {
+			t.Errorf("%q: card made (%s %q)", f, a.Status, a.Target)
+		}
+	}
+	args := storage.ActionArgs{Deps: &storage.DepsArgs{Dir: "ml", Files: []string{"./requirements/dev.txt"}}}
+	a, err := svc.Propose(ctx, sc, "deps_install", "ml", "dev deps", args)
+	if err != nil || a.Target != "ml (pip: requirements/dev.txt)" || a.Args.Deps.Files[0] != "requirements/dev.txt" {
+		t.Fatalf("good file: %v %q %v", err, a.Target, a.Args.Deps)
+	}
+}
+
 // A failed install stays on its card with what the tool said.
 func TestDepsInstallFailureKeptOnCard(t *testing.T) {
 	fakeNPM(t, true)

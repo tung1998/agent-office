@@ -248,7 +248,7 @@ func (e *Engine) QueuePatch(ctx context.Context, patchID string) (PatchDTO, erro
 		if err != nil {
 			return PatchDTO{}, err
 		}
-		return toPatchDTO(p), ErrDecided
+		return e.patchDTO(ctx, p), ErrDecided
 	}
 	defer deciding.End("patches", patchID)
 	p, err := e.store.Chat().GetPatch(ctx, patchID)
@@ -256,14 +256,14 @@ func (e *Engine) QueuePatch(ctx context.Context, patchID string) (PatchDTO, erro
 		return PatchDTO{}, err
 	}
 	if p.Status != "pending" {
-		return toPatchDTO(p), ErrDecided
+		return e.patchDTO(ctx, p), ErrDecided
 	}
 	who := actor.From(ctx)
 	if err := e.store.Chat().QueuePatch(ctx, p.ID, who); err != nil {
 		return PatchDTO{}, err
 	}
 	p.Status, p.DecidedBy = "queued", who
-	return toPatchDTO(p), nil
+	return e.patchDTO(ctx, p), nil
 }
 
 // Drain runs a chat's queued proposals that nothing waits before any more,
@@ -312,7 +312,7 @@ func (e *Engine) GetPatchDTO(ctx context.Context, id string) (PatchDTO, error) {
 	if err != nil {
 		return PatchDTO{}, err
 	}
-	return toPatchDTO(p), nil
+	return e.patchDTO(ctx, p), nil
 }
 
 // autoApply applies a diff its agent may apply on its own (CapApply): now

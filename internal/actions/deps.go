@@ -36,8 +36,20 @@ func (s *Service) checkDeps(ctx context.Context, sc Scope, a *storage.Action) er
 	if _, err := os.Stat(filepath.Join(root, filepath.FromSlash(d.Dir))); err != nil {
 		return errors.New("không có thư mục " + d.Dir + " trong project")
 	}
+	files, err := deps.CleanFiles(d.Files)
+	if err != nil {
+		return err
+	}
+	for _, f := range files {
+		if !exists(filepath.Join(root, filepath.FromSlash(d.Dir), filepath.FromSlash(f))) {
+			return errors.New("không có file " + f + " trong " + d.Dir)
+		}
+	}
+	d.Files = files
 	if d.Manager == "" {
 		switch {
+		case len(d.Files) > 0: // requirements files named: pip installs them
+			d.Manager = "pip"
 		case exists(filepath.Join(root, d.Dir, "package.json")): // a workspace package installs from its lockfile's folder
 			if c := deps.Changes(root, []string{path.Join(d.Dir, "package.json")}); len(c) > 0 {
 				d.Dir, d.Manager = c[0].Dir, c[0].Manager

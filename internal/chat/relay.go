@@ -370,7 +370,7 @@ func (e *Engine) LinkedPending(ctx context.Context, conversationID string) []Lin
 		if patches, err := e.store.Chat().ListPatches(ctx, c.ID); err == nil {
 			for _, p := range patches {
 				if p.Status == "pending" {
-					lp.Patches = append(lp.Patches, toPatchDTO(p))
+					lp.Patches = append(lp.Patches, e.patchDTO(ctx, p))
 				}
 			}
 		}

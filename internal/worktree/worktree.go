@@ -460,8 +460,14 @@ func (m *Manager) Sweep(ctx context.Context, repo, projectID string, keep func(n
 		if !e.IsDir() {
 			continue
 		}
-		kept, pinned := keep(e.Name())
 		info, err := e.Info()
+		if strings.HasPrefix(e.Name(), keepPrefix) { // an install's saved copy (Keep), no worktree
+			if err == nil && time.Since(info.ModTime()) > KeepMaxAge {
+				_ = os.RemoveAll(filepath.Join(root, e.Name()))
+			}
+			continue
+		}
+		kept, pinned := keep(e.Name())
 		old := err == nil && maxAge > 0 && time.Since(info.ModTime()) > maxAge && !pinned
 		if !kept || old {
 			_ = m.Remove(ctx, repo, projectID, e.Name())

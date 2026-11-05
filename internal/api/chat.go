@@ -558,7 +558,7 @@ func (s *server) getPatch(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]any{"patch": dto})
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"patch": chat.FullPatchDTO(p)})
+	writeJSON(w, http.StatusOK, map[string]any{"patch": s.cfg.Chat.FullPatch(r.Context(), p)})
 }
 
 // installPatchDeps proposes again the install of a merged diff's

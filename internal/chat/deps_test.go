@@ -2,6 +2,7 @@ package chat
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -171,6 +172,53 @@ func TestProposeDepsSkipsScriptsOnlyDiff(t *testing.T) {
 	}
 	if work, _ := e.unmergedWork(ctx, own); len(work) != 0 {
 		t.Fatalf("a check would wait for: %v", work)
+	}
+}
+
+// The diff card reads a package.json against the project's file, as the
+// merge does: one indented by four spaces whose scripts alone change shows
+// no dependency change (the diff alone cannot tell its top level), wherever
+// the card is read (the chat's history, the card, the full diff, a link).
+func TestPatchCardDepsUsesProjectFile(t *testing.T) {
+	st, p, own := mergeStore(t)
+	ctx := context.Background()
+	os.MkdirAll(filepath.Join(p.Path, "web"), 0o755)
+	var long strings.Builder // the scripts' hunk is far from the file's top
+	long.WriteString("{\n    \"name\": \"web\",\n    \"scripts\": {\n")
+	for i := range 6 {
+		fmt.Fprintf(&long, "        \"s%d\": \"echo %d\",\n", i, i)
+	}
+	long.WriteString("        \"dev\": \"nuxt dev\"\n    },\n    \"dependencies\": {\n        \"nuxt\": \"4.5.2\"\n    }\n}\n")
+	os.WriteFile(filepath.Join(p.Path, "web", "package.json"), []byte(long.String()), 0o644)
+	e := &Engine{store: st, acts: actions.New(st, nil)}
+	msg, _ := st.Chat().AddMessage(ctx, storage.Message{ConversationID: own.ID, Role: "assistant", Content: "done"})
+	diff := "diff --git a/web/package.json b/web/package.json\n--- a/web/package.json\n+++ b/web/package.json\n@@ -7,4 +7,4 @@\n         \"s3\": \"echo 3\",\n         \"s4\": \"echo 4\",\n         \"s5\": \"echo 5\",\n-        \"dev\": \"nuxt dev\"\n+        \"dev\": \"nuxt dev --port 3001\"\n"
+	pat, err := st.Chat().AddPatch(ctx, storage.Patch{ConversationID: own.ID, MessageID: msg.ID, Diff: diff, Files: []string{"web/package.json"}, Status: "pending"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if dto := FullPatchDTO(pat); len(dto.Deps) == 0 {
+		t.Log("the diff alone counts it (unknown): expected, the card must not")
+	}
+	if dto, _ := e.GetPatchDTO(ctx, pat.ID); len(dto.Deps) != 0 {
+		t.Fatalf("card deps = %+v", dto.Deps)
+	}
+	if dto := e.FullPatch(ctx, pat); len(dto.Deps) != 0 {
+		t.Fatalf("full diff deps = %+v", dto.Deps)
+	}
+	hist, _ := e.History(ctx, own.ID)
+	for _, m := range hist {
+		for _, d := range m.Patches {
+			if len(d.Deps) != 0 {
+				t.Fatalf("history deps = %+v", d.Deps)
+			}
+		}
+	}
+	// a dependency bump is still one
+	bump := "diff --git a/web/package.json b/web/package.json\n--- a/web/package.json\n+++ b/web/package.json\n@@ -10,4 +10,4 @@\n         \"dev\": \"nuxt dev\"\n     },\n     \"dependencies\": {\n-        \"nuxt\": \"4.5.2\"\n+        \"nuxt\": \"4.6.4\"\n"
+	pb, _ := st.Chat().AddPatch(ctx, storage.Patch{ConversationID: own.ID, MessageID: msg.ID, Diff: bump, Files: []string{"web/package.json"}, Status: "pending"})
+	if dto, _ := e.GetPatchDTO(ctx, pb.ID); len(dto.Deps) != 1 || dto.Deps[0].Dir != "web" {
+		t.Fatalf("bump deps = %+v", dto.Deps)
 	}
 }
 
