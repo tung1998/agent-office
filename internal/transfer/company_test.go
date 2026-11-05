@@ -111,17 +111,28 @@ func TestLibraryPacksImport(t *testing.T) {
 			// an investor: watchlist, signals, paper trades, lessons; four workflows, three schedules off
 			if b.Name == "@agentoffice/trading" {
 				cols, _ := o.st.Collections().List(ctx, repo.ID)
-				if len(agents) != 3 || len(wfs) != 4 || len(autos) != 3 || len(cols) != 4 {
+				if len(agents) != 3 || len(wfs) != 5 || len(autos) != 3 || len(cols) != 5 {
 					t.Fatalf("trading: %d agents, %d workflows, %d schedules, %d tables", len(agents), len(wfs), len(autos), len(cols))
 				}
 			}
-			// a web app team and a TikTok channel: their tables, four workflows, three schedules off
-			for name, want := range map[string][4]int{"@agentoffice/webapp": {3, 4, 3, 4}, "@agentoffice/tiktok": {4, 4, 3, 4}} {
+			// the single-team packs: agents, workflows, schedules (off), tables
+			for name, want := range map[string][4]int{
+				"@agentoffice/webapp": {3, 4, 3, 4}, "@agentoffice/tiktok": {4, 5, 3, 5}, "@agentoffice/mobileapp": {3, 4, 3, 4},
+				"@agentoffice/support": {3, 5, 3, 3}, "@agentoffice/sales": {4, 4, 3, 4},
+				"@agentoffice/marketing": {4, 4, 2, 4}, "@agentoffice/seo-blog": {4, 4, 2, 3},
+				"@agentoffice/research": {4, 4, 2, 4}, "@agentoffice/projects": {4, 4, 3, 5},
+				"@agentoffice/finance": {4, 4, 3, 5}, "@agentoffice/tutor": {4, 4, 3, 4},
+			} {
 				if b.Name == name {
 					cols, _ := o.st.Collections().List(ctx, repo.ID)
 					if got := [4]int{len(agents), len(wfs), len(autos), len(cols)}; got != want {
 						t.Fatalf("%s: agents, workflows, schedules, tables = %v, want %v", name, got, want)
 					}
+				}
+			}
+			if b.Name == "@agentoffice/support" {
+				if fc := features.LoadConfig(ctx, o.st, repo.ID); !fc.Packs["support"] {
+					t.Fatalf("support: support pack off: %+v", fc)
 				}
 			}
 			if e.Key == "cskh" {
@@ -132,7 +143,7 @@ func TestLibraryPacksImport(t *testing.T) {
 			n++
 		}
 	}
-	if n < 8 {
+	if n < 18 {
 		t.Fatalf("only %d packs in the library", n)
 	}
 }

@@ -1,0 +1,13 @@
+{
+  "title": "Marketing",
+  "description": "Marketing cho doanh nghiệp nhỏ với bốn agent: Trưởng marketing, Chiến lược, Sáng tạo nội dung, Soát nội dung; mọi nội dung qua cổng soát và chủ duyệt, chủ tự đăng.",
+  "packs": [
+    {
+      "key": "",
+      "title": "Marketing",
+      "description": "Mục tiêu → kế hoạch chiến dịch có chỉ số đo → nội dung theo kênh (bài đăng, quảng cáo, email, trang đích) → cổng soát (sự thật, chính sách nền tảng, bản quyền, giọng thương hiệu) → chủ duyệt và tự đăng → đo từ số liệu chủ xuất → thử A/B từng bậc → bài học. Hai lịch nhắc tuần, tắt sẵn.",
+      "file": "office.pack.json",
+      "root": true
+    }
+  ]
+}

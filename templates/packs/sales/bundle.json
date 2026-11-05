@@ -1,0 +1,13 @@
+{
+  "title": "Bán hàng và tìm khách",
+  "description": "Một doanh nghiệp nhỏ tìm khách và chào hàng với bốn agent: Trưởng kinh doanh điều phối, Tìm khách tìm từ nguồn công khai, Soạn thư chào viết thư cá nhân hóa, Soát bán hàng soát nguồn và luật. Bạn tự gửi.",
+  "packs": [
+    {
+      "key": "",
+      "title": "Bán hàng và tìm khách",
+      "description": "Chân dung khách và sản phẩm → tìm khách có nguồn và lý do liên hệ → chấm điểm A/B/C → thư chào cá nhân hóa đã soát (bạn gửi) → nhắc theo dõi tối đa 3 lần, ghi trả lời, mở cơ hội → bài học tuần. Tuân thủ luật chống tin rác và dữ liệu cá nhân. Ba lịch, tắt sẵn.",
+      "file": "office.pack.json",
+      "root": true
+    }
+  ]
+}

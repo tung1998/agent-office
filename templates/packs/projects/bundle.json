@@ -1,0 +1,13 @@
+{
+  "title": "Quản lý dự án",
+  "description": "Dự án và cuộc họp của một nhóm nhỏ với bốn agent: lập kế hoạch có người làm và hạn, biên bản họp thành việc, nhắc việc và báo cáo tuần, soát rủi ro.",
+  "packs": [
+    {
+      "key": "",
+      "title": "Quản lý dự án",
+      "description": "Mục tiêu → mốc theo kết quả → việc có một người làm và hạn; ghi chép họp → quyết định và việc cần làm vào bảng; nhắc việc theo người; báo cáo tình hình tuần có dự báo mốc; sổ rủi ro soát hai tuần một lần trên model khác hãng. Ba lịch, tắt sẵn.",
+      "file": "office.pack.json",
+      "root": true
+    }
+  ]
+}

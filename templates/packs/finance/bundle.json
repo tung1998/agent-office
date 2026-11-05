@@ -1,0 +1,13 @@
+{
+  "title": "Tài chính cá nhân",
+  "description": "Một người giữ sổ tiền với bốn agent: Quản lý tài chính trò chuyện và điều phối, Ghi sổ ghi từng khoản, Phân tích chi tiêu làm báo cáo và ngân sách, Soát số liệu đối chiếu trước khi báo.",
+  "packs": [
+    {
+      "key": "",
+      "title": "Tài chính cá nhân",
+      "description": "Nhắn \"cà phê 45k\" hay gửi ảnh hóa đơn, file sao kê → ghi vào sổ đúng danh mục, không trùng → so với ngân sách tháng, cảnh báo khi tới 80% → báo cáo tháng, ngân sách tháng sau, tiến độ mục tiêu tiết kiệm và trả nợ; số liệu tính bằng script. Ba lịch nhắc và báo cáo, tắt sẵn. Không chuyển tiền, không kết nối ngân hàng.",
+      "file": "office.pack.json",
+      "root": true
+    }
+  ]
+}

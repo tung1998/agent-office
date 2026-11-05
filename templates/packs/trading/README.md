@@ -25,6 +25,7 @@ lệnh giấy (paper_trades) theo quy tắc rủi ro ──► theo dõi cuối 
 |---|---|---|
 | Theo dõi | "Theo dõi FPT, HPG, chú ý FPT dưới 110" | Quản lý danh mục |
 | Phân tích | "FPT lúc này thế nào?", "có nên mua NVDA?"; `#analyze-ticker` | Phân tích viên viết, Quản trị rủi ro phản biện, Quản lý danh mục quyết |
+| Kiểm định | "Mua FPT khi trung bình 20 ngày cắt lên 50 ngày có lời không?"; `#backtest-strategy`. Chạy trên giá lịch sử miễn phí, có phí và trượt giá, trong/ngoài mẫu, so với mua giữ | Phân tích viên chạy, Quản trị rủi ro soát quá khớp |
 | Lệnh giấy | Tín hiệu mua/bán độ tin cậy ≥ 3 sau tranh biện; `#paper-trade`. Quy mô tính từ điểm cắt lỗ, rủi ro ≤ 1% vốn | Quản lý danh mục, Quản trị rủi ro kiểm |
 | Theo dõi lệnh | Lịch **Theo dõi lệnh cuối ngày**; `#track-trades`. Chạm cắt lỗ hay mục tiêu thì đóng | Quản trị rủi ro |
 | Đánh giá | Lịch **Đánh giá hằng tuần**; `#weekly-review`. Tín hiệu đúng/sai theo độ tin cậy, so với chỉ số, bài học | Quản trị rủi ro đánh giá, Phân tích viên soát |
@@ -38,16 +39,20 @@ lệnh giấy (paper_trades) theo quy tắc rủi ro ──► theo dõi cuối 
 - `watchlist`: mã, thị trường, ngành, vì sao, mức giá chú ý.
 - `signals`: tín hiệu, độ tin cậy, giá, vùng mua, cắt lỗ, mục tiêu, ngày đánh giá, kết quả.
 - `paper_trades`: lệnh giả lập, giá vào/ra có nguồn, lãi/lỗ, bội số R.
+- `backtests`: mỗi lần kiểm định quy tắc: dữ liệu, tham số, kết quả trong và ngoài mẫu, so với mua giữ, kết luận.
 - `lessons`: kinh nghiệm rút ra, số lần gặp lại; gặp 3 lần thành quy tắc (bạn duyệt).
 
-Cách phân tích ở skill `analysis`; tranh biện ở `debate`; quy mô và giới hạn ở `risk`; đánh giá và bài học ở `review`.
+Cách phân tích ở skill `analysis`; tranh biện ở `debate`; quy mô và giới hạn ở `risk`; kiểm định ở `backtest` (script `.claude/skills/backtest/backtest.py`, chỉ cần Python, không cài thêm gì); đánh giá và bài học ở `review`.
 
 ## Thư mục
 - `docs/profile.md`: hồ sơ nhà đầu tư (thị trường, vốn giấy, kiểu đầu tư, mức rủi ro).
 - `docs/risk-rules.md`: quy tắc rủi ro riêng, thắng mặc định.
-- `analysis/`: mỗi lần phân tích một file.
+- `analysis/`: mỗi lần phân tích một file; `analysis/data/` giá lịch sử tải về (CSV), `analysis/backtests/` báo cáo kiểm định.
 - `journal/`: bản tin sáng, đánh giá tuần.
 - `sources/data-sources.md`: nguồn dữ liệu theo thị trường; `sources/references.md`: các dự án tham khảo.
+
+## Cho Phân tích viên tự chạy kiểm định
+Phân tích viên có quyền tự chạy lệnh trong danh sách lệnh của project. Thêm lệnh `python3 .claude/skills/backtest/backtest.py *` ở cài đặt lệnh của project để khỏi duyệt từng lần; không thêm thì mỗi lần chạy là một thẻ chờ bạn duyệt.
 
 ## Bắt đầu
 1. Mở chat với Quản lý danh mục, nói thị trường, vốn giấy, kiểu đầu tư, mức rủi ro.

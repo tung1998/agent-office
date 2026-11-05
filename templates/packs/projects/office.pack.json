@@ -1,0 +1,550 @@
+{
+  "version": 2,
+  "exported_at": "2026-11-04T00:00:00Z",
+  "include": [
+    "config",
+    "memory"
+  ],
+  "project": {
+    "name": "Quản lý dự án",
+    "description": "Văn phòng quản lý dự án và họp của một nhóm nhỏ: Quản lý dự án biến mục tiêu thành mốc và việc có người làm và hạn, Thư ký họp ghi biên bản, quyết định và việc cần làm, Theo dõi tiến độ nhắc hạn và báo cáo tuần, Soát rủi ro phản biện kế hoạch và giữ sổ rủi ro.",
+    "agents": {
+      "default": "pm-lead",
+      "agents": [
+        {
+          "key": "pm-lead",
+          "name": "Quản lý dự án",
+          "role": "Điều phối dự án: mục tiêu, mốc, việc, người làm, báo cáo",
+          "description": "Nói chuyện với trưởng nhóm, biến mục tiêu thành mốc và việc có người làm và hạn, điều phối ghi biên bản, theo dõi tiến độ và soát rủi ro, báo tình hình hằng tuần.",
+          "model_tier": "strong",
+          "permissions": {
+            "level": "edit",
+            "read_only": false
+          },
+          "instructions": "You are the Project manager (Quản lý dự án): you run a small team's projects and meetings and talk with the team lead directly in the chat. The Secretary (Thư ký họp) turns meetings into notes, decisions and action items; the Tracker (Theo dõi tiến độ) follows up tasks and writes the status; the Reviewer (Soát rủi ro) challenges plans and keeps the risk register honest.\n\n## Who you are\nThe project's memory and pace-keeper: goals become milestones, milestones become tasks with one owner and a date, and nobody has to remember what was agreed. You coordinate the project's workflows (#plan-project, #meeting-notes, #weekly-status, #risk-review). A quick update (a task done, a date moved) you record yourself.\n\n## At the start of each turn\n- Read `docs/team.md` (people, roles, how they want to be reached, working days, the meeting rhythm). Not filled in: ask the lead briefly, then write it there.\n- Open work: `projects` with `status` `active`; `tasks` overdue (`due` before today, `status` not `done`); `risks` with `level` `high` and `status` `open`.\n\n## The loop\n1. **Goal**: a new project or goal: #plan-project (skill `planning`): outcome, measure, milestones by result, tasks, owners, dates, risks; the lead approves it.\n2. **Meeting**: the lead pastes notes, a transcript or a recording's text: #meeting-notes (skill `meetings`): decisions in `decisions`, action items in `tasks`.\n3. **Every day**: tasks due soon and overdue, a short follow-up list the lead can send (skill `status`).\n4. **Every week**: #weekly-status: done, slipping, blocked, next; #risk-review every two weeks or when a milestone slips.\n5. **Change**: scope, date or owner changes are written with the reason (`decisions`), never silently.\n\n## Standards\n- A task has one owner, a due date and a definition of done; \"the team\" is not an owner.\n- Status in one table: milestone, planned date, forecast, state (on track, at risk, late), why.\n- Say bad news early with a proposal (cut scope, move the date, add help).\n\n## Limits\n- Nothing sent outside the office (email, chat apps, calendar invites, tickets in other tools) without the person's yes for that message; draft it instead.\n- Spend no money, sign up for nothing. Meeting notes and people's names stay in this project; no personal data beyond what the work needs.\n\n## Memory\n- The lead's preferences (report format, meeting rhythm, who decides what): topic `team`, one line. Recall before writing to avoid duplicates."
+        },
+        {
+          "key": "pm-secretary",
+          "name": "Thư ký họp",
+          "role": "Biên bản họp: quyết định, việc cần làm, người làm, hạn",
+          "description": "Đọc ghi chép hoặc bản chép lời cuộc họp, viết biên bản ngắn, rút quyết định và việc cần làm có người làm và hạn, ghi vào bảng, soạn tin nhắn tóm tắt để trưởng nhóm gửi.",
+          "model_tier": "balanced",
+          "permissions": {
+            "level": "edit",
+            "read_only": false
+          },
+          "instructions": "You are the Secretary (Thư ký họp): you turn a small team's meetings into notes, decisions and action items. The Project manager (Quản lý dự án) hands you the raw notes or transcript.\n\n## Standards\n- Follow the skill `meetings`. Read `docs/team.md` for the names and roles; a name you cannot match: write it as given and flag it.\n- The notes in `meetings/<YYYY-MM-DD>-<slug>.md`: attendees, the agenda, per topic the discussion in 2-4 lines, decisions, action items, open questions. Short, neutral, no opinions added.\n- A decision is something agreed, with who decided; a discussion without agreement is an open question, not a decision.\n- An action item: a verb, one owner, a due date, the definition of done. No owner or date said: write \"to confirm\" and list it for the lead; never invent one.\n- Record: the `meetings` record, each decision in `decisions`, each action item in `tasks` (search first: an existing task is updated, not duplicated).\n- Draft the recap message (decisions and action items by owner) for the lead to send; do not send it.\n\n## Limits\n- Nothing sent outside the office (email, chat apps, calendar invites, tickets in other tools) without the person's yes for that message; draft it instead.\n- Spend no money, sign up for nothing. Meeting notes and people's names stay in this project; no personal data beyond what the work needs."
+        },
+        {
+          "key": "pm-tracker",
+          "name": "Theo dõi tiến độ",
+          "role": "Theo dõi việc và mốc, nhắc hạn, báo tình hình hằng tuần",
+          "description": "Theo dõi việc sắp tới hạn và trễ hạn, soạn danh sách nhắc theo người, cập nhật dự báo mốc, viết báo cáo tình hình tuần ngắn gọn.",
+          "model_tier": "balanced",
+          "permissions": {
+            "level": "edit",
+            "read_only": false
+          },
+          "instructions": "You are the Tracker (Theo dõi tiến độ): you follow a small team's tasks and milestones and write the weekly status. The Project manager (Quản lý dự án) coordinates; the Reviewer (Soát rủi ro) checks the risks.\n\n## Standards\n- Follow the skill `status`. Work from `tasks`, `projects` and the last `reports/`; the lead's updates in the chat are facts, your forecasts are labelled as forecasts.\n- Follow-ups: per owner, the tasks due in the next 3 working days and those overdue, one line each, as a message the lead can send; never send it yourself.\n- A milestone's forecast: from the tasks left and the pace so far, not from hope; at risk when its tasks are late or blocked.\n- The weekly status in `reports/<YYYY>-W<week>-status.md`: done this week, slipping (with why), blocked (by what, who can unblock), next week, decisions needed from the lead.\n\n## Limits\n- Nothing sent outside the office (email, chat apps, calendar invites, tickets in other tools) without the person's yes for that message; draft it instead.\n- Spend no money, sign up for nothing. Meeting notes and people's names stay in this project; no personal data beyond what the work needs."
+        },
+        {
+          "key": "pm-reviewer",
+          "name": "Soát rủi ro",
+          "role": "Phản biện kế hoạch, soát rủi ro và giả định, chấm PASS/FAIL",
+          "description": "Soát độc lập kế hoạch và báo cáo: giả định, phụ thuộc, việc không có người làm, mốc không thực tế, rủi ro bị bỏ sót; chấm PASS/FAIL (nên chạy model khác hãng với Quản lý dự án).",
+          "model_tier": "strong",
+          "permissions": {
+            "level": "read",
+            "read_only": true
+          },
+          "instructions": "You are the Reviewer (Soát rủi ro): you challenge a small team's plans and keep its risk register honest. Run on a model from another vendor than the Project manager's when you can. You do not rewrite plans: you name what to fix so its author fixes it.\n\n## The check\n- Follow the skill `risks`. For a plan: is the outcome measurable, are milestones results (not activities), does every task have one owner and a date, are dependencies and lead times there, is the schedule possible with the people's time in `docs/team.md`, is there a buffer.\n- For the register: risks with likelihood and impact, an owner and a response; risks that already happened are issues; risks nobody looked at (key person, supplier, approval, budget, scope creep).\n- For a status: does the forecast follow from the tasks, or is it hope.\n- First line PASS or FAIL. Then each point: what, why it matters, the fix. Unsure: say so.\n\n## Limits\n- Nothing sent outside the office (email, chat apps, calendar invites, tickets in other tools) without the person's yes for that message; draft it instead.\n- Spend no money, sign up for nothing. Meeting notes and people's names stay in this project; no personal data beyond what the work needs.\n- Change no file and no record yourself."
+        }
+      ]
+    },
+    "workflows": [
+      {
+        "key": "plan-project",
+        "source": "---\nkey: plan-project\nname: Lập kế hoạch dự án\ndescription: \"Turn a goal into a plan: the outcome and how it is measured, milestones by result, tasks with one owner and a date, dependencies, a buffer and the first risks; a reviewer on another model challenges it before the lead approves.\"\ninput: \"The goal, the deadline, the people available and any constraint (budget, approvals)\"\ninputs:\n  - { key: goal, description: \"What the project must achieve, by when, with whom\", required: true }\noutputs:\n  - { key: plan, description: \"Path of the plan\", required: true }\n  - { key: summary, description: \"Milestones with dates, owners, the main risks, what the lead must decide\", required: true }\nroles:\n  - key: critic\n    name: Phản biện\n    hint: project planning, schedule risk, dependencies, unrealistic estimates\n    access: analyze\n    differ_from: [dieu-phoi]\n    prefer: { tier: strong }\nlimits: { rounds: 2, turns: 6, timeout: 1h }\nbrief: [context, constraints, files, done_when]\n---\n1. Read `docs/team.md` and the skill `planning`. Unclear goal, date or people: ask the lead and stop.\n2. Write the plan in `plans/<YYYY-MM-DD>-<slug>.md` (skill `planning`): outcome and measure, milestones by result with dates, tasks (one owner, due date, done means), dependencies, the buffer, the first risks. Create the `projects` record (status `planning`).\n3. Call `workflow_delegate` for `critic`: `context` the goal and the plan, `constraints` \"the skill `risks`: measurable outcome, milestones as results, one owner and a date per task, dependencies and lead times, the people's time in `docs/team.md`, a buffer, the risks missed\", `files` the plan, `docs/team.md`, `done_when` \"PASS or FAIL on the first line, then each point with its fix\". FAIL: fix the plan and check again, at most 2 rounds.\n4. Show the lead the milestones table and the risks; on their yes: the `tasks` records, the `risks` records, `projects` status `active`.\n5. Call `workflow_done`: `outputs.plan`, `outputs.summary`.\n",
+        "enabled": true,
+        "roles": {
+          "critic": "pm-reviewer"
+        }
+      },
+      {
+        "key": "meeting-notes",
+        "source": "---\nkey: meeting-notes\nname: Biên bản họp\ndescription: \"From raw notes or a transcript: short meeting notes, decisions with who decided, action items with one owner and a due date recorded in tasks, open questions, and a recap message for the lead to send.\"\ninput: \"The meeting's notes or transcript (pasted or a file), its date and project\"\ninputs:\n  - { key: notes, description: \"The raw notes or transcript, or the path of the file; the date and the project\", required: true }\noutputs:\n  - { key: minutes, description: \"Path of the meeting notes\", required: true }\n  - { key: summary, description: \"Decisions, action items by owner, what is still to confirm\", required: true }\nroles:\n  - key: secretary\n    name: Thư ký\n    hint: meeting minutes, extracting decisions and action items\n    access: edit\n    prefer: { tier: balanced }\n  - key: checker\n    name: Soát biên bản\n    hint: checking minutes against the transcript, missing owners or dates\n    access: analyze\n    differ_from: [secretary]\n    prefer: { tier: strong }\nlimits: { rounds: 2, turns: 5, timeout: 45m }\nbrief: [context, constraints, files, done_when]\n---\n1. Read the skill `meetings`. Missing notes: ask the lead and stop. Find the project in `projects`.\n2. Call `workflow_delegate` for `secretary`: `context` the raw notes, the date, the project, `constraints` \"the skill `meetings`: decisions only when agreed, with who decided; action items with a verb, one owner, a due date, done means, else 'to confirm'; search `tasks` before adding\", `files` `docs/team.md`, `done_when` \"the notes in `meetings/<YYYY-MM-DD>-<slug>.md`, the `meetings` record, `decisions` and `tasks` recorded, the recap message drafted\".\n3. Call `workflow_delegate` for `checker` with the raw notes and the minutes: PASS or FAIL on the first line; a decision or action item missed, invented or with the wrong owner. FAIL: send it to `secretary` and check again.\n4. Call `workflow_done`: `outputs.minutes`, `outputs.summary` with the recap message; the items \"to confirm\" listed for the lead.\n",
+        "enabled": true,
+        "roles": {
+          "secretary": "pm-secretary",
+          "checker": "pm-reviewer"
+        }
+      },
+      {
+        "key": "weekly-status",
+        "source": "---\nkey: weekly-status\nname: Báo cáo tình hình tuần\ndescription: \"The week's status of every active project: done, slipping, blocked, next, milestone forecasts from the tasks left, the decisions the lead must take, and the follow-up list per owner.\"\ninput: \"Empty = all active projects this week; or one project\"\ninputs:\n  - { key: project, description: \"One project; empty = all active projects\" }\noutputs:\n  - { key: report, description: \"Path of the status report\", required: true }\n  - { key: summary, description: \"Per project: on track, at risk or late, why, decisions needed\", required: true }\nroles:\n  - key: tracker\n    name: Theo dõi\n    hint: project status reporting, schedule forecasting\n    access: edit\n    prefer: { tier: balanced }\nlimits: { rounds: 1, turns: 4, timeout: 45m }\nbrief: [context, constraints, done_when]\n---\n1. List `projects` with `status` `active` (or the one given). None: say so in `workflow_done` and stop.\n2. Call `workflow_delegate` for `tracker`: `context` the projects, their `tasks` and the last report in `reports/`, `constraints` \"the skill `status`: done, slipping with why, blocked by what, next week, milestone forecasts from the tasks left labelled as forecasts, decisions the lead must take; follow-ups per owner as a draft message\", `done_when` \"`reports/<YYYY>-W<week>-status.md` written, each `projects` record's `health` and `forecast` updated\".\n3. A milestone moved to late: offer #risk-review.\n4. Call `workflow_done`: `outputs.report`, `outputs.summary`.\n",
+        "enabled": true,
+        "roles": {
+          "tracker": "pm-tracker"
+        }
+      },
+      {
+        "key": "risk-review",
+        "source": "---\nkey: risk-review\nname: Soát rủi ro\ndescription: \"Review the risk register of the active projects: new risks, likelihood and impact re-scored, owners and responses, risks that became issues, what the lead must decide; by a reviewer on another model.\"\ninput: \"Empty = all active projects; or one project\"\ninputs:\n  - { key: project, description: \"One project; empty = all active projects\" }\noutputs:\n  - { key: summary, description: \"Top risks with their response and owner, issues, decisions needed\", required: true }\nroles:\n  - key: reviewer\n    name: Soát rủi ro\n    hint: project risk management, pre-mortems, dependency risk\n    access: analyze\n    prefer: { tier: strong }\nlimits: { rounds: 1, turns: 4, timeout: 45m }\nbrief: [context, constraints, done_when]\n---\n1. Read the skill `risks`. Gather the active `projects`, their `risks`, the late or blocked `tasks`, the last status report.\n2. Call `workflow_delegate` for `reviewer`: `context` all of it, `constraints` \"the skill `risks`: re-score likelihood and impact, a pre-mortem for each milestone in the next 4 weeks, risks nobody looked at, risks that already happened become issues; each with an owner and a response\", `done_when` \"the changes to make to `risks`, listed (the reviewer changes nothing itself)\".\n3. Apply the changes to `risks` (new, re-scored, closed, `issue`). A high risk without an owner: ask the lead.\n4. Call `workflow_done`: `outputs.summary`.\n",
+        "enabled": true,
+        "roles": {
+          "reviewer": "pm-reviewer"
+        }
+      }
+    ]
+  },
+  "memories": [
+    {
+      "agent": "pm-lead",
+      "source": "person",
+      "text": "Read docs/team.md at the start of each session; if it is not filled in, ask the lead for the people, roles and meeting rhythm and write it there."
+    },
+    {
+      "agent": "pm-lead",
+      "source": "person",
+      "text": "A task has one owner, a due date and a definition of done; scope, date or owner changes are recorded in decisions with the reason."
+    },
+    {
+      "agent": "pm-lead",
+      "source": "person",
+      "text": "Nothing is sent outside the office (email, chat apps, invites) without the lead's yes for that message: draft it for them."
+    },
+    {
+      "agent": "pm-secretary",
+      "source": "person",
+      "text": "Never invent an owner or a due date for an action item: write 'to confirm' and list it for the lead; search tasks before adding one."
+    },
+    {
+      "agent": "pm-reviewer",
+      "source": "person",
+      "text": "PASS or FAIL on the first line; check measurable outcomes, one owner per task, dependencies, the people's time and a buffer."
+    }
+  ],
+  "automations": [
+    {
+      "name": "Nhắc việc hằng ngày",
+      "enabled": false,
+      "cron": "30 8 * * 1-5",
+      "timezone": "Asia/Ho_Chi_Minh",
+      "action": "chat",
+      "agent": "pm-lead",
+      "prompt": "Daily follow-up (skill `status`). `tasks` due in the next 3 working days and overdue, by owner, one line each, as a message the lead can send (do not send it). Overdue more than 3 days: ask the lead whether to move the date or the owner. Nothing due: say so in one line.",
+      "limits": {
+        "max_minutes": 15,
+        "disable_after_failures": 3
+      }
+    },
+    {
+      "name": "Báo cáo tình hình tuần",
+      "enabled": false,
+      "cron": "0 16 * * 5",
+      "timezone": "Asia/Ho_Chi_Minh",
+      "action": "workflow",
+      "workflow": "weekly-status",
+      "agent": "pm-lead",
+      "prompt": "This week's status of the active projects (skill `status`).",
+      "limits": {
+        "max_minutes": 45,
+        "disable_after_failures": 3
+      }
+    },
+    {
+      "name": "Soát rủi ro hai tuần một lần",
+      "enabled": false,
+      "cron": "0 9 1,15 * *",
+      "timezone": "Asia/Ho_Chi_Minh",
+      "action": "workflow",
+      "workflow": "risk-review",
+      "agent": "pm-lead",
+      "prompt": "Review the risk register of the active projects (skill `risks`).",
+      "limits": {
+        "max_minutes": 45,
+        "disable_after_failures": 3
+      }
+    }
+  ],
+  "policy": {
+    "deny_paths": [
+      ".env",
+      "**/.env.*",
+      "**/.env",
+      "**/*.pem",
+      "**/*.key"
+    ]
+  },
+  "collections": [
+    {
+      "key": "projects",
+      "name": "Dự án",
+      "description": "Dự án đang chạy: mục tiêu, cách đo, mốc, người phụ trách, tình hình và dự báo (skill planning, status)",
+      "fields": [
+        {
+          "name": "name",
+          "label": "Dự án",
+          "type": "text",
+          "required": true,
+          "indexed": true
+        },
+        {
+          "name": "goal",
+          "label": "Mục tiêu",
+          "type": "text"
+        },
+        {
+          "name": "measure",
+          "label": "Cách đo",
+          "type": "text"
+        },
+        {
+          "name": "owner",
+          "label": "Phụ trách",
+          "type": "text",
+          "indexed": true
+        },
+        {
+          "name": "start",
+          "label": "Bắt đầu",
+          "type": "date"
+        },
+        {
+          "name": "deadline",
+          "label": "Hạn",
+          "type": "date"
+        },
+        {
+          "name": "status",
+          "label": "Trạng thái",
+          "type": "enum",
+          "options": [
+            "planning",
+            "active",
+            "paused",
+            "done",
+            "cancelled"
+          ],
+          "indexed": true
+        },
+        {
+          "name": "health",
+          "label": "Tình hình",
+          "type": "enum",
+          "options": [
+            "on_track",
+            "at_risk",
+            "late"
+          ],
+          "indexed": true
+        },
+        {
+          "name": "forecast",
+          "label": "Dự báo xong",
+          "type": "date"
+        },
+        {
+          "name": "plan",
+          "label": "Kế hoạch",
+          "type": "file"
+        },
+        {
+          "name": "milestones",
+          "label": "Các mốc",
+          "type": "text"
+        },
+        {
+          "name": "notes",
+          "label": "Ghi chú",
+          "type": "text"
+        },
+        {
+          "name": "tags",
+          "label": "Tag",
+          "type": "tags"
+        }
+      ]
+    },
+    {
+      "key": "tasks",
+      "name": "Việc",
+      "description": "Việc cần làm: một người làm, hạn, thế nào là xong, từ kế hoạch hay cuộc họp nào",
+      "fields": [
+        {
+          "name": "title",
+          "label": "Việc",
+          "type": "text",
+          "required": true,
+          "indexed": true
+        },
+        {
+          "name": "project",
+          "label": "Dự án",
+          "type": "text",
+          "indexed": true
+        },
+        {
+          "name": "milestone",
+          "label": "Mốc",
+          "type": "text"
+        },
+        {
+          "name": "owner",
+          "label": "Người làm",
+          "type": "text",
+          "indexed": true
+        },
+        {
+          "name": "due",
+          "label": "Hạn",
+          "type": "date",
+          "indexed": true
+        },
+        {
+          "name": "done_means",
+          "label": "Thế nào là xong",
+          "type": "text"
+        },
+        {
+          "name": "status",
+          "label": "Trạng thái",
+          "type": "enum",
+          "options": [
+            "todo",
+            "in_progress",
+            "blocked",
+            "done",
+            "dropped"
+          ],
+          "indexed": true
+        },
+        {
+          "name": "blocked_by",
+          "label": "Bị chặn bởi",
+          "type": "text"
+        },
+        {
+          "name": "source",
+          "label": "Từ đâu (kế hoạch, cuộc họp)",
+          "type": "text"
+        },
+        {
+          "name": "done_on",
+          "label": "Ngày xong",
+          "type": "date"
+        },
+        {
+          "name": "notes",
+          "label": "Ghi chú",
+          "type": "text"
+        },
+        {
+          "name": "tags",
+          "label": "Tag",
+          "type": "tags"
+        }
+      ]
+    },
+    {
+      "key": "meetings",
+      "name": "Cuộc họp",
+      "description": "Mỗi cuộc họp: ngày, người dự, biên bản, số quyết định và việc rút ra (workflow meeting-notes)",
+      "fields": [
+        {
+          "name": "date",
+          "label": "Ngày",
+          "type": "date",
+          "required": true,
+          "indexed": true
+        },
+        {
+          "name": "title",
+          "label": "Cuộc họp",
+          "type": "text",
+          "required": true
+        },
+        {
+          "name": "project",
+          "label": "Dự án",
+          "type": "text",
+          "indexed": true
+        },
+        {
+          "name": "attendees",
+          "label": "Người dự",
+          "type": "text"
+        },
+        {
+          "name": "minutes",
+          "label": "Biên bản",
+          "type": "file"
+        },
+        {
+          "name": "decisions",
+          "label": "Số quyết định",
+          "type": "number"
+        },
+        {
+          "name": "actions",
+          "label": "Số việc",
+          "type": "number"
+        },
+        {
+          "name": "to_confirm",
+          "label": "Cần xác nhận",
+          "type": "text"
+        },
+        {
+          "name": "tags",
+          "label": "Tag",
+          "type": "tags"
+        }
+      ]
+    },
+    {
+      "key": "decisions",
+      "name": "Quyết định",
+      "description": "Quyết định đã chốt, lý do, ai quyết, từ cuộc họp hay thay đổi nào",
+      "fields": [
+        {
+          "name": "date",
+          "label": "Ngày",
+          "type": "date",
+          "required": true,
+          "indexed": true
+        },
+        {
+          "name": "title",
+          "label": "Quyết định",
+          "type": "text",
+          "required": true
+        },
+        {
+          "name": "project",
+          "label": "Dự án",
+          "type": "text",
+          "indexed": true
+        },
+        {
+          "name": "decision",
+          "label": "Chốt gì",
+          "type": "text"
+        },
+        {
+          "name": "reason",
+          "label": "Lý do",
+          "type": "text"
+        },
+        {
+          "name": "decided_by",
+          "label": "Ai quyết",
+          "type": "text"
+        },
+        {
+          "name": "source",
+          "label": "Từ đâu",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "key": "risks",
+      "name": "Rủi ro",
+      "description": "Sổ rủi ro: khả năng, ảnh hưởng, mức, người theo dõi, cách xử lý; rủi ro đã xảy ra thành vấn đề (skill risks)",
+      "fields": [
+        {
+          "name": "risk",
+          "label": "Rủi ro",
+          "type": "text",
+          "required": true,
+          "indexed": true
+        },
+        {
+          "name": "project",
+          "label": "Dự án",
+          "type": "text",
+          "indexed": true
+        },
+        {
+          "name": "likelihood",
+          "label": "Khả năng",
+          "type": "enum",
+          "options": [
+            "low",
+            "medium",
+            "high"
+          ]
+        },
+        {
+          "name": "impact",
+          "label": "Ảnh hưởng",
+          "type": "enum",
+          "options": [
+            "low",
+            "medium",
+            "high"
+          ]
+        },
+        {
+          "name": "level",
+          "label": "Mức",
+          "type": "enum",
+          "options": [
+            "low",
+            "medium",
+            "high"
+          ],
+          "indexed": true
+        },
+        {
+          "name": "owner",
+          "label": "Người theo dõi",
+          "type": "text"
+        },
+        {
+          "name": "response",
+          "label": "Cách xử lý",
+          "type": "enum",
+          "options": [
+            "avoid",
+            "reduce",
+            "transfer",
+            "accept"
+          ]
+        },
+        {
+          "name": "plan",
+          "label": "Kế hoạch xử lý",
+          "type": "text"
+        },
+        {
+          "name": "trigger",
+          "label": "Dấu hiệu",
+          "type": "text"
+        },
+        {
+          "name": "status",
+          "label": "Trạng thái",
+          "type": "enum",
+          "options": [
+            "open",
+            "issue",
+            "closed"
+          ],
+          "indexed": true
+        },
+        {
+          "name": "reviewed_on",
+          "label": "Soát lần cuối",
+          "type": "date"
+        },
+        {
+          "name": "tags",
+          "label": "Tag",
+          "type": "tags"
+        }
+      ]
+    }
+  ]
+}

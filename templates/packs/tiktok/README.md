@@ -25,6 +25,8 @@ số liệu tuần bạn dán vào ──► đánh giá ──► bài học (l
 | Ý tưởng | "Cho mình 10 ý tưởng tuần này"; `#video-ideas` | Biên kịch viết, Soát nội dung lọc |
 | Làm video | "Làm video từ ý tưởng số 3, clip ở videos/…/raw"; `#make-video` | Biên kịch → Soát → Dựng video → Soát |
 | Cắt video dài | "Cắt podcast này thành 3 video ngắn"; `#repurpose` | Dựng video chép lời, Biên kịch chọn đoạn, Soát kiểm |
+| Duyệt đăng | Xem `final.mp4`, nói "ok đăng" | Chỉ khi Soát nội dung PASS **và** bạn đồng ý, video mới thành `approved` |
+| Thử A/B | "Thử hook kiểu câu hỏi với kiểu kết quả trước"; `#ab-test` | Biên kịch viết hai phương án, Soát nội dung soát cách thử và kết luận |
 | Đánh giá | Dán số liệu TikTok Studio; `#weekly-review` | Quản lý kênh đánh giá, Soát nội dung soát bài học |
 
 ## Agent
@@ -35,9 +37,10 @@ số liệu tuần bạn dán vào ──► đánh giá ──► bài học (l
 
 ## Dữ liệu
 - `ideas`: ý tưởng, hook, định dạng, nguồn trend, điểm.
-- `videos`: mỗi video từ nháp tới đã đăng, link, lượt xem, thời gian xem, tỷ lệ xem hết, chia sẻ, lưu, follow.
+- `videos`: mỗi video từ nháp tới đã đăng, kết quả soát và người duyệt (cửa duyệt đăng), link, lượt xem, thời gian xem, tỷ lệ xem hết, chia sẻ, lưu, follow.
 - `lessons`: bài học từ số liệu; gặp 3 lần thành quy tắc (bạn duyệt).
 - `trends`: trend, âm thanh, định dạng đang lên, có nguồn và ngày.
+- `experiments`: thang thử A/B qua các lần đăng (hook → ảnh bìa → caption → độ dài → giờ đăng), mỗi lần một yếu tố, kết luận có số.
 
 Cách viết ở skill `hooks-scripts`; dựng ở `production`; soát ở `guidelines`; số liệu và bài học ở `analytics`.
 

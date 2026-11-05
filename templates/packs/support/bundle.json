@@ -1,0 +1,13 @@
+{
+  "title": "Chăm sóc khách hàng",
+  "description": "Một shop hoặc dịch vụ trả lời khách với ba agent: Trưởng CSKH giữ chính sách và kho câu trả lời, Trả lời khách trả lời ticket, Soát câu trả lời soát và chấm chất lượng. Bật sẵn gói Chăm sóc khách hàng của office.",
+  "packs": [
+    {
+      "key": "",
+      "title": "Chăm sóc khách hàng",
+      "description": "Hộp thư ticket từ bot Discord/Telegram, form web, Crisp, email → trả lời từ kho câu trả lời và chính sách (nguồn mới chờ duyệt) → ca khó soạn nháp có soát, hoàn tiền/khiếu nại chuyển chủ shop quyết → câu hỏi lặp lại thành playbook hằng tuần → chấm chất lượng, loại case đủ tốt mới đề nghị tự gửi. Ba lịch, tắt sẵn.",
+      "file": "office.pack.json",
+      "root": true
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "title": "Nghiên cứu",
+  "description": "Nghiên cứu một câu hỏi tới nơi tới chốn với bốn agent: làm rõ câu hỏi, tìm và chấm nguồn, tổng hợp có trích dẫn, kiểm chứng độc lập trước khi bạn đọc.",
+  "packs": [
+    {
+      "key": "",
+      "title": "Nghiên cứu",
+      "description": "Câu hỏi → kế hoạch câu hỏi con → nguồn gốc có ngày và độ tin cậy → phát hiện có trích dẫn → báo cáo trả lời trước → kiểm chứng trên model khác hãng. Thêm kiểm chứng một khẳng định, quét thị trường/đối thủ, bản tin chủ đề theo dõi và sổ ghi chép theo chủ đề trong `notes/`. Hai lịch, tắt sẵn.",
+      "file": "office.pack.json",
+      "root": true
+    }
+  ]
+}

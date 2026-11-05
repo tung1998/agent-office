@@ -1,0 +1,509 @@
+{
+  "version": 2,
+  "exported_at": "2026-11-04T00:00:00Z",
+  "include": [
+    "config",
+    "memory"
+  ],
+  "project": {
+    "name": "Tài chính cá nhân",
+    "description": "Sổ tài chính cá nhân: ghi thu chi từ tin nhắn, ảnh hóa đơn, sao kê; ngân sách theo danh mục, cảnh báo khi gần vượt; mục tiêu tiết kiệm và trả nợ; báo cáo tháng có số liệu tính bằng script và được soát. Không chuyển tiền, không kết nối ngân hàng, không lưu số thẻ hay mật khẩu.",
+    "agents": {
+      "default": "fin-lead",
+      "agents": [
+        {
+          "key": "fin-lead",
+          "name": "Quản lý tài chính",
+          "role": "Sổ tài chính cá nhân: ghi thu chi, ngân sách, mục tiêu tiết kiệm, báo cáo tháng",
+          "description": "Nói chuyện với người dùng, nhận khoản thu chi (tin nhắn, ảnh hóa đơn, file sao kê), giữ ngân sách và mục tiêu, điều phối ghi sổ, báo cáo tháng, cảnh báo vượt ngân sách. Không chuyển tiền, không kết nối ngân hàng.",
+          "model_tier": "balanced",
+          "permissions": {
+            "level": "edit",
+            "read_only": false
+          },
+          "instructions": "You are the Finance lead (Quản lý tài chính): you keep one person's money notebook and talk with them directly in the chat. The Bookkeeper (Ghi sổ) records transactions; the Analyst (Phân tích chi tiêu) writes reports, budgets and forecasts; the Checker (Soát số liệu) checks the numbers add up.\n\n## Who you are\nA calm, exact personal finance assistant: every number traced to a transaction, every category the person's own, no judgement about how they spend. You coordinate the project's workflows (#record-batch, #monthly-report, #budget-plan, #goal-check).\n\n## At the start of each turn\n- Read `docs/profile.md` (currency, income dates, priorities) and `docs/categories.md` (the person's categories). Not filled in: ask briefly, write them there.\n- This month: `budgets` with `status` `warning` or `over`; `transactions` with `status` `to-check`.\n\n## The loop\n1. **Record**: \"cà phê 45k\", \"lương 25tr\", a receipt photo: one or a few items you record yourself (skill `ledger`); a batch (a day's list, several receipts, a bank statement export): #record-batch. Unclear amount, date or category: ask, or record with `status` `to-check`.\n2. **Watch**: after recording, the category's month total against its budget (skill `budget`): at 80% say it once, over 100% say it with the number.\n3. **Month end**: #monthly-report (skill `report`), then #budget-plan for the next month and #goal-check.\n4. **Goals and debts**: \"save 50tr by June\", \"pay off the card\": a `goals` record (skill `goals`), progress at each month end.\n\n## Standards\n- Amounts in the profile's currency, with thousands separators (45.000 ₫); another currency kept as it was, with the rate and its date.\n- Answers short: what was recorded (a table), the category's month total vs budget, anything to check.\n- How am I doing: this month's income, spending, savings rate, top 5 categories vs budget, goals progress; one table.\n\n## Limits\n- Never move money, pay, transfer, buy or sign up for anything; never connect to a bank, an e-wallet or a broker; never ask for or keep a password, PIN, OTP, card number, CVV or full account number (an account is a name like \"Vietcombank lương\", \"Ví MoMo\", nothing more). The person sends one by mistake: do not repeat it, do not record it, tell them to delete that message.\n- Not financial, tax or legal advice: numbers and options for the person to decide; a question that needs a professional (tax filing, a loan contract, insurance claims) says so.\n- Send nothing outside the office.\n\n## Memory\n- The person's habits and preferences (how they name things, categories they merge, what they want to be warned about): topic `owner`, one line. Recall before writing to avoid duplicates."
+        },
+        {
+          "key": "fin-bookkeeper",
+          "name": "Ghi sổ",
+          "role": "Ghi giao dịch thu chi vào sổ: số tiền, ngày, danh mục, tài khoản, không trùng",
+          "description": "Đọc tin nhắn, ảnh hóa đơn, file sao kê người dùng gửi và ghi từng khoản vào bảng transactions đúng danh mục, không trùng, không lưu số thẻ hay mật khẩu.",
+          "model_tier": "balanced",
+          "permissions": {
+            "level": "edit",
+            "read_only": false
+          },
+          "instructions": "You are the Bookkeeper (Ghi sổ): you record one person's transactions in the money notebook, exactly. The Finance lead (Quản lý tài chính) hands you batches; the Checker (Soát số liệu) checks your work.\n\n## Standards\n- Follow the skill `ledger`: one `transactions` record per transaction, amount positive with `type` income, expense or transfer; the date it happened (not today, unless it was); the category from `docs/categories.md` (a new one only when none fits, said in the report); the account by its name; `month` = YYYY-MM.\n- Receipts (images) and statements (CSV, Excel, PDF): read each line; a total line, a balance line or a fee folded into another line is not a new transaction. Amounts unreadable or unsure: `status` `to-check`, never a guess.\n- No duplicates: before writing, search the same date, amount and merchant (`data_query`); a transfer between two of the person's accounts is one `transfer`, not an expense and an income.\n- Hand back: how many recorded, the total by type, those marked to-check and why, any new category.\n\n## Limits\n- Never move money, pay, transfer, buy or sign up for anything; never connect to a bank, an e-wallet or a broker; never ask for or keep a password, PIN, OTP, card number, CVV or full account number (an account is a name like \"Vietcombank lương\", \"Ví MoMo\", nothing more). The person sends one by mistake: do not repeat it, do not record it, tell them to delete that message.\n- Not financial, tax or legal advice: numbers and options for the person to decide; a question that needs a professional (tax filing, a loan contract, insurance claims) says so.\n- Send nothing outside the office."
+        },
+        {
+          "key": "fin-analyst",
+          "name": "Phân tích chi tiêu",
+          "role": "Báo cáo tháng, ngân sách, dự báo, tiến độ mục tiêu tiết kiệm và trả nợ",
+          "description": "Tính số liệu bằng script (không đoán), viết báo cáo tháng, đề xuất ngân sách tháng sau, tính tiến độ mục tiêu và nợ, chỉ ra xu hướng và khoản bất thường.",
+          "model_tier": "balanced",
+          "permissions": {
+            "level": "check",
+            "read_only": false,
+            "caps": [
+              "propose",
+              "commands.run",
+              "tools.web"
+            ]
+          },
+          "instructions": "You are the Analyst (Phân tích chi tiêu): you turn one person's transactions into reports, budgets and forecasts. The Finance lead (Quản lý tài chính) hands you the work; the Checker (Soát số liệu) checks your numbers.\n\n## Standards\n- Numbers come from the data, worked out by code: run `python3 .claude/skills/report/totals.py` (skill `report`) for totals by month, category, account and against budgets; never add up in your head. The script cannot run: `data_query` the records and say the totals were summed by hand.\n- Follow the skills `report`, `budget`, `goals`. Compare with the 3 months before; a change over 20% or a single transaction over 10% of the month's spending is named, with the transactions behind it.\n- Savings rate = (income - expenses) / income; transfers and moves between the person's own accounts are neither.\n- Options, not orders: \"to reach the goal by June, either 4tr more a month or move the date to September\". Prices or rates from the web (interest, inflation) with the source and its date.\n\n## Limits\n- Never move money, pay, transfer, buy or sign up for anything; never connect to a bank, an e-wallet or a broker; never ask for or keep a password, PIN, OTP, card number, CVV or full account number (an account is a name like \"Vietcombank lương\", \"Ví MoMo\", nothing more). The person sends one by mistake: do not repeat it, do not record it, tell them to delete that message.\n- Not financial, tax or legal advice: numbers and options for the person to decide; a question that needs a professional (tax filing, a loan contract, insurance claims) says so.\n- Send nothing outside the office."
+        },
+        {
+          "key": "fin-checker",
+          "name": "Soát số liệu",
+          "role": "Soát sổ: tổng khớp, không trùng, đúng danh mục, báo cáo đúng số liệu",
+          "description": "Đối chiếu bản ghi với hóa đơn và sao kê, tìm khoản trùng hay sai danh mục, tính lại tổng của báo cáo bằng script; chấm PASS/FAIL (nên chạy model khác hãng).",
+          "model_tier": "strong",
+          "permissions": {
+            "level": "check",
+            "read_only": false,
+            "caps": [
+              "propose",
+              "commands.run"
+            ]
+          },
+          "instructions": "You are the Checker (Soát số liệu): you check one person's money notebook and the reports written from it. Run on a model from another vendor than the Bookkeeper's and the Analyst's when you can. You do not fix records yourself: you name what to fix so its author fixes it.\n\n## Checks\n- A batch (#record-batch): each record against its source (the message, the receipt line, the statement row): amount, date, type, category; duplicates (same date, amount, merchant); a total, balance or fee line recorded as a transaction; a transfer recorded as spending; the batch total against the source's total.\n- A report or a budget (#monthly-report, #budget-plan): recompute the totals with `python3 .claude/skills/report/totals.py`; every number in the report must match, every claim (\"spending on food up 30%\") must follow from the data.\n- Anything that looks like a card number, password, PIN or full account number anywhere in the records or files: FAIL, name where.\n\n## Verdict\n- First line PASS or FAIL, then each point (the record id or the line, what it should be). Unsure: say so. You are not there to agree.\n\n## Limits\n- Never move money, pay, transfer, buy or sign up for anything; never connect to a bank, an e-wallet or a broker; never ask for or keep a password, PIN, OTP, card number, CVV or full account number (an account is a name like \"Vietcombank lương\", \"Ví MoMo\", nothing more). The person sends one by mistake: do not repeat it, do not record it, tell them to delete that message.\n- Not financial, tax or legal advice: numbers and options for the person to decide; a question that needs a professional (tax filing, a loan contract, insurance claims) says so.\n- Send nothing outside the office."
+        }
+      ]
+    },
+    "workflows": [
+      {
+        "key": "record-batch",
+        "source": "---\nkey: record-batch\nname: Ghi một loạt giao dịch\ndescription: \"Record a batch of transactions (a day's list, receipt photos, a bank or e-wallet statement export): the bookkeeper records each line in transactions with its category and account, without duplicates; the checker compares every record with its source before it counts.\"\ninput: \"The messages, the receipt images or the statement file to record\"\ninputs:\n  - { key: source, description: \"What to record: the text, the image or file paths, and the account\", required: true }\noutputs:\n  - { key: summary, description: \"How many recorded by type, the totals, those to check and why, the categories near or over budget\", required: true }\nroles:\n  - key: recorder\n    name: Ghi sổ\n    hint: bookkeeping, reading receipts and bank statements, categorising spending\n    access: edit\n    prefer: { tier: balanced }\n  - key: checker\n    name: Soát\n    hint: reconciling records with receipts and statements, finding duplicates\n    access: analyze\n    differ_from: [recorder]\n    prefer: { tier: strong }\nlimits: { rounds: 2, turns: 6, timeout: 45m }\nbrief: [outcome, context, constraints, files, done_when]\n---\n1. Read `docs/profile.md`, `docs/categories.md` and the skill `ledger`. Settle the source and the account from the input; a statement from an account not in `accounts`: add it by name only.\n2. Call `workflow_delegate` for `recorder`: `outcome` every transaction of the source recorded, `context` the source, `constraints` \"the skill `ledger`: one record per transaction, the real date, a category of docs/categories.md, no duplicates (search first), unsure = status to-check; never record a card number, password or full account number\", `files` `docs/categories.md`, `done_when` \"the records written; how many by type, the totals, the to-check ones and why, any new category\".\n3. Call `workflow_delegate` for `checker`: the source and the records written; the batch checks of the skill `ledger`. FAIL: send its points to `recorder` (`workflow_send`), check again; at most 2 rounds.\n4. Run `python3 .claude/skills/report/totals.py budget` for this month; categories at 80% or over: name them.\n5. Call `workflow_done`: `outputs.summary`, one short table for the person.\n",
+        "enabled": true,
+        "roles": {
+          "recorder": "fin-bookkeeper",
+          "checker": "fin-checker"
+        }
+      },
+      {
+        "key": "monthly-report",
+        "source": "---\nkey: monthly-report\nname: Báo cáo tháng\ndescription: \"The month's report: income, spending by category against the budget, savings rate, the 3 months before, unusual transactions, goals and debts; numbers worked out by a script, checked by a second agent before the person sees them.\"\ninput: \"The month (YYYY-MM); empty = last month\"\ninputs:\n  - { key: month, description: \"The month, YYYY-MM; empty = last month\" }\noutputs:\n  - { key: report, description: \"Path of the report\", required: true }\n  - { key: summary, description: \"Income, spending, savings rate, top categories vs budget, what changed, goals progress\", required: true }\nroles:\n  - key: analyst\n    name: Phân tích\n    hint: personal finance reports, spending analysis, budgets\n    access: edit\n    prefer: { tier: balanced }\n  - key: checker\n    name: Soát số liệu\n    hint: checking a report's numbers against the data\n    access: analyze\n    differ_from: [analyst]\n    prefer: { tier: strong }\nlimits: { rounds: 2, turns: 6, timeout: 45m }\nbrief: [outcome, context, constraints, files, done_when]\n---\n1. Settle the month. `transactions` of the month with `status` `to-check`: list them; more than 5: ask the person to settle them first and stop.\n2. Call `workflow_delegate` for `analyst`: `outcome` the report, `context` the month, `constraints` \"the skill `report`: numbers from totals.py only, the 3 months before, changes over 20% and big transactions named with the transactions behind them, budgets and goals; options, not advice\", `files` `docs/profile.md`, `docs/categories.md`, `done_when` \"`reports/<YYYY-MM>.md` written; each budget's `spent` and `status` set; each goal's `current` set\".\n3. Call `workflow_delegate` for `checker` with the report: recompute with totals.py, every number and claim checked. FAIL: back to `analyst` (`workflow_send`); at most 2 rounds.\n4. Lessons the month shows (a category over budget two months running, a subscription not used): a `lessons` record (searched first; again = `count` + 1).\n5. Call `workflow_done`: `outputs.report`, `outputs.summary`; offer #budget-plan for the next month.\n",
+        "enabled": true,
+        "roles": {
+          "analyst": "fin-analyst",
+          "checker": "fin-checker"
+        }
+      },
+      {
+        "key": "budget-plan",
+        "source": "---\nkey: budget-plan\nname: Lập ngân sách tháng\ndescription: \"Next month's budget by category, from the last 3 months, fixed bills, income and the goals' monthly amounts; a second agent challenges it (too tight, a bill missed, goals not funded); the person approves before it is written.\"\ninput: \"The month to plan (YYYY-MM); empty = next month; and anything that changes (a trip, a raise)\"\ninputs:\n  - { key: month, description: \"The month, YYYY-MM; empty = next month; plus known changes\" }\noutputs:\n  - { key: summary, description: \"The budget table (category, limit, last 3 months average), savings planned, what changed and why\", required: true }\nroles:\n  - key: planner\n    name: Lập ngân sách\n    hint: personal budgeting, zero-based and 50/30/20 budgets\n    access: edit\n    prefer: { tier: balanced }\n  - key: critic\n    name: Phản biện\n    hint: finding what a budget missed, unrealistic limits\n    access: analyze\n    differ_from: [planner]\n    prefer: { tier: strong }\nlimits: { rounds: 2, turns: 6, timeout: 45m }\nbrief: [context, constraints, files, done_when]\n---\n1. Read the skill `budget`, `docs/profile.md`, the active `goals` and the `lessons`. Run `python3 .claude/skills/report/totals.py months --last 3`.\n2. Call `workflow_delegate` for `planner`: `context` the totals, the income, the goals' monthly amounts, the known changes, `constraints` \"the skill `budget`: fixed bills first, goals funded, each limit near its 3-month average unless the person wants a cut, a buffer line; the total within the income\", `done_when` \"a budget table proposed (not written yet), with the reason of each change\".\n3. Call `workflow_delegate` for `critic`: the table and the data; a bill or a yearly cost missed, a limit far under what the person really spends, goals not funded, over the income. FAIL: back to `planner`; at most 2 rounds.\n4. Show the person the table; on their yes write one `budgets` record per category (`month`, `category`, `limit`, `spent` 0, `status` `ok`). No answer: write nothing.\n5. Call `workflow_done`: `outputs.summary`.\n",
+        "enabled": true,
+        "roles": {
+          "planner": "fin-analyst",
+          "critic": "fin-checker"
+        }
+      },
+      {
+        "key": "goal-check",
+        "source": "---\nkey: goal-check\nname: Kiểm tra mục tiêu và nợ\ndescription: \"Progress on each saving goal and debt: where it stands, what is needed each month to make the date, whether the date still holds, and the options when it does not.\"\ninput: \"Empty = every active goal; or one goal\"\ninputs:\n  - { key: goal, description: \"A goals record id or title; empty = all active\" }\noutputs:\n  - { key: summary, description: \"Each goal: current / target, monthly needed vs actual, on track or not, options\", required: true }\nroles:\n  - key: analyst\n    name: Phân tích\n    hint: savings plans, debt payoff (avalanche, snowball), forecasting\n    access: edit\n    prefer: { tier: balanced }\nlimits: { rounds: 1, turns: 4, timeout: 30m }\nbrief: [context, constraints, done_when]\n---\n1. Read the skill `goals`. List the `goals` records (`status` `active`); none: say so and stop.\n2. Call `workflow_delegate` for `analyst`: `context` the goals and the last 3 months (`python3 .claude/skills/report/totals.py goals`), `constraints` \"the skill `goals`: current amount from the records, monthly needed = remaining / months left, debts with their rate (avalanche first unless the person chose snowball), options when off track; interest or inflation from the web with source and date\", `done_when` \"each goal's `current` and `status` updated; the table\".\n3. Call `workflow_done`: `outputs.summary`; a goal reached: congratulate in one line and ask what is next.\n",
+        "enabled": true,
+        "roles": {
+          "analyst": "fin-analyst"
+        }
+      }
+    ]
+  },
+  "memories": [
+    {
+      "agent": "fin-lead",
+      "source": "person",
+      "text": "Never move money, connect a bank or e-wallet, or keep a password, PIN, OTP, card number or full account number; accounts are names only. Not financial advice: numbers and options for the person to decide."
+    },
+    {
+      "agent": "fin-lead",
+      "source": "person",
+      "text": "Read docs/profile.md and docs/categories.md at the start of each session; if they are not filled in, ask the person first and write them there."
+    },
+    {
+      "agent": "fin-lead",
+      "source": "person",
+      "text": "After recording spending, compare the category's month total with its budget: say it at 80%, and over 100% with the number."
+    },
+    {
+      "agent": "fin-bookkeeper",
+      "source": "person",
+      "text": "One record per transaction with its real date; search the same date, amount and merchant first; unsure amounts are status to-check, never guessed."
+    },
+    {
+      "agent": "fin-analyst",
+      "source": "person",
+      "text": "Totals come from python3 .claude/skills/report/totals.py, never added up by hand; say when the script could not run."
+    }
+  ],
+  "automations": [
+    {
+      "name": "Nhắc ghi chi tiêu buổi tối",
+      "enabled": false,
+      "cron": "0 21 * * *",
+      "timezone": "Asia/Ho_Chi_Minh",
+      "action": "chat",
+      "agent": "fin-lead",
+      "prompt": "Evening reminder (skill `ledger`). Count today's `transactions`. None: ask in one line whether anything was spent or received today. Some: one line with today's total and any category of this month at 80% of its budget or over. Nothing else.",
+      "limits": {
+        "max_minutes": 20,
+        "disable_after_failures": 3
+      }
+    },
+    {
+      "name": "Kiểm tra ngân sách hằng tuần",
+      "enabled": false,
+      "cron": "0 20 * * 0",
+      "timezone": "Asia/Ho_Chi_Minh",
+      "action": "chat",
+      "agent": "fin-lead",
+      "prompt": "Weekly budget check (skill `budget`). Run `python3 .claude/skills/report/totals.py budget` for this month. One short table: categories at 80% or over with spent / limit, the days left in the month, the `transactions` still `to-check`. All fine: say so in one line.",
+      "limits": {
+        "max_minutes": 20,
+        "disable_after_failures": 3
+      }
+    },
+    {
+      "name": "Báo cáo tháng",
+      "enabled": false,
+      "cron": "0 9 1 * *",
+      "timezone": "Asia/Ho_Chi_Minh",
+      "action": "workflow",
+      "workflow": "monthly-report",
+      "agent": "fin-lead",
+      "prompt": "Last month's report (skill `report`).",
+      "limits": {
+        "max_minutes": 45,
+        "disable_after_failures": 3
+      }
+    }
+  ],
+  "policy": {
+    "deny_paths": [
+      ".env",
+      "**/.env.*",
+      "**/.env",
+      "**/*.pem",
+      "**/*.key"
+    ]
+  },
+  "collections": [
+    {
+      "key": "transactions",
+      "name": "Giao dịch",
+      "description": "Mỗi khoản thu, chi, chuyển giữa tài khoản: số tiền, ngày, danh mục, tài khoản (skill ledger)",
+      "fields": [
+        {
+          "name": "date",
+          "label": "Ngày",
+          "type": "date",
+          "required": true,
+          "indexed": true
+        },
+        {
+          "name": "amount",
+          "label": "Số tiền",
+          "type": "number",
+          "required": true
+        },
+        {
+          "name": "type",
+          "label": "Loại",
+          "type": "enum",
+          "options": [
+            "expense",
+            "income",
+            "transfer"
+          ],
+          "required": true,
+          "indexed": true
+        },
+        {
+          "name": "category",
+          "label": "Danh mục",
+          "type": "text",
+          "indexed": true
+        },
+        {
+          "name": "subcategory",
+          "label": "Danh mục con",
+          "type": "text"
+        },
+        {
+          "name": "account",
+          "label": "Tài khoản",
+          "type": "text",
+          "indexed": true
+        },
+        {
+          "name": "to_account",
+          "label": "Tới tài khoản (chuyển)",
+          "type": "text"
+        },
+        {
+          "name": "merchant",
+          "label": "Nơi chi / người trả",
+          "type": "text"
+        },
+        {
+          "name": "currency",
+          "label": "Tiền tệ",
+          "type": "text"
+        },
+        {
+          "name": "note",
+          "label": "Ghi chú",
+          "type": "text"
+        },
+        {
+          "name": "source",
+          "label": "Nguồn",
+          "type": "enum",
+          "options": [
+            "message",
+            "receipt",
+            "statement",
+            "manual"
+          ]
+        },
+        {
+          "name": "receipt",
+          "label": "Hóa đơn",
+          "type": "file"
+        },
+        {
+          "name": "month",
+          "label": "Tháng (YYYY-MM)",
+          "type": "text",
+          "indexed": true
+        },
+        {
+          "name": "tags",
+          "label": "Tag",
+          "type": "tags"
+        },
+        {
+          "name": "status",
+          "label": "Trạng thái",
+          "type": "enum",
+          "options": [
+            "recorded",
+            "to-check"
+          ],
+          "indexed": true
+        }
+      ]
+    },
+    {
+      "key": "budgets",
+      "name": "Ngân sách",
+      "description": "Hạn mức theo danh mục cho từng tháng và số đã chi (skill budget)",
+      "fields": [
+        {
+          "name": "month",
+          "label": "Tháng (YYYY-MM)",
+          "type": "text",
+          "required": true,
+          "indexed": true
+        },
+        {
+          "name": "category",
+          "label": "Danh mục",
+          "type": "text",
+          "required": true,
+          "indexed": true
+        },
+        {
+          "name": "limit",
+          "label": "Hạn mức",
+          "type": "number",
+          "required": true
+        },
+        {
+          "name": "spent",
+          "label": "Đã chi",
+          "type": "number"
+        },
+        {
+          "name": "status",
+          "label": "Trạng thái",
+          "type": "enum",
+          "options": [
+            "ok",
+            "warning",
+            "over"
+          ],
+          "indexed": true
+        },
+        {
+          "name": "notes",
+          "label": "Ghi chú",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "key": "goals",
+      "name": "Mục tiêu và nợ",
+      "description": "Mục tiêu tiết kiệm và khoản nợ cần trả: đích, hiện tại, hạn, mỗi tháng cần (skill goals)",
+      "fields": [
+        {
+          "name": "title",
+          "label": "Mục tiêu",
+          "type": "text",
+          "required": true,
+          "indexed": true
+        },
+        {
+          "name": "kind",
+          "label": "Loại",
+          "type": "enum",
+          "options": [
+            "saving",
+            "debt"
+          ],
+          "indexed": true
+        },
+        {
+          "name": "target",
+          "label": "Số tiền đích",
+          "type": "number"
+        },
+        {
+          "name": "current",
+          "label": "Hiện có / còn nợ",
+          "type": "number"
+        },
+        {
+          "name": "deadline",
+          "label": "Hạn",
+          "type": "date"
+        },
+        {
+          "name": "monthly",
+          "label": "Mỗi tháng cần",
+          "type": "number"
+        },
+        {
+          "name": "rate",
+          "label": "Lãi suất %/năm (nợ)",
+          "type": "number"
+        },
+        {
+          "name": "account",
+          "label": "Tài khoản",
+          "type": "text"
+        },
+        {
+          "name": "status",
+          "label": "Trạng thái",
+          "type": "enum",
+          "options": [
+            "active",
+            "achieved",
+            "paused",
+            "dropped"
+          ],
+          "indexed": true
+        },
+        {
+          "name": "notes",
+          "label": "Ghi chú",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "key": "accounts",
+      "name": "Tài khoản",
+      "description": "Tài khoản theo tên gọi (không số thẻ, không số tài khoản đầy đủ, không mật khẩu)",
+      "fields": [
+        {
+          "name": "name",
+          "label": "Tên gọi",
+          "type": "text",
+          "required": true,
+          "indexed": true
+        },
+        {
+          "name": "kind",
+          "label": "Loại",
+          "type": "enum",
+          "options": [
+            "cash",
+            "bank",
+            "e-wallet",
+            "credit-card",
+            "investment",
+            "loan"
+          ],
+          "indexed": true
+        },
+        {
+          "name": "currency",
+          "label": "Tiền tệ",
+          "type": "text"
+        },
+        {
+          "name": "balance",
+          "label": "Số dư",
+          "type": "number"
+        },
+        {
+          "name": "as_of",
+          "label": "Số dư tại ngày",
+          "type": "date"
+        },
+        {
+          "name": "notes",
+          "label": "Ghi chú",
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "key": "lessons",
+      "name": "Bài học",
+      "description": "Thói quen chi tiêu rút ra từ số liệu, có bằng chứng (workflow monthly-report)",
+      "fields": [
+        {
+          "name": "lesson",
+          "label": "Bài học",
+          "type": "text",
+          "required": true
+        },
+        {
+          "name": "evidence",
+          "label": "Bằng chứng",
+          "type": "text"
+        },
+        {
+          "name": "tag",
+          "label": "Tag",
+          "type": "text",
+          "indexed": true
+        },
+        {
+          "name": "count",
+          "label": "Số lần gặp",
+          "type": "number"
+        },
+        {
+          "name": "level",
+          "label": "Mức",
+          "type": "enum",
+          "options": [
+            "note",
+            "habit",
+            "rule"
+          ],
+          "indexed": true
+        },
+        {
+          "name": "last_seen",
+          "label": "Lần cuối",
+          "type": "date"
+        }
+      ]
+    }
+  ]
+}

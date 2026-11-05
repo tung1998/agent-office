@@ -1,0 +1,13 @@
+{
+  "title": "Blog và SEO",
+  "description": "Blog và SEO cho một website với bốn agent: Trưởng biên tập, Nghiên cứu từ khóa, Viết bài, Biên tập; bài nào cũng qua soát, chủ tự đăng.",
+  "packs": [
+    {
+      "key": "",
+      "title": "Blog và SEO",
+      "description": "Nghiên cứu từ khóa có nguồn (ý định, trang kết quả, khoảng trống, cụm chủ đề) → brief → bài viết chuẩn on-page có nguồn → biên tập soát → chủ đăng → soát hằng tháng từ Search Console → làm mới bài cũ. Có AEO (để AI trích dẫn). Hai lịch nhắc, tắt sẵn.",
+      "file": "office.pack.json",
+      "root": true
+    }
+  ]
+}

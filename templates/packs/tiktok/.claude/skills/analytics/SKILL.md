@@ -24,3 +24,12 @@ A table of the week's videos, the week against the last (views, average watch ti
 - Search `lessons` first: the same lesson again = `count` + 1. Held 3 times = `status` `rule`; propose the line for `docs/channel.md` or the skill it belongs to, for the creator to agree.
 - A lesson the numbers later contradict: `status` `dropped`, with why.
 - Good videos teach too: what worked, when it worked more than once.
+
+## 5. The A/B ladder (`experiments`, #ab-test)
+Test one thing at a time across posts, climbing a ladder, so each answer builds on the last:
+1. `hook` (the first 1-3 s: question, bold claim, result first…), metric `completion_pct` or `avg_watch_s`
+2. `cover` (the first frame / cover text), metric `views`
+3. `caption` (length, call to action), metric `comments` or `shares`
+4. `length` (e.g. 15-20 s vs 30-45 s), metric `completion_pct` and `avg_watch_s`
+5. `post_time`, metric `views` in the first 24 h
+Rules: A and B differ in that one thing only, same pillar and format, posted in the same week when possible; at least `min_posts` videos per side (3 when unsure); compare medians, and say `inconclusive` when the gap is within the spread of either side. TikTok shows each post to different viewers, so this is a comparison across posts, not a true split test: say so in the result. A winner becomes a lesson (section 4) with its numbers; the next rung starts from the winner.

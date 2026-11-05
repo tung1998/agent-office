@@ -1,0 +1,13 @@
+{
+  "title": "Ứng dụng di động",
+  "description": "Một ứng dụng di động với ba agent: Trưởng dự án viết spec và giữ backlog, Lập trình mobile làm theo test trước, Soát và kiểm thử mobile soát code và kiểm trên simulator/emulator.",
+  "packs": [
+    {
+      "key": "",
+      "title": "Ứng dụng di động",
+      "description": "Từ ý tưởng tới bản lên store: spec có tiêu chí chấp nhận theo nền tảng → làm tính năng (test trước) → soát diff và kiểm trên simulator/emulator (Maestro, Detox) → sửa lỗi có test tái hiện → kiểm tra trước khi lên store (phiên bản, quyền, nhãn quyền riêng tư, ảnh store). Bạn tự ký và tải lên TestFlight/Google Play. Ba lịch kiểm tra, tắt sẵn.",
+      "file": "office.pack.json",
+      "root": true
+    }
+  ]
+}

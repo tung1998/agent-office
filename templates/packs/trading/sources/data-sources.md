@@ -9,3 +9,4 @@ Phân tích viên ghi nguồn đã dùng ở đây (skill `analysis`): loại d�
 | Tin tức | cafef.vn, vnexpress.net/kinh-doanh, ndh.vn | reuters.com, cnbc.com | coindesk.com, theblock.co |
 | Dòng tiền | khối ngoại, tự doanh (cafef, vietstock) | short interest, options | funding, open interest (coinglass.com) |
 | Vĩ mô | sbv.gov.vn, gso.gov.vn | federalreserve.gov, bls.gov | — |
+| Giá lịch sử ngày tải CSV (kiểm định) | cafef.vn (lịch sử giá, xuất file), vietstock.vn | stooq.com, finance.yahoo.com (Historical Data) | coingecko.com, binance (data.binance.vision) |

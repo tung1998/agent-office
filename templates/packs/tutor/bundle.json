@@ -1,0 +1,13 @@
+{
+  "title": "Gia sư",
+  "description": "Một người học với bốn agent: Gia sư soạn bài từ tài liệu và giảng theo trình độ, Soạn bài tập viết bài luyện và đề thi thử, Chấm bài chấm và chạy code, Soát nội dung kiểm kiến thức và đáp án.",
+  "packs": [
+    {
+      "key": "",
+      "title": "Gia sư",
+      "description": "Gửi chương sách, slide, link, ảnh ghi chép → bài học theo trình độ, khái niệm vào sổ → bài luyện từ chỗ đến hạn và chỗ yếu (đáp án được soát) → chấm, chạy code bài lập trình, ghi lỗi sai → ôn theo hộp Leitner → lộ trình tới ngày thi, đề thi thử theo cấu trúc thật. Ba lịch học, tắt sẵn. Giải thích bài về nhà chứ không làm hộ.",
+      "file": "office.pack.json",
+      "root": true
+    }
+  ]
+}

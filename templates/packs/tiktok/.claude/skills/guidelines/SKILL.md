@@ -38,3 +38,9 @@ PASS | FAIL
 - [block|advice] <where: second or line> — <what is wrong> → <what it should be>
 ```
 Unsure of a rule after checking: say so; do not pass it as fine.
+
+## Publish gate
+A video is ready to post (`videos` status `approved`) only when both are recorded:
+1. **QA**: the Content checker's PASS on the final cut, in `qa_result` (and `qa_notes` for the advice). A FAIL, or a cut changed after the PASS, needs a new check.
+2. **The creator's yes**: they watched `final.mp4` and said yes in the chat; `approved_by` (who) and `approved_at` (date).
+Missing either: the status stays `checked` (or earlier), and nobody calls the video ready. The creator posts; office never does.
