@@ -1509,29 +1509,42 @@ func (e *Engine) run(ctx context.Context, turn *Turn, conv storage.Conversation,
 		}
 	}
 	if pl.tree != "" && !noPatch(wctx) { // a Burn item's changes are committed to its branch instead
-		// what the agent changed in its worktree, all pending changes in one diff
-		if pt, replaced, ok := e.treePatch(wctx, conv, msg.ID, pl.dir, pl.tree, policy); ok {
-			// a commit held for a replaced diff follows this one (ADR-189), before
-			// this diff is merged on its own (else it would wait before it)
-			e.carryDeferred(context.Background(), conv.ID, replaced, msg.ID, pt.Files)
+		// what the agent changed in its worktree, all pending changes in one diff;
+		// no Drain from elsewhere while the old diff gives way to the new one
+		func() {
+			defer e.holdDrain(conv.ID)()
+			pt, replaced, ok := e.treePatch(wctx, conv, msg.ID, pl.dir, pl.tree, policy)
+			if !ok {
+				return
+			}
 			held := false
 			if pt.Status == "" && acc.Can(perm.CapApply) { // merged with no person: checked first (ADR-222)
 				held = e.mergeCheck(wctx, turn, policy, pl.dir, &pt)
 			} else if leak := verify.Secrets(pl.dir, pt.Files); leak != "" { // a person approves it: they see it first (ADR-227)
 				pt.Detail = lines(leak, pt.Detail)
 			}
+			if beforePatchSave != nil {
+				beforePatchSave(conv.ID)
+			}
 			saved, err := e.store.Chat().AddPatch(context.Background(), pt)
-			if err == nil && saved.Status == "pending" && acc.Can(perm.CapApply) && !held {
+			if err != nil {
+				return
+			}
+			// a commit held for a replaced diff follows this one (ADR-189), once it
+			// is saved and before it is merged on its own (else it would wait
+			// before it, or run with nothing before it)
+			e.carryDeferred(context.Background(), conv.ID, replaced, msg.ID, pt.Files)
+			// a diff that can't be merged takes the commits held for it along
+			e.dropHeldFor(context.Background(), saved, saved.Status, saved.Detail, "office", time.Now().UTC())
+			if saved.Status == "pending" && acc.Can(perm.CapApply) && !held {
 				saved = e.autoApply(conv, turn.JobID, agent.Name, level, saved)
 			}
-			if err == nil {
-				pd := toPatchDTO(saved)
-				seq++
-				pd.Seq = seq
-				dto.Patches = append(dto.Patches, pd)
-				turn.emit(Event{Type: "patch", Patch: &pd})
-			}
-		}
+			pd := toPatchDTO(saved)
+			seq++
+			pd.Seq = seq
+			dto.Patches = append(dto.Patches, pd)
+			turn.emit(Event{Type: "patch", Patch: &pd})
+		}()
 	} else if pl.mode == "" && perm.AtLeast(level, perm.Propose) && project.Path != "" {
 		for _, diff := range ExtractPatches(res.Text) {
 			pt := storage.Patch{ConversationID: conv.ID, MessageID: msg.ID, TaskID: conv.TaskID, Diff: diff}
@@ -2011,6 +2024,9 @@ func (e *Engine) DecidePatch(ctx context.Context, patchID string, approve bool) 
 		return PatchDTO{}, err
 	}
 	p.Status, p.Detail, p.DecidedBy, p.DecidedAt = status, detail, who, &now
+	// a commit held for it goes with it: a person's later cards and a step
+	// waiting for the merge do not wait for it any more (ADR-189)
+	e.dropHeldFor(ctx, p, status, detail, who, now)
 	return toPatchDTO(p), nil
 }
 
@@ -2227,10 +2243,13 @@ func (e *Engine) ProposeTree(ctx context.Context, conversationID, dir, tree stri
 			messageID = msgs[i].ID
 		}
 	}
+	defer e.holdDrain(conv.ID)() // as a turn's diff: no Drain while the old one gives way
 	if pt, replaced, ok := e.treePatch(ctx, conv, messageID, dir, tree, perm.LoadPolicy(ctx, e.store, conv.ProjectID)); ok {
-		_, err = e.store.Chat().AddPatch(ctx, pt)
+		var saved storage.Patch
+		saved, err = e.store.Chat().AddPatch(ctx, pt)
 		if err == nil {
 			e.carryDeferred(ctx, conv.ID, replaced, messageID, pt.Files)
+			e.dropHeldFor(ctx, saved, saved.Status, saved.Detail, "office", time.Now().UTC())
 		}
 	}
 	return err

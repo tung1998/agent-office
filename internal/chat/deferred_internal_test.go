@@ -4,6 +4,7 @@ import (
 	"context"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/tung1998/agent-office/internal/storage"
 	"github.com/tung1998/agent-office/internal/storage/sqlite"
@@ -46,5 +47,27 @@ func TestCarryDeferredNewerCommitWins(t *testing.T) {
 	}
 	if a, _ := st.Actions().Get(ctx, newer.ID); a.Status != "pending" || len(a.Args.Files) != 1 {
 		t.Fatalf("the newer commit changed: %+v", a)
+	}
+
+	// a rejected diff: a commit naming files beyond it keeps those only; one of
+	// another answer, or a diff merged, is left alone
+	wide, _ := st.Actions().Create(ctx, storage.Action{ProjectID: p.ID, ConversationID: conv.ID, MessageID: "m3", Kind: "git_commit", Target: "w", Status: "pending",
+		Args: storage.ActionArgs{Message: "w", Files: []string{"a.go", "docs/x.md"}, AfterDiff: true}})
+	narrow, _ := st.Actions().Create(ctx, storage.Action{ProjectID: p.ID, ConversationID: conv.ID, MessageID: "m3", Kind: "git_commit", Target: "n", Status: "queued",
+		Args: storage.ActionArgs{Message: "n", Files: []string{"a.go"}, AfterDiff: true}})
+	diff := storage.Patch{ConversationID: conv.ID, MessageID: "m3", Files: []string{"a.go"}}
+	e.dropHeldFor(ctx, diff, "applied", "", "human:a", time.Now())
+	if a, _ := st.Actions().Get(ctx, narrow.ID); a.Status != "queued" {
+		t.Fatalf("a merged diff dropped its commit: %+v", a)
+	}
+	e.dropHeldFor(ctx, diff, "rejected", "", "human:a", time.Now())
+	if a, _ := st.Actions().Get(ctx, wide.ID); a.Status != "pending" || len(a.Args.Files) != 1 || a.Args.Files[0] != "docs/x.md" {
+		t.Fatalf("wide commit = %+v", a)
+	}
+	if a, _ := st.Actions().Get(ctx, narrow.ID); a.Status != "rejected" || a.DecidedBy != "human:a" {
+		t.Fatalf("narrow commit = %+v", a)
+	}
+	if a, _ := st.Actions().Get(ctx, other.ID); a.Status != "pending" {
+		t.Fatalf("another answer's commit changed: %+v", a)
 	}
 }

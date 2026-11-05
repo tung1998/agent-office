@@ -259,9 +259,7 @@ func (e *Engine) Drain(conversationID string) {
 	if e.queueRun == nil || conversationID == "" {
 		return
 	}
-	mu, _ := e.draining.LoadOrStore(conversationID, &sync.Mutex{})
-	mu.(*sync.Mutex).Lock()
-	defer mu.(*sync.Mutex).Unlock()
+	defer e.holdDrain(conversationID)()
 	ctx := context.Background()
 	for range 100 {
 		list, err := e.waiting(ctx, conversationID)
@@ -277,6 +275,22 @@ func (e *Engine) Drain(conversationID string) {
 		}
 	}
 }
+
+// holdDrain keeps Drain off a chat until the returned func is called: while
+// a turn replaces its diff (the old one rejected, the commits held for it
+// carried, the new one saved), a Drain in between would see a queued commit
+// with nothing before it and run it ahead of its diff (ADR-189). Never call
+// Drain while holding it.
+func (e *Engine) holdDrain(conversationID string) func() {
+	mu, _ := e.draining.LoadOrStore(conversationID, &sync.Mutex{})
+	m := mu.(*sync.Mutex)
+	m.Lock()
+	return m.Unlock
+}
+
+// beforePatchSave (tests only) runs once a turn's new diff is made, before
+// it is saved: where a Drain from elsewhere could slip in.
+var beforePatchSave func(conversationID string)
 
 // GetPatchDTO is a diff as a card shows it.
 func (e *Engine) GetPatchDTO(ctx context.Context, id string) (PatchDTO, error) {
