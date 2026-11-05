@@ -1,16 +1,17 @@
 <script setup lang="ts">
 // Settings › Theme: the default look, the color themes, the person's own
-// colors (three, and muted text, surfaces and borders if they like, each with
-// its contrast), the live wallpapers, and a background of their own with
-// colors worked out from it (useTheme, utils/backdropColors).
-import type { MessageKey } from '~/locales/vi'
-import { COLOR_THEMES, WALLPAPER_THEMES, wallGlassFloor, DEFAULT_CUSTOM, EXTRA_COLORS, autoColors, contrast, isHex, type ExtraColor, type Theme, type ThemeColors } from '~/utils/themes'
+// three colors, and the live wallpapers with how they move (useTheme).
 import { BG_MAX, GLASS_MIN, backdropFloor, backdropGlass, backdropSrc, bgKind, bgVersion, type BgItem } from '~/composables/useTheme'
 import { suggestColors } from '~/utils/backdropColors'
+import type { WallLook } from '~/composables/useTheme'
+import { MEDIA_BACKGROUNDS, mediaFileKind, validMediaSource, type MediaBackground } from '~/utils/backgrounds'
+import { storeBackgroundFile, removeBackgroundFile } from '~/utils/localBackground'
+import type { MessageKey } from '~/locales/vi'
+import { COLOR_THEMES, WALLPAPER_THEMES, wallGlassFloor, DEFAULT_CUSTOM, EXTRA_COLORS, autoColors, contrast, isHex, type ExtraColor, type ThemeColors, type Theme } from '~/utils/themes'
 
 const { t } = useLang()
 const toast = useToast()
-const { saved, theme, look, library, setWallGlass, previewWallGlass, setTheme, setCustom, setLook, loadLibrary, pickBackground, setBackground, clearBackground, deleteBackground, sampleSaved, setGlass, previewGlass } = useTheme()
+const { saved, theme, look, background, saving, setTheme, setCustom, setLook, library, loadLibrary, pickBackground, deleteBackground, setWallGlass, previewWallGlass, setMediaBackground, setBackground, clearBackground, sampleSaved, setGlass, previewGlass, previewLook } = useTheme()
 const colorMode = useColorMode()
 const custom = reactive<ThemeColors>({ ...DEFAULT_CUSTOM, ...saved.value.custom })
 const auto = computed(() => autoColors(custom))
@@ -33,7 +34,7 @@ async function run(p: Promise<void>) {
     toast.add({ title: apiError(e), color: 'error' })
   }
 }
-const pick = (id: string) => saved.value.id !== id && run(setTheme(id))
+const pick = (id: string) => (saved.value.id !== id || background.value) && run(setTheme(id))
 function pickColor(k: ColorKey, v: string) {
   custom[k] = v
   if (isHex(v)) run(setCustom({ ...custom }))
@@ -42,8 +43,47 @@ function autoColor(k: ExtraColor) {
   delete custom[k]
   run(setCustom({ ...custom }))
 }
-// dragging shows the strength at once; it is saved when let go
-const preview = (v: number) => { saved.value = { ...saved.value, wall: { ...saved.value.wall, strength: v } } }
+// Media files stay on this device; only their selection is saved to the account.
+const busy = ref(false)
+const mediaUrl = ref('')
+const mediaKind = ref<'image' | 'video'>('image')
+const kinds = computed(() => [{ label: t('theme.image'), value: 'image' }, { label: t('theme.video'), value: 'video' }])
+const mediaError = ref('')
+async function chooseMedia(next?: MediaBackground) {
+  busy.value = true
+  try {
+    await setMediaBackground(next)
+  } catch (e) { toast.add({ title: apiError(e), color: 'error' }) }
+  finally { busy.value = false }
+}
+async function chooseFile(event: Event) {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  input.value = ''
+  if (!file) return
+  const kind = mediaFileKind(file)
+  if (!kind) { mediaError.value = t('theme.fileError'); return }
+  mediaError.value = ''
+  const src = `local:${crypto.randomUUID()}`
+  busy.value = true
+  try {
+    await storeBackgroundFile(src, file)
+    try { await setMediaBackground({ kind, src, name: file.name }) }
+    catch (e) { await removeBackgroundFile(src); throw e }
+  } catch (e) { toast.add({ title: apiError(e), color: 'error' }) }
+  finally { busy.value = false }
+}
+function chooseUrl() {
+  const src = mediaUrl.value.trim()
+  if (!/^https?:\/\//i.test(src) || !validMediaSource(src)) { mediaError.value = t('theme.urlError'); return }
+  mediaError.value = ''
+  chooseMedia({ kind: mediaKind.value, src, name: new URL(src).hostname })
+}
+async function commitLook(key: keyof WallLook) {
+  // Slider's keyboard commit can precede its model update in the same tick.
+  await nextTick()
+  await run(setLook({ [key]: look.value[key] }))
+}
 // a background image or video of the person's own, on top of any theme
 const fileInput = ref<HTMLInputElement>()
 const uploading = ref(false)
@@ -67,12 +107,12 @@ onMounted(() => {
 })
 // the library: the file shown now is marked; picking another shows it
 const current = computed(() => saved.value.bg ? bgVersion(saved.value.bg.v) : 0)
-const busy = ref(0) // the file being put on
+const libraryBusy = ref(0) // the file being put on
 async function pickItem(item: BgItem) {
-  if (busy.value || item.version === current.value) return
-  busy.value = item.version
+  if (libraryBusy.value || item.version === current.value) return
+  libraryBusy.value = item.version
   await run(pickBackground(item))
-  busy.value = 0
+  libraryBusy.value = 0
 }
 function removeItem(item: BgItem) {
   if (confirm(t('theme.backdropDeleteConfirm'))) run(deleteBackground(item))
@@ -93,14 +133,18 @@ async function upload(e: Event) {
 // the panes over a wallpaper theme: the readable glass, unless the person set theirs
 const wallFloor = computed(() => theme.value ? wallGlassFloor(theme.value) : 0)
 const wallGlass = computed(() => saved.value.wallGlass ?? wallFloor.value)
-const keepWallGlass = () => run(setWallGlass(saved.value.wallGlass))
-const keepGlass = () => { const p = setGlass(glass.value); if (p) run(p) }
+const wallGlassDraft = ref<number>()
+function updateWallGlass(v: number) { wallGlassDraft.value = v; previewWallGlass(v) }
+async function keepWallGlass() { await nextTick(); await run(setWallGlass(wallGlassDraft.value ?? wallGlass.value)); wallGlassDraft.value = undefined }
+const glassDraft = ref<number>()
+function updateGlass(v: number) { glassDraft.value = v; previewGlass(v) }
+async function keepGlass() { await nextTick(); const p = setGlass(glassDraft.value ?? glass.value); if (p) await run(p); glassDraft.value = undefined }
 const nameOf = (id: string) => t(`theme.name.${id}` as MessageKey)
 const swatch = (th: Theme) => ({ background: th.wallpaper?.sky ?? th.bg, color: th.text })
 </script>
 
 <template>
-  <div class="space-y-4">
+  <fieldset :disabled="saving || busy || uploading || !!libraryBusy" class="min-w-0 space-y-4">
     <div class="grid grid-cols-2 gap-2 sm:grid-cols-3">
       <button
         v-for="th in [{ id: 'default' }, ...COLOR_THEMES, { id: 'custom' }]"
@@ -159,6 +203,60 @@ const swatch = (th: Theme) => ({ background: th.wallpaper?.sky ?? th.bg, color: 
       </div>
     </div>
 
+    <div class="space-y-3 border-t border-(--ui-border) pt-4">
+      <div class="flex items-center justify-between gap-2">
+        <h4 class="text-xs font-semibold text-(--ui-text-muted)">{{ t('theme.media') }}</h4>
+        <UButton v-if="background" size="xs" color="neutral" variant="ghost" :label="t('theme.removeMedia')" :disabled="saving || busy" @click="saved.bg ? run(clearBackground()) : chooseMedia()" />
+      </div>
+      <div class="grid grid-cols-2 gap-2 sm:grid-cols-3">
+        <button v-for="b in MEDIA_BACKGROUNDS" :key="b.src" type="button" :disabled="saving || busy"
+          class="relative overflow-hidden rounded-lg border text-start text-xs transition disabled:opacity-50"
+          :class="background?.src === b.src ? 'border-(--ui-primary) ring-2 ring-(--ui-primary)/40' : 'border-(--ui-border)'"
+          :aria-pressed="background?.src === b.src" @click="chooseMedia(b)">
+          <img :src="b.poster ?? b.src" alt="" loading="lazy" class="aspect-video w-full object-cover">
+          <span class="flex items-center gap-1 p-2"><UIcon v-if="b.kind === 'video'" name="i-lucide-film" class="size-3 shrink-0" />{{ b.name }}</span>
+        </button>
+      </div>
+      <UFormField :label="t('theme.file')" :help="t('theme.localHint')">
+        <input type="file" accept="image/jpeg,image/png,image/webp,image/gif,image/bmp,image/avif,video/mp4" :disabled="saving || busy" class="block w-full min-w-0 text-xs file:me-2 file:rounded file:border file:border-(--ui-border) file:px-3 file:py-2" @change="chooseFile">
+      </UFormField>
+      <form class="space-y-2" @submit.prevent="chooseUrl">
+        <UFormField :label="t('theme.url')" :help="t('theme.urlHint')">
+          <UInput v-model="mediaUrl" type="url" class="w-full" :placeholder="t('theme.urlPlaceholder')" :disabled="saving || busy" />
+        </UFormField>
+        <div class="flex gap-2">
+          <USelect v-model="mediaKind" :items="kinds" :disabled="saving || busy" :aria-label="t('theme.mediaKind')" />
+          <UButton type="submit" :label="t('theme.apply')" :loading="busy" :disabled="!mediaUrl.trim()" />
+        </div>
+      </form>
+      <p v-if="mediaError" role="alert" class="text-xs text-(--ui-error)">{{ mediaError }}</p>
+      <p v-if="background" class="break-anywhere text-xs text-(--ui-text-muted)">{{ background.name }}</p>
+    </div>
+
+    <div v-if="theme?.wallpaper || background" class="space-y-3 rounded-lg border border-(--ui-border) p-3">
+      <UFormField :label="t('theme.strength')">
+        <USlider :disabled="saving || busy" :aria-label="t('theme.strength')" :tooltip="true" :model-value="look.strength" :min="0" :max="1" :step="0.05" @update:model-value="(v) => previewLook({ strength: v as number })" @change="commitLook('strength')" />
+      </UFormField>
+      <UFormField v-if="background && !saved.bg" :label="t('theme.transparency')">
+        <USlider :disabled="saving || busy" :aria-label="t('theme.transparency')" :tooltip="true" :model-value="look.transparency" :min="0" :max="0.9" :step="0.05" @update:model-value="(v) => previewLook({ transparency: v as number })" @change="commitLook('transparency')" />
+      </UFormField>
+      <UFormField v-if="theme?.wallpaper && !background" :label="t('theme.backdropGlass')" :help="t('theme.backdropFloor', { n: Math.round(wallFloor * 100) })">
+        <USlider :disabled="saving" :aria-label="t('theme.backdropGlass')" :model-value="wallGlassDraft ?? wallGlass" :min="GLASS_MIN" :max="1" :step="0.01" @update:model-value="(v) => updateWallGlass(v as number)" @change="keepWallGlass" />
+        <UButton v-if="saved.wallGlass !== undefined" size="xs" color="neutral" variant="ghost" :label="t('theme.custom.reset')" @click="run(setWallGlass(undefined))" />
+      </UFormField>
+      <UFormField :label="t('theme.blur')">
+        <USlider :disabled="saving || busy" :aria-label="t('theme.blur')" :tooltip="true" :model-value="look.blur" :min="0" :max="30" :step="1" @update:model-value="(v) => previewLook({ blur: v as number })" @change="commitLook('blur')" />
+      </UFormField>
+      <div v-if="theme?.wallpaper && !background" class="grid grid-cols-2 gap-3">
+        <UFormField :label="t('theme.speed')">
+          <USelect :disabled="saving || busy" :model-value="look.speed" :items="speeds" class="w-full" @update:model-value="(v) => run(setLook({ speed: v as number }))" />
+        </UFormField>
+        <UFormField :label="t('theme.cellSize')">
+          <USelect :disabled="saving || busy" :model-value="look.cell" :items="cells" class="w-full" @update:model-value="(v) => run(setLook({ cell: v as number }))" />
+        </UFormField>
+      </div>
+      <USwitch v-if="background?.kind === 'video' || (theme?.wallpaper && !background)" :disabled="saving || busy" :model-value="look.still" :label="t('theme.still')" @update:model-value="(v: boolean) => run(setLook({ still: v }))" />
+    </div>
     <div class="space-y-2">
       <h4 class="flex items-center gap-1 text-xs font-semibold text-(--ui-text-muted)">
         {{ t('theme.backdrop') }}
@@ -174,18 +272,18 @@ const swatch = (th: Theme) => ({ background: th.wallpaper?.sky ?? th.bg, color: 
           <UIcon :name="uploading ? 'i-lucide-loader-circle' : 'i-lucide-upload'" class="size-4" :class="{ 'animate-spin': uploading }" />
           {{ t('theme.backdropUpload') }}
         </button>
-        <div v-for="item in library" :key="item.version" class="group relative h-16">
+        <div v-for="(item, index) in library" :key="item.version" class="group relative h-16">
           <button
             type="button"
             class="size-full overflow-hidden rounded-lg border transition"
             :class="item.version === current ? 'border-(--ui-primary) ring-2 ring-(--ui-primary)/40' : 'border-(--ui-border) hover:border-(--ui-border-accented)'"
-            :aria-pressed="item.version === current"
+            :aria-pressed="item.version === current" :aria-label="t('theme.libraryItem', { n: index + 1 })"
             @click="pickItem(item)"
           >
             <video v-if="bgKind(item.mime) === 'video'" :src="`${backdropSrc({ v: item.version })}#t=0.1`" muted preload="metadata" class="size-full object-cover" />
             <img v-else :src="backdropSrc({ v: item.version })" alt="" loading="lazy" class="size-full object-cover">
             <UIcon v-if="bgKind(item.mime) === 'video'" name="i-lucide-play" class="absolute bottom-1 left-1 size-3.5 text-white drop-shadow" />
-            <span v-if="busy === item.version" class="absolute inset-0 flex items-center justify-center bg-black/30">
+            <span v-if="libraryBusy === item.version" class="absolute inset-0 flex items-center justify-center bg-black/30">
               <UIcon name="i-lucide-loader-circle" class="size-4 animate-spin text-white" />
             </span>
           </button>
@@ -214,26 +312,10 @@ const swatch = (th: Theme) => ({ background: th.wallpaper?.sky ?? th.bg, color: 
       </div>
       <input ref="fileInput" type="file" accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm" class="hidden" @change="upload">
       <UFormField v-if="saved.bg" :label="t('theme.backdropGlass')" :help="floor ? t('theme.backdropFloor', { n: Math.round(floor * 100) }) : undefined">
-        <USlider :model-value="glass" :min="GLASS_MIN" :max="0.99" :step="0.01" @update:model-value="(v) => previewGlass(v as number)" @change="keepGlass" />
+        <USlider :aria-label="t('theme.backdropGlass')" :model-value="glassDraft ?? glass" :min="GLASS_MIN" :max="0.99" :step="0.01" @update:model-value="(v) => updateGlass(v as number)" @change="keepGlass" />
       </UFormField>
     </div>
 
-    <div v-if="theme?.wallpaper && !saved.bg" class="space-y-3 rounded-lg border border-(--ui-border) p-3">
-      <UFormField :label="t('theme.backdropGlass')" :help="wallFloor ? t('theme.backdropFloor', { n: Math.round(wallFloor * 100) }) : undefined">
-        <USlider :model-value="wallGlass" :min="GLASS_MIN" :max="0.99" :step="0.01" @update:model-value="(v) => previewWallGlass(v as number)" @change="keepWallGlass" />
-      </UFormField>
-      <UFormField :label="t('theme.strength')">
-        <USlider :model-value="look.strength" :min="0.15" :max="1" :step="0.05" @update:model-value="(v) => preview(v as number)" @change="run(setLook({ strength: look.strength }))" />
-      </UFormField>
-      <div class="grid grid-cols-2 gap-3">
-        <UFormField :label="t('theme.speed')">
-          <USelect :model-value="look.speed" :items="speeds" class="w-full" @update:model-value="(v) => run(setLook({ speed: v as number }))" />
-        </UFormField>
-        <UFormField :label="t('theme.cellSize')">
-          <USelect :model-value="look.cell" :items="cells" class="w-full" @update:model-value="(v) => run(setLook({ cell: v as number }))" />
-        </UFormField>
-      </div>
-      <USwitch :model-value="look.still" :label="t('theme.still')" @update:model-value="(v: boolean) => run(setLook({ still: v }))" />
-    </div>
-  </div>
+    <ThemeComponentColors />
+  </fieldset>
 </template>
