@@ -214,17 +214,18 @@ async function decide(approve: boolean, always = false, skip = false) {
       <UBadge v-if="action.decided_by?.startsWith('auto:')" color="warning" variant="outline" size="sm" icon="i-lucide-zap" :label="t('action.auto')" :title="action.decided_by.slice(5)" />
       <!-- approved while an earlier card waited: it runs in its turn; it can still be called off -->
       <UButton v-if="action.status === 'queued' && isAdmin" size="xs" color="neutral" variant="ghost" :label="t('card.unqueue')" :loading="busy === 'reject'" :disabled="!!busy" @click="decide(false)" />
-      <template v-if="action.status === 'pending' && !action.deciding && isAdmin">
+      <!-- the buttons wrap as one group (a phone: the "always" one icon only), never one stray button per line -->
+      <span v-if="action.status === 'pending' && !action.deciding && isAdmin" class="inline-flex flex-wrap items-center gap-2">
         <UButton size="xs" icon="i-lucide-check" :label="t('action.approve')" :loading="busy === 'approve'" :disabled="!!busy" @click="decide(true)" />
         <span v-if="canAlways" class="inline-flex items-center gap-1">
-          <UButton size="xs" variant="soft" icon="i-lucide-infinity" :label="t('action.approveAlways')" :loading="busy === 'always'" :disabled="!!busy" @click="decide(true, true)" />
+          <UButton size="xs" variant="soft" icon="i-lucide-infinity" :label="t('action.approveAlways')" :title="t('action.approveAlways')" :ui="{ label: 'max-sm:hidden' }" :loading="busy === 'always'" :disabled="!!busy" @click="decide(true, true)" />
           <InfoTip :text="alwaysInfo" icon-class="size-4 text-(--ui-text-muted)" />
         </span>
         <UButton size="xs" color="neutral" variant="ghost" :label="t('action.reject')" :loading="busy === 'reject'" :disabled="!!busy" @click="decide(false)" />
         <UTooltip :text="t('action.skipInfo')">
           <UButton size="xs" color="neutral" variant="ghost" icon="i-lucide-skip-forward" :label="t('action.skip')" :loading="busy === 'skip'" :disabled="!!busy" @click="decide(false, false, true)" />
         </UTooltip>
-      </template>
+      </span>
       <UButton
         v-else-if="hasLog" size="xs" color="neutral" variant="ghost" icon="i-lucide-terminal"
         :trailing-icon="logOpen ? 'i-lucide-chevron-up' : 'i-lucide-chevron-down'" :label="t('action.seeLog')" @click="logOpen = !logOpen"

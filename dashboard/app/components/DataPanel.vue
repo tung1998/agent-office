@@ -160,7 +160,7 @@ async function saveAuto() {
   <div class="max-w-6xl space-y-4">
     <UAlert v-if="error" color="error" variant="subtle" icon="i-lucide-triangle-alert" :title="t('common.loadError')" :actions="[{ label: t('common.refresh'), onClick: () => refresh() }]" />
     <!-- what is kept, at a glance -->
-    <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+    <div class="grid grid-cols-2 gap-3 lg:grid-cols-5">
       <UCard v-for="c in [
         { label: t('data.kind.chat'), size: totals.chat, icon: 'i-lucide-messages-square' },
         { label: t('data.kind.burn'), size: totals.burn, icon: 'i-lucide-flame' },
@@ -171,7 +171,7 @@ async function saveAuto() {
         <USkeleton v-if="loading" class="mt-1.5 h-6 w-20" />
         <p v-else class="mt-1 text-xl font-semibold tabular-nums">{{ fmtBytes(c.size) }}</p>
       </UCard>
-      <UCard :ui="{ body: 'sm:p-4' }">
+      <UCard class="max-lg:col-span-2" :ui="{ body: 'sm:p-4' }">
         <p class="flex items-center gap-1.5 text-xs text-(--ui-text-muted)">
           <UIcon name="i-lucide-trash" class="size-4" />{{ t('data.junk') }}
           <InfoTip :text="t('data.junkHint')" icon-class="size-3.5" />
@@ -187,7 +187,8 @@ async function saveAuto() {
     <!-- by project -->
     <UCard :ui="{ body: 'p-0 sm:p-0' }">
       <div class="overflow-x-auto">
-        <table class="w-full text-sm">
+        <!-- one line per cell: a narrow screen scrolls the table sideways instead of stacking words -->
+        <table class="w-full whitespace-nowrap text-sm">
           <thead class="text-xs text-(--ui-text-muted)">
             <tr class="border-b border-(--ui-border)">
               <th class="px-4 py-2 text-left font-medium">{{ t('data.project') }}</th>

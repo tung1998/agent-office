@@ -65,13 +65,18 @@ async function save(test = false) {
       <UIcon name="i-lucide-triangle-alert" class="size-4 text-(--ui-text-muted)" />
       <span>{{ t('alert.errors') }}</span>
       <InfoTip :text="t('alert.errorsHelp')" icon-class="size-4 text-(--ui-text-muted)" />
-      <UInputNumber v-model="form.errors.streak" :min="0" :max="100" size="sm" class="w-24" />
-      <span>{{ t('alert.inARow') }}</span>
+      <!-- each rule stays on one line: a narrow screen wraps between them, never inside one -->
+      <span class="inline-flex items-center gap-2 whitespace-nowrap">
+        <UInputNumber v-model="form.errors.streak" :min="0" :max="100" size="sm" class="w-24" />
+        <span>{{ t('alert.inARow') }}</span>
+      </span>
       <span class="text-(--ui-text-muted)">{{ t('alert.or') }}</span>
-      <UInputNumber v-model="form.errors.count" :min="0" :max="1000" size="sm" class="w-24" />
-      <span>{{ t('alert.errorsWithin') }}</span>
-      <UInputNumber v-model="form.errors.window" :min="1" :max="1440" :step="5" size="sm" class="w-24" :disabled="!form.errors.count" />
-      <span>{{ t('alert.minutes') }}</span>
+      <span class="inline-flex items-center gap-2 whitespace-nowrap">
+        <UInputNumber v-model="form.errors.count" :min="0" :max="1000" size="sm" class="w-24" />
+        <span>{{ t('alert.errorsWithin') }}</span>
+        <UInputNumber v-model="form.errors.window" :min="1" :max="1440" :step="5" size="sm" class="w-24" :disabled="!form.errors.count" />
+        <span>{{ t('alert.minutes') }}</span>
+      </span>
     </div>
   </UCard>
 </template>
