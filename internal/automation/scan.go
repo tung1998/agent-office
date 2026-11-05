@@ -73,19 +73,37 @@ func markDisabled(items []Item, off map[string]bool) []Item {
 
 var frontmatterRe = regexp.MustCompile(`(?s)^---\s*\n(.*?)\n---\s*\n?`)
 
-// Frontmatter reads simple `key: value` pairs from a Markdown header.
+// Frontmatter reads simple `key: value` pairs from a Markdown header. A YAML
+// block scalar (`key: >` or `key: |`, with -/+ chomping) takes its indented
+// lines, joined by spaces (`>`) or newlines (`|`).
 func Frontmatter(md string) (map[string]string, string) {
 	out := map[string]string{}
 	m := frontmatterRe.FindStringSubmatch(md)
 	if m == nil {
 		return out, md
 	}
-	for _, line := range strings.Split(m[1], "\n") {
+	lines := strings.Split(m[1], "\n")
+	for i := 0; i < len(lines); i++ {
+		line := lines[i]
 		k, v, ok := strings.Cut(line, ":")
-		if !ok || strings.HasPrefix(line, " ") {
+		if !ok || strings.HasPrefix(line, " ") || strings.HasPrefix(line, "\t") {
 			continue
 		}
-		out[strings.TrimSpace(k)] = strings.Trim(strings.TrimSpace(v), `"'`)
+		v = strings.TrimSpace(v)
+		if style := strings.TrimRight(v, "-+"); style == ">" || style == "|" {
+			var block []string
+			for i+1 < len(lines) && (lines[i+1] == "" || strings.HasPrefix(lines[i+1], " ") || strings.HasPrefix(lines[i+1], "\t")) {
+				i++
+				block = append(block, strings.TrimSpace(lines[i]))
+			}
+			sep := " "
+			if style == "|" {
+				sep = "\n"
+			}
+			out[strings.TrimSpace(k)] = strings.TrimSpace(strings.Join(block, sep))
+			continue
+		}
+		out[strings.TrimSpace(k)] = strings.Trim(v, `"'`)
 	}
 	return out, md[len(m[0]):]
 }
