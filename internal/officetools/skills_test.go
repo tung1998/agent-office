@@ -204,7 +204,7 @@ func TestFindSkillsRankAndRead(t *testing.T) {
 		t.Fatalf("area = %s", out)
 	}
 	out, isErr = tb.Call(ctx, sc, "find_skills", []byte(`{"name":"cold-email"}`))
-	if isErr || !strings.Contains(out, "research the prospect") || !strings.Contains(out, "not installed") || !strings.Contains(out, "references/tpl.md") {
+	if isErr || !strings.Contains(out, "research the prospect") || !strings.Contains(out, "not installed") || !strings.Contains(out, "1 more files") || strings.Contains(out, "category:") {
 		t.Fatalf("read = %v %s", isErr, out)
 	}
 	if out, isErr = tb.Call(ctx, sc, "find_skills", []byte(`{"name":"bad"}`)); !isErr || strings.Contains(out, "a.sh") {
@@ -212,5 +212,18 @@ func TestFindSkillsRankAndRead(t *testing.T) {
 	}
 	if _, isErr = tb.Call(ctx, sc, "find_skills", []byte(`{"name":"made-up"}`)); !isErr {
 		t.Fatal("unknown read")
+	}
+	// a long skill comes as its start and the headings of the rest
+	long := "# Guide\n\nIntro.\n\n## Setup\n\n" + strings.Repeat("setup line\n", 800) + "\n## Deploy\n\nDeploy steps here.\n\n## Rollback\n\nUndo.\n"
+	put("long-guide", "description: Long guide.\n", long)
+	out, _ = tb.Call(ctx, sc, "find_skills", []byte(`{"name":"long-guide"}`))
+	if len(out) > 7<<10 || !strings.Contains(out, "section=<heading>: Deploy | Rollback") || strings.Contains(out, "Deploy steps here") {
+		t.Fatalf("long read (%d bytes) = %s", len(out), out[len(out)-200:])
+	}
+	if out, isErr = tb.Call(ctx, sc, "find_skills", []byte(`{"name":"long-guide","section":"deploy"}`)); isErr || !strings.Contains(out, "Deploy steps here") || strings.Contains(out, "Undo") {
+		t.Fatalf("section = %v %s", isErr, out)
+	}
+	if out, isErr = tb.Call(ctx, sc, "find_skills", []byte(`{"name":"long-guide","section":"nope"}`)); !isErr || !strings.Contains(out, "Rollback") {
+		t.Fatalf("missing section = %v %s", isErr, out)
 	}
 }

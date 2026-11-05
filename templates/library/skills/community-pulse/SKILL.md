@@ -7,7 +7,7 @@ tags: [research, market, recipe]
 
 # Cộng đồng đang nói gì
 
-Dùng skill `last30days` (cài bằng `my_skills add last30days`: nó cần scripts và `python3`; key như `SCRAPECREATORS_API_KEY` là tuỳ chọn, thiếu thì nó dùng nguồn miễn phí).
+Dùng skill `last30days` (cần scripts và `python3`; key như `SCRAPECREATORS_API_KEY` là tuỳ chọn). Kiểm tra an toàn của office chặn nó vì vài file gợi ý cài Grok CLI bằng `curl … | bash`: agent không đọc hay cài được, người tự xem và quyết ở trang Thư viện. Chưa có thì làm tay: tìm theo `site:reddit.com`, YouTube, HN… giới hạn 30 ngày, rồi tổng hợp như dưới.
 
 1. Viết chủ đề thành câu hỏi cụ thể, vd. "chủ doanh nghiệp nhỏ nói gì về AI chatbot và voice agent: họ sợ gì, khách họ ghét gì, điều gì khiến họ trả tiền".
 2. Tìm nguồn bằng tiếng Anh khi chủ đề đi trước ở thị trường nước ngoài (AI, SaaS); trả lời bằng ngôn ngữ của người.
