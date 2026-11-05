@@ -666,7 +666,6 @@ func (t *Toolbox) Call(ctx context.Context, sc Scope, name string, raw json.RawM
 		Expert   string          `json:"expert"`
 		Question string          `json:"question"`
 		Project  string          `json:"project"`
-		Goal     string          `json:"goal"`
 		Days     int             `json:"days"`
 		By       string          `json:"by"`
 		Status   string          `json:"status"`

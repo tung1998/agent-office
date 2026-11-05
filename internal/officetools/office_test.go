@@ -324,3 +324,23 @@ func TestOfficeScopeLimited(t *testing.T) {
 		}
 	}
 }
+
+// propose_automation's goal is an object ({check, judge, text, max_rounds}):
+// the shared argument decoding must not reject it before the tool reads it.
+func TestProposeAutomationGoalObject(t *testing.T) {
+	ctx := context.Background()
+	st, _ := sqlite.Open(filepath.Join(t.TempDir(), "o.db"))
+	defer st.Close()
+	st.Migrate(ctx)
+	repo, _ := st.Repos().Create(ctx, storage.Repo{Name: "Office"})
+	box := New(st, nil, actions.New(st, nil))
+	raw, _ := json.Marshal(map[string]any{
+		"name": "daily", "source": "schedule", "action": "chat", "cron": "0 10 * * *",
+		"prompt": "p", "reason": "r",
+		"goal": map[string]any{"check": "go test ./...", "max_rounds": 3},
+	})
+	out, _ := box.Call(ctx, Scope{ProjectID: repo.ID, Level: "operate"}, "propose_automation", raw)
+	if strings.Contains(out, "Tham số không hợp lệ") {
+		t.Fatalf("goal object rejected: %s", out)
+	}
+}
