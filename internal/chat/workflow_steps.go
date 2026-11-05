@@ -19,6 +19,7 @@ import (
 	"github.com/tung1998/agent-office/internal/agentskills"
 	"github.com/tung1998/agent-office/internal/automation"
 	"github.com/tung1998/agent-office/internal/perm"
+	"github.com/tung1998/agent-office/internal/prompts"
 	"github.com/tung1998/agent-office/internal/storage"
 	"github.com/tung1998/agent-office/internal/trigger"
 	"github.com/tung1998/agent-office/internal/workflow"
@@ -100,13 +101,22 @@ func inputsFrom(d workflow.Def, text string) map[string]string {
 // so it runs once with every branch's output. The run ends when no step is
 // left; the end steps reached give its summary and outputs.
 func (e *Engine) runSteps(ctx context.Context, own storage.Conversation, run *wfRun) {
+	e.runStepsFrom(ctx, own, run, nil)
+}
+
+// runStepsFrom is runSteps from a checkpoint (nil: from its start): the
+// steps it had running start again, those it had reached wait their turn
+// (ADR-256). It saves where it is each time a step starts or ends.
+func (e *Engine) runStepsFrom(ctx context.Context, own storage.Conversation, run *wfRun, from *storage.RunCheckpoint) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	d := run.def
 	vars := workflow.Vars{Input: run.inputs, Steps: map[string]workflow.StepResult{}}
 	visits := map[string]int{}
 	fail := func(why string) {
-		if ctx.Err() == nil {
+		// office going down cuts its steps: the run stays as saved, the next
+		// office goes on with it (ADR-256)
+		if ctx.Err() == nil && !e.stopping.Load() {
 			e.note(own, "⚠️ "+why)
 			e.finishRun(own.ID, run.rec.ID, storage.RunFailed, "", why)
 		}
@@ -154,9 +164,80 @@ func (e *Engine) runSteps(ctx context.Context, own storage.Conversation, run *wf
 		summary string
 		outputs = map[string]string{}
 		last    string // the step that finished last: the summary when the end says none
+		n       int    // steps started (MaxStepsRun)
 	)
-	reach(d.Starts())
-	for n := 0; ; {
+	// save writes where the run is: what ended, what runs, what waits
+	save := func() {
+		cp := &storage.RunCheckpoint{Input: maps.Clone(vars.Input), Steps: map[string]storage.StepState{}, Visits: maps.Clone(visits),
+			Pending: slices.Clone(pending), Running: map[string]string{}, Ended: ended, Summary: summary, Outputs: maps.Clone(outputs), Last: last, N: n,
+			Tier: run.tier, Ceiling: run.ceiling, Tree: run.tree.name, TreeNoPatch: run.tree.noPatch, TreePinned: run.tree.pinned,
+			Trusted: run.trusted, DepthLeft: run.depthLeft}
+		for id, r := range vars.Steps {
+			cp.Steps[id] = storage.StepState{Output: r.Output, Status: r.Status, JSON: r.JSON}
+		}
+		for id := range running {
+			s, _ := d.Step(id)
+			cp.Running[id] = s.Type
+		}
+		e.wf.mu.Lock()
+		run.cp = cp
+		rec, seq := run.snapshot()
+		e.wf.mu.Unlock()
+		e.saveRun(run, rec, seq)
+	}
+	// start runs a step in the background; its result comes to results
+	start := func(id string, s workflow.Step) {
+		running[id] = true
+		snap := workflow.Vars{Input: vars.Input, Steps: maps.Clone(vars.Steps)}
+		go func() {
+			var res workflow.StepResult
+			var err error
+			func() {
+				// a panic here must still reach results — a bare
+				// recover (e.g. via safeGo) would silently drop it
+				// and runSteps would wait on this step forever.
+				defer func() {
+					if r := recover(); r != nil {
+						slog.Error("chat: runStep panic", "where", "runStep:"+s.ID, "panic", r, "stack", string(debug.Stack()))
+						err = fmt.Errorf("internal error: %v", r)
+					}
+				}()
+				if e.testStepPanic != "" && e.testStepPanic == s.ID {
+					panic("test panic: " + s.ID)
+				}
+				res, err = e.runStep(ctx, own, run, s, snap)
+			}()
+			select {
+			case results <- result{s, res, err}:
+			case <-ctx.Done():
+			}
+		}()
+	}
+	if from == nil {
+		reach(d.Starts())
+	} else {
+		for id, r := range from.Steps {
+			vars.Steps[id] = workflow.StepResult{Output: r.Output, Status: r.Status, JSON: r.JSON}
+		}
+		if from.Visits != nil {
+			visits = maps.Clone(from.Visits)
+		}
+		pending = slices.Clone(from.Pending)
+		ended, summary, last, n = from.Ended, from.Summary, from.Last, from.N
+		if from.Outputs != nil {
+			outputs = maps.Clone(from.Outputs)
+		}
+		// the steps the restart cut start again, in a steady order
+		for _, id := range slices.Sorted(maps.Keys(from.Running)) {
+			s, ok := d.Step(id)
+			if !ok {
+				fail("không có bước " + id)
+				return
+			}
+			start(id, s)
+		}
+	}
+	for {
 		if ctx.Err() != nil {
 			return
 		}
@@ -219,37 +300,14 @@ func (e *Engine) runSteps(ctx context.Context, own storage.Conversation, run *wf
 					vars.Steps[s.ID] = workflow.NewResult(strings.Join(next, ","), got)
 					reach(next)
 				default:
-					running[id] = true
-					snap := workflow.Vars{Input: vars.Input, Steps: maps.Clone(vars.Steps)}
-					go func() {
-						var res workflow.StepResult
-						var err error
-						func() {
-							// a panic here must still reach results — a bare
-							// recover (e.g. via safeGo) would silently drop it
-							// and runSteps would wait on this step forever.
-							defer func() {
-								if r := recover(); r != nil {
-									slog.Error("chat: runStep panic", "where", "runStep:"+s.ID, "panic", r, "stack", string(debug.Stack()))
-									err = fmt.Errorf("internal error: %v", r)
-								}
-							}()
-							if e.testStepPanic != "" && e.testStepPanic == s.ID {
-								panic("test panic: " + s.ID)
-							}
-							res, err = e.runStep(ctx, own, run, s, snap)
-						}()
-						select {
-						case results <- result{s, res, err}:
-						case <-ctx.Done():
-						}
-					}()
+					start(id, s)
 				}
 			}
 		}
 		if len(running) == 0 && len(pending) == 0 {
 			break
 		}
+		save()
 		var r result
 		select {
 		case r = <-results:
@@ -257,10 +315,13 @@ func (e *Engine) runSteps(ctx context.Context, own storage.Conversation, run *wf
 			return
 		}
 		s, err := r.s, r.err
-		delete(running, s.ID)
-		if err != nil && ctx.Err() != nil {
-			return
+		if err != nil && (ctx.Err() != nil || e.stopping.Load()) {
+			return // stopped, or cut by office going down: saved as running, the next office starts it again
 		}
+		delete(running, s.ID)
+		e.wf.mu.Lock()
+		delete(run.marks, s.ID)
+		e.wf.mu.Unlock()
 		if err != nil { // a failure is an output too, for the steps after it
 			r.res.Status = cmp.Or(r.res.Status, "error")
 			r.res.Output = cmp.Or(r.res.Output, err.Error())
@@ -279,6 +340,7 @@ func (e *Engine) runSteps(ctx context.Context, own storage.Conversation, run *wf
 			return
 		}
 	}
+	save()
 	if !ended {
 		fail("không nhánh nào tới bước end")
 		return
@@ -320,6 +382,11 @@ func (e *Engine) runStep(ctx context.Context, own storage.Conversation, run *wfR
 		return workflow.NewResult(out, ""), err
 	case workflow.StepWorkflow, workflow.StepCoordinate:
 		var rec storage.WorkflowRun
+		if m, ok := e.markBefore(run, s.ID); ok && m.ChildRunID != "" { // the sub-run the last office left (ADR-256)
+			if got, ok, err := e.resumeChildStep(ctx, own, run, s, m.ChildRunID); ok {
+				return childResult(got), err
+			}
+		}
 		if s.Type == workflow.StepCoordinate {
 			rec, err = e.stepCoordinate(ctx, own, project, run, s, workflow.Render(s.Prompt, vars))
 		} else {
@@ -329,19 +396,7 @@ func (e *Engine) runStep(ctx context.Context, own storage.Conversation, run *wfR
 			}
 			rec, err = e.stepFlow(ctx, own, project, run, s, inputs)
 		}
-		r := workflow.NewResult(strings.TrimSpace(rec.Result), rec.Status)
-		if len(rec.Outputs) > 0 {
-			obj := map[string]any{} // {{steps.<id>.json.key}} reads JSON objects
-			for k, v := range rec.Outputs {
-				obj[k] = v
-			}
-			r.JSON = obj
-			b, _ := json.Marshal(rec.Outputs)
-			if r.Output == "" {
-				r.Output = string(b)
-			}
-		}
-		return r, err
+		return childResult(rec), err
 	case workflow.StepCode:
 		data, _ := json.Marshal(vars)
 		env := []string{"OFFICE_RUN=" + run.rec.ID, "OFFICE_PROJECT=" + project.ID}
@@ -382,8 +437,22 @@ func (e *Engine) runStep(ctx context.Context, own storage.Conversation, run *wfR
 		if err != nil {
 			return workflow.StepResult{}, err
 		}
-		e.post(own, s, "Chờ "+d.String()+", tới "+time.Now().Add(d).Format("15:04")) // i18n-ignore
-		t := time.NewTimer(d)
+		// it waits until a time, kept with the run: the next office waits
+		// only for what is left of it (ADR-256)
+		until := time.Now().Add(d)
+		if m, ok := e.markBefore(run, s.ID); ok && m.WaitUntil != nil {
+			until = *m.WaitUntil
+			e.post(own, s, "Chờ tiếp tới "+until.Local().Format("15:04")+" (office đã khởi động lại)") // i18n-ignore
+		} else {
+			e.post(own, s, "Chờ "+d.String()+", tới "+until.Local().Format("15:04")) // i18n-ignore
+		}
+		at := until.UTC()
+		e.wf.mu.Lock()
+		run.mark(s.ID, storage.StepMark{WaitUntil: &at})
+		rec, seq := run.snapshot()
+		e.wf.mu.Unlock()
+		e.saveRun(run, rec, seq)
+		t := time.NewTimer(max(time.Until(until), 0))
 		defer t.Stop()
 		select {
 		case <-t.C:
@@ -397,6 +466,23 @@ func (e *Engine) runStep(ctx context.Context, own storage.Conversation, run *wfR
 		return e.stepDecide(ctx, own, run, s, "run_command", workflow.Render(s.Command, vars), "Bước "+workflow.StepLabel(s)+" của quy trình "+run.def.Name)
 	}
 	return workflow.StepResult{}, fmt.Errorf("bước loại %q không chạy được", s.Type)
+}
+
+// childResult is a sub-run's end as its step's result.
+func childResult(rec storage.WorkflowRun) workflow.StepResult {
+	r := workflow.NewResult(strings.TrimSpace(rec.Result), rec.Status)
+	if len(rec.Outputs) > 0 {
+		obj := map[string]any{} // {{steps.<id>.json.key}} reads JSON objects
+		for k, v := range rec.Outputs {
+			obj[k] = v
+		}
+		r.JSON = obj
+		b, _ := json.Marshal(rec.Outputs)
+		if r.Output == "" {
+			r.Output = string(b)
+		}
+	}
+	return r
 }
 
 // stepAgent runs an agent's turn for a step and waits for its answer.
@@ -420,6 +506,12 @@ func (e *Engine) stepAgent(ctx context.Context, own storage.Conversation, projec
 	level := accessLevel(d.Access)
 	if run.ceiling != "" {
 		level = perm.Min(level, run.ceiling)
+	}
+	e.wf.mu.Lock()
+	cut := run.resumed[s.ID]
+	e.wf.mu.Unlock()
+	if cut { // its session keeps what it did before office went down (ADR-256)
+		prompt = prompts.Render("workflow/step-resumed", nil) + "\n\n" + prompt
 	}
 	key := run.rec.ID + "#" + s.ID
 	ch := make(chan string, 1)
@@ -548,17 +640,32 @@ func (e *Engine) runChild(ctx context.Context, own storage.Conversation, project
 	}
 	e.wf.mu.Lock()
 	run.logf("%s: chạy %s", workflow.StepLabel(s), cmp.Or(map[bool]string{true: "điều phối"}[s.Type == workflow.StepCoordinate], "quy trình con /"+def.Key))
+	run.mark(s.ID, storage.StepMark{ChildRunID: child.rec.ID}) // the next office goes on with it (ADR-256)
+	rec, seq := run.snapshot()
 	e.wf.mu.Unlock()
+	e.saveRun(run, rec, seq)
+	return e.awaitStepChild(ctx, own, s, child)
+}
+
+// awaitStepChild waits for a step's sub-run to end and posts its result.
+func (e *Engine) awaitStepChild(ctx context.Context, own storage.Conversation, s workflow.Step, child *wfRun) (storage.WorkflowRun, error) {
 	select {
 	case <-child.done:
 	case <-ctx.Done():
-		e.StopAll(sub.ID)
+		if !e.stopping.Load() { // office going down: the sub-run stays, the next office goes on with it
+			e.StopAll(child.rec.ConversationID)
+		}
 		return storage.WorkflowRun{}, ctx.Err()
 	}
 	rec, err := e.store.WorkflowRuns().Get(context.Background(), child.rec.ID)
 	if err != nil {
 		rec = child.rec
 	}
+	return e.childEnded(own, s, rec)
+}
+
+// childEnded posts a sub-run's end in its step's chat: an error unless it is done.
+func (e *Engine) childEnded(own storage.Conversation, s workflow.Step, rec storage.WorkflowRun) (storage.WorkflowRun, error) {
 	what := "Quy trình con /" + rec.WorkflowKey // i18n-ignore
 	if s.Type == workflow.StepCoordinate {
 		what = "Điều phối" // i18n-ignore
@@ -582,10 +689,23 @@ func (e *Engine) stepDecide(ctx context.Context, own storage.Conversation, run *
 		acc := perm.Resolve(run.coord, cmp.Or(run.ceiling, own.Mode), policy)
 		sc.Level, sc.Access, sc.Agent = acc.Level, acc, run.coord.Name
 	}
-	a, err := e.acts.Propose(ctx, sc, kind, target, reason)
-	if err != nil {
-		return workflow.StepResult{}, err
+	var a storage.Action
+	var err error
+	if m, ok := e.markBefore(run, s.ID); ok && m.ActionID != "" { // the card the last office opened (ADR-256)
+		if a, err = e.store.Actions().Get(ctx, m.ActionID); err != nil || a.ConversationID != own.ID {
+			a = storage.Action{}
+		}
 	}
+	if a.ID == "" {
+		if a, err = e.acts.Propose(ctx, sc, kind, target, reason); err != nil {
+			return workflow.StepResult{}, err
+		}
+	}
+	e.wf.mu.Lock()
+	run.mark(s.ID, storage.StepMark{ActionID: a.ID})
+	rec, seq := run.snapshot()
+	e.wf.mu.Unlock()
+	e.saveRun(run, rec, seq)
 	for a.Status == "pending" || a.Status == "queued" {
 		select {
 		case <-ctx.Done():

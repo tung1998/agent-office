@@ -335,6 +335,8 @@ export default {
   'admin.updateBusyAutomations': 'Tự động hóa',
   'admin.updateBusyBurn': 'Việc Burn',
   'admin.updateBusyTasks': 'Việc',
+  'admin.updateParkedTitle': 'Quy trình chỉ đang chờ ({n})',
+  'admin.updateParkedInfo': 'Các quy trình này chỉ đang chờ (tới một giờ, hoặc chờ người duyệt thẻ). Office khởi động lại không làm mất việc của chúng: chúng chạy tiếp từ chỗ đã dừng, nên cập nhật không phải chờ chúng.',
   'admin.updateBusyMore': '… và {n} việc khác',
   'admin.updateWaitingTitle': 'Đã build xong, đang chờ office rảnh',
   'admin.updateWaitingDesc': 'Còn chạy: {busy}. Xong hết thì office khởi động lại bằng bản mới (chờ tối đa tới {until}); trong lúc chờ không mở lượt tự động hóa hay việc Burn mới.',

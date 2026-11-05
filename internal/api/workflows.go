@@ -4,11 +4,15 @@ import (
 	"cmp"
 	"context"
 	"errors"
+	"maps"
 	"net/http"
+	"slices"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/tung1998/agent-office/internal/audit"
+	"github.com/tung1998/agent-office/internal/chat"
 	"github.com/tung1998/agent-office/internal/storage"
 	"github.com/tung1998/agent-office/internal/workflow"
 )
@@ -35,6 +39,7 @@ func (s *server) workflowRoutes(mux *http.ServeMux) {
 	mux.Handle("GET /api/projects/{id}/workflow-runs", auth(s.listWorkflowRuns))
 	mux.Handle("GET /api/workflow-runs/{id}", auth(s.getWorkflowRun))
 	mux.Handle("POST /api/workflow-runs/{id}/stop", auth(s.stopWorkflowRun))
+	mux.Handle("POST /api/workflow-runs/{id}/resume", auth(s.resumeWorkflowRun))
 }
 
 type workflowDTO struct {
@@ -92,6 +97,65 @@ type workflowRunDTO struct {
 	Outputs         map[string]string `json:"outputs"`
 	StartedAt       time.Time         `json:"started_at"`
 	FinishedAt      *time.Time        `json:"finished_at"`
+	// where a graph of steps is (ADR-256); nil: a coordinator's run, a run from before
+	Checkpoint *runCheckpointDTO `json:"checkpoint"`
+}
+
+// runCheckpointDTO is what the dashboard shows of a run's checkpoint.
+type runCheckpointDTO struct {
+	Running    []runStepDTO `json:"running"`     // the steps started, not ended
+	Pending    []runStepDTO `json:"pending"`     // reached, waiting their turn
+	Resumes    int          `json:"resumes"`     // how often it went on after a restart that cut a step
+	MaxResumes int          `json:"max_resumes"` // past it, it ends
+	// Parked: it only waits, a restart would not hurt it; Resumable: the
+	// restart ended it but it may go on from where it was (Chạy tiếp từ bước dở)
+	Parked    bool   `json:"parked"`
+	Resumable bool   `json:"resumable"`
+	Why       string `json:"why,omitempty"` // why it cannot go on, when it ended by a restart
+}
+
+type runStepDTO struct {
+	ID        string     `json:"id"`
+	Label     string     `json:"label"`
+	Type      string     `json:"type"`
+	WaitUntil *time.Time `json:"wait_until,omitempty"`
+	ActionID  string     `json:"action_id,omitempty"`
+}
+
+func (s *server) toCheckpointDTO(ctx context.Context, r storage.WorkflowRun, def *workflow.Def) *runCheckpointDTO {
+	cp := r.Checkpoint
+	if cp == nil {
+		return nil
+	}
+	step := func(id string) runStepDTO {
+		x := runStepDTO{ID: id, Label: id, Type: cp.Running[id]}
+		if def != nil {
+			if st, ok := def.Step(id); ok {
+				x.Label, x.Type = workflow.StepLabel(st), st.Type
+			}
+		}
+		m := cp.Marks[id]
+		x.WaitUntil, x.ActionID = m.WaitUntil, m.ActionID
+		return x
+	}
+	d := &runCheckpointDTO{Running: []runStepDTO{}, Pending: []runStepDTO{}, Resumes: cp.Resumes, MaxResumes: workflow.MaxResumes}
+	for _, id := range slices.Sorted(maps.Keys(cp.Running)) {
+		d.Running = append(d.Running, step(id))
+	}
+	for _, id := range cp.Pending {
+		d.Pending = append(d.Pending, step(id))
+	}
+	switch {
+	case r.Status == storage.RunRunning:
+		d.Parked = workflow.Parked(ctx, s.cfg.Store, r)
+	case r.Status == storage.RunFailed && strings.HasPrefix(r.Error, workflow.InterruptedDetail) && r.ParentRunID == "":
+		if _, _, err := workflow.CanResume(ctx, s.cfg.Store, r); err != nil {
+			d.Why = err.Error()
+		} else {
+			d.Resumable = true
+		}
+	}
+	return d
 }
 
 func (s *server) toWorkflowRunDTO(ctx context.Context, r storage.WorkflowRun) workflowRunDTO {
@@ -106,11 +170,13 @@ func (s *server) toWorkflowRunDTO(ctx context.Context, r storage.WorkflowRun) wo
 	if c, err := s.cfg.Store.Chat().GetConversation(ctx, cmp.Or(r.CallerConversationID, r.ConversationID)); err == nil {
 		d.CallerTitle = c.Title
 	}
+	var def *workflow.Def
 	if w, err := s.cfg.Store.Workflows().Get(ctx, r.WorkflowID); err == nil {
-		if def, err := workflow.Parse(w.Source); err == nil {
-			d.MaxTurns = def.Limits.Turns
+		if x, err := workflow.Parse(w.Source); err == nil {
+			d.MaxTurns, def = x.Limits.Turns, &x
 		}
 	}
+	d.Checkpoint = s.toCheckpointDTO(ctx, r, def)
 	return d
 }
 
@@ -472,6 +538,37 @@ func (s *server) getWorkflowRun(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"run": s.toWorkflowRunDTO(r.Context(), x), "children": children})
+}
+
+// resumeWorkflowRun goes on with a run the restart ended from where it was
+// (ADR-256): a graph of steps that kept its checkpoint.
+func (s *server) resumeWorkflowRun(w http.ResponseWriter, r *http.Request) {
+	x, err := s.cfg.Store.WorkflowRuns().Get(r.Context(), r.PathValue("id"))
+	if err != nil {
+		s.workflowError(w, r, err)
+		return
+	}
+	if s.cfg.Chat == nil {
+		writeError(w, http.StatusServiceUnavailable, "office chưa chạy chat")
+		return
+	}
+	if err := s.cfg.Chat.ResumeRun(r.Context(), x.ID); err != nil {
+		switch {
+		case errors.Is(err, chat.ErrNotResumable):
+			writeError(w, http.StatusBadRequest, err.Error())
+		case errors.Is(err, chat.ErrWorkflowRunning):
+			writeError(w, http.StatusConflict, err.Error())
+		default:
+			s.internal(w, r, err)
+		}
+		return
+	}
+	s.audit(r, audit.Change{Action: "workflow_run.resume", Resource: "workflow_run", ResourceID: x.ID, ProjectID: x.ProjectID})
+	if x, err = s.cfg.Store.WorkflowRuns().Get(r.Context(), x.ID); err != nil {
+		s.internal(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"run": s.toWorkflowRunDTO(r.Context(), x)})
 }
 
 // stopWorkflowRun stops a run and every answer of its chat (as the chat's Dừng).

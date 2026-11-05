@@ -130,3 +130,15 @@ func (r *Runner) emitDone(ctx context.Context, a storage.Automation, j storage.J
 		Status: j.Status, Error: j.Error, Text: out, Depth: depth,
 		Untrusted: prev.Untrusted || j.Trigger == "webhook" || IsChannel(j.Trigger)})
 }
+
+// ResumedEnded is an automation's job that waited for a workflow ending
+// after the run went on past a restart (ADR-256): its runner is gone, so
+// the next link of its chain starts here.
+func (r *Runner) ResumedEnded(ctx context.Context, j storage.Job, text string) {
+	if j.Origin != "automation" || j.ParentJobID != "" {
+		return
+	}
+	if a, err := r.store.Automations().Get(ctx, j.OriginID); err == nil {
+		r.emitDone(context.WithoutCancel(ctx), a, j, text)
+	}
+}

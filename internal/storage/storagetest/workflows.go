@@ -3,6 +3,7 @@ package storagetest
 import (
 	"context"
 	"errors"
+	"reflect"
 	"testing"
 	"time"
 
@@ -48,6 +49,25 @@ func testWorkflows(t *testing.T, s storage.Store) {
 	back, err := s.WorkflowRuns().Get(ctx, r.ID)
 	if err != nil || back.Turns != 2 || len(back.Log) != 1 || back.Roles[0].SessionID != "ses" || back.Gates == nil {
 		t.Fatalf("Get = %+v, %v", back, err)
+	}
+	// a graph of steps keeps where it is (ADR-256): read back whole
+	until := time.Now().UTC().Add(time.Hour).Truncate(time.Second)
+	r.Checkpoint = &storage.RunCheckpoint{Input: map[string]string{"text": "x"}, Steps: map[string]storage.StepState{"a": {Output: `{"k":1}`, Status: "0", JSON: map[string]any{"k": 1.0}}},
+		Visits: map[string]int{"a": 1, "w": 1}, Pending: []string{"b"}, Running: map[string]string{"w": "wait"},
+		Marks: map[string]storage.StepMark{"w": {WaitUntil: &until}, "c": {ActionID: "act_1", ChildRunID: "wfr_2"}}, N: 2, Last: "a", Resumes: 1,
+		Tier: "fast", Tree: "burn-1", Trusted: true, DepthLeft: 2, CallerJob: "job_1"}
+	if err := s.WorkflowRuns().Update(ctx, r); err != nil {
+		t.Fatal(err)
+	}
+	back, err = s.WorkflowRuns().Get(ctx, r.ID)
+	if err != nil || back.Checkpoint == nil {
+		t.Fatalf("checkpoint = %+v, %v", back.Checkpoint, err)
+	}
+	if !reflect.DeepEqual(back.Checkpoint, r.Checkpoint) {
+		t.Fatalf("checkpoint = %+v, want %+v", back.Checkpoint, r.Checkpoint)
+	}
+	if c := back.Checkpoint.Clone(); c == back.Checkpoint || !reflect.DeepEqual(c, back.Checkpoint) {
+		t.Fatalf("Clone = %+v", c)
 	}
 	if n, err := s.WorkflowRuns().FailRunning(ctx, "restart", time.Now()); err != nil || n != 1 {
 		t.Fatalf("FailRunning = %d, %v", n, err)

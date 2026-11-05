@@ -18,7 +18,8 @@ var ErrStopping = errors.New("office đang khởi động lại, gửi lại sau
 
 // Shutdown ends the answers being written as office goes down, within wait:
 // their jobs stay running and their sessions keep what they did, so the
-// next office goes on with them (ResumeInterrupted).
+// next office goes on with them (ResumeInterrupted), as with the graphs of
+// steps running (ResumeWorkflows).
 func (e *Engine) Shutdown(wait time.Duration) {
 	e.stopping.Store(true)
 	e.mu.Lock()
@@ -32,6 +33,19 @@ func (e *Engine) Shutdown(wait time.Duration) {
 	e.mu.Unlock()
 	for _, t := range turns {
 		t.cancel()
+	}
+	// the graphs of steps stop where they are, as saved: the next office goes
+	// on with them (ADR-256); they are not ended
+	e.wf.mu.Lock()
+	var stops []context.CancelFunc
+	for _, r := range e.wf.byConv {
+		if r.def.StepMode() && r.stop != nil {
+			stops = append(stops, r.stop)
+		}
+	}
+	e.wf.mu.Unlock()
+	for _, stop := range stops {
+		stop()
 	}
 	for end := time.Now().Add(wait); e.ActiveTurns() > 0 && time.Now().Before(end); {
 		time.Sleep(100 * time.Millisecond)

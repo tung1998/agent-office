@@ -9,7 +9,7 @@ interface UpdateState {
 }
 // the work a restart cuts off, by kind
 interface BusyItem { id: string, name: string, project_id: string, link: string }
-interface Busy { chats: number, chat_items: BusyItem[], workflows: BusyItem[], automations: BusyItem[], burn: BusyItem[], tasks: BusyItem[] }
+interface Busy { chats: number, chat_items: BusyItem[], workflows: BusyItem[], automations: BusyItem[], burn: BusyItem[], tasks: BusyItem[], parked?: BusyItem[] }
 interface Status {
   supervised: boolean
   build: { version: string, revision?: string, time?: string, dirty: boolean }
@@ -47,6 +47,8 @@ const busyGroups = computed(() => {
     { key: 'tasks', label: t('admin.updateBusyTasks'), items: b.tasks, more: 0 }
   ].filter(g => g.items.length || g.more)
 })
+// workflows that only wait: a restart does not hurt them, they go on after it (ADR-256)
+const parked = computed(() => data.value?.busy?.parked ?? [])
 const showLog = ref(false)
 const streamKey = ref(0) // new stream per update
 
@@ -282,6 +284,17 @@ const lastMeta = computed(() => ({
                 <li v-if="g.items.length > 8 || g.more" class="text-xs text-(--ui-text-dimmed)">{{ t('admin.updateBusyMore', { n: Math.max(g.items.length - 8, 0) + g.more }) }}</li>
               </ul>
             </div>
+          </div>
+          <div v-if="parked.length" class="rounded-lg border border-(--ui-border) p-3 text-sm">
+            <p class="flex items-center gap-1.5 font-medium">
+              <UIcon name="i-lucide-pause" class="size-4 text-(--ui-info)" />
+              <InfoLabel :label="t('admin.updateParkedTitle', { n: parked.length })" :info="t('admin.updateParkedInfo')" />
+            </p>
+            <ul class="mt-1 space-y-0.5">
+              <li v-for="it in parked.slice(0, 8)" :key="it.id" class="truncate text-xs">
+                <NuxtLink :to="it.link" class="hover:underline">{{ it.name }}</NuxtLink>
+              </li>
+            </ul>
           </div>
           <UAlert
             v-if="waiting" color="primary" variant="subtle" icon="i-lucide-hourglass" :title="t('admin.updateWaitingTitle')"

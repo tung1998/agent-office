@@ -18,7 +18,7 @@ Dự án thật (`dashboard/app/pages/`) là projects-based, không phải sơ �
 | `/projects/:id/skills/edit?name=&scope=` | Soạn skill | Soạn skill của project hoặc riêng máy (`?scope=user`) bằng chat có theo dõi (ADR-062) | Lưu |
 | `/skills`, `/mcp` (admin) | Skills, MCP servers | Hai mục riêng trên sidebar (`/library` cũ tự chuyển): **Đã cài** (mọi nơi trên máy, nhóm theo nơi cài), **Thư viện**, MCP **Phổ biến**, **Tìm MCP** | Xem, cài vào nơi khác, lưu vào thư viện, gỡ, tạo và sửa |
 | `/workflows` (admin) | Thư viện quy trình | Quy trình dùng chung (có sẵn, đã sửa, tự tạo), lỗi nếu file sai (ADR-098) | Tạo / Sửa / Khôi phục / Xoá |
-| `/projects/:id/workflows/runs/:runId` | Lần chạy quy trình | Chat đã gọi, đầu vào, đầu ra, vai/cổng/chi phí, nội dung (chat riêng của lần chạy, chỉ xem) — ADR-101 | Dừng, duyệt cổng |
+| `/projects/:id/workflows/runs/:runId` | Lần chạy quy trình | Chat đã gọi, đầu vào, đầu ra, vai/cổng/chi phí, nội dung (chat riêng của lần chạy, chỉ xem) — ADR-101; quy trình theo bước: bước đang ở, giờ hết chờ, số lần chạy tiếp sau khởi động lại, "chỉ đang chờ" (ADR-256) | Dừng, duyệt cổng, chạy tiếp từ bước dở |
 | `/projects/:id/burn/reviews` | Hồ sơ review của Burn (admin) | Danh sách hồ sơ; mỗi hồ sơ: tên, từng bước (vấn đề, cách làm, kết quả) bật/tắt kèm agent và quy trình review riêng — ADR-113 | Tạo, lưu, xóa |
 | `/workflows/edit?key=`, `/projects/:id/workflows/edit?w=` | Soạn quy trình | Canvas kéo thả (bước, agent, quy trình con; form điền phần thiếu, Đầu vào/Đầu ra — ADR-108; bước agent có ô Skill — ADR-186), văn bản, và chat (`purpose=workflow`, nút ở góc mở khung bên phải như chat hỗ trợ, không chặn thao tác trên canvas; tab văn bản trên desktop thì chat mở sẵn, chia đôi màn hình); ba cách cùng sửa một file | Lưu |
 | `/jobs` | Job | Mọi lượt chạy (chat, Việc, automation) của mọi project: trạng thái, lọc theo project, lỗi 24h, chi phí 24h | |
@@ -32,7 +32,7 @@ Dự án thật (`dashboard/app/pages/`) là projects-based, không phải sơ �
 | `/admin/audit` (admin) | Nhật ký thao tác | Lịch sử thay đổi cấu hình/quyền toàn máy | |
 | `/admin/transfer` (admin) | Chuyển máy | Export/import toàn bộ cấu hình (backup sang máy khác) | |
 | `/admin/peers` (admin) | Office khác | Ghép nối với office khác bằng mã mời dùng một lần; chọn project bên kia được dùng, xem project bên kia mở cho mình (ADR-167) |
-| `/admin/update` (admin) | Cập nhật office | Build lại từ mã nguồn (kéo trước commit mới của nhánh trên origin, main hay master), xem log trực tiếp, tự quay về bản cũ nếu lỗi; danh sách việc đang chạy (có link), cập nhật khi rảnh hay ngay, đang chờ thì hủy hoặc khởi động lại ngay, công tắc tự cập nhật (ADR-255) | Cập nhật khi rảnh, cập nhật ngay, hủy, kiểm tra có bản mới |
+| `/admin/update` (admin) | Cập nhật office | Build lại từ mã nguồn (kéo trước commit mới của nhánh trên origin, main hay master), xem log trực tiếp, tự quay về bản cũ nếu lỗi; danh sách việc đang chạy (có link), cập nhật khi rảnh hay ngay, đang chờ thì hủy hoặc khởi động lại ngay, công tắc tự cập nhật (ADR-255); quy trình chỉ đang chờ hiện riêng, không giữ cập nhật (ADR-256) | Cập nhật khi rảnh, cập nhật ngay, hủy, kiểm tra có bản mới |
 | `/login` | Đăng nhập | | |
 
 `/costs` và `/incidents` đã bỏ, gộp vào Tổng quan (`/`): biểu đồ chi phí + danh sách cần xử lý (ADR-060, ADR-051); hai đường dẫn cũ chuyển hướng về `/`. Không có trang `/setup` (chỉ `/projects/:id/setup`), `/agents/:id` (thay bằng `/projects/:id/agents/:agentId`), `/blackboard`, hay `/ask` — đó là thiết kế sơ khai ban đầu, chưa từng lên app thật.

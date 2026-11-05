@@ -305,29 +305,30 @@ func (t *Turn) Cancel() { t.cancel() }
 
 // Engine runs conversations.
 type Engine struct {
-	reportEvery time.Duration // how often a report back retries a busy chat (0 = 5s; tests)
-	store       storage.Store
-	providers   *provider.Service
-	usage       *usage.Service
-	files       attach.Store
-	onRunning   func(conversationID string)                // an answer started or ended there (the dashboard's live data)
-	onRunWait   func(ctx context.Context, callerID string) // a workflow's turn ended: what it waits on a person for goes to the chat that called it (a bot's)
-	onAnswered  func(ctx context.Context, a Answered)      // an agent answered a turn: its notes are kept up to date (ADR-215)
-	onEnded     func(ctx context.Context, x Ended)         // a turn or a workflow run ended: automations that follow it (ADR-243)
-	decided     decisions                                  // proposals a person decided on the dashboard: the agent goes on (ADR-084)
-	queueRun    QueueRunner                                // carries out a queued proposal (Drain)
-	draining    sync.Map                                   // conversation id → *sync.Mutex: one Drain at a time
-	onLimits    func(p storage.Provider, l Limits)
-	office      *officetools.Toolbox
-	mcp         *mcpserver.Server
-	mcpURL      string
-	gateway     GatewayFor // the gateway's MCP servers a run gets (ADR-091, ADR-093)
-	trees       *worktree.Manager
-	assistant   func(ctx context.Context) string
-	wf          wfState         // workflows running in chats
-	acts        actionsProposer // the workflows' gates propose through it
-	peers       Peers           // linked projects in other offices (ADR-167; nil = none)
-	stopping    atomic.Bool     // office is going down: answers cut off now go on after it (Shutdown)
+	reportEvery  time.Duration // how often a report back retries a busy chat (0 = 5s; tests)
+	store        storage.Store
+	providers    *provider.Service
+	usage        *usage.Service
+	files        attach.Store
+	onRunning    func(conversationID string)                           // an answer started or ended there (the dashboard's live data)
+	onResumedJob func(ctx context.Context, j storage.Job, text string) // a run that went on past a restart ended: its caller's job did (ADR-256)
+	onRunWait    func(ctx context.Context, callerID string)            // a workflow's turn ended: what it waits on a person for goes to the chat that called it (a bot's)
+	onAnswered   func(ctx context.Context, a Answered)                 // an agent answered a turn: its notes are kept up to date (ADR-215)
+	onEnded      func(ctx context.Context, x Ended)                    // a turn or a workflow run ended: automations that follow it (ADR-243)
+	decided      decisions                                             // proposals a person decided on the dashboard: the agent goes on (ADR-084)
+	queueRun     QueueRunner                                           // carries out a queued proposal (Drain)
+	draining     sync.Map                                              // conversation id → *sync.Mutex: one Drain at a time
+	onLimits     func(p storage.Provider, l Limits)
+	office       *officetools.Toolbox
+	mcp          *mcpserver.Server
+	mcpURL       string
+	gateway      GatewayFor // the gateway's MCP servers a run gets (ADR-091, ADR-093)
+	trees        *worktree.Manager
+	assistant    func(ctx context.Context) string
+	wf           wfState         // workflows running in chats
+	acts         actionsProposer // the workflows' gates propose through it
+	peers        Peers           // linked projects in other offices (ADR-167; nil = none)
+	stopping     atomic.Bool     // office is going down: answers cut off now go on after it (Shutdown)
 
 	// rechecks: provider id → when a connection marked broken was last
 	// checked again in the background (recheckBroken)

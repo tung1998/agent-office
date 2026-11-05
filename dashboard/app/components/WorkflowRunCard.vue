@@ -34,6 +34,25 @@ async function decide(g: RunGate, approve: boolean) {
 const waiting = computed(() => props.run.status === 'running' ? props.run.gates.filter(g => g.kind === 'approve' && g.status === 'waiting' && g.action_id) : [])
 const pageTo = computed(() => `/projects/${props.run.project_id}/workflows/runs/${props.run.id}`)
 
+// where a graph of steps is (ADR-256): what it waits on, how often it went
+// on after a restart; one the restart ended may go on from where it was
+const cp = computed(() => props.run.checkpoint ?? null)
+const waits = computed(() => props.run.status === 'running' ? (cp.value?.running ?? []).filter(s => s.wait_until) : [])
+const clock = (d?: string) => d ? new Date(d).toLocaleString(dateLocale.value, { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' }) : ''
+const resuming = ref(false)
+async function resume() {
+  resuming.value = true
+  try {
+    const res = await $fetch<{ run: WorkflowRun }>(`/api/workflow-runs/${props.run.id}/resume`, { method: 'POST', body: {} })
+    toast.add({ title: t('wf.run.resumedToast'), color: 'success' })
+    emit('updated', res.run)
+  } catch (e) {
+    toast.add({ title: apiError(e), color: 'error' })
+  } finally {
+    resuming.value = false
+  }
+}
+
 const stopping = ref(false)
 async function stop() {
   stopping.value = true
@@ -65,6 +84,22 @@ async function stop() {
     <p class="text-xs text-(--ui-text-muted)">
       {{ t('wf.run.coordinator', { name: run.coordinator_name }) }}<template v-if="run.input"> · <span class="italic">{{ run.input }}</span></template>
     </p>
+
+    <div v-if="cp && (cp.resumes || cp.parked || waits.length || (run.status === 'running' && cp.running.length))" class="flex flex-wrap items-center gap-1.5 text-xs">
+      <UBadge v-if="cp.resumes" color="warning" variant="subtle" size="sm" icon="i-lucide-rotate-cw" :label="t('wf.run.resumed', { n: cp.resumes })" :title="t('wf.run.resumedInfo', { max: cp.max_resumes })" />
+      <UBadge v-if="cp.parked" color="info" variant="subtle" size="sm" icon="i-lucide-pause" :label="t('wf.run.parked')" />
+      <span v-if="run.status === 'running' && cp.running.length && !waits.length" class="text-(--ui-text-muted)">{{ t('wf.run.at', { steps: cp.running.map(s => s.label).join(', ') }) }}</span>
+      <span v-for="s in waits" :key="s.id" class="flex items-center gap-1 text-(--ui-text-muted)">
+        <UIcon name="i-lucide-hourglass" class="size-3.5" />{{ t('wf.run.waitUntil', { step: s.label, time: clock(s.wait_until) }) }}
+      </span>
+    </div>
+
+    <div v-if="cp?.resumable" class="flex flex-wrap items-center gap-2 rounded-md bg-(--ui-info)/10 px-2.5 py-1.5 text-xs">
+      <UIcon name="i-lucide-history" class="size-4 text-(--ui-info)" />
+      <span class="min-w-0 flex-1 basis-48">{{ t('wf.run.resumeInfo') }}</span>
+      <UButton v-if="isAdmin" size="xs" color="primary" icon="i-lucide-play" :label="t('wf.run.resume')" :loading="resuming" @click="resume" />
+    </div>
+    <p v-else-if="run.status === 'failed' && cp?.why" class="text-xs text-(--ui-text-muted)">{{ t('wf.run.resumeNo', { why: cp.why }) }}</p>
 
     <ul v-if="run.roles.length" class="divide-y divide-(--ui-border) rounded-md border border-(--ui-border)">
       <li v-for="r in run.roles" :key="r.role" class="flex items-center gap-2 px-2.5 py-1.5 text-xs">

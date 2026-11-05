@@ -143,3 +143,31 @@ func TestSpecSelf(t *testing.T) {
 		t.Fatalf("applied %+v", a.Config)
 	}
 }
+
+// An automation's run that went on past a restart (ADR-256) ends without
+// its runner: its chain goes on all the same; a person's job, or a child
+// job of a run, starts nothing.
+func TestResumedEndedChains(t *testing.T) {
+	ctx := context.Background()
+	st, p := openStore(t)
+	ex := &fakeExec{}
+	r := trigger.New(st, ex)
+	ag, _ := st.Agents().Create(ctx, storage.Agent{ProjectID: p.ID, Key: "dev", Name: "Dev", ModelTier: "fast"})
+	a, _ := st.Automations().Create(ctx, storage.Automation{ProjectID: p.ID, Name: "Nâng cấp", Source: "schedule", Action: "chat", Enabled: true, AgentID: ag.ID, Prompt: "x",
+		Config: storage.AutomationConfig{EveryMinutes: 60}})
+	if _, err := st.Automations().Create(ctx, storage.Automation{ProjectID: p.ID, Name: "Sau", Source: "event", Action: "chat", Enabled: true, AgentID: ag.ID,
+		Prompt: "tiếp sau {{payload.from_name}}: {{payload.text}}", Config: storage.AutomationConfig{Event: "automation.done"}}); err != nil {
+		t.Fatal(err)
+	}
+	r.ResumedEnded(ctx, storage.Job{ID: "job_u", ProjectID: p.ID, Origin: "user", Status: "done"}, "x")
+	r.ResumedEnded(ctx, storage.Job{ID: "job_c", ProjectID: p.ID, Origin: "automation", OriginID: a.ID, ParentJobID: "job_p", Status: "done"}, "x")
+	r.Wait()
+	if len(ex.chats) != 0 {
+		t.Fatalf("ran %v", ex.chats)
+	}
+	r.ResumedEnded(ctx, storage.Job{ID: "job_1", ProjectID: p.ID, Origin: "automation", OriginID: a.ID, Status: "done"}, "đã nâng")
+	r.Wait()
+	if len(ex.chats) != 1 || !strings.Contains(ex.chats[0], "tiếp sau Nâng cấp: đã nâng") {
+		t.Fatalf("chain ran %v", ex.chats)
+	}
+}

@@ -334,6 +334,27 @@ export interface WorkflowRun {
   outputs?: Record<string, string> // its declared outputs, by key
   started_at: string
   finished_at: string | null
+  checkpoint?: RunCheckpoint | null // where a graph of steps is (ADR-256); null: a coordinator's run
+}
+
+// A step of a run's checkpoint.
+export interface RunStep {
+  id: string
+  label: string
+  type: string
+  wait_until?: string
+  action_id?: string
+}
+
+// Where a graph of steps is (ADR-256): it goes on from there after a restart.
+export interface RunCheckpoint {
+  running: RunStep[]
+  pending: RunStep[]
+  resumes: number // how often it went on after a restart that cut a step
+  max_resumes: number // past it, it ends
+  parked: boolean // it only waits: a restart would not hurt it
+  resumable: boolean // the restart ended it, it may go on from where it was
+  why?: string // why it cannot go on
 }
 
 // A project's workflow (GET /api/projects/{id}/workflows).

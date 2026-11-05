@@ -4,10 +4,12 @@ import (
 	"context"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/tung1998/agent-office/internal/busywork"
 	"github.com/tung1998/agent-office/internal/storage"
 	"github.com/tung1998/agent-office/internal/storage/sqlite"
+	"github.com/tung1998/agent-office/internal/workflow"
 )
 
 type turns int
@@ -90,5 +92,56 @@ func TestCountEveryKind(t *testing.T) {
 	}
 	if s := r.Summary(); !strings.Contains(s, "Nâng cấp hằng ngày") || !strings.Contains(s, "1 lượt chat") {
 		t.Errorf("summary = %q", s)
+	}
+}
+
+// A graph of steps that only waits (until a time, on a card a person has not
+// decided) and the job waiting for it do not hold an update: the next office
+// goes on with them (ADR-256). A step in the middle, a card whose command
+// runs, a run whose workflow changed still do.
+func TestBusyworkSkipsResumableWait(t *testing.T) {
+	ctx := context.Background()
+	st := open(t)
+	p, _ := st.Repos().Create(ctx, storage.Repo{Name: "p", Path: "/p"})
+	src := "---\nkey: w\nname: W\nsteps:\n  - { id: a, type: wait, for: 1h, next: b }\n  - { id: b, type: end }\n---\n"
+	w, err := st.Workflows().Create(ctx, storage.Workflow{ProjectID: p.ID, Key: "w", Name: "W", Source: src, Enabled: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	conv, _ := st.Chat().CreateConversation(ctx, storage.Conversation{ProjectID: p.ID, Purpose: "workflow_run"})
+	job, _ := st.Jobs().Create(ctx, storage.Job{ProjectID: p.ID, Kind: "chat_turn", Origin: "automation", OriginID: "aut_1", Status: "running", Title: "Nâng cấp"})
+	at := time.Now().Add(time.Hour)
+	cp := &storage.RunCheckpoint{Running: map[string]string{"a": "wait"}, Marks: map[string]storage.StepMark{"a": {WaitUntil: &at}}, CallerJob: job.ID}
+	run, _ := st.WorkflowRuns().Create(ctx, storage.WorkflowRun{ProjectID: p.ID, ConversationID: conv.ID, WorkflowID: w.ID, WorkflowName: "W",
+		BodyHash: workflow.RunHash(src), Status: storage.RunRunning, Checkpoint: cp})
+	c := busywork.Counter{Store: st}
+	if r := c.Count(ctx); r.Total() != 0 || len(r.Parked) != 1 || r.Parked[0].ID != run.ID {
+		t.Fatalf("a waiting run = %+v", r)
+	}
+	// a step in the middle is work
+	run.Checkpoint = &storage.RunCheckpoint{Running: map[string]string{"a": "wait", "c": "code"}, Marks: cp.Marks, CallerJob: job.ID}
+	_ = st.WorkflowRuns().Update(ctx, run)
+	if r := c.Count(ctx); len(r.Workflows) != 1 || len(r.Automations) != 1 || len(r.Parked) != 0 {
+		t.Fatalf("a step running = %+v", r)
+	}
+	// a card waiting on a person is not, once decided it is
+	act, _ := st.Actions().Create(ctx, storage.Action{ProjectID: p.ID, ConversationID: conv.ID, Kind: "workflow_gate", Status: "pending"})
+	run.Checkpoint = &storage.RunCheckpoint{Running: map[string]string{"g": "approve"}, Marks: map[string]storage.StepMark{"g": {ActionID: act.ID}}}
+	_ = st.WorkflowRuns().Update(ctx, run)
+	if r := c.Count(ctx); len(r.Parked) != 1 {
+		t.Fatalf("a card waiting = %+v", r)
+	}
+	act.Status = "done"
+	_ = st.Actions().Update(ctx, act)
+	if r := c.Count(ctx); len(r.Parked) != 0 || len(r.Workflows) != 1 {
+		t.Fatalf("a card decided = %+v", r)
+	}
+	// a workflow changed since: it will not go on, so it is work
+	run.Checkpoint = cp
+	_ = st.WorkflowRuns().Update(ctx, run)
+	w.Source = strings.Replace(src, "1h", "2h", 1)
+	_ = st.Workflows().Update(ctx, w)
+	if r := c.Count(ctx); len(r.Parked) != 0 || len(r.Workflows) != 1 {
+		t.Fatalf("a changed workflow = %+v", r)
 	}
 }

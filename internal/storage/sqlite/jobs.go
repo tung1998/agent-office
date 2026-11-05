@@ -492,6 +492,18 @@ func (r jobRepo) CostSince(ctx context.Context, origin, originID string, since t
 	return v, err
 }
 
+func (r jobRepo) Reopen(ctx context.Context, id, errCode string) (storage.Job, error) {
+	res, err := r.db.ExecContext(ctx, `UPDATE jobs SET status='running', error_code='', error='', finished_at=NULL
+		WHERE id=? AND status='failed' AND error_code=?`, id, errCode)
+	if err != nil {
+		return storage.Job{}, err
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return storage.Job{}, storage.ErrConflict
+	}
+	return r.Get(ctx, id)
+}
+
 func (r jobRepo) FailRunning(ctx context.Context, errCode, errMsg string, at time.Time) (int64, error) {
 	res, err := r.db.ExecContext(ctx, `UPDATE jobs SET status='failed', error_code=?, error=?, finished_at=?,
 		cost_usd=(SELECT COALESCE(SUM(cost_usd),0) FROM runs WHERE job_id=jobs.id),

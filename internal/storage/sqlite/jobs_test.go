@@ -279,3 +279,23 @@ func TestHideOthersInOnlyShowsOwnAssistantChatJobs(t *testing.T) { // ADR-046
 		t.Fatalf("list (p) = %+v %v", got, err)
 	}
 }
+
+// A job a restart failed goes back to running when the run it waited for
+// goes on (ADR-256); a job that ended otherwise does not.
+func TestJobReopen(t *testing.T) {
+	ctx := context.Background()
+	st, p := openStore(t)
+	now := time.Now().UTC()
+	cut, _ := st.Jobs().Create(ctx, storage.Job{ProjectID: p.ID, Kind: "chat_turn", Origin: "automation", Status: "running", StartedAt: &now})
+	if _, err := st.Jobs().FailRunning(ctx, "restart", "office khởi động lại", now); err != nil {
+		t.Fatal(err)
+	}
+	j, err := st.Jobs().Reopen(ctx, cut.ID, "restart")
+	if err != nil || j.Status != "running" || j.ErrorCode != "" || j.Error != "" || j.FinishedAt != nil {
+		t.Fatalf("Reopen = %+v, %v", j, err)
+	}
+	done, _ := st.Jobs().Finish(ctx, cut.ID, "done", "", "", now)
+	if _, err := st.Jobs().Reopen(ctx, done.ID, "restart"); !errors.Is(err, storage.ErrConflict) {
+		t.Fatalf("Reopen a done job = %v", err)
+	}
+}

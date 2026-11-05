@@ -409,33 +409,47 @@ func cmpOr(a, b string) string {
 	return b
 }
 
+// InterruptedDetail starts the error of a run office restarted under and
+// ended (a run that kept where it was may go on from there: ADR-256).
+const InterruptedDetail = "office khởi động lại khi quy trình đang chạy"
+
 // EndInterrupted ends the runs the office restarted under (their turns do
 // not run again) and tells each chat that called one: a chat would
 // otherwise wait for an output that never comes. why is why office went
-// down (an update, a stop, a crash: ADR-255); "" says nothing of it.
-func (s *Service) EndInterrupted(ctx context.Context, why string) (int, error) {
+// down (an update, a stop, a crash: ADR-255); "" says nothing of it. The
+// runs keep names go on instead (a graph of steps that kept where it was:
+// ADR-256); a sub-run of one is run again by its step, its chat is not told.
+func (s *Service) EndInterrupted(ctx context.Context, why string, keep map[string]bool) (int, error) {
 	runs, err := s.Store.WorkflowRuns().List(ctx, "", "", 500)
 	if err != nil {
 		return 0, err
 	}
-	detail := "office khởi động lại khi quy trình đang chạy"
+	detail := InterruptedDetail
 	if why != "" {
 		detail += ": " + why
 	}
-	if _, err := s.Store.WorkflowRuns().FailRunning(ctx, detail, time.Now().UTC()); err != nil {
-		return 0, err
-	}
+	now := time.Now().UTC()
 	n := 0
 	for _, r := range runs {
-		if r.Status != storage.RunRunning {
+		if r.Status != storage.RunRunning || keep[r.ID] {
 			continue
 		}
+		r.Status, r.Error, r.FinishedAt = storage.RunFailed, detail, &now
+		if err := s.Store.WorkflowRuns().Update(ctx, r); err != nil {
+			return n, err
+		}
 		n++
+		if keep[r.ParentRunID] {
+			continue // its parent goes on: its step runs it again
+		}
 		note := "⚠️ Quy trình " + r.WorkflowName + " đã dừng vì office khởi động lại"
 		if why != "" {
 			note += " (" + why + ")"
 		}
 		note += ". Gõ lại /" + r.WorkflowKey + " để chạy lại."
+		if r.Checkpoint != nil && r.ParentRunID == "" {
+			note += " Hoặc bấm \"Chạy tiếp từ bước dở\" ở trang lần chạy."
+		}
 		if r.ConversationID != "" {
 			_, _ = s.Store.Chat().AddMessage(ctx, storage.Message{ConversationID: r.ConversationID, Role: "error", Content: note})
 		}

@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/tung1998/agent-office/internal/storage"
+	"github.com/tung1998/agent-office/internal/workflow"
 )
 
 // Item is one piece of work in progress.
@@ -30,6 +31,9 @@ type Report struct {
 	Automations []Item `json:"automations"`
 	Burn        []Item `json:"burn"`
 	Tasks       []Item `json:"tasks"`
+	// Parked is the workflows a restart would not hurt (ADR-256): they only
+	// wait (until a time, on a card) and go on after it. Not counted.
+	Parked []Item `json:"parked"`
 }
 
 // Total is how many pieces of work are in progress.
@@ -67,6 +71,10 @@ func (r Report) Summary() string {
 // Turns counts the answers being written (the chat engine).
 type Turns interface{ ActiveTurns() int }
 
+// parker is a chat engine that knows which of them only wait for a run a
+// restart would not hurt (ADR-256).
+type parker interface{ ParkedTurns() int }
+
 // Counter reads the work in progress.
 type Counter struct {
 	Store storage.Store
@@ -75,15 +83,33 @@ type Counter struct {
 
 // Count lists the work in progress; a part it cannot read is left out.
 func (c Counter) Count(ctx context.Context) Report {
-	r := Report{ChatItems: []Item{}, Workflows: []Item{}, Automations: []Item{}, Burn: []Item{}, Tasks: []Item{}}
+	r := Report{ChatItems: []Item{}, Workflows: []Item{}, Automations: []Item{}, Burn: []Item{}, Tasks: []Item{}, Parked: []Item{}}
 	if c.Chat != nil {
 		r.Chats = c.Chat.ActiveTurns()
+		if p, ok := c.Chat.(parker); ok {
+			r.Chats = max(r.Chats-p.ParkedTurns(), 0)
+		}
 	}
 	if c.Store == nil {
 		return r
 	}
+	// the workflows that only wait: neither they nor the jobs waiting for
+	// them hold a restart (ADR-256)
+	runs, runsErr := c.Store.WorkflowRuns().List(ctx, "", "", 500)
+	parked, waiting := map[string]bool{}, map[string]bool{}
+	for _, w := range runs {
+		if w.Status == storage.RunRunning && workflow.Parked(ctx, c.Store, w) {
+			parked[w.ID] = true
+			if w.Checkpoint.CallerJob != "" {
+				waiting[w.Checkpoint.CallerJob] = true
+			}
+		}
+	}
 	if jobs, err := c.Store.Jobs().List(ctx, storage.JobFilter{Status: "running", Limit: 200}); err == nil {
 		for _, j := range jobs {
+			if waiting[j.ID] {
+				continue
+			}
 			name := j.Title
 			if name == "" {
 				name = j.ID
@@ -100,7 +126,7 @@ func (c Counter) Count(ctx context.Context) Report {
 			}
 		}
 	}
-	if runs, err := c.Store.WorkflowRuns().List(ctx, "", "", 500); err == nil {
+	if runsErr == nil {
 		for _, w := range runs {
 			if w.Status != storage.RunRunning {
 				continue
@@ -109,7 +135,12 @@ func (c Counter) Count(ctx context.Context) Report {
 			if name == "" {
 				name = w.WorkflowKey
 			}
-			r.Workflows = append(r.Workflows, Item{ID: w.ID, Name: name, ProjectID: w.ProjectID, Link: chatLink(w.ProjectID, w.ConversationID)})
+			it := Item{ID: w.ID, Name: name, ProjectID: w.ProjectID, Link: chatLink(w.ProjectID, w.ConversationID)}
+			if parked[w.ID] || parked[w.ParentRunID] {
+				r.Parked = append(r.Parked, it)
+				continue
+			}
+			r.Workflows = append(r.Workflows, it)
 		}
 	}
 	if sessions, err := c.Store.Burn().Running(ctx); err == nil {

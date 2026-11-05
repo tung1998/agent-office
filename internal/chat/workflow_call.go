@@ -70,6 +70,7 @@ func (e *Engine) callWorkflow(ctx context.Context, conv storage.Conversation, ag
 	// schedule, its chain, a hand run: internal/trigger.effectivePermissions):
 	// the run's own turns, new jobs with no person behind them, keep it
 	run.trusted = run.trusted || job.Origin != "user" && job.FullAccess
+	run.callerJob = job.ID // ends when the run does, even past a restart (ADR-256)
 	// the run's chat: the same agent and rights as here, never listed
 	own := storage.Conversation{ProjectID: conv.ProjectID, AgentID: agent.ID, AgentName: agent.Name, CreatedBy: actor.From(ctx), Purpose: RunPurpose,
 		Title: truncate(run.def.Name+": "+oneLine(firstNonEmpty(run.rec.Input, run.def.Name)), 80), Mode: conv.Mode, EditMode: conv.EditMode}
@@ -105,6 +106,9 @@ func (e *Engine) awaitRun(ctx context.Context, turn *Turn, conv storage.Conversa
 	select {
 	case <-run.done:
 	case <-ctx.Done(): // Dừng in the chat that called it
+		if e.stopping.Load() && run.def.StepMode() {
+			return // office going down: the run and this job go on in the next office (ADR-256)
+		}
 		e.StopAll(ownID)
 		select {
 		case <-run.done:
@@ -116,19 +120,7 @@ func (e *Engine) awaitRun(ctx context.Context, turn *Turn, conv storage.Conversa
 	if err != nil {
 		rec = run.rec
 	}
-	role, content := "assistant", strings.TrimSpace(rec.Result)+outputsText(rec)
-	var runErr, stopped error
-	switch rec.Status {
-	case storage.RunDone:
-		if content == "" {
-			content = "Quy trình " + rec.WorkflowName + " đã xong."
-		}
-	case storage.RunStopped:
-		role, content, stopped = "error", "⏹️ Đã dừng quy trình "+rec.WorkflowName+".", context.Canceled
-	default:
-		role, content = "error", "⚠️ Quy trình "+rec.WorkflowName+" không xong: "+firstNonEmpty(rec.Error, "lỗi không rõ")
-		runErr = errors.New(content)
-	}
+	role, content, runErr, stopped := runOutcome(rec)
 	author, agentID := "", ""
 	if role == "assistant" {
 		author, agentID = rec.CoordinatorName, rec.CoordinatorID

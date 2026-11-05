@@ -130,12 +130,15 @@ func serveCmd() *cobra.Command {
 			}
 			// and their tasks, so the tasks list is right and "Chạy lại" works
 			_, _ = a.store.Tasks().FailRunning(ctx, "Office khởi động lại khi Việc đang chạy: "+downWhy, time.Now().UTC())
-			// and the workflows they were part of (their turns do not run again);
-			// the chats that called them are told
-			if n, err := a.workflows.EndInterrupted(ctx, downWhy); err == nil && n > 0 {
+			chatEngine := chat.NewEngine(a.store, a.providers, a.usage)
+			// the graphs of steps that kept where they were go on (below,
+			// ADR-256); the other workflows they were part of end (their turns
+			// do not run again) and the chats that called them are told
+			resumable := chatEngine.ResumableRuns(ctx)
+			if n, err := a.workflows.EndInterrupted(ctx, downWhy, resumable); err == nil && n > 0 {
 				fmt.Fprintf(cmd.ErrOrStderr(), "office: %d quy trình đang chạy dở được đánh dấu lỗi (khởi động lại)\n", n)
 			}
-			chatEngine := chat.NewEngine(a.store, a.providers, a.usage)
+			interrupted = chat.WithoutRunCallers(ctx, a.store, interrupted, resumable) // their chats wait for the run, not a new answer
 			chatEngine.SetAttachments(attach.Store{Dir: filepath.Join(h.Dir, "attachments")})
 			// agents edit and check in their own git worktrees (ADR-037)
 			trees := worktree.New(filepath.Join(h.Dir, "worktrees"))
@@ -277,6 +280,7 @@ func serveCmd() *cobra.Command {
 			office.AddProvider(supportPack)
 			office.AddProvider(collections.NewTools(collections.New(a.store), acts)) // data_* (ADR-172); a delete is a card
 			office.AddProvider(activity.NewTools(a.store))                           // project_report (ADR-210)
+			chatEngine.SetOnResumedJob(runner.ResumedEnded)                          // an automation's run that went on past a restart: its chain goes on (ADR-256)
 			chatEngine.SetOnEnded(func(ctx context.Context, x chat.Ended) {          // automations that follow it (ADR-243)
 				runner.Emit(ctx, x.ProjectID, x.ID, trigger.EventPayload{Event: x.Event, From: x.From, FromName: x.FromName,
 					ConversationID: x.ConversationID, Status: x.Status, Error: x.Error, Text: x.Text})
@@ -437,7 +441,11 @@ func serveCmd() *cobra.Command {
 			if n := chatEngine.ResumeInterrupted(ctx, interrupted); n > 0 {
 				fmt.Fprintf(cmd.ErrOrStderr(), "office: %d cuộc chat đang trả lời dở được làm tiếp (khởi động lại)\n", n)
 			}
-			chatEngine.SendAllQueued(ctx) // messages that waited in chats when office stopped
+			if n := chatEngine.ResumeWorkflows(ctx, downWhy, resumable); n > 0 {
+				fmt.Fprintf(cmd.ErrOrStderr(), "office: %d quy trình chạy tiếp từ chỗ đã dừng (khởi động lại)\n", n)
+			}
+			go chatEngine.WatchOrphans(ctx, 5*time.Minute) // runs left running that nobody runs (ADR-256)
+			chatEngine.SendAllQueued(ctx)                  // messages that waited in chats when office stopped
 			fmt.Fprintf(os.Stderr, "office %s · chế độ %s · dữ liệu %s · api http://%s\n", version, h.Mode, h.Dir, addr)
 
 			select {

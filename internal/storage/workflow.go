@@ -2,6 +2,7 @@ package storage
 
 import (
 	"context"
+	"encoding/json"
 	"time"
 )
 
@@ -77,6 +78,63 @@ type WorkflowRun struct {
 	Actor                         string
 	StartedAt                     time.Time
 	FinishedAt                    *time.Time
+	// Checkpoint is where a graph of steps is (ADR-256): the next office goes
+	// on from there after a restart (nil: a coordinator's run, a run from before)
+	Checkpoint *RunCheckpoint
+}
+
+// RunCheckpoint is the state of a graph of steps, saved as it goes (ADR-256).
+type RunCheckpoint struct {
+	Input   map[string]string    `json:"input,omitempty"`   // the values its caller gave by key
+	Steps   map[string]StepState `json:"steps,omitempty"`   // the results of the steps that ended
+	Visits  map[string]int       `json:"visits,omitempty"`  // how often each step started (max_loops)
+	Pending []string             `json:"pending,omitempty"` // reached, waiting their turn
+	Running map[string]string    `json:"running,omitempty"` // step id → its type: started, not ended
+	Marks   map[string]StepMark  `json:"marks,omitempty"`   // what a running step waits on
+	Ended   bool                 `json:"ended,omitempty"`   // an end step was reached
+	Summary string               `json:"summary,omitempty"`
+	Outputs map[string]string    `json:"outputs,omitempty"`
+	Last    string               `json:"last,omitempty"` // the step that ended last
+	N       int                  `json:"n,omitempty"`    // steps started so far (MaxStepsRun)
+	// Resumes is how often an office went on with it after a restart that
+	// cut a step in the middle (a wait or a card is not cut): bounded
+	Resumes int `json:"resumes,omitempty"`
+	// how the turns of its steps ran: the model tier, the most they may do,
+	// the worktree, whether a trusted automation started it
+	Tier        string `json:"tier,omitempty"`
+	Ceiling     string `json:"ceiling,omitempty"`
+	Tree        string `json:"tree,omitempty"`
+	TreeNoPatch bool   `json:"tree_no_patch,omitempty"`
+	TreePinned  bool   `json:"tree_pinned,omitempty"`
+	Trusted     bool   `json:"trusted,omitempty"`
+	DepthLeft   int    `json:"depth_left,omitempty"` // sub-workflow levels it may still open
+	// CallerJob is the job of the chat that called it: it ends when the run does
+	CallerJob string `json:"caller_job,omitempty"`
+}
+
+// StepState is what a step left for the steps after it (workflow.StepResult).
+type StepState struct {
+	Output string `json:"output"`
+	Status string `json:"status,omitempty"`
+	JSON   any    `json:"json,omitempty"`
+}
+
+// StepMark is what a running step waits on, so the next office waits on it too.
+type StepMark struct {
+	WaitUntil  *time.Time `json:"wait_until,omitempty"`   // a wait step: until when
+	ActionID   string     `json:"action_id,omitempty"`    // an approval or a check: its card
+	ChildRunID string     `json:"child_run_id,omitempty"` // a sub-workflow: its run
+}
+
+// Clone is a copy that shares nothing with c.
+func (c *RunCheckpoint) Clone() *RunCheckpoint {
+	if c == nil {
+		return nil
+	}
+	b, _ := json.Marshal(c)
+	var out RunCheckpoint
+	_ = json.Unmarshal(b, &out)
+	return &out
 }
 
 // RunRole is a role of a run: who fills it and how far it got.

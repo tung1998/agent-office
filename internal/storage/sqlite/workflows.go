@@ -130,24 +130,31 @@ type workflowRunRepo struct{ db dbtx }
 func (s *Store) WorkflowRuns() storage.WorkflowRunRepo { return workflowRunRepo{s.q} }
 
 const workflowRunCols = `id, project_id, conversation_id, caller_conversation_id, parent_run_id, depth, workflow_id, workflow_key, workflow_name, body_hash, coordinator_id, coordinator_name,
-	input, status, turns, cost_usd, result, error, roles, gates, log, actor, started_at, finished_at, outputs`
+	input, status, turns, cost_usd, result, error, roles, gates, log, actor, started_at, finished_at, outputs, checkpoint`
 
 func scanWorkflowRun(row scanner) (storage.WorkflowRun, error) {
 	var (
 		r                  storage.WorkflowRun
 		roles, gates, logs string
 		outputs            string
+		checkpoint         string
 		started            string
 		finished           sql.NullString
 	)
 	if err := row.Scan(&r.ID, &r.ProjectID, &r.ConversationID, &r.CallerConversationID, &r.ParentRunID, &r.Depth, &r.WorkflowID, &r.WorkflowKey, &r.WorkflowName, &r.BodyHash, &r.CoordinatorID, &r.CoordinatorName,
-		&r.Input, &r.Status, &r.Turns, &r.CostUSD, &r.Result, &r.Error, &roles, &gates, &logs, &r.Actor, &started, &finished, &outputs); err != nil {
+		&r.Input, &r.Status, &r.Turns, &r.CostUSD, &r.Result, &r.Error, &roles, &gates, &logs, &r.Actor, &started, &finished, &outputs, &checkpoint); err != nil {
 		return r, notFound(err)
 	}
 	_ = json.Unmarshal([]byte(roles), &r.Roles)
 	_ = json.Unmarshal([]byte(gates), &r.Gates)
 	_ = json.Unmarshal([]byte(logs), &r.Log)
 	_ = json.Unmarshal([]byte(outputs), &r.Outputs)
+	if checkpoint != "" {
+		var cp storage.RunCheckpoint
+		if json.Unmarshal([]byte(checkpoint), &cp) == nil {
+			r.Checkpoint = &cp
+		}
+	}
 	if r.Roles == nil {
 		r.Roles = []storage.RunRole{}
 	}
@@ -192,16 +199,28 @@ func (r workflowRunRepo) Create(ctx context.Context, x storage.WorkflowRun) (sto
 	if x.StartedAt.IsZero() {
 		x.StartedAt = time.Now().UTC()
 	}
-	_, err := r.db.ExecContext(ctx, `INSERT INTO workflow_runs (`+workflowRunCols+`) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+	_, err := r.db.ExecContext(ctx, `INSERT INTO workflow_runs (`+workflowRunCols+`) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 		x.ID, x.ProjectID, x.ConversationID, x.CallerConversationID, x.ParentRunID, x.Depth, x.WorkflowID, x.WorkflowKey, x.WorkflowName, x.BodyHash, x.CoordinatorID, x.CoordinatorName,
 		x.Input, x.Status, x.Turns, x.CostUSD, x.Result, x.Error, listJSON(x.Roles), listJSON(x.Gates), listJSON(x.Log), x.Actor,
-		fmtTime(x.StartedAt), optTime(x.FinishedAt), mapJSON(x.Outputs))
+		fmtTime(x.StartedAt), optTime(x.FinishedAt), mapJSON(x.Outputs), checkpointJSON(x.Checkpoint))
 	return x, err
 }
 
 func (r workflowRunRepo) Update(ctx context.Context, x storage.WorkflowRun) error {
-	return execOne(ctx, r.db, `UPDATE workflow_runs SET status=?, turns=?, cost_usd=?, result=?, error=?, roles=?, gates=?, log=?, coordinator_id=?, coordinator_name=?, finished_at=?, outputs=? WHERE id=?`,
-		x.Status, x.Turns, x.CostUSD, x.Result, x.Error, listJSON(x.Roles), listJSON(x.Gates), listJSON(x.Log), x.CoordinatorID, x.CoordinatorName, optTime(x.FinishedAt), mapJSON(x.Outputs), x.ID)
+	return execOne(ctx, r.db, `UPDATE workflow_runs SET status=?, turns=?, cost_usd=?, result=?, error=?, roles=?, gates=?, log=?, coordinator_id=?, coordinator_name=?, finished_at=?, outputs=?, checkpoint=? WHERE id=?`,
+		x.Status, x.Turns, x.CostUSD, x.Result, x.Error, listJSON(x.Roles), listJSON(x.Gates), listJSON(x.Log), x.CoordinatorID, x.CoordinatorName, optTime(x.FinishedAt), mapJSON(x.Outputs), checkpointJSON(x.Checkpoint), x.ID)
+}
+
+// checkpointJSON is a run's checkpoint as stored ("" = none).
+func checkpointJSON(c *storage.RunCheckpoint) string {
+	if c == nil {
+		return ""
+	}
+	b, err := json.Marshal(c)
+	if err != nil {
+		return ""
+	}
+	return string(b)
 }
 
 func (r workflowRunRepo) Get(ctx context.Context, id string) (storage.WorkflowRun, error) {

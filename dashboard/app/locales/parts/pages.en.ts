@@ -336,6 +336,8 @@ const en: Record<keyof typeof vi, string> = {
   'admin.updateBusyAutomations': 'Automation runs',
   'admin.updateBusyBurn': 'Burn pieces',
   'admin.updateBusyTasks': 'Tasks',
+  'admin.updateParkedTitle': 'Workflows only waiting ({n})',
+  'admin.updateParkedInfo': 'These workflows only wait (until a time, or for a card to be decided). A restart loses none of their work: they go on from where they stopped, so an update does not wait for them.',
   'admin.updateBusyMore': '… and {n} more',
   'admin.updateWaitingTitle': 'Built, waiting for office to be idle',
   'admin.updateWaitingDesc': 'Still running: {busy}. Office restarts on the new build once they finish (at most until {until}); no new automation run or Burn piece starts meanwhile.',

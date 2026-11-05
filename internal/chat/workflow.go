@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"maps"
 	"slices"
 	"strings"
 	"sync"
@@ -73,13 +74,38 @@ type wfRun struct {
 	seq      int
 	savedSeq int
 	saveMu   sync.Mutex
+	// where a graph of steps is (ADR-256), saved with each snapshot: cp is
+	// its runner's state (replaced whole, never changed in place), marks
+	// what its running steps wait on; a run the next office went on with
+	// has before (the marks the last office left), resumed (its steps cut
+	// by the restart, started again) and resumes (how often it went on)
+	cp        *storage.RunCheckpoint
+	marks     map[string]storage.StepMark
+	before    map[string]storage.StepMark
+	resumed   map[string]bool
+	resumes   int
+	callerJob string // the job of the chat that called it
 }
 
 // snapshot copies the run's record and bumps its save sequence; call with
 // e.wf.mu held, right where "rec := run.rec" used to be captured.
 func (r *wfRun) snapshot() (storage.WorkflowRun, int) {
 	r.seq++
+	if r.cp != nil { // a fresh checkpoint each time: a write in flight never sees it change
+		c := *r.cp
+		c.Marks = maps.Clone(r.marks)
+		c.Resumes, c.CallerJob = r.resumes, r.callerJob
+		r.rec.Checkpoint = &c
+	}
 	return r.rec, r.seq
+}
+
+// mark records what a running step waits on (with the lock held).
+func (r *wfRun) mark(stepID string, m storage.StepMark) {
+	if r.marks == nil {
+		r.marks = map[string]storage.StepMark{}
+	}
+	r.marks[stepID] = m
 }
 
 // rootOf is the top of a run's tree (with the lock held).
@@ -160,6 +186,7 @@ type wfState struct {
 	byConv  map[string]*wfRun      // conversation id → its running workflow
 	pending map[string][]wfAsk     // coordinator turn id → turns to start after it
 	waiting map[string]chan string // run id/role → a coordinator waiting for that role's answer (workflow_ask)
+	orphans map[string]bool        // runs the last orphan sweep saw nobody run (ADR-256)
 }
 
 func (s *wfState) init() {

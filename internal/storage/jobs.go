@@ -203,6 +203,10 @@ type JobRepo interface {
 	SetMessageID(ctx context.Context, id, messageID string) error
 	// FailRunning ends every running job (the office restarted under them).
 	FailRunning(ctx context.Context, errCode, errMsg string, at time.Time) (int64, error)
+	// Reopen puts a job FailRunning ended (error code errCode) back to
+	// running: the work it waited for goes on after the restart (ADR-256).
+	// ErrConflict when it is not such a job.
+	Reopen(ctx context.Context, id, errCode string) (Job, error)
 }
 
 // Automation starts jobs on a schedule or a trigger (ADR-040).
