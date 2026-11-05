@@ -56,6 +56,13 @@ At the weekly check (the schedule, or when asked), and at once when the learner 
    - The learner's life changed (less time, a trip, a new date): re-plan from today with section 2.
 3. Write it: update the week table, the next 2 weeks of `schedule` (past tasks keep their status; moved tasks get `rescheduled` and a new record), and a line in `## Changes`. Tell the learner what changed and why in two or three lines.
 
+## 6. Numbers from the script, not guessed
+The review load, the backlog and when new items can resume are worked out by `.claude/skills/roadmap/leitner.py` (standard library Python, reads office's database read-only; it finds the project and the database on its own, else set `OFFICE_DB` and `LEITNER_PROJECT`):
+- `python3 .claude/skills/roadmap/leitner.py stats`: items per box and status, due today and overdue, weak items, held (`paused`) items, what comes due the next days, error tags, open mistakes, the profile's exam date and minutes.
+- `python3 .claude/skills/roadmap/leitner.py check`: the next 14 days against the day's review cap (half the profile's minutes at about 1.5 items a minute, or `--cap N`): OK, or BACKLOG with the date new items can resume, and the days the schedule asks more than the day's time.
+- `python3 .claude/skills/roadmap/leitner.py simulate --new 20 --to <date>`: the boxes day by day with N new items a day while the backlog is under the cap (`--acc` the right-rate per box, `--off` days off); how many items reach box 3 by the date.
+Run `check` at every weekly check (section 5) and before telling the learner a plan is feasible (section 2); quote its numbers, say the right-rates are an assumption. The script cannot run (no Python, no database): estimate as section 2 says and say so.
+
 ## Every day
 - Little and every day beats a long session once a week: keep a short day (review only, about 10 minutes, skill `review`) for busy days, instead of skipping. Days skipped in a row: offer the short day first, then re-plan if it lasts.
 - The day's tasks: `data_query` `schedule` with `date` = today, `status` = `todo`.
