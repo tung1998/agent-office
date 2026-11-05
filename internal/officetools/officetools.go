@@ -160,7 +160,8 @@ func (t *Toolbox) SetConfig(c ConfigReader) { t.config = c }
 // SkillLibrary is the office library of skills an agent may find and
 // propose for its project (ADR-187).
 type SkillLibrary interface {
-	Find(ctx context.Context, projectID, query string) (string, error)
+	Find(ctx context.Context, projectID, query, area string) (string, error)
+	Read(ctx context.Context, projectID, name string) (string, error)
 	Has(name string) bool
 }
 
@@ -304,9 +305,11 @@ func (t *Toolbox) Tools() []Tool {
 				"task": map[string]any{"type": "string", "description": "What you need it for, in a few words"},
 			}, "name"), ReadOnly: true})
 		if t.skills != nil {
-			list = append(list, Tool{Name: "find_skills", Description: "Search the office's skill library (beyond the skills this project has) when a task needs a procedure none of the project's skills covers. A match the project lacks can be added with my_skills: the person approves installing it.",
+			list = append(list, Tool{Name: "find_skills", Description: "Search the office's skill library (thousands of skills beyond this project's) when the task in front of you needs a procedure none of the project's skills covers: best matches first. Then read the one that fits with name, and follow it for this task, no install needed. Keep one you will need again with my_skills (the person approves installing it). Not for work you already know how to do.",
 				Schema: obj(map[string]any{
-					"query": map[string]any{"type": "string", "description": "Words of what you need, e.g. seo launch; empty lists them all"},
+					"query": map[string]any{"type": "string", "description": "English words of what you need, e.g. landing page copy, scroll animation, cold email"},
+					"area":  map[string]any{"type": "string", "enum": []string{"code", "design", "plan", "customer", "content", "data", "ops"}, "description": "Keep skills of one work area (optional)"},
+					"name":  map[string]any{"type": "string", "description": "Read this library skill's instructions instead of searching"},
 				}), ReadOnly: true})
 		}
 		list = append(list, Tool{Name: "my_skills", Description: "Keep Your skills useful: add a skill you needed and will need again in this project (one only in the office library becomes a card the person approves to install it), or remove one you never use or that no longer fits. The list is capped: when full, remove the least useful first.",
@@ -711,6 +714,7 @@ func (t *Toolbox) Call(ctx context.Context, sc Scope, name string, raw json.RawM
 		Chat     string          `json:"chat"`
 		Text     string          `json:"text"`
 		Why      string          `json:"why"`
+		Area     string          `json:"area"`
 		Owner    string          `json:"owner"`
 		From     string          `json:"from"`
 	}
@@ -967,7 +971,11 @@ func (t *Toolbox) Call(ctx context.Context, sc Scope, name string, raw json.RawM
 		if t.skills == nil {
 			return "Không có thư viện skill ở đây", true
 		}
-		out, err = t.skills.Find(ctx, projectID, in.Query)
+		if strings.TrimSpace(in.Name) != "" {
+			out, err = t.skills.Read(ctx, projectID, strings.TrimSpace(in.Name))
+		} else {
+			out, err = t.skills.Find(ctx, projectID, in.Query, in.Area)
+		}
 	case "propose_action":
 		if t.actions == nil || !perm.AtLeast(sc.Level, perm.Propose) {
 			return "Bạn không có quyền đề xuất thao tác (gói hiện tại: " + perm.Label(sc.Level) + ")", true

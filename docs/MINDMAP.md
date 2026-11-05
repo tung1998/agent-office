@@ -92,7 +92,7 @@ mindmap
 | Nút | Module | ADR |
 |---|---|---|
 | Ghi nhớ cốt lõi và theo chủ đề | `internal/memory` | 068, 134 |
-| Skill hay dùng của agent | `internal/agentskills` (`use_skill`, `my_skills`), `skills:` của mẫu agent và bước workflow, `find_skills` + thẻ cài skill | 185, 186, 187 |
+| Skill hay dùng của agent | `internal/agentskills` (`use_skill`, `my_skills`), `skills:` của mẫu agent và bước workflow, `find_skills` (xếp hạng, đọc không cài) + thẻ cài skill | 185, 186, 187, 246 |
 | Tìm lịch sử chat | `internal/officetools` (`search_history`) | 086 |
 | Khám vòng làm việc | `internal/harness`, workflow `#better-harness` | 181, 184 |
 | Sổ bài học của Burn | `internal/burn` | 131, 143 |
