@@ -1,6 +1,7 @@
 package actions
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"os"
@@ -40,17 +41,26 @@ func (s *Service) checkDeps(ctx context.Context, sc Scope, a *storage.Action) er
 	if err != nil {
 		return err
 	}
+	named := len(files) > 0
+	var left []string
 	for _, f := range files {
-		if !exists(filepath.Join(root, filepath.FromSlash(d.Dir), filepath.FromSlash(f))) {
+		if exists(filepath.Join(root, filepath.FromSlash(d.Dir), filepath.FromSlash(f))) {
+			left = append(left, f)
+		} else if a.Args.Patch == "" { // the agent named a file that is not there
 			return errors.New("không có file " + f + " trong " + d.Dir)
 		}
+		// a merged diff deleted it: those left are installed
 	}
-	d.Files = files
+	if named && len(left) == 0 {
+		return errors.New("diff đã xóa mọi file requirements của " + d.Dir + ": không còn gì để cài")
+	}
+	d.Files = left
+	isNode := exists(filepath.Join(root, d.Dir, "package.json"))
 	if d.Manager == "" {
 		switch {
-		case len(d.Files) > 0: // requirements files named: pip installs them
+		case len(d.Files) > 0 && !isNode: // requirements files named: pip installs them
 			d.Manager = "pip"
-		case exists(filepath.Join(root, d.Dir, "package.json")): // a workspace package installs from its lockfile's folder
+		case isNode: // a workspace package installs from its lockfile's folder
 			if c := deps.Changes(root, []string{path.Join(d.Dir, "package.json")}); len(c) > 0 {
 				d.Dir, d.Manager = c[0].Dir, c[0].Manager
 			}
@@ -61,6 +71,9 @@ func (s *Service) checkDeps(ctx context.Context, sc Scope, a *storage.Action) er
 		}
 	}
 	if d.Manager != "pip" {
+		if len(d.Files) > 0 && a.Args.Patch == "" {
+			return errors.New("files chỉ dùng cho gói Python cài bằng pip; " + d.Dir + " cài bằng " + cmp.Or(d.Manager, "trình khác"))
+		}
 		d.Files = nil
 	}
 	c := deps.Change{Dir: d.Dir, Manager: d.Manager, Files: d.Files}

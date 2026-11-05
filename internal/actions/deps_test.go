@@ -206,6 +206,33 @@ func TestCheckDepsRejectsBadFiles(t *testing.T) {
 	}
 }
 
+// A merged diff that deleted one requirements file and changed another still
+// gets its install card, for the file that is left; one that deleted all of
+// them has nothing to install. Requirements files on a Node package are
+// refused (pip would never read them).
+func TestMergedDepsDropsDeletedFiles(t *testing.T) {
+	ctx, st, svc, proj := depsProject(t)
+	os.MkdirAll(filepath.Join(proj.Path, "ml"), 0o755)
+	os.WriteFile(filepath.Join(proj.Path, "ml", "requirements.txt"), []byte("x\n"), 0o644)
+	c1, _ := st.Chat().CreateConversation(ctx, storage.Conversation{ProjectID: proj.ID})
+	sc := Scope{ProjectID: proj.ID, ConversationID: c1.ID, Agent: "office"}
+	args := storage.ActionArgs{Deps: &storage.DepsArgs{Dir: "ml", Manager: "pip", Files: []string{"requirements-dev.txt", "requirements.txt"}}, Patch: "pat_1"}
+	a, err := svc.Propose(ctx, sc, "deps_install", "ml", "merged", args)
+	if err != nil || a.Target != "ml (pip: requirements.txt)" || len(a.Args.Deps.Files) != 1 {
+		t.Fatalf("merged card = %v %q %+v", err, a.Target, a.Args.Deps)
+	}
+	gone := storage.ActionArgs{Deps: &storage.DepsArgs{Dir: "ml", Manager: "pip", Files: []string{"requirements-dev.txt"}}, Patch: "pat_2"}
+	if a, err := svc.Propose(ctx, sc, "deps_install", "ml", "merged", gone); err == nil {
+		t.Fatalf("a card with every file deleted: %s %q", a.Status, a.Target)
+	}
+	rsc := Scope{ProjectID: proj.ID, RunRef: "n1", Agent: "a", Level: perm.Propose, Access: at(perm.Propose)}
+	os.WriteFile(filepath.Join(proj.Path, "web", "requirements.txt"), []byte("x\n"), 0o644)
+	node := storage.ActionArgs{Deps: &storage.DepsArgs{Dir: "web", Files: []string{"requirements.txt"}}}
+	if a, err := svc.Propose(ctx, rsc, "deps_install", "web", "x", node); err == nil {
+		t.Fatalf("files on a Node package: %s %q", a.Status, a.Target)
+	}
+}
+
 // A failed install stays on its card with what the tool said.
 func TestDepsInstallFailureKeptOnCard(t *testing.T) {
 	fakeNPM(t, true)

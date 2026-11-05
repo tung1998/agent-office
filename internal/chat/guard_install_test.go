@@ -113,6 +113,10 @@ func TestWrappedInstallRefused(t *testing.T) {
 		"env X=1 pnpm i",
 		"nohup pnpm install",
 		"time npm ci",
+		"nice -n 10 pnpm i",
+		"time -p pnpm i",
+		"npx -p pnpm pnpm add x",
+		"env -u FOO pnpm install",
 	}
 	for _, c := range refused {
 		if why := installInLinkedTree(c, "/w", isLinked); why == "" {
@@ -130,6 +134,21 @@ func TestWrappedInstallRefused(t *testing.T) {
 		if why := installInLinkedTree(c, "/w", isLinked); why != "" {
 			t.Errorf("%q: refused: %s", c, why)
 		}
+	}
+}
+
+// A shell's -c script is read whole, with its own cd: from a folder whose
+// node_modules is its own, `bash -c "cd web && pnpm i"` installs into web's
+// link; a cd before the shell counts too.
+func TestShellScriptCdFollowedInstallRefused(t *testing.T) {
+	isLinked := func(dir, folder string) bool { return dir == "/x/web" }
+	for _, c := range []string{`bash -c "cd web && pnpm i"`, `sh -c 'cd web; npm ci'`, `cd web && bash -c "pnpm add x"`} {
+		if why := installInLinkedTree(c, "/x", isLinked); why == "" {
+			t.Errorf("%q: not refused", c)
+		}
+	}
+	if why := installInLinkedTree(`bash -c "cd other && pnpm i"`, "/x", isLinked); why != "" {
+		t.Errorf("other's install refused: %s", why)
 	}
 }
 

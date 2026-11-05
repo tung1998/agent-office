@@ -4,6 +4,8 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
+	"strconv"
 	"strings"
 )
 
@@ -38,7 +40,23 @@ var (
 	// their own switches: npx -y pnpm@9 install)
 	shells  = []string{"bash", "sh", "zsh", "dash", "ksh"}
 	runners = []string{"corepack", "npx", "pnpx", "bunx", "nohup", "time", "nice"}
+	// runnerValues: the switches of env and runners that take a value (nice
+	// -n 10; time -p is a switch)
+	runnerValues = map[string][]string{
+		"env":  {"-u", "--unset", "-C", "--chdir", "-S", "--split-string"},
+		"npx":  {"-p", "--package", "-c", "--call"},
+		"pnpx": {"-p", "--package"},
+		"bunx": {"-p", "--package"},
+		"nice": {"-n", "--adjustment"},
+		"time": {"-o", "--output", "-f", "--format"},
+	}
 )
+
+// shellQuoted is a shell run with a quoted -c script (bash -lc "…", sh -c
+// '…'); scriptToken stands for the script while the command is split.
+var shellQuoted = regexp.MustCompile(`\b(bash|sh|zsh|dash|ksh)\s+-[a-zA-Z]*c[a-zA-Z]*\s+(?:"([^"]*)"|'([^']*)')`)
+
+const scriptToken = "@@script"
 
 // shellScript is the script of a shell's -c (bash -lc "…"), "" if none.
 func shellScript(args []string) string {
@@ -65,6 +83,14 @@ func shellScript(args []string) string {
 // text, segment by segment, following cd and -C/--dir/--prefix.
 func installInLinkedTree(cmd, cwd string, linked func(dir, folder string) bool) string {
 	split := strings.NewReplacer("&&", "\n", "||", "\n", ";", "\n", "|", "\n", "(", "\n", ")", "\n", "`", "\n", "$(", "\n")
+	// a shell's quoted -c script is kept whole (its && and cd are its own),
+	// a token in its place, read with the folder the shell runs in
+	var scripts []string
+	cmd = shellQuoted.ReplaceAllStringFunc(cmd, func(m string) string {
+		sub := shellQuoted.FindStringSubmatch(m)
+		scripts = append(scripts, sub[2]+sub[3])
+		return sub[1] + " -c " + scriptToken + strconv.Itoa(len(scripts)-1)
+	})
 	dir := cwd
 	at := func(p string) string {
 		p = strings.Trim(p, `"'`)
@@ -86,7 +112,7 @@ func installInLinkedTree(cmd, cwd string, linked func(dir, folder string) bool) 
 			case w == "env" || contains(runners, w):
 				i++
 				for i < len(f) && strings.HasPrefix(f[i], "-") { // env -i, npx -y
-					if f[i] == "-u" || f[i] == "-p" || f[i] == "--package" {
+					if contains(runnerValues[w], f[i]) {
 						i++
 					}
 					i++
@@ -106,7 +132,13 @@ func installInLinkedTree(cmd, cwd string, linked func(dir, folder string) bool) 
 			continue
 		}
 		if contains(shells, filepath.Base(prog)) {
-			if s := shellScript(f[i+1:]); s != "" {
+			s := shellScript(f[i+1:])
+			if n, ok := strings.CutPrefix(s, scriptToken); ok {
+				if k, err := strconv.Atoi(n); err == nil && k < len(scripts) {
+					s = scripts[k]
+				}
+			}
+			if s != "" {
 				if why := installInLinkedTree(s, dir, linked); why != "" {
 					return why
 				}
