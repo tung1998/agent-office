@@ -15,6 +15,8 @@ export interface Patch {
   del?: number
   // its number among the chat's proposals: they are approved in that order
   seq?: number
+  // the packages whose dependencies it changes (ADR-251): merged, the project installs them
+  deps?: { dir: string, manager?: string }[]
 }
 
 // stale: from an older answer of its agent
@@ -72,6 +74,24 @@ useQueuedWatch(() => props.patch.status === 'queued', async () => {
   if (res.patch.status !== 'queued') emit('updated', res.patch)
 })
 
+// the packages it changes the dependencies of: "dashboard (pnpm)"
+const depsLabel = computed(() => (props.patch.deps ?? []).map(d => d.manager ? `${d.dir} (${d.manager})` : d.dir).join(', '))
+// merged: its install in the project asked again (one failed, or the folders were cleaned)
+const installing = ref(false)
+async function installDeps() {
+  installing.value = true
+  try {
+    const res = await $fetch<{ actions: { status: string, detail: string }[] }>(`/api/patches/${props.patch.id}/deps`, { method: 'POST' })
+    const failed = res.actions.find(a => a.status === 'failed')
+    if (failed) toast.add({ title: t('patch.depsFailed'), description: failed.detail, color: 'error' })
+    else toast.add({ title: t(res.actions.every(a => a.status === 'done') ? 'patch.depsDone' : 'patch.depsCard'), color: 'success' })
+  } catch (e) {
+    toast.add({ title: apiError(e), color: 'error' })
+  } finally {
+    installing.value = false
+  }
+}
+
 // skip: rejected, and its agent is not run again about it
 async function decide(approve: boolean, skip = false) {
   if (approve && big.value && !confirm(t('patch.bigConfirm', { n: props.patch.files.length, size: sizeLabel(props.patch.size ?? props.patch.diff.length) }))) return
@@ -122,6 +142,14 @@ async function decide(approve: boolean, skip = false) {
     <p v-if="big && patch.status === 'pending'" class="flex items-center gap-1.5 border-t border-(--ui-border) bg-(--ui-error)/10 px-3 py-1.5 text-xs font-medium text-(--ui-error)">
       <UIcon name="i-lucide-triangle-alert" class="size-4 shrink-0" />{{ t('patch.big', { n: patch.files.length, size: sizeLabel(patch.size ?? patch.diff.length) }) }}
     </p>
+    <div v-if="depsLabel" class="flex flex-wrap items-center gap-x-2 gap-y-1 border-t border-(--ui-border) px-3 py-1.5 text-xs text-(--ui-text-muted)">
+      <UIcon name="i-lucide-package" class="size-3.5 shrink-0 text-primary" />
+      <span class="min-w-0 flex-1">{{ t(patch.status === 'applied' ? 'patch.depsMerged' : 'patch.deps', { deps: depsLabel }) }}</span>
+      <UButton
+        v-if="patch.status === 'applied' && isAdmin" size="xs" color="neutral" variant="ghost" icon="i-lucide-refresh-cw"
+        :label="t('patch.depsInstall')" :loading="installing" @click="installDeps"
+      />
+    </div>
     <p v-if="patch.detail && patch.status !== 'applied'" class="border-t border-(--ui-border) px-3 py-1.5 text-xs text-(--ui-error)">{{ patch.detail }}</p>
     <DiffView v-if="open" :diff="diffText" class="max-h-96 border-t border-(--ui-border)" />
     <div v-if="open && cut" class="flex items-center gap-2 border-t border-(--ui-border) px-3 py-1.5 text-xs text-(--ui-text-muted)">

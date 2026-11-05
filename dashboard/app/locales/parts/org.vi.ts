@@ -145,6 +145,8 @@ export default {
   'policy.linkedPlaceholder': 'Chọn project',
   'policy.quickCheck': 'Kiểm tra nhanh sau khi sửa',
   'policy.quickCheckHelp': 'Bật thì ngay sau khi agent sửa xong một file, office tự kiểm tra file đó (Go: gofmt, go vet; JSON, YAML: đúng cú pháp) và báo lỗi ngay để agent tự sửa tiếp, không cần đợi bạn chạy build riêng. Chỉ hoạt động khi agent chạy bằng Claude Code.',
+  'policy.autoDeps': 'Tự cài thư viện sau khi gộp',
+  'policy.autoDepsHelp': 'Khi một diff đổi package.json, lockfile, uv.lock hay requirements được gộp, office cài lại thư viện trong project ngay (pnpm/npm install, uv sync…) để project chạy đúng bản mới. Tắt thì office tạo thẻ "Cài thư viện" cạnh diff để bạn duyệt.',
   'policy.quickChecks': 'Kiểm tra riêng của project',
   'policy.quickChecksHelp': 'Thêm kiểm tra riêng của project, chạy ngay sau kiểm tra có sẵn ở trên. Mỗi dòng viết: đuôi file, dấu hai chấm, rồi lệnh kiểm tra, dùng {file} thay cho đường dẫn file vừa sửa. Ví dụ: go: gofmt -l {file}. Tổng thời gian cho mọi kiểm tra riêng tối đa 20 giây.',
   'policy.mergeChecks': 'Kiểm tra trước khi gộp',

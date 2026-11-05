@@ -2,7 +2,7 @@
 // What a project offers its agents and what none of them may do: the
 // commands it has (each agent picks from them in its own
 // permissions), files no agent may change.
-interface Policy { packs: CommandPack[], deny_paths: string[], worktree_links: string[], quick_check?: boolean, quick_checks?: string, merge_checks?: string, linked_projects?: string[], experts?: string[] | null }
+interface Policy { packs: CommandPack[], deny_paths: string[], worktree_links: string[], quick_check?: boolean, quick_checks?: string, merge_checks?: string, auto_deps?: boolean, linked_projects?: string[], experts?: string[] | null }
 
 const props = defineProps<{ projectId: string }>()
 const toast = useToast()
@@ -20,7 +20,7 @@ const projectItems = computed<LinkItem[][]>(() => {
   return offices.length ? [own, [{ type: 'label', label: t('policy.linkedOffice') }, ...offices.map(o => ({ label: o.label, value: o.value, icon: 'i-lucide-building-2' }))]] : [own]
 })
 
-const form = reactive({ packs: [] as CommandPack[], deny: [] as string[], links: '', quickCheck: true, quickChecks: '', mergeChecks: '', linked: [] as string[], experts: null as string[] | null })
+const form = reactive({ packs: [] as CommandPack[], deny: [] as string[], links: '', quickCheck: true, quickChecks: '', mergeChecks: '', autoDeps: false, linked: [] as string[], experts: null as string[] | null })
 // the agents projects linking here may ask (ADR-177): never chosen = its default agent
 const experts = computed<string[]>({
   get: () => form.experts ?? (data.value?.default_agent ? [data.value.default_agent] : []),
@@ -36,6 +36,7 @@ const { stale, reset: resync } = useDraft(data, form, (d) => { // never over wha
   form.quickCheck = d.policy.quick_check ?? true
   form.quickChecks = d.policy.quick_checks ?? ''
   form.mergeChecks = d.policy.merge_checks ?? ''
+  form.autoDeps = d.policy.auto_deps ?? false
   form.linked = [...(d.policy.linked_projects ?? [])]
   form.experts = d.policy.experts ? [...d.policy.experts] : null
 })
@@ -53,7 +54,7 @@ async function save() {
   try {
     await $fetch(`/api/projects/${props.projectId}/policy`, {
       method: 'PUT',
-      body: { version: editedFrom.value, packs: form.packs.filter(p => p.label.trim()), deny_paths: form.deny, worktree_links: form.links.split('\n').map(s => s.trim()).filter(Boolean), quick_check: form.quickCheck, quick_checks: form.quickChecks, merge_checks: form.mergeChecks, linked_projects: form.linked, experts: form.experts }
+      body: { version: editedFrom.value, packs: form.packs.filter(p => p.label.trim()), deny_paths: form.deny, worktree_links: form.links.split('\n').map(s => s.trim()).filter(Boolean), quick_check: form.quickCheck, quick_checks: form.quickChecks, merge_checks: form.mergeChecks, auto_deps: form.autoDeps, linked_projects: form.linked, experts: form.experts }
     })
     toast.add({ title: t('policy.saved'), color: 'success' })
     await refresh()
@@ -209,6 +210,14 @@ function removePack(p: CommandPack) {
         </template>
         <UTextarea v-model="form.mergeChecks" :rows="2" :maxlength="2000" autoresize :disabled="!isAdmin" class="w-full font-mono text-xs" placeholder="go build ./...&#10;dashboard/ .vue .ts: pnpm --dir dashboard typecheck" />
       </UFormField>
+      <!-- a merged diff that changes dependencies installs them in the project (ADR-251) -->
+      <div class="mt-3 flex items-center justify-between gap-3 border-t border-(--ui-border) pt-3">
+        <p class="flex items-center gap-1.5 text-sm font-medium">
+          {{ t('policy.autoDeps') }}
+          <InfoTip :text="t('policy.autoDepsHelp')" icon-class="size-3.5 text-(--ui-text-dimmed)" />
+        </p>
+        <USwitch v-model="form.autoDeps" size="sm" :disabled="!isAdmin" :aria-label="t('policy.autoDeps')" />
+      </div>
     </UCard>
 
     <div>

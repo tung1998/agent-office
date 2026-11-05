@@ -26,6 +26,9 @@ export interface ProposedAction {
     script?: { lang: string, body: string, timeout_s?: number }, escalate?: { when?: string, action?: string, agent_id?: string, prompt?: string } }
   // its number among the chat's proposals: they are approved in that order
   seq?: number
+  // deps_install (ADR-251): the merged diff it installs for, or in the run's own worktree
+  patch?: string
+  worktree?: boolean
 }
 
 // stale: from an older answer of its agent
@@ -52,7 +55,7 @@ const alwaysInfo = computed(() => {
   return t(p.new_pack ? 'action.alwaysInfoNew' : 'action.alwaysInfo', { pattern: p.pattern, pack: p.pack })
 })
 
-const icon = computed(() => props.action.kind === 'workflow_gate' ? 'i-lucide-user-check' : props.action.kind.endsWith('_project') ? 'i-lucide-folder-plus' : props.action.kind === 'send_message' ? 'i-lucide-send' : props.action.kind.endsWith('_automation') ? 'i-lucide-alarm-clock' : props.action.kind === 'git_commit' ? 'i-lucide-git-commit-horizontal'
+const icon = computed(() => props.action.kind === 'deps_install' ? 'i-lucide-package' : props.action.kind === 'workflow_gate' ? 'i-lucide-user-check' : props.action.kind.endsWith('_project') ? 'i-lucide-folder-plus' : props.action.kind === 'send_message' ? 'i-lucide-send' : props.action.kind.endsWith('_automation') ? 'i-lucide-alarm-clock' : props.action.kind === 'git_commit' ? 'i-lucide-git-commit-horizontal'
   : props.action.kind === 'git_branch' ? 'i-lucide-git-branch'
     : props.action.kind === 'git_merge' ? 'i-lucide-git-merge'
     : props.action.kind === 'git_push' ? 'i-lucide-upload'
@@ -82,8 +85,11 @@ const kindLabels: Record<string, string> = {
   workflow_gate: 'action.kind.workflow_gate',
   create_project: 'action.kind.create_project',
   import_project: 'action.kind.import_project',
-  install_skill: 'action.kind.install_skill'
+  install_skill: 'action.kind.install_skill',
+  deps_install: 'action.kind.deps_install'
 }
+// an install's output, as a command's, opens right here
+const ownLog = computed(() => props.action.kind === 'run_command' || props.action.kind === 'deps_install')
 const kindLabel = computed(() => {
   const key = kindLabels[props.action.kind]
   return key ? t(key as MessageKey) : props.action.kind
@@ -125,7 +131,7 @@ const logUrl = computed(() => {
   if (a.kind.endsWith('_container') && props.projectId) return `/api/projects/${props.projectId}/compose/logs?service=${encodeURIComponent(a.target)}`
   return null
 })
-const hasLog = computed(() => props.action.status !== 'pending' && (props.action.kind === 'run_command' ? !!props.action.detail : !!logUrl.value))
+const hasLog = computed(() => props.action.status !== 'pending' && (ownLog.value ? !!props.action.detail : !!logUrl.value))
 
 // a queued card runs once those before it are decided: watched until then
 useQueuedWatch(() => props.action.status === 'queued', async () => {
@@ -206,6 +212,9 @@ async function decide(approve: boolean, always = false, skip = false) {
         <p v-if="action.after_diff && (action.status === 'pending' || action.status === 'queued')" class="flex items-center gap-1 text-xs text-(--ui-text-muted)">
           <UIcon name="i-lucide-git-merge" class="size-3.5 shrink-0" />{{ t('action.afterDiff') }}
         </p>
+        <p v-if="action.kind === 'deps_install'" class="flex items-center gap-1 text-xs text-(--ui-text-muted)">
+          <UIcon :name="action.worktree ? 'i-lucide-git-branch' : 'i-lucide-folder'" class="size-3.5 shrink-0" />{{ t(action.worktree ? 'action.depsWorktree' : 'action.depsProject') }}
+        </p>
         <p v-if="action.status !== 'pending' && action.detail" class="line-clamp-2 text-xs" :title="action.detail" :class="action.status === 'failed' ? 'text-(--ui-error)' : 'text-(--ui-text-muted)'">{{ action.detail }}</p>
       </div>
       <UBadge v-if="action.status === 'pending' && action.deciding" color="info" variant="subtle" size="sm" icon="i-lucide-loader-circle" :ui="{ leadingIcon: 'animate-spin' }" :label="t('card.deciding')" :title="action.deciding" />
@@ -231,7 +240,7 @@ async function decide(approve: boolean, always = false, skip = false) {
         :trailing-icon="logOpen ? 'i-lucide-chevron-up' : 'i-lucide-chevron-down'" :label="t('action.seeLog')" @click="logOpen = !logOpen"
       />
       <div v-if="logOpen" class="basis-full">
-        <pre v-if="action.kind === 'run_command'" class="max-h-96 overflow-auto rounded-md bg-(--ui-bg-elevated) p-2 font-mono text-xs whitespace-pre-wrap">{{ action.detail }}</pre>
+        <pre v-if="ownLog" class="max-h-96 overflow-auto rounded-md bg-(--ui-bg-elevated) p-2 font-mono text-xs whitespace-pre-wrap">{{ action.detail }}</pre>
         <div v-else class="h-80 overflow-hidden rounded-md border border-(--ui-border)">
           <LogTerminal :url="logUrl" :title="action.target" :empty="t('ops.emptyLog')" />
         </div>

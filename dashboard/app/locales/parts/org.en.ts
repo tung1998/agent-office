@@ -139,6 +139,8 @@ const en: Record<keyof typeof vi, string> = {
   'policy.linkedPlaceholder': 'Pick projects',
   'policy.quickCheck': 'Quick check after edits',
   'policy.quickCheckHelp': 'When on, right after an agent edits a file office checks that file itself (Go: gofmt, go vet; JSON, YAML: valid syntax) and reports errors right away so the agent can fix them, without waiting for you to run a separate build. Only works when the agent runs on Claude Code.',
+  'policy.autoDeps': 'Install dependencies after a merge',
+  'policy.autoDepsHelp': 'When a diff that changes package.json, a lockfile, uv.lock or requirements is merged, office installs the dependencies in the project right away (pnpm/npm install, uv sync…) so the project runs the new versions. Off: office leaves an "Install dependencies" card next to the diff for you to approve.',
   'policy.quickChecks': 'Project checks',
   'policy.quickChecksHelp': 'Extra, project-specific checks, run right after the built-in check above. One per line: file ending, a colon, then the check command, using {file} for the path of the file just edited. Example: go: gofmt -l {file}. All project checks together are capped at 20 seconds.',
   'policy.mergeChecks': 'Checks before merging',
