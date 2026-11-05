@@ -6,7 +6,11 @@
 // and the sky behind it. Palettes and scenes from ai-chat-themes by Aohkne
 // (MIT): https://github.com/Aohkne/ai-chat-themes
 
-export interface ThemeColors { bg: string, text: string, accent: string }
+// muted (secondary text: times, names, hints), surface (cards, menus, inputs)
+// and border are optional: left out, they follow from bg and text
+export interface ThemeColors { bg: string, text: string, accent: string, muted?: string, surface?: string, border?: string }
+export const EXTRA_COLORS = ['muted', 'surface', 'border'] as const
+export type ExtraColor = typeof EXTRA_COLORS[number]
 export interface Theme extends ThemeColors {
   id: string
   font?: string
@@ -52,10 +56,10 @@ export const WALLPAPER_THEMES: Theme[] = [
 export const DEFAULT_CUSTOM: ThemeColors = { bg: '#1b1d24', text: '#e4e6ee', accent: '#8b7cf6' }
 
 export const isHex = (c: unknown): c is string => typeof c === 'string' && /^#[0-9a-f]{6}$/i.test(c)
-const rgb = (c: string) => [1, 3, 5].map(i => parseInt(c.slice(i, i + 2), 16) / 255) as [number, number, number]
-const hex = (c: number[]) => '#' + c.map(v => Math.round(Math.max(0, Math.min(1, v)) * 255).toString(16).padStart(2, '0')).join('')
-const mix = (a: string, b: string, k: number) => { const x = rgb(a), y = rgb(b); return hex(x.map((v, i) => v + (y[i]! - v) * k)) }
-const luma = (c: string) => { const [r, g, b] = rgb(c); return 0.2126 * r + 0.7152 * g + 0.0722 * b }
+export const rgb = (c: string) => [1, 3, 5].map(i => parseInt(c.slice(i, i + 2), 16) / 255) as [number, number, number]
+export const hex = (c: number[]) => '#' + c.map(v => Math.round(Math.max(0, Math.min(1, v)) * 255).toString(16).padStart(2, '0')).join('')
+export const mix = (a: string, b: string, k: number) => { const x = rgb(a), y = rgb(b); return hex(x.map((v, i) => v + (y[i]! - v) * k)) }
+export const luma = (c: string) => { const [r, g, b] = rgb(c); return 0.2126 * r + 0.7152 * g + 0.0722 * b }
 export const isDark = (t: ThemeColors) => luma(t.bg) < 0.5
 // WCAG contrast ratio (1–21): body text wants 4.5, large text and icons 3
 const lum = (c: string) => { const [r, g, b] = rgb(c).map(v => v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4); return 0.2126 * r! + 0.7152 * g! + 0.0722 * b! }
@@ -72,7 +76,9 @@ export function onAccent(t: ThemeColors): string {
 export function findTheme(id: string, custom?: ThemeColors): Theme | undefined {
   if (id === 'custom') {
     const c = custom && isHex(custom.bg) && isHex(custom.text) && isHex(custom.accent) ? custom : DEFAULT_CUSTOM
-    return { id, bg: c.bg, text: c.text, accent: c.accent }
+    const t: Theme = { id, bg: c.bg, text: c.text, accent: c.accent }
+    for (const k of EXTRA_COLORS) if (isHex(c[k])) t[k] = c[k]
+    return t
   }
   return COLOR_THEMES.find(t => t.id === id) ?? WALLPAPER_THEMES.find(t => t.id === id)
 }
@@ -84,6 +90,15 @@ const INK_LIGHT = [0.03, 0.07, 0.14, 0.26, 0.56, 0.7, 0.78, 0.86, 0.92, 0.96, 1]
 const INK_DARK = [1, 0.95, 0.88, 0.76, 0.6, 0.45, 0.32, 0.2, 0.1, 0, -0.25]
 // the accent toward white (light shades) and black (dark ones)
 const ACCENT = [0.9, 0.8, 0.62, 0.42, 0.2, 0, -0.16, -0.32, -0.48, -0.62, -0.74]
+
+// What muted, surface and border are when the theme leaves them out: Nuxt
+// UI's neutral shades (dark: muted 400, cards 800, borders 800; light: 500,
+// 100, 200), from the theme's ink scale
+export function autoColors(t: ThemeColors): Record<ExtraColor, string> {
+  const dark = isDark(t)
+  const ink = (i: number) => { const k = (dark ? INK_DARK : INK_LIGHT)[i]!; return k < 0 ? mix(t.bg, '#000000', -k) : mix(t.bg, t.text, k) }
+  return dark ? { muted: ink(4), surface: ink(8), border: ink(8) } : { muted: ink(5), surface: ink(1), border: ink(2) }
+}
 
 // The glass over a wallpaper's sky, at least as opaque as its own and as much
 // more as muted text (--ui-text-muted) needs for 4.5 and dimmed text for 3
@@ -113,6 +128,9 @@ export function themeCss(t: Theme): string {
     const a = ACCENT[i]!
     vars[`--ui-color-primary-${s}`] = a >= 0 ? mix(t.accent, '#ffffff', a) : mix(t.accent, '#000000', -a)
   })
+  if (t.muted) Object.assign(vars, { '--ui-text-muted': t.muted, '--ui-text-dimmed': mix(t.muted, t.bg, 0.3) })
+  if (t.surface) Object.assign(vars, { '--ui-bg-elevated': t.surface, '--ui-bg-muted': mix(t.bg, t.surface, 0.5), '--ui-bg-accented': mix(t.surface, t.text, 0.1) })
+  if (t.border) Object.assign(vars, { '--ui-border': t.border, '--ui-border-muted': t.border, '--ui-border-accented': mix(t.border, t.text, 0.2) })
   Object.assign(vars, {
     '--ui-primary': t.accent,
     '--ui-bg': t.bg,
@@ -126,7 +144,7 @@ export function themeCss(t: Theme): string {
     // the scene shows through: the page has no background of its own; the
     // sidebar and the page (PageShell) are glass, as opaque as the sky needs
     // for muted text to read (cards, menus and dialogs keep theirs)
-    const glass = readableGlass(t.wallpaper, vars[`--ui-color-neutral-${dark ? 400 : 500}`]!, vars[`--ui-color-neutral-${dark ? 500 : 400}`]!)
+    const glass = readableGlass(t.wallpaper, vars['--ui-text-muted'] ?? vars[`--ui-color-neutral-${dark ? 400 : 500}`]!, vars['--ui-text-dimmed'] ?? vars[`--ui-color-neutral-${dark ? 500 : 400}`]!)
     css += `html[data-theme="${t.id}"]{background:${t.wallpaper.sky} fixed;--wall-glass:${glass}}`
       + `html[data-theme="${t.id}"] body{background:transparent}`
       + `html[data-theme="${t.id}"] .office-sidebar,html[data-theme="${t.id}"] .office-main{background:var(--wall-glass)}`

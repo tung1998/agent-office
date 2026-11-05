@@ -39,7 +39,16 @@ const en: Record<keyof typeof vi, string> = {
   'theme.backdropChange': 'Change file',
   'theme.backdropRemove': 'Remove',
   'theme.backdropGlass': 'Pane opacity (for readable text)',
-  'theme.backdropTooBig': 'File too large (max 25 MB)'
+  'theme.backdropTooBig': 'File too large (max 25 MB)',
+  'theme.custom.muted': 'Muted text (grey)',
+  'theme.custom.surface': 'Cards',
+  'theme.custom.border': 'Borders',
+  'theme.custom.auto': 'Auto',
+  'theme.custom.reset': 'Back to auto',
+  'theme.contrast': 'Contrast {n} (WCAG: body text needs 4.5, large text and icons 3)',
+  'theme.backdropSuggest': 'Colors from the picture',
+  'theme.backdropSuggestHint': 'Makes your own colors from the picture: background and text tinted by it, the accent its most vivid color, adjusted for contrast.',
+  'theme.backdropFloor': 'At least {n}% so muted text reads on this background'
 }
 
 export default en

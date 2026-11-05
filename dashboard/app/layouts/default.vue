@@ -251,6 +251,9 @@ const userMenu = computed<DropdownMenuItem[][]>(() => [
 // the account's theme (useTheme): checked once the person is known
 const { saved: savedTheme, theme, look: themeLook, load: loadTheme } = useTheme()
 watch(() => user.value?.id, () => loadTheme(), { immediate: true })
+// light/dark changes the default theme's colors: the background's glass follows
+const colorMode = useColorMode()
+watch(() => colorMode.value, () => nextTick(() => paintBackdrop(savedTheme.value.bg)))
 </script>
 
 <template>

@@ -5,11 +5,13 @@
 // its background calls for; 'default' removes both and gives the light/dark
 // switch back. A wallpaper theme's scene is ThemeWallpaper's (lazy).
 import { findTheme, isDark, themeCss, type Theme, type ThemeColors } from '~/utils/themes'
+import { cssHex, minGlass, sampleBackdrop } from '~/utils/backdropColors'
 
 export interface WallLook { strength: number, speed: number, cell: number, still: boolean }
 // a background of the person's own (/api/me/background), on any theme: the
-// file's kind, its version (the cache key) and how opaque the panes over it are
-export interface Backdrop { kind: 'image' | 'video', v: number, glass?: number }
+// file's kind, its version (the cache key), how opaque the panes over it are,
+// and a swatch of its colors (utils/backdropColors) to keep text readable on it
+export interface Backdrop { kind: 'image' | 'video', v: number, glass?: number, swatch?: string[] }
 export interface SavedTheme { id: string, custom?: ThemeColors, wall?: Partial<WallLook>, bg?: Backdrop }
 export const WALL_LOOK: WallLook = { strength: 0.45, speed: 1, cell: 18, still: false }
 const PREF_URL = '/api/me/prefs/theme'
@@ -21,9 +23,19 @@ export const BG_MAX = 25 << 20
 export const BG_GLASS = 0.82
 export const backdropSrc = (b: Backdrop) => `${BG_URL}?v=${b.v}`
 
+// The least glass over a background for the current theme's muted text to
+// read on every color of it (0 when its colors are not known)
+export function backdropFloor(b: Backdrop): number {
+  if (!b.swatch?.length) return 0
+  const bg = cssHex('var(--ui-bg)'), muted = cssHex('var(--ui-text-muted)'), dimmed = cssHex('var(--ui-text-dimmed)')
+  return bg && muted && dimmed ? minGlass(b.swatch, bg, muted, dimmed) : 0
+}
+// the glass in use: the person's, never below the floor
+export const backdropGlass = (b: Backdrop, floor = backdropFloor(b)) => Math.max(b.glass ?? (floor ? Math.max(floor, 0.6) : BG_GLASS), floor)
+
 // The page over a background: no fill of its own, the sidebar and the page
 // panes are the theme's background color, see-through by glass.
-function paintBackdrop(b: Backdrop | undefined) {
+export function paintBackdrop(b: Backdrop | undefined) {
   const root = document.documentElement
   let style = document.getElementById(BACKDROP_ID)
   if (!b) {
@@ -35,7 +47,7 @@ function paintBackdrop(b: Backdrop | undefined) {
     style = document.createElement('style')
     style.id = BACKDROP_ID
   }
-  const g = Math.round((b.glass ?? BG_GLASS) * 100)
+  const g = Math.round(backdropGlass(b) * 100)
   style.textContent = 'html[data-backdrop] body{background:transparent}'
     + `html[data-backdrop] body .office-sidebar,html[data-backdrop] body .office-main{background:color-mix(in srgb,var(--ui-bg) ${g}%,transparent)}`
   document.head.append(style)
@@ -52,7 +64,11 @@ export function readSavedTheme(): SavedTheme {
 
 // Puts a theme on the page (also used before Vue mounts, by the plugin).
 export function paintTheme(s: SavedTheme): Theme | undefined {
-  paintBackdrop(s.bg)
+  const t = paintColors(s)
+  paintBackdrop(s.bg) // after: its glass depends on the theme's colors
+  return t
+}
+function paintColors(s: SavedTheme): Theme | undefined {
   const root = document.documentElement
   const t = s.id === 'default' ? undefined : findTheme(s.id, s.custom)
   let style = document.getElementById(STYLE_ID)
@@ -137,12 +153,22 @@ export function useTheme() {
       r.readAsDataURL(file)
     })
     const m = await $fetch<{ mime: string, version: number }>(BG_URL, { method: 'PUT', body: { data } })
-    await save({ ...saved.value, bg: { kind: m.mime.startsWith('video/') ? 'video' : 'image', v: m.version, glass: saved.value.bg?.glass } })
+    const bg: Backdrop = { kind: m.mime.startsWith('video/') ? 'video' : 'image', v: m.version }
+    // its colors, for the glass's floor and the "colors from the picture" button
+    bg.swatch = await sampleBackdrop(backdropSrc(bg), bg.kind).catch(() => undefined)
+    await save({ ...saved.value, bg })
   }
   async function clearBackground() {
     const { bg: _, ...rest } = saved.value
     await save(rest)
     await $fetch(BG_URL, { method: 'DELETE' })
+  }
+  // a background from before swatches: its colors, once
+  async function sampleSaved() {
+    const b = saved.value.bg
+    if (!b || b.swatch) return
+    const swatch = await sampleBackdrop(backdropSrc(b), b.kind).catch(() => undefined)
+    if (swatch?.length && saved.value.bg?.v === b.v) await save({ ...saved.value, bg: { ...saved.value.bg, swatch } })
   }
   const setGlass = (glass: number) => saved.value.bg && save({ ...saved.value, bg: { ...saved.value.bg, glass } })
   // dragging shows the glass at once; setGlass keeps it when let go
@@ -152,5 +178,5 @@ export function useTheme() {
     paintBackdrop(saved.value.bg)
   }
 
-  return { saved, theme, look, load, setTheme, setCustom, setLook, setBackground, clearBackground, setGlass, previewGlass }
+  return { saved, theme, look, load, setTheme, setCustom, setLook, setBackground, clearBackground, sampleSaved, setGlass, previewGlass }
 }
