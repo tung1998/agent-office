@@ -252,11 +252,11 @@ func TestSeedBuiltinSkillsDoesNotOverwrite(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if n != 10 {
-		t.Fatalf("seeded %d skills, want 10", n)
+	if n != 14 {
+		t.Fatalf("seeded %d skills, want 14", n)
 	}
 	items, err := l.List("skill")
-	if err != nil || len(items) != 10 {
+	if err != nil || len(items) != 14 {
 		t.Fatalf("library skills: %d, %v", len(items), err)
 	}
 	custom := filepath.Join(dir, "skills", "research-brief", "SKILL.md")
