@@ -144,6 +144,35 @@ func TestGatewayBriefAndFallbackScope(t *testing.T) {
 	}
 }
 
+// A server left out as broken (ADR-250) is named in the brief, whatever the
+// runner, and is never in the run's MCP config.
+func TestGatewayBriefBroken(t *testing.T) {
+	box := officetools.New(nil, nil, nil)
+	box.SetMCPTools(discoveryTools{})
+	broken := []string{"fetch (máy chưa có lệnh uvx)"}
+	for _, o := range []*OfficeAccess{
+		{Tools: box, Scope: officetools.Scope{ClientKind: "api"}, Gateway: []string{"figma"}, GatewayBroken: broken},
+		{Scope: officetools.Scope{ClientKind: "claude"}, Gateway: []string{"figma"}, GatewayBroken: broken},
+	} {
+		brief := gatewayBrief(o)
+		if !strings.Contains(brief, "fetch (máy chưa có lệnh uvx)") || !strings.Contains(brief, "broken") {
+			t.Fatalf("brief does not name the broken server: %q", brief)
+		}
+		path, err := writeMCPConfig(o)
+		if err != nil {
+			t.Fatal(err)
+		}
+		raw, _ := os.ReadFile(path)
+		os.Remove(path)
+		if strings.Contains(string(raw), "fetch") || strings.Contains(officeAllow(o), "fetch") {
+			t.Fatalf("broken server reached the run: %s %s", raw, officeAllow(o))
+		}
+	}
+	if got := gatewayBrief(&OfficeAccess{Scope: officetools.Scope{ClientKind: "claude"}, Gateway: []string{"figma"}}); strings.Contains(got, "broken") {
+		t.Fatalf("brief speaks of broken servers when none: %q", got)
+	}
+}
+
 type discoveryTools struct{}
 
 func (discoveryTools) Tools(officetools.Scope) []officetools.Tool {

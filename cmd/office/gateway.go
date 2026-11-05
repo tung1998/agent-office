@@ -98,6 +98,14 @@ func gatewayFor(st storage.Store, gw *mcpgateway.Gateway) chat.GatewayFor {
 	}
 }
 
+// gatewayBrokenFor names the servers a run's agent has but office left out
+// as broken (ADR-250).
+func gatewayBrokenFor(st storage.Store, gw *mcpgateway.Gateway) func(context.Context, officetools.Scope) []string {
+	return func(ctx context.Context, sc officetools.Scope) []string {
+		return gw.BrokenFor(ctx, gatewayCaller(ctx, st, sc, gatewayClient(sc)))
+	}
+}
+
 // apiGateway is the gateway's tools for one API run.
 type apiGateway struct {
 	gw     *mcpgateway.Gateway

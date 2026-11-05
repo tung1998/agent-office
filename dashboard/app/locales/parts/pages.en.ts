@@ -91,6 +91,7 @@ const en: Record<keyof typeof vi, string> = {
   'incidents.kind.unread': 'unread',
   'incidents.kind.stalled': 'out of tokens',
   'incidents.kind.peer_request': 'pairing request',
+  'incidents.kind.mcp': 'MCP broken',
   'home.continue': 'Continue',
   'home.continueInfo': 'Sends "continue" to the agent that stopped; best once the AI connection has tokens again',
   'home.done_continue': 'Sent: continuing',

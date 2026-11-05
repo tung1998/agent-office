@@ -151,8 +151,11 @@ const candOf = (i: AutoItem) => candidates.value.get(candKey(refOf(i)))
 const inOffice = (c?: McpCandidate) => !!c && (!!c.moved_as || c.taken)
 const canAdd = (c: McpCandidate) => c.movable && !c.problem
 const addTip = (c: McpCandidate) => c.problem === 'sse' ? t('tools.gwImportSse') : !c.movable ? t('tools.mcpAddNotMovable') : t('tools.mcpAddInfo')
-interface OfficeServer { id: string, name: string, last_check_status: string, tools: unknown[] }
-const officeMcp = ref<{ refresh: () => Promise<void>, servers: OfficeServer[], openClientForm: (id: string, msg: string) => void } | null>(null)
+interface OfficeServer { id: string, name: string, enabled?: boolean, last_check_status: string, tools: unknown[] }
+const officeMcp = ref<{ refresh: () => Promise<void>, checkAll: () => Promise<void>, servers: OfficeServer[], openClientForm: (id: string, msg: string) => void } | null>(null)
+// office servers left out of runs as broken (ADR-250), said above their list
+const brokenOffice = computed(() => (officeMcp.value?.servers ?? [])
+  .filter(s => s.enabled && (s.last_check_status === 'error' || s.last_check_status === 'needs_login')).map(s => s.name))
 const busy = ref<Record<string, boolean>>({})
 const officeNameOf = (c: McpCandidate) => c.moved_as || (c.taken ? c.suggested : '')
 const officeServerOf = (c?: McpCandidate) => c ? officeMcp.value?.servers.find(s => s.name === officeNameOf(c)) : undefined
@@ -485,6 +488,9 @@ const summary = (tpl: MCPTemplate) => {
           <InfoTip :text="t('tools.mcpCheckInfo')" icon-class="text-(--ui-text-dimmed)" />
           <UButton class="ms-auto" size="xs" color="neutral" variant="outline" icon="i-lucide-refresh-cw" :label="t('tools.mcpCheck')" :loading="mcp.check.value?.running" @click="mcp.recheck()" />
         </div>
+        <UAlert v-if="kind === 'mcp' && brokenOffice.length" color="error" variant="subtle" icon="i-lucide-plug-zap"
+                :title="t('tools.gwBrokenAlert', { names: brokenOffice.join(', ') })"
+                :actions="[{ label: t('tools.gwCheckAll'), icon: 'i-lucide-refresh-cw', onClick: () => { void officeMcp?.checkAll() } }]" />
         <OfficeMcpServers v-if="kind === 'mcp'" ref="officeMcp" @changed="loadCandidates" />
         <div v-if="loading && !inv" class="py-10 text-center text-(--ui-text-muted)">{{ t('tools.scanning') }}</div>
         <div v-else-if="!groups.length" class="rounded-lg border border-dashed border-(--ui-border) p-10 text-center">

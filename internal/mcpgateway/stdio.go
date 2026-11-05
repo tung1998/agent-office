@@ -110,7 +110,7 @@ func (g *Gateway) stdio(ctx context.Context, m storage.MCPServer) (*proc, error)
 	pl.mu.Lock()
 	if pl.closed {
 		pl.mu.Unlock()
-		return nil, errors.New("office đang tắt")
+		return nil, errClosed
 	}
 	if pl.procs == nil {
 		pl.procs, pl.starts, pl.fails = map[string]*proc{}, map[string]*sync.Mutex{}, map[string]*failure{}
@@ -136,7 +136,7 @@ func (g *Gateway) stdio(ctx context.Context, m storage.MCPServer) (*proc, error)
 		go cur.stop()
 	}
 	if f := pl.fails[m.ID]; f != nil && time.Now().Before(f.until) {
-		err := fmt.Errorf("%v (thử chạy lại sau %d giây)", f.err, int(time.Until(f.until).Seconds())+1)
+		err := &backoffError{err: f.err, wait: time.Until(f.until)}
 		pl.mu.Unlock()
 		return nil, err
 	}
@@ -151,7 +151,7 @@ func (g *Gateway) stdio(ctx context.Context, m storage.MCPServer) (*proc, error)
 	}
 	if pl.closed {
 		go np.stop()
-		return nil, errors.New("office đang tắt")
+		return nil, errClosed
 	}
 	pl.procs[m.ID] = np
 	go g.watch(m.ID, np)
@@ -601,6 +601,25 @@ var installHint = map[string]string{
 	"deno":    "cài Deno (https://deno.com)",
 }
 
+// installCommand is a shell line that installs a missing command, for the
+// dashboard to copy (ADR-250); only commands with one line are listed.
+var installCommand = map[string]string{
+	"uvx":  "curl -LsSf https://astral.sh/uv/install.sh | sh",
+	"uv":   "curl -LsSf https://astral.sh/uv/install.sh | sh",
+	"bunx": "curl -fsSL https://bun.sh/install | bash",
+	"bun":  "curl -fsSL https://bun.sh/install | bash",
+	"deno": "curl -fsSL https://deno.land/install.sh | sh",
+}
+
+// InstallCommand is the line that installs m's missing command, when m is a
+// stdio server whose last check found its command missing ("" otherwise).
+func InstallCommand(m storage.MCPServer) string {
+	if m.Kind != "stdio" || m.LastCheckStatus != "error" || !strings.Contains(m.LastCheckError, "máy chưa có lệnh") {
+		return ""
+	}
+	return installCommand[filepath.Base(m.Command)]
+}
+
 // lookCommand finds name on the PATH of env.
 func lookCommand(name string, env []string) (string, error) {
 	executable := func(p string) bool {
@@ -688,10 +707,17 @@ func (g *Gateway) serveStdio(w http.ResponseWriter, r *http.Request, m storage.M
 	start := time.Now()
 	p, err := g.stdio(r.Context(), m)
 	if err != nil {
-		g.log().Warn("mcp gateway", "server", m.Name, "rpc", rpc, "err", err.Error())
+		var b *backoffError
+		if errors.As(err, &b) { // the same failure, already warned of when it happened
+			g.log().Debug("mcp gateway", "server", m.Name, "rpc", rpc, "err", err.Error())
+		} else {
+			g.log().Warn("mcp gateway", "server", m.Name, "rpc", rpc, "err", err.Error())
+		}
+		g.note(r.Context(), m, err)
 		http.Error(w, "MCP "+m.Name+": "+err.Error(), http.StatusBadGateway)
 		return http.StatusBadGateway, err.Error()
 	}
+	g.note(r.Context(), m, nil) // it runs (and answered office's initialize)
 	ctx, cancel := context.WithTimeout(r.Context(), CallTimeout)
 	defer cancel()
 	var out []json.RawMessage

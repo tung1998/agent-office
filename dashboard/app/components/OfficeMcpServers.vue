@@ -10,6 +10,7 @@ interface GwServer {
   id: string, name: string, kind: 'http' | 'stdio', url: string, headers: Record<string, string>,
   command: string, args: string[], env: Record<string, string>, oauth: GwOAuth | null, scope: string, origin: string,
   enabled: boolean, path: string, last_check_at: string | null, last_check_status: GwStatus, last_check_error: string, tools: GwTool[],
+  broken_since: string | null, install_command: string, // ADR-250
   agents: string[], trusted_tools: string[], moved_from: { type: string, label: string, name: string, moved_at: string, backup: boolean } | null,
   version: string
 }
@@ -33,7 +34,7 @@ watch(data, (d) => {
   list.value = next
   if (changed) emit('changed')
 }, { immediate: true })
-defineExpose({ refresh, servers: list, openClientForm: (id: string, msg: string) => openClientForm(id, msg) })
+defineExpose({ refresh, servers: list, checkAll: () => checkAll(), openClientForm: (id: string, msg: string) => openClientForm(id, msg) })
 const stat = (s: GwServer) => data.value?.stats?.[s.id]
 
 // ---- which agents get a server, and its tools that write without asking (ADR-093) ----
@@ -119,6 +120,34 @@ async function check(s: GwServer) {
     toast.add({ title: apiError(e), color: 'error' })
   } finally {
     checking.value = { ...checking.value, [s.id]: false }
+  }
+}
+// every server at once (ADR-250): after installing what a broken one needs
+const checkingAll = ref(false)
+async function checkAll() {
+  if (checkingAll.value) return
+  checkingAll.value = true
+  try {
+    const r = await $fetch<{ checked: number, broken: number, servers: GwServer[] }>('/api/mcp/servers/check-all', { method: 'POST' })
+    list.value = r.servers
+    toast.add({
+      title: t('tools.gwCheckAllDone', { n: r.checked }),
+      description: r.broken ? t('tools.gwCheckAllBroken', { n: r.broken }) : t('tools.gwCheckAllOk'),
+      color: r.broken ? 'warning' : 'success'
+    })
+  } catch (e) {
+    toast.add({ title: apiError(e), color: 'error' })
+  } finally {
+    checkingAll.value = false
+  }
+}
+const broken = (s: GwServer) => s.enabled && (s.last_check_status === 'error' || s.last_check_status === 'needs_login')
+async function copyInstall(s: GwServer) {
+  try {
+    await navigator.clipboard.writeText(s.install_command)
+    toast.add({ title: t('tools.gwCopied'), color: 'success' })
+  } catch (e) {
+    toast.add({ title: apiError(e), color: 'error' })
   }
 }
 const toggle = (s: GwServer, enabled: boolean) => patch(s, { enabled })
@@ -216,6 +245,8 @@ async function save() {
         <InfoTip :text="t('tools.gwInfo')" icon-class="text-(--ui-text-dimmed)" />
       </span>
       <span class="ms-auto flex gap-2">
+        <UButton v-if="list.length" size="xs" color="neutral" variant="outline" icon="i-lucide-refresh-cw" :label="t('tools.gwCheckAll')"
+                 :loading="checkingAll" :disabled="!data || checkingAll" @click="checkAll" />
         <UButton size="xs" color="neutral" variant="outline" icon="i-lucide-arrow-right-to-line" :label="t('tools.gwImport')" @click="importOpen = true" />
         <UButton size="xs" icon="i-lucide-plus" :label="t('tools.gwAdd')" @click="openForm()" />
       </span>
@@ -255,10 +286,19 @@ async function save() {
             <UButton size="xs" color="error" variant="ghost" icon="i-lucide-trash-2" :aria-label="t('common.delete')" @click="remove(s)" />
           </div>
         </div>
-        <p v-if="s.last_check_status === 'error' || s.last_check_status === 'needs_login'" class="mt-1 text-xs"
-           :class="s.last_check_status === 'error' ? 'text-(--ui-error)' : 'text-(--ui-warning)'">
-          {{ s.last_check_error }}
-        </p>
+        <div v-if="s.last_check_status === 'error' || s.last_check_status === 'needs_login'" class="mt-1 space-y-1 ps-7 text-xs">
+          <p :class="s.last_check_status === 'error' ? 'text-(--ui-error)' : 'text-(--ui-warning)'">{{ s.last_check_error }}</p>
+          <p v-if="broken(s)" class="flex flex-wrap items-center gap-x-2 text-(--ui-text-muted)">
+            <span v-if="s.broken_since">{{ t('tools.gwBrokenSince', { time: fmt(s.broken_since) }) }}</span>
+            <span v-if="s.last_check_at">· {{ t('tools.mcpCheckedAt', { time: fmt(s.last_check_at) }) }}</span>
+            <InfoTip :text="t('tools.gwLeftOut')" icon-class="text-(--ui-text-dimmed)" />
+          </p>
+          <div v-if="s.install_command" class="flex flex-wrap items-center gap-2">
+            <span class="text-(--ui-text-muted)">{{ t('tools.gwInstall') }}</span>
+            <code class="min-w-0 truncate rounded bg-(--ui-bg-elevated) px-1.5 py-0.5">{{ s.install_command }}</code>
+            <UButton size="xs" color="neutral" variant="outline" icon="i-lucide-copy" :label="t('tools.gwCopyInstall')" @click="copyInstall(s)" />
+          </div>
+        </div>
         <div v-if="open[s.id]" class="mt-2 space-y-3 ps-7">
           <UFormField :label="t('tools.gwAgents')">
             <template #hint>

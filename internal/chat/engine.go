@@ -264,6 +264,9 @@ type Engine struct {
 	peers       Peers           // linked projects in other offices (ADR-167; nil = none)
 	stopping    atomic.Bool     // office is going down: answers cut off now go on after it (Shutdown)
 
+	// gatewayBroken: the run's servers left out as broken (ADR-250)
+	gatewayBroken func(ctx context.Context, sc officetools.Scope) []string
+
 	// keepFiles copies the files sent with a message into the project and
 	// returns their paths there (ADR-233)
 	keepFiles func(ctx context.Context, projectID, conversationID string, files []attach.File) []string
@@ -441,6 +444,9 @@ func (e *Engine) officeAccess(ctx context.Context, sc officetools.Scope) (*Offic
 	oa := &OfficeAccess{MCPURL: e.mcpURL, Token: token, Scope: sc, Tools: e.office, Other: len(e.office.OtherTools(ctx, sc)) > 0}
 	if e.gateway != nil && !sc.Consult && !sc.Limited { // an expert: its project's knowledge only (ADR-177); the assistant of a non-admin: no office MCP (ADR-240)
 		oa.Gateway, oa.GatewayOthers, oa.GatewayTools = e.gateway(ctx, sc)
+		if e.gatewayBroken != nil {
+			oa.GatewayBroken = e.gatewayBroken(ctx, sc)
+		}
 	}
 	return oa, revoke
 }
@@ -464,6 +470,12 @@ type GatewayFor func(ctx context.Context, sc officetools.Scope) ([]string, []str
 
 // SetGateway gives runs the MCP servers office manages.
 func (e *Engine) SetGateway(fn GatewayFor) { e.gateway = fn }
+
+// SetGatewayBroken tells runs which of their MCP servers office left out
+// because they are broken now, "name (why)" each (ADR-250).
+func (e *Engine) SetGatewayBroken(fn func(ctx context.Context, sc officetools.Scope) []string) {
+	e.gatewayBroken = fn
+}
 
 // Level is what agent may do under mode in project (see internal/perm).
 func (e *Engine) Level(ctx context.Context, projectID string, agent storage.Agent, mode string) string {

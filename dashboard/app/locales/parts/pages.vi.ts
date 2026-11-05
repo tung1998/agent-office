@@ -90,6 +90,7 @@ export default {
   'incidents.kind.unread': 'tin chưa xem',
   'incidents.kind.stalled': 'hết token',
   'incidents.kind.peer_request': 'xin ghép nối',
+  'incidents.kind.mcp': 'MCP hỏng',
   'home.continue': 'Tiếp tục',
   'home.continueInfo': 'Gửi tin "tiếp tục" cho agent đã dừng; nên bấm khi kết nối AI đã có token trở lại',
   'home.done_continue': 'Đã gửi tiếp tục',

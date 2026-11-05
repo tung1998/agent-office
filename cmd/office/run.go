@@ -360,6 +360,9 @@ func serveCmd() *cobra.Command {
 			office.AddProvider(gatewayRest{st: a.store, gw: gateway}) // mcp_result: what office cut of a long result (ADR-183)
 			office.SetMCPTools(gatewayDiscovery{st: a.store, gw: gateway})
 			chatEngine.SetGateway(gatewayFor(a.store, gateway))
+			chatEngine.SetGatewayBroken(gatewayBrokenFor(a.store, gateway))
+			// broken servers checked again soon, working ones seldom (ADR-250)
+			go gateway.Sweep(ctx, time.Minute)
 			handler := api.New(api.Config{
 				Office: office, Channels: bots, Memory: mem, Events: liveBus,
 				Packs: []api.PackRoutes{supportPack},

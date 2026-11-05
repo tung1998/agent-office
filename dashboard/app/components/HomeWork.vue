@@ -123,7 +123,7 @@ watch(shown, async (x) => {
     monitorEvents.value = res.events.filter(e => e.monitor_id === x.id).slice(0, 10)
   } catch { monitorEvents.value = [] }
 })
-const canRetry = (k: string) => ['monitor', 'process', 'automation', 'bot', 'jobs'].includes(k)
+const canRetry = (k: string) => ['monitor', 'process', 'automation', 'bot', 'jobs', 'mcp'].includes(k)
 const incIcon: Record<string, string> = {
   monitor: 'i-lucide-activity', process: 'i-lucide-square-terminal', automation: 'i-lucide-alarm-clock-off',
   bot: 'i-lucide-bot', jobs: 'i-lucide-circle-x', approval: 'i-lucide-stamp', patch: 'i-lucide-file-diff', limit: 'i-lucide-gauge', unread: 'i-lucide-message-square-dot',

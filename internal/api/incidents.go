@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"slices"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -15,6 +16,7 @@ import (
 	"github.com/tung1998/agent-office/internal/chat"
 	"github.com/tung1998/agent-office/internal/deciding"
 	"github.com/tung1998/agent-office/internal/features"
+	"github.com/tung1998/agent-office/internal/mcpgateway"
 	"github.com/tung1998/agent-office/internal/storage"
 	"github.com/tung1998/agent-office/internal/trigger"
 )
@@ -23,7 +25,7 @@ import (
 // fix it: a monitor down, a process crashed, an automation office turned off,
 // a bot that lost its connection, tasks and runs that failed, a card waiting.
 type incident struct {
-	Kind        string    `json:"kind"`     // monitor | process | automation | bot | jobs | approval | patch | unread | stalled | peer_request
+	Kind        string    `json:"kind"`     // monitor | process | automation | bot | jobs | approval | patch | unread | stalled | peer_request | mcp
 	Severity    string    `json:"severity"` // error | warning
 	ProjectID   string    `json:"project_id"`
 	ProjectName string    `json:"project_name"`
@@ -210,6 +212,15 @@ func (s *server) incidentsFor(ctx context.Context, u storage.User) ([]incident, 
 				At: rq.CreatedAt, Link: "/admin/peers", ID: rq.ID, Key: "peer_request:" + rq.ID})
 		}
 	}
+	if u.Role == storage.RoleAdmin { // an office MCP server that stopped working (ADR-250)
+		for _, it := range s.mcpIncidents(ctx) {
+			var gone time.Time
+			if ok, _ := s.cfg.Store.Settings().Get(ctx, dismissKey(it.Key), &gone); ok {
+				continue // its key carries when it broke: let go until it breaks again
+			}
+			out = append(out, it)
+		}
+	}
 	for _, it := range s.limitIncidents(ctx) { // an AI connection close to its limit
 		// it.Key already carries the occurrence (provider/window/ResetsAt, see
 		// limitalert.go), so dismiss holds until the window itself resets (a new
@@ -228,6 +239,35 @@ func (s *server) incidentsFor(ctx context.Context, u storage.User) ([]incident, 
 	})
 	s.orderApprovals(ctx, out)
 	return out, nil
+}
+
+// mcpIncidents: the office's MCP servers broken now, each once per break (its
+// key carries when it broke, so a new break shows again after Bỏ qua).
+func (s *server) mcpIncidents(ctx context.Context) []incident {
+	list, err := s.cfg.Store.MCPServers().List(ctx)
+	if err != nil {
+		return nil
+	}
+	var out []incident
+	for _, m := range list {
+		if !m.Enabled || m.Scope != "machine" || !mcpgateway.Broken(m) {
+			continue
+		}
+		at := mcpgateway.BrokenSince(ctx, s.cfg.Store, m.ID)
+		if at.IsZero() { // broken before office kept when: since its last check
+			if m.LastCheckAt == nil {
+				continue
+			}
+			at = *m.LastCheckAt
+		}
+		detail := m.LastCheckError
+		if m.LastCheckStatus == "needs_login" {
+			detail = "cần đăng nhập lại: bấm Kết nối ở trang MCP"
+		}
+		out = append(out, incident{Kind: "mcp", Severity: "error", Title: m.Name, Detail: detail, At: at,
+			Link: "/mcp", ID: m.ID, Key: "mcp:" + m.ID + ":" + strconv.FormatInt(at.Unix(), 10)})
+	}
+	return out
 }
 
 // orderApprovals: a chat's cards are decided in their order (chat.CheckOrder),
@@ -392,6 +432,15 @@ func (s *server) retryIncident(w http.ResponseWriter, r *http.Request) {
 			err = errors.New("chưa bật bot")
 		} else if _, err = s.cfg.Store.Channels().Get(ctx, in.ID); err == nil {
 			s.cfg.Channels.Reload(in.ID)
+		}
+	case "mcp": // an office MCP server (admins only: incidentProject has no project for it)
+		var m storage.MCPServer
+		if s.cfg.Gateway == nil {
+			err = errors.New("chưa bật MCP của office")
+		} else if m, err = s.cfg.Store.MCPServers().Get(ctx, in.ID); err == nil {
+			if m, err = s.cfg.Gateway.CheckServer(ctx, m); err == nil {
+				s.sendMCPStatus(s.mcpServerDTO(m))
+			}
 		}
 	default:
 		writeError(w, http.StatusBadRequest, "không chạy lại được mục này")

@@ -105,6 +105,9 @@ type OfficeAccess struct {
 	// GatewayOthers: servers office has but gives only to other agents
 	// (ADR-231); the run is told of them, not given them.
 	GatewayOthers []string
+	// GatewayBroken: servers given to the run's agent but left out because
+	// they are broken now, "name (why)" each (ADR-250); the run is told.
+	GatewayBroken []string
 	// Other: the run reaches projects in other offices, through the MCP
 	// other_office at MCPURL/other_office (ADR-169)
 	Other bool
@@ -140,15 +143,19 @@ func gatewayBrief(o *OfficeAccess) string {
 	if o == nil || o.Scope.Consult {
 		return ""
 	}
+	broken := ""
+	if len(o.GatewayBroken) > 0 {
+		broken = "\n\n" + prompts.Render("chat/mcp-broken", map[string]any{"Names": strings.Join(o.GatewayBroken, "; ")})
+	}
 	if o.Tools != nil && o.Tools.Has(o.Scope, "find_tool") && o.Tools.Has(o.Scope, "call_tool") {
 		return "\n\n" + prompts.Render("chat/mcp-toolbox", map[string]any{
 			"Available": strings.Join(o.Gateway, ", "), "Unavailable": strings.Join(o.GatewayOthers, ", "),
-		})
+		}) + broken
 	}
 	if len(o.GatewayOthers) > 0 {
-		return "\n\n" + prompts.Render("chat/mcp-others", map[string]any{"Names": strings.Join(o.GatewayOthers, ", ")})
+		return "\n\n" + prompts.Render("chat/mcp-others", map[string]any{"Names": strings.Join(o.GatewayOthers, ", ")}) + broken
 	}
-	return ""
+	return broken
 }
 
 // ClientHeader tells the gateway which AI calls (claude | codex | gemini | antigravity | dsh).

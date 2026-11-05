@@ -56,6 +56,7 @@ type Gateway struct {
 
 	logins logins
 	pool   pool
+	health health
 	cuts   cuts
 	logged atomic.Int64 // calls logged, to prune the log now and then
 }
@@ -79,8 +80,9 @@ func (g *Gateway) Names(ctx context.Context) []string {
 	return g.NamesFor(ctx, Caller{Kind: "person"})
 }
 
-// NamesFor lists the servers c's run gets: enabled, of the machine, and
-// given to its agent (ADR-093).
+// NamesFor lists the servers c's run gets: enabled, of the machine, given to
+// its agent (ADR-093) and not known broken (ADR-250): a run would only try
+// to connect to a broken one again and again.
 func (g *Gateway) NamesFor(ctx context.Context, c Caller) []string {
 	list, err := g.Store.MCPServers().List(ctx)
 	if err != nil {
@@ -88,8 +90,31 @@ func (g *Gateway) NamesFor(ctx context.Context, c Caller) []string {
 	}
 	var out []string
 	for _, m := range list {
-		if m.Enabled && (m.Kind == "http" || m.Kind == "stdio") && m.Scope == "machine" && Assigned(m, c) {
+		if m.Enabled && (m.Kind == "http" || m.Kind == "stdio") && m.Scope == "machine" && Assigned(m, c) && !Broken(m) {
 			out = append(out, m.Name)
+		}
+	}
+	return out
+}
+
+// BrokenFor lists the servers c's run would get but that are broken now,
+// each as "name (why)", for the run's brief (ADR-250).
+func (g *Gateway) BrokenFor(ctx context.Context, c Caller) []string {
+	list, err := g.Store.MCPServers().List(ctx)
+	if err != nil {
+		return nil
+	}
+	var out []string
+	for _, m := range list {
+		if m.Enabled && (m.Kind == "http" || m.Kind == "stdio") && m.Scope == "machine" && Assigned(m, c) && Broken(m) {
+			why := m.LastCheckError
+			if m.LastCheckStatus == "needs_login" {
+				why = "cần đăng nhập"
+			}
+			if r := []rune(why); len(r) > 120 {
+				why = string(r[:119]) + "…"
+			}
+			out = append(out, m.Name+" ("+why+")")
 		}
 	}
 	return out
@@ -130,22 +155,28 @@ func (g *Gateway) CheckServer(ctx context.Context, m storage.MCPServer) (storage
 		err   error
 	)
 	if m.Kind == "stdio" {
+		g.clearBackoff(m.ID) // a check asked for tries now, not after an old failure's wait
 		tools, err = g.checkStdio(ctx, m)
 	} else {
 		tools, err = g.checkHTTP(ctx, &m)
 	}
-	status, msg := "ok", ""
-	if err != nil {
-		status, msg, tools = "error", err.Error(), m.LastTools
-		if errors.Is(err, ErrNeedsLogin) || errors.Is(err, ErrSessionExpired) {
-			status = "needs_login"
-		}
+	if errors.Is(err, errClosed) || (err != nil && ctx.Err() != nil) { // going down: nothing learned of the server
+		return m, err
 	}
-	now := time.Now().UTC()
-	if serr := g.Store.MCPServers().SetCheck(context.WithoutCancel(ctx), m.ID, status, msg, tools, now); serr != nil {
+	status, msg := statusOf(err)
+	if err != nil {
+		tools = m.LastTools
+	}
+	// the status stored now: a run's call may have changed it meanwhile
+	if fresh, ferr := g.Store.MCPServers().Get(context.WithoutCancel(ctx), m.ID); ferr == nil {
+		m.LastCheckStatus = fresh.LastCheckStatus
+	}
+	g.health.mu.Lock()
+	m, serr := g.save(context.WithoutCancel(ctx), m, status, msg, tools)
+	g.health.mu.Unlock()
+	if serr != nil {
 		return m, serr
 	}
-	m.LastCheckAt, m.LastCheckStatus, m.LastCheckError, m.LastTools = &now, status, msg, tools
 	g.log().Info("mcp gateway: check", "server", m.Name, "status", status, "tools", len(tools))
 	return m, nil
 }
@@ -298,6 +329,7 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		// office's login, not the run's token: no WWW-Authenticate (the CLI
 		// would start a login against office)
+		g.note(ctx, m, err)
 		logged(http.StatusBadGateway, loginFail(name, err))
 		http.Error(w, loginFail(name, err), http.StatusBadGateway)
 		return
@@ -306,6 +338,7 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if err == nil && resp.StatusCode == http.StatusUnauthorized && tok != "" {
 		resp.Body.Close() // refused: refresh, then once more
 		if tok, err = g.bearer(ctx, &m, true); err != nil {
+			g.note(ctx, m, err)
 			logged(http.StatusBadGateway, loginFail(name, err))
 			http.Error(w, loginFail(name, err), http.StatusBadGateway)
 			return
@@ -319,6 +352,9 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				err = ue.Err // the URL may carry a key
 			}
 			g.log().Warn("mcp gateway", "server", name, "rpc", rpc, "tool", tool, "err", err.Error(), "ms", time.Since(start).Milliseconds())
+			if !errors.Is(err, context.DeadlineExceeded) { // a slow tool is not a broken server
+				g.note(ctx, m, err)
+			}
 			logged(http.StatusBadGateway, err.Error())
 			http.Error(w, "office không gọi được MCP "+name+": "+err.Error(), http.StatusBadGateway)
 		}
@@ -334,9 +370,14 @@ func (g *Gateway) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, loginFail(name, ErrSessionExpired), http.StatusBadGateway)
 			return
 		}
+		refused := "MCP " + name + " từ chối token đã lưu trong office (HTTP " + strconv.Itoa(resp.StatusCode) + "): sửa trên dashboard"
+		g.note(ctx, m, errors.New(refused))
 		logged(resp.StatusCode, "")
-		http.Error(w, "MCP "+name+" từ chối token đã lưu trong office (HTTP "+strconv.Itoa(resp.StatusCode)+"): sửa trên dashboard", http.StatusBadGateway)
+		http.Error(w, refused, http.StatusBadGateway)
 		return
+	}
+	if resp.StatusCode < http.StatusInternalServerError { // it answered: it works
+		g.note(ctx, m, nil)
 	}
 	for _, h := range passResponse {
 		if v := resp.Header.Get(h); v != "" {

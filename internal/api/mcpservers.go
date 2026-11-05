@@ -25,6 +25,7 @@ func (s *server) mcpServerRoutes(mux *http.ServeMux, admin func(http.HandlerFunc
 	mux.Handle("PATCH /api/mcp/servers/{id}", admin(s.updateMCPServer))
 	mux.Handle("DELETE /api/mcp/servers/{id}", admin(s.deleteMCPServer))
 	mux.Handle("POST /api/mcp/servers/{id}/check", admin(s.checkMCPServer))
+	mux.Handle("POST /api/mcp/servers/check-all", admin(s.checkAllMCPServers))
 	mux.Handle("POST /api/mcp/servers/{id}/oauth/start", admin(s.startMCPLogin))
 	mux.Handle("POST /api/mcp/servers/{id}/oauth/logout", admin(s.logoutMCP))
 	mux.Handle("GET "+mcpgateway.CallbackPath, admin(s.mcpLoginCallback))
@@ -36,7 +37,12 @@ func (s *server) mcpServerRoutes(mux *http.ServeMux, admin func(http.HandlerFunc
 	mux.Handle("GET /api/mcp/import", admin(s.mcpImportList))
 	mux.Handle("POST /api/mcp/import", admin(s.mcpImport))
 	mux.Handle("POST /api/mcp/servers/{id}/put-back", admin(s.mcpPutBack))
-	s.cfg.Gateway.OnStatus = func(m storage.MCPServer) { s.sendMCPStatus(s.mcpServerDTO(m)) }
+	s.cfg.Gateway.OnStatus = func(m storage.MCPServer) {
+		s.sendMCPStatus(s.mcpServerDTO(m))
+		if s.cfg.Events != nil { // broke or works again: the bell follows (ADR-250)
+			go s.pushIncidents(context.Background(), false)
+		}
+	}
 }
 
 // mcpOAuthDTO is what the dashboard sees of a login: never a token.
@@ -68,6 +74,8 @@ type mcpServerDTO struct {
 	LastCheckAt     *time.Time        `json:"last_check_at"`
 	LastCheckStatus string            `json:"last_check_status"`
 	LastCheckError  string            `json:"last_check_error"`
+	BrokenSince     *time.Time        `json:"broken_since"`    // when it stopped working (ADR-250)
+	InstallCommand  string            `json:"install_command"` // a line that installs its missing command
 	Tools           []mcpToolDTO      `json:"tools"`
 	Agents          []string          `json:"agents"`        // [] = every agent
 	TrustedTools    []string          `json:"trusted_tools"` // tools that write but run without approval
@@ -124,9 +132,16 @@ func (s *server) mcpServerDTO(m storage.MCPServer) mcpServerDTO {
 	if o, ok := originOf(m); ok {
 		from = &mcpOriginDTO{Type: o.Type, Label: o.Label, Name: o.Name, MovedAt: o.MovedAt, Backup: o.Backup != ""}
 	}
+	var since *time.Time
+	if mcpgateway.Broken(m) {
+		if at := mcpgateway.BrokenSince(context.Background(), s.cfg.Store, m.ID); !at.IsZero() {
+			since = &at
+		}
+	}
 	return mcpServerDTO{ID: m.ID, Name: m.Name, Kind: m.Kind, URL: m.URL, Headers: mcpgateway.MaskMap(headers),
 		Command: m.Command, Args: m.Args, Env: mcpgateway.MaskMap(env), OAuth: oa, Scope: m.Scope, Origin: m.Origin,
 		Enabled: m.Enabled, Path: "/mcp/s/" + m.Name, LastCheckAt: m.LastCheckAt, LastCheckStatus: m.LastCheckStatus, LastCheckError: m.LastCheckError,
+		BrokenSince: since, InstallCommand: mcpgateway.InstallCommand(m),
 		Tools: tools, Agents: m.Agents, TrustedTools: m.TrustedTools, MovedFrom: from, CreatedAt: m.CreatedAt, UpdatedAt: m.UpdatedAt, Version: mcpServerVersion(m)}
 }
 
@@ -447,6 +462,32 @@ func (s *server) checkMCPServer(w http.ResponseWriter, r *http.Request) {
 	d := s.mcpServerDTO(m)
 	s.sendMCPStatus(d)
 	writeJSON(w, http.StatusOK, map[string]any{"server": d})
+}
+
+// checkAllMCPServers checks every enabled server of the machine now, one
+// after another (ADR-250); open pages get each result as mcp.gateway.status.
+func (s *server) checkAllMCPServers(w http.ResponseWriter, r *http.Request) {
+	n, err := s.cfg.Gateway.CheckDue(r.Context(), time.Now(), true)
+	if err != nil {
+		s.internal(w, r, err)
+		return
+	}
+	list, err := s.cfg.Store.MCPServers().List(r.Context())
+	if err != nil {
+		s.internal(w, r, err)
+		return
+	}
+	out := make([]mcpServerDTO, 0, len(list))
+	broken := 0
+	for _, m := range list {
+		d := s.mcpServerDTO(m)
+		if m.Enabled && mcpgateway.Broken(m) {
+			broken++
+		}
+		out = append(out, d)
+	}
+	s.auditAction(r, "mcp_server.check_all", "", map[string]any{"checked": n, "broken": broken})
+	writeJSON(w, http.StatusOK, map[string]any{"checked": n, "broken": broken, "servers": out})
 }
 
 // startMCPLogin begins an OAuth login: the dashboard opens the returned URL
