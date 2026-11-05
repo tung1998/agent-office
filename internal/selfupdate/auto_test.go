@@ -32,6 +32,33 @@ func TestAutoWatchDue(t *testing.T) {
 	}
 }
 
+// An update office started on its own that gave up only because work still
+// ran (past its wait) is tried again for the same HEAD; one whose build or
+// tests failed is not. It waits long enough for a day's workflow.
+func TestAutoRetriesAfterWaitTimeout(t *testing.T) {
+	a := &autoWatch{settle: 0, tried: map[string]bool{}}
+	t0 := time.Date(2026, 11, 6, 10, 0, 0, 0, time.UTC)
+	if !a.due("abc", "def", t0) {
+		t.Fatal("due")
+	}
+	if got := a.ended(State{Status: "waiting", By: AutoBy}, "def"); got != "def" || a.due("abc", "def", t0) {
+		t.Fatal("still waiting: followed, not tried again")
+	}
+	if got := a.ended(State{Status: "failed", By: AutoBy, TimedOut: true}, "def"); got != "" {
+		t.Fatalf("followed after it ended: %q", got)
+	}
+	if !a.due("abc", "def", t0.Add(time.Minute)) {
+		t.Fatal("gave up waiting: the same HEAD must be tried again")
+	}
+	a.ended(State{Status: "failed", By: AutoBy, Error: "Build server: exit 1"}, "def")
+	if a.due("abc", "def", t0.Add(2*time.Minute)) {
+		t.Fatal("a failed build must not be retried on the same HEAD")
+	}
+	if o := autoOptions(); !o.WhenIdle || !o.Test || o.MaxWait < 10*time.Hour || o.By != AutoBy {
+		t.Fatalf("auto options = %+v", o)
+	}
+}
+
 // Behind counts the commits the running build has not got.
 func TestBehind(t *testing.T) {
 	dir := newRepo(t)

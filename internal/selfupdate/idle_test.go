@@ -115,7 +115,7 @@ func TestWhenIdleGivesUpAfterMaxWait(t *testing.T) {
 	mu.Unlock()
 	<-done
 	st := u.State()
-	if st.Status != "failed" || !strings.Contains(st.Error, "giữ nguyên") {
+	if st.Status != "failed" || !st.TimedOut || !strings.Contains(st.Error, "giữ nguyên") {
 		t.Fatalf("state = %+v", st)
 	}
 	if binary(t, src) != "old" || restarts.Load() != 0 {
@@ -181,7 +181,7 @@ func TestWhenIdleBuildFailureDoesNotWait(t *testing.T) {
 		t.Fatal(err)
 	}
 	waitFor(t, "the build to fail", func() bool { return u.State().Status == "failed" })
-	if restarts.Load() != 0 || u.State().WaitingSince != nil {
+	if restarts.Load() != 0 || u.State().WaitingSince != nil || u.State().TimedOut {
 		t.Fatalf("state = %+v", u.State())
 	}
 }

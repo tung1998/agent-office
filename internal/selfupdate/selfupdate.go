@@ -151,6 +151,9 @@ type State struct {
 	WaitingSince *time.Time `json:"waiting_since,omitempty"`
 	WaitUntil    *time.Time `json:"wait_until,omitempty"`
 	Busy         string     `json:"busy,omitempty"`
+	// TimedOut: it failed only because work still ran past MaxWait (the
+	// build was fine): worth trying again later
+	TimedOut bool `json:"timed_out,omitempty"`
 }
 
 // Options of an update.
@@ -460,7 +463,7 @@ func (u *Updater) waitIdle(o Options, cancel, hurry <-chan struct{}) bool {
 			u.discard()
 			now := u.now().UTC()
 			u.add("sys", "✗ "+msg)
-			u.set(func(s *State) { s.Status, s.Error, s.FinishedAt = "failed", msg, &now })
+			u.set(func(s *State) { s.Status, s.Error, s.FinishedAt, s.TimedOut = "failed", msg, &now, true })
 			SaveResult(u.home, Result{State: "failed", Message: msg, At: now})
 			return false
 		}

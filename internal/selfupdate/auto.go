@@ -76,6 +76,34 @@ func (a *autoWatch) due(running, head string, now time.Time) bool {
 // AutoBy is who an update office starts on its own is by.
 const AutoBy = "tự cập nhật"
 
+// AutoMaxWait is how long an update office starts on its own waits for idle:
+// long enough for a day's workflow (up to 10h) to end.
+const AutoMaxWait = 12 * time.Hour
+
+// autoOptions is the update office starts on its own: when idle, tested,
+// waiting AutoMaxWait.
+func autoOptions() Options {
+	return Options{WhenIdle: true, Test: true, By: AutoBy, MaxWait: AutoMaxWait}
+}
+
+// ended looks at how the update this watch started for started ended:
+// given up only because work still ran (not a failed build or test), its
+// HEAD is tried again. It returns what is still being followed ("" = none).
+func (a *autoWatch) ended(st State, started string) string {
+	if started == "" || st.By != AutoBy {
+		return started
+	}
+	switch st.Status {
+	case "running", "waiting", "restarting":
+		return started
+	case "failed":
+		if st.TimedOut {
+			delete(a.tried, started)
+		}
+	}
+	return ""
+}
+
 // Watch updates office on its own when its source gets new commits and the
 // switch is on: a when-idle update with tests, once the commits stop coming
 // for settle. It never builds over files being edited (tracked changes not
@@ -85,6 +113,7 @@ func (u *Updater) Watch(ctx context.Context, enabled func(context.Context) bool,
 		return // built by hand without git: no way to tell what is newer
 	}
 	a := &autoWatch{settle: settle, tried: map[string]bool{}}
+	started := "" // the HEAD of the update this watch started last
 	t := time.NewTicker(every)
 	defer t.Stop()
 	for {
@@ -96,10 +125,12 @@ func (u *Updater) Watch(ctx context.Context, enabled func(context.Context) bool,
 		if !enabled(ctx) {
 			continue
 		}
-		switch u.State().Status {
+		st := u.State()
+		switch st.Status {
 		case "running", "waiting", "restarting":
 			continue
 		}
+		started = a.ended(st, started) // gave up waiting, not a broken build: tried again
 		head, err := git(ctx, u.src.Root, "rev-parse", "HEAD")
 		if err != nil {
 			continue
@@ -111,8 +142,10 @@ func (u *Updater) Watch(ctx context.Context, enabled func(context.Context) bool,
 			delete(a.tried, a.seen) // looked at again once the edits are committed
 			continue
 		}
-		if err := u.Start(Options{WhenIdle: true, Test: true, By: AutoBy}); err != nil {
+		if err := u.Start(autoOptions()); err != nil {
 			slog.Warn("selfupdate: auto update", "err", err)
+			continue
 		}
+		started = a.seen
 	}
 }
