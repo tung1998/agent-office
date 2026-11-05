@@ -994,6 +994,9 @@ func (e *Engine) SendWithContext(ctx context.Context, conversationID, text, page
 	if fullAccess(ctx) { // a bot's admin (ADR-081)
 		base = WithFullAccess(base)
 	}
+	if trustedRun(ctx) { // a turn of a run an automation started, trusted
+		base = withTrustedRun(base)
+	}
 	if c := ceilingOf(ctx); c != "" { // a bot's Người dùng: proposals at most
 		base = WithCeiling(base, c)
 	}
@@ -1262,7 +1265,7 @@ func (e *Engine) run(ctx context.Context, turn *Turn, conv storage.Conversation,
 		origin = job.Origin
 		if job.Origin == "user" {
 			agentFull, agentFullBy = perm.EffectiveFullAccess(perm.FullAccessInput{
-				Level: level, AnswerOnly: power == assistant.ModeAnswer, ActorTrusted: e.actorTrusted(ctx, project.ID, turn.actor),
+				Level: level, AnswerOnly: power == assistant.ModeAnswer, ActorTrusted: trustedRun(ctx) || e.actorTrusted(ctx, project.ID, turn.actor),
 				AgentFull: agent.Permissions.FullAccess, AgentFullBy: agent.Permissions.FullAccessBy,
 				IsAdminEmail: func(email string) bool { return e.isAdminEmail(ctx, email) },
 			})

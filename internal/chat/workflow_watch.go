@@ -117,7 +117,7 @@ func (e *Engine) superviseOnce(run *wfRun, conv storage.Conversation, project st
 		Roles                                      []roleView
 	}{run.def.Name, d.Name, input, callerContext(msgs), watchOK, watchDrift, roles})
 	t, _ := e.startTurn(conv, project, turnSpec{agent: a, background: true, delegator: run.coord.ID, actor: run.rec.Actor, ceiling: ceiling, tree: run.tree,
-		title: "Giám sát " + run.def.Name + " → " + a.Name, prompt: prompt, wfRun: run.rec.ID, wfRole: role, wfWatch: true}) // i18n-ignore
+		title: "Giám sát " + run.def.Name + " → " + a.Name, prompt: prompt, wfRun: run.rec.ID, wfRole: role, wfWatch: true, trusted: run.trusted}) // i18n-ignore
 	if t == nil { // busy: next time
 		e.wf.mu.Lock()
 		run.watching, run.watchSeen = false, ""

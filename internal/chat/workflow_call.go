@@ -66,6 +66,10 @@ func (e *Engine) callWorkflow(ctx context.Context, conv storage.Conversation, ag
 		return fail(err)
 	}
 	turn.setJobID(job.ID)
+	// an automation's job got full access only from a trusted start (its
+	// schedule, its chain, a hand run: internal/trigger.effectivePermissions):
+	// the run's own turns, new jobs with no person behind them, keep it
+	run.trusted = run.trusted || job.Origin != "user" && job.FullAccess
 	// the run's chat: the same agent and rights as here, never listed
 	own := storage.Conversation{ProjectID: conv.ProjectID, AgentID: agent.ID, AgentName: agent.Name, CreatedBy: actor.From(ctx), Purpose: RunPurpose,
 		Title: truncate(run.def.Name+": "+oneLine(firstNonEmpty(run.rec.Input, run.def.Name)), 80), Mode: conv.Mode, EditMode: conv.EditMode}

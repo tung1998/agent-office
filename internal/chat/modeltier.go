@@ -186,3 +186,16 @@ func WithFullAccess(ctx context.Context) context.Context {
 }
 
 func fullAccess(ctx context.Context) bool { v, _ := ctx.Value(fullAccessKey{}).(bool); return v }
+
+type trustedRunKey struct{}
+
+// withTrustedRun marks a turn of a workflow run whose start was trusted (an
+// automation's schedule, its chain or a hand run; never a webhook or an
+// untrusted channel message): its agents keep the full access an admin gave
+// them, as the automation's own turn does, though the turn's actor is
+// "auto:<automation>" and not a person (ADR-074).
+func withTrustedRun(ctx context.Context) context.Context {
+	return context.WithValue(ctx, trustedRunKey{}, true)
+}
+
+func trustedRun(ctx context.Context) bool { v, _ := ctx.Value(trustedRunKey{}).(bool); return v }

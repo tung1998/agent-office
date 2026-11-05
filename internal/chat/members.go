@@ -260,6 +260,7 @@ type turnSpec struct {
 	wfStep        string // a step of a graph of steps (ADR-108)
 	board         string // a hand-off's work board task (ADR-210)
 	fixes         int    // turns opened so far to fix failed checks (ADR-222)
+	trusted       bool   // a turn of a trusted run (withTrustedRun)
 }
 
 // startTurn starts an agent's answer; nil and why when it cannot: the agent
@@ -282,6 +283,9 @@ func (e *Engine) startTurn(conv storage.Conversation, project storage.Repo, s tu
 		base = WithCeiling(base, s.ceiling)
 	}
 	base = withTreeOpt(base, s.tree)
+	if s.trusted {
+		base = withTrustedRun(base)
+	}
 	limit := s.limit
 	if limit < 0 { // not said: a chat's turn
 		limit = defaultTurnTimeout

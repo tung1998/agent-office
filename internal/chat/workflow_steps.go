@@ -36,6 +36,9 @@ const stepAuthor = "⚙ Quy trình" // i18n-ignore
 // launch starts a prepared run in its own chat: a coordinator's first turn,
 // or the runner of its steps.
 func (e *Engine) launch(ctx context.Context, own storage.Conversation, run *wfRun, text, prompt, pageContext string, attachmentIDs []string) error {
+	if run.trusted {
+		ctx = withTrustedRun(ctx)
+	}
 	if !run.def.StepMode() {
 		_, _, err := e.SendWithContext(withPrepared(ctx, &prepared{conv: own.ID, run: run, prompt: prompt}), own.ID, text, pageContext, attachmentIDs)
 		return err
@@ -442,7 +445,7 @@ func (e *Engine) stepAgent(ctx context.Context, own storage.Conversation, projec
 	}
 	t, why := e.startTurn(own, project, turnSpec{agent: a, background: true, actor: run.rec.Actor, tier: run.tier, ceiling: level, tree: run.tree,
 		title: run.def.Name + " → " + a.Name + " (" + workflow.StepLabel(s) + ")", prompt: prompt + "\n\n" + workflow.AccessNote(d.Access),
-		wfRun: run.rec.ID, wfStep: s.ID})
+		wfRun: run.rec.ID, wfStep: s.ID, trusted: run.trusted})
 	if t == nil {
 		done("failed")
 		return "", errors.New(cmp.Or(why, "chat của lần chạy đang bận"))
@@ -525,6 +528,7 @@ func (e *Engine) runChild(ctx context.Context, own storage.Conversation, project
 	def := child.def
 	child.until = run.deadline
 	child.parent = run
+	child.trusted = run.trusted
 	child.rec.CallerConversationID, child.rec.ParentRunID, child.rec.Depth = own.ID, run.rec.ID, run.rec.Depth+1
 	sub, err := e.store.Chat().CreateConversation(ctx, storage.Conversation{ProjectID: project.ID, AgentID: run.coord.ID, AgentName: run.coord.Name, CreatedBy: run.rec.Actor,
 		Purpose: RunPurpose, Title: truncate(title, 80), Mode: own.Mode, EditMode: own.EditMode})

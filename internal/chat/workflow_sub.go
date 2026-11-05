@@ -154,6 +154,7 @@ func (e *Engine) startChild(run *wfRun, conv storage.Conversation, project stora
 	}
 	child.depthLeft, child.until = min(run.depthLeft-1, def.Limits.Depth), run.deadline
 	child.parent, child.parentRole = run, a.role
+	child.trusted = run.trusted
 	child.rec.CallerConversationID, child.rec.ParentRunID, child.rec.Depth = conv.ID, run.rec.ID, run.rec.Depth+1
 	own, err := e.store.Chat().CreateConversation(ctx, storage.Conversation{ProjectID: project.ID, AgentID: a.agent.ID, AgentName: a.agent.Name, CreatedBy: run.rec.Actor,
 		Purpose: RunPurpose, Title: truncate(def.Name+": "+oneLine(a.prompt), 80), Mode: conv.Mode, EditMode: conv.EditMode})

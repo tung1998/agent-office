@@ -40,6 +40,7 @@ type wfRun struct {
 	tier     string          // the model tier of the message that started it
 	ceiling  string          // the most that message may have run (a bot's user…)
 	tree     treeOpt         // the worktree that message ran in (a Burn piece's): its roles read there too
+	trusted  bool            // started by a trusted automation job: its turns keep their agents' full access (withTrustedRun)
 	deadline time.Time       // the run's expected end (past it the chat is told; it goes on)
 	timer    *time.Timer     // fires at the deadline
 	batch    map[string]bool // roles answering now; when none is left the coordinator is called back
@@ -1349,7 +1350,7 @@ func (e *Engine) startRole(run *wfRun, conv storage.Conversation, project storag
 	e.wf.mu.Unlock()
 	t, why := e.startTurn(conv, project, turnSpec{agent: a.agent, effort: a.effort, background: true, delegator: run.coord.ID, actor: run.rec.Actor,
 		tier: run.tier, ceiling: level, tree: run.tree, title: run.coord.Name + " → " + a.agent.Name + " (" + d.Name + ")", prompt: a.prompt,
-		wfRun: run.rec.ID, wfRole: a.role, wfVote: a.vote})
+		wfRun: run.rec.ID, wfRole: a.role, wfVote: a.vote, trusted: run.trusted})
 	if t == nil {
 		e.wf.mu.Lock()
 		r := run.role(a.role)
@@ -1463,14 +1464,14 @@ func (e *Engine) wfCallBack(runID string, conv storage.Conversation, project sto
 			run.logf("Biểu quyết không thông qua")
 		}
 	}
-	coord, tier, tree, actorOf := run.coord, run.tier, run.tree, run.rec.Actor
+	coord, tier, tree, actorOf, trusted := run.coord, run.tier, run.tree, run.rec.Actor, run.trusted
 	e.wf.mu.Unlock()
 	prompt := prompts.Render("workflow/callback", struct {
 		Workflow, Vote string
 		Done, Notes    []string
 	}{run.def.Name, vote, lines, notes})
 	t, why := e.startTurn(conv, project, turnSpec{agent: coord, actor: actorOf, tier: tier, ceiling: run.ceiling, tree: tree,
-		title: "Quy trình " + run.def.Name + " → " + coord.Name, prompt: prompt, wfRun: runID})
+		title: "Quy trình " + run.def.Name + " → " + coord.Name, prompt: prompt, wfRun: runID, trusted: trusted})
 	if t == nil {
 		if why == "" { // the chat is busy: again in a moment
 			e.wf.mu.Lock()
