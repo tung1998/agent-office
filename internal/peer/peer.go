@@ -205,7 +205,8 @@ func (s *Service) Remove(ctx context.Context, id string) error {
 // SetShared sets which of this office's projects the other may reach, and
 // tells it (best effort: it can also ask with Refresh).
 func (s *Service) SetShared(ctx context.Context, id string, shared []string) error {
-	clean, err := s.projects(ctx, shared)
+	cur, _ := s.Get(ctx, id)
+	clean, err := s.projects(ctx, shared, cur.Shared...)
 	if err != nil {
 		return err
 	}
@@ -266,8 +267,10 @@ func (p Peer) Opens(projectID, assistantID string) bool {
 	return slices.Contains(p.Shared, projectID)
 }
 
-// projects keeps the ids of existing projects, once each.
-func (s *Service) projects(ctx context.Context, ids []string) ([]string, error) {
+// projects keeps the ids of existing projects, once each. An id in gone (one
+// shared before) whose project was deleted since is dropped, not an error:
+// the dashboard sends back the whole list, stale ids included.
+func (s *Service) projects(ctx context.Context, ids []string, gone ...string) ([]string, error) {
 	out := []string{}
 	for _, id := range ids {
 		id = strings.TrimSpace(id)
@@ -275,6 +278,9 @@ func (s *Service) projects(ctx context.Context, ids []string) ([]string, error) 
 			continue
 		}
 		if _, err := s.st.Repos().Get(ctx, id); err != nil {
+			if slices.Contains(gone, id) {
+				continue
+			}
 			return nil, fmt.Errorf("không có project %q", id)
 		}
 		out = append(out, id)

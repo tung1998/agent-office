@@ -385,3 +385,23 @@ func TestConnectByAddress(t *testing.T) {
 		t.Fatal("the match code does not cover the key")
 	}
 }
+
+// A project shared once and deleted since does not block saving the list:
+// it is dropped, while an unknown id is still refused.
+func TestSetSharedDropsDeletedProject(t *testing.T) {
+	ctx := context.Background()
+	o := newOffice(t)
+	shop, _ := o.st.Repos().Create(ctx, storage.Repo{Name: "shop", Path: t.TempDir()})
+	o.svc.update(ctx, func([]Peer) ([]Peer, error) {
+		return []Peer{{ID: "pee_1", Shared: []string{"rep_gone", shop.ID}}}, nil
+	})
+	if err := o.svc.SetShared(ctx, "pee_1", []string{"rep_gone", shop.ID}); err != nil {
+		t.Fatalf("save with a deleted project: %v", err)
+	}
+	if p, _ := o.svc.Get(ctx, "pee_1"); len(p.Shared) != 1 || p.Shared[0] != shop.ID {
+		t.Fatalf("shared = %v", p.Shared)
+	}
+	if err := o.svc.SetShared(ctx, "pee_1", []string{"rep_never"}); err == nil {
+		t.Fatal("an unknown project was shared")
+	}
+}
