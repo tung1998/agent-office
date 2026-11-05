@@ -91,19 +91,6 @@ const INK_DARK = [1, 0.95, 0.88, 0.76, 0.6, 0.45, 0.32, 0.2, 0.1, 0, -0.25]
 // the accent toward white (light shades) and black (dark ones)
 const ACCENT = [0.9, 0.8, 0.62, 0.42, 0.2, 0, -0.16, -0.32, -0.48, -0.62, -0.74]
 
-// Keep the accent scale and solid-button text coherent when just the accent changes.
-export function primaryVariables(accent: string, darkText = '#18181b'): Record<string, string> {
-  const vars: Record<string, string> = {
-    '--ui-primary': accent,
-    '--ui-text-inverted': contrast('#ffffff', accent) >= contrast(darkText, accent) ? '#ffffff' : darkText
-  }
-  SHADES.forEach((shade, i) => {
-    const a = ACCENT[i]!
-    vars[`--ui-color-primary-${shade}`] = a >= 0 ? mix(accent, '#ffffff', a) : mix(accent, '#000000', -a)
-  })
-  return vars
-}
-
 // What muted, surface and border are when the theme leaves them out: Nuxt
 // UI's neutral shades (dark: muted 400, cards 800, borders 800; light: 500,
 // 100, 200), from the theme's ink scale

@@ -42,6 +42,6 @@ onBeforeUnmount(() => { gen++; wall?.stop() })
     ref="canvas"
     aria-hidden="true"
     class="pointer-events-none fixed inset-0 -z-10 h-screen w-screen"
-    :style="{ opacity: look.strength, filter: `blur(${look.blur}px)`, transform: look.blur ? `scale(${1 + look.blur / 100})` : undefined }"
+    :style="{ opacity: look.strength }"
   />
 </template>

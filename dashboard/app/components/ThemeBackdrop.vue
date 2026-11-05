@@ -6,6 +6,8 @@ import { backdropSrc, type Backdrop } from '~/composables/useTheme'
 
 const props = defineProps<{ bg: Backdrop }>()
 const src = computed(() => backdropSrc(props.bg))
+// a blurred background is scaled up a little so its edges stay covered
+const style = computed(() => props.bg.blur ? { filter: `blur(${props.bg.blur}px)`, transform: `scale(${1 + props.bg.blur / 100})` } : undefined)
 const still = ref(false)
 onMounted(() => { still.value = window.matchMedia('(prefers-reduced-motion: reduce)').matches })
 </script>
@@ -21,6 +23,7 @@ onMounted(() => { still.value = window.matchMedia('(prefers-reduced-motion: redu
     playsinline
     aria-hidden="true"
     class="pointer-events-none fixed inset-0 -z-10 size-full object-cover"
+    :style="style"
   />
   <img
     v-else
@@ -28,5 +31,6 @@ onMounted(() => { still.value = window.matchMedia('(prefers-reduced-motion: redu
     alt=""
     aria-hidden="true"
     class="pointer-events-none fixed inset-0 -z-10 size-full object-cover"
+    :style="style"
   >
 </template>

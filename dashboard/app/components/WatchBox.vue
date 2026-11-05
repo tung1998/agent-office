@@ -80,7 +80,7 @@ const title = computed(() => props.item.title || t(`watchW.kind.${kind.value}` a
 </script>
 
 <template>
-  <div class="office-card group/hdr relative flex flex-col overflow-hidden rounded-lg border border-(--ui-border) bg-(--ui-bg)" tabindex="-1">
+  <div class="group/hdr relative flex flex-col overflow-hidden rounded-lg border border-(--ui-border) bg-(--ui-bg)" tabindex="-1">
     <!-- the chat keeps its own header: the box's buttons go in it -->
     <div v-if="!bare && (kind !== 'chat' || needsProject)" class="flex shrink-0 items-center border-b border-(--ui-border)" :class="tight ? 'gap-0.5 p-1' : 'gap-1 p-1.5'">
       <WatchBoxControls :item="item" :projects="projects" :tight="tight" :movable="movable" part="lead" @grip="(e) => emit('grip', e)" />

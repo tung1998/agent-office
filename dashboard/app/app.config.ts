@@ -4,8 +4,8 @@ export default defineAppConfig({
       primary: 'indigo',
       neutral: 'zinc'
     },
-    dashboardPanel: { slots: { root: 'office-panel' } },
-    dashboardNavbar: { slots: { root: 'office-header' } },
+    // office-card/-input/-popup: the regions a custom theme can color on
+    // their own (utils/regionColors.ts)
     card: { slots: { root: 'office-card' } },
     input: { slots: { base: 'office-input' } },
     textarea: { slots: { base: 'office-input' } },
