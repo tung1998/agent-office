@@ -30,7 +30,7 @@ interface ToolStatus {
 }
 
 // provider: the connection whose account it is (one signed in to an account of its own, ADR-178)
-const props = defineProps<{ tool: 'claude' | 'codex' | 'gemini' | 'antigravity', provider?: string }>()
+const props = defineProps<{ tool: CliToolId, provider?: string }>()
 const emit = defineEmits<{ ready: [boolean] }>()
 const toast = useToast()
 const { t } = useLang()
@@ -168,14 +168,17 @@ onBeforeUnmount(() => clearTimeout(timer))
   <div v-else-if="status && !disabled && ready && !running" class="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
     <UIcon name="i-lucide-circle-check" class="size-4 shrink-0 text-(--ui-success)" />
     <span class="min-w-0 flex-1 basis-40 truncate">
-      {{ t('cli.loggedIn', { name: status.name }) }}<span v-if="status.auth.account" class="text-(--ui-text-muted)"> · {{ status.auth.account }}</span>
+      {{ status.login_command ? t('cli.loggedIn', { name: status.name }) : t('cli.installedReady', { name: status.name }) }}<span v-if="status.auth.account" class="text-(--ui-text-muted)"> · {{ status.auth.account }}</span>
     </span>
     <UButton
       v-if="status.update_command" size="xs" color="neutral" variant="ghost" icon="i-lucide-circle-arrow-up"
       :label="t('cli.update')" :title="`${status.version ?? ''} · ${status.update_command}`" @click="start('update')"
     />
-    <UButton size="xs" color="neutral" variant="ghost" icon="i-lucide-refresh-cw" :label="t('cli.relogin')" @click="relogin" />
-    <UButton size="xs" color="neutral" variant="ghost" icon="i-lucide-log-out" :label="t('cli.logout')" @click="confirmLogout" />
+    <!-- DeepSeek Harness has no account: its key is the connection's -->
+    <template v-if="status.login_command">
+      <UButton size="xs" color="neutral" variant="ghost" icon="i-lucide-refresh-cw" :label="t('cli.relogin')" @click="relogin" />
+      <UButton size="xs" color="neutral" variant="ghost" icon="i-lucide-log-out" :label="t('cli.logout')" @click="confirmLogout" />
+    </template>
   </div>
   <div v-else-if="status && !disabled && (!ready || running)" class="space-y-3 rounded-lg border border-(--ui-border) p-3">
     <!-- install -->

@@ -42,7 +42,7 @@ const selectedPreset = computed(() => presetOf(form.preset))
 const needsKey = computed(() => selectedPreset.value ? selectedPreset.value.need_key : !!selectedKind.value?.needs_key)
 const commonKinds = computed(() => kinds.value.filter(k => k.common))
 const advancedOpen = ref(false)
-const toolOf = (kind: string) => ({ claude_cli: 'claude', codex_cli: 'codex', gemini_cli: 'gemini', antigravity_cli: 'antigravity' } as Record<string, 'claude' | 'codex' | 'gemini' | 'antigravity'>)[kind]
+const toolOf = (kind: string) => ({ claude_cli: 'claude', codex_cli: 'codex', gemini_cli: 'gemini', antigravity_cli: 'antigravity', dsh: 'dsh' } as Record<string, CliToolId>)[kind]
 const cliTool = computed(() => toolOf(form.kind))
 // the sign-in of a new account comes after the connection exists
 const formCli = computed(() => form.new_account ? undefined : cliTool.value)
@@ -290,7 +290,7 @@ function menu(p: Provider) {
   return [
     [
       { label: t('prov.sendTestPrompt'), icon: 'i-lucide-message-square', onSelect: () => openPromptTest(p) },
-      ...(toolOf(p.kind) ? [{ label: t('prov.cliAccount'), icon: 'i-lucide-user-round-key', onSelect: () => { accountOf.value = p } }] : []),
+      ...(toolOf(p.kind) && p.kind !== 'dsh' ? [{ label: t('prov.cliAccount'), icon: 'i-lucide-user-round-key', onSelect: () => { accountOf.value = p } }] : []),
       ...(ownAccounts(p.kind) ? [{ label: t('prov.newAccount'), icon: 'i-lucide-user-round-plus', onSelect: () => openNewAccount(p.kind) }] : []),
       { label: t('prov.edit'), icon: 'i-lucide-pencil', onSelect: () => openEdit(p) },
       { label: t('prov.setDefault'), icon: 'i-lucide-star', disabled: p.is_default || !!settingDefault.value, onSelect: () => setDefault(p) }

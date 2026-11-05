@@ -177,7 +177,20 @@ var tools = []Tool{
 			return err == nil
 		},
 	},
+	{
+		// DeepSeek Harness (ADR-245): no account to sign in, its connection
+		// carries the API key; installed is ready
+		ID: "dsh", Name: "DeepSeek Harness", Bin: "dsh", DocsURL: "https://github.com/deepseek-ai/deepseek-harness",
+		methods: []Method{
+			{ID: "npm", Label: "npm (cần Node 22+)", Command: "npm install -g @deepseek-ai/dsh", Requires: "npm", Recommended: true,
+				argv: []string{"npm", "install", "-g", "@deepseek-ai/dsh"}, update: []string{"npm", "install", "-g", "@deepseek-ai/dsh@latest"}},
+		},
+		status: func(context.Context, string, []string) Auth { return Auth{LoggedIn: true, Method: "api_key"} },
+	},
 }
+
+// ErrNoLogin: the tool has no account to sign in to (DeepSeek Harness).
+var ErrNoLogin = errors.New("công cụ này không cần đăng nhập: API key nằm ở kết nối")
 
 // antigravityStatus asks Antigravity CLI for its models, which needs a
 // signed-in account; it has no status subcommand.
@@ -562,6 +575,9 @@ func (m *Manager) LoginIn(id, home string) (*Job, error) {
 	if !ok {
 		return nil, ErrUnknownTool
 	}
+	if len(t.loginArgv) == 0 {
+		return nil, ErrNoLogin
+	}
 	vars, err := homeVars(t, home)
 	if err != nil {
 		return nil, err
@@ -615,6 +631,9 @@ func (m *Manager) LogoutIn(ctx context.Context, id, home string) error {
 	t, ok := m.find(id)
 	if !ok {
 		return ErrUnknownTool
+	}
+	if len(t.loginArgv) == 0 {
+		return ErrNoLogin
 	}
 	vars, err := homeVars(t, home)
 	if err != nil {

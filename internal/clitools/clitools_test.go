@@ -373,3 +373,22 @@ func TestUpdateFollowsInstallMethod(t *testing.T) {
 		t.Fatalf("gemini err = %v", err)
 	}
 }
+
+// DeepSeek Harness: installed is ready, there is no account to sign in.
+func TestDSHNeedsNoLogin(t *testing.T) {
+	m, dir := testManager(t)
+	ctx := context.Background()
+	if s, _ := m.Status(ctx, "dsh"); s.Installed || len(s.Methods) == 0 || s.Methods[0].Command != "npm install -g @deepseek-ai/dsh" {
+		t.Fatalf("not installed status = %+v", s)
+	}
+	writeBin(t, dir, "dsh", "#!/bin/sh\necho 0.2.1-rc.5\n")
+	if s, _ := m.Status(ctx, "dsh"); !s.Installed || !s.Auth.LoggedIn || s.LoginCmd != "" {
+		t.Fatalf("installed status = %+v", s)
+	}
+	if _, err := m.Login("dsh"); err != ErrNoLogin {
+		t.Fatalf("login = %v", err)
+	}
+	if err := m.Logout(ctx, "dsh"); err != ErrNoLogin {
+		t.Fatalf("logout = %v", err)
+	}
+}

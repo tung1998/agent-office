@@ -50,7 +50,7 @@ func (s *server) cliStarted(w http.ResponseWriter, r *http.Request, j *clitools.
 		writeError(w, http.StatusConflict, err.Error())
 		return
 	case errors.Is(err, clitools.ErrUnknownTool), errors.Is(err, clitools.ErrUnknownMethod), errors.Is(err, clitools.ErrNotInstalled),
-		errors.Is(err, clitools.ErrNoHome), errors.Is(err, clitools.ErrUnknownInstall):
+		errors.Is(err, clitools.ErrNoHome), errors.Is(err, clitools.ErrUnknownInstall), errors.Is(err, clitools.ErrNoLogin):
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	case err != nil:
@@ -99,7 +99,7 @@ func (s *server) cliLogout(w http.ResponseWriter, r *http.Request) {
 	case errors.Is(err, clitools.ErrBusy):
 		writeError(w, http.StatusConflict, err.Error())
 		return
-	case errors.Is(err, clitools.ErrUnknownTool), errors.Is(err, clitools.ErrNotInstalled), errors.Is(err, clitools.ErrNoHome):
+	case errors.Is(err, clitools.ErrUnknownTool), errors.Is(err, clitools.ErrNotInstalled), errors.Is(err, clitools.ErrNoHome), errors.Is(err, clitools.ErrNoLogin):
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	case err != nil:

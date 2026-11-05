@@ -135,6 +135,9 @@ export interface Agent {
   enabled?: boolean // false = paused: out of chat, gets no work
 }
 
+// the local AI tools office installs (internal/clitools); dsh has no sign-in
+export type CliToolId = 'claude' | 'codex' | 'gemini' | 'antigravity' | 'dsh'
+
 // how hard the model thinks, lowest first ('max' shows as Ultra)
 export const EFFORTS = ['low', 'medium', 'high', 'xhigh', 'max'] as const
 export type Effort = typeof EFFORTS[number]

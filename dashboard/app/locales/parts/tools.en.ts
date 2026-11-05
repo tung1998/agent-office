@@ -104,6 +104,7 @@ const en: Record<keyof typeof vi, string> = {
   'cli.notLoggedInSuffix': 'is not signed in.',
   'cli.loginBtn': 'Sign in to {name}',
   'cli.loggedIn': 'Signed in to {name}',
+  'cli.installedReady': '{name} is installed',
   'cli.openLoginPage': 'Open sign-in page',
   'cli.copyLoginUrl': 'Copy link',
   'cli.loginHint': 'Sign in in the browser. If the page shows a code, paste it here.',
