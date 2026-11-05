@@ -35,6 +35,7 @@ const en: Record<keyof typeof vi, string> = {
   'theme.colors.resetGroup': 'Reset: {group}',
   'theme.colors.inherit': 'From theme',
   'theme.colors.field': '{group}: {field}',
+  'theme.libraryItem': 'Uploaded background {n}',
   'theme.title': 'Theme',
   'theme.name.default': 'Default',
   'theme.name.custom': 'Your colors',
@@ -70,9 +71,10 @@ const en: Record<keyof typeof vi, string> = {
   'theme.backdrop': 'Background image or video',
   'theme.backdropHint': 'An image (JPG, PNG, WebP, GIF) or a video (MP4, WebM), up to 25 MB, kept with your account. Works with any theme; a video plays muted on a loop.',
   'theme.backdropUpload': 'Upload',
-  'theme.backdropChange': 'Change file',
-  'theme.backdropRemove': 'Remove',
-  'theme.backdropGlass': 'Pane opacity (for readable text)',
+  'theme.backdropOff': 'Turn off',
+  'theme.backdropDelete': 'Remove from library',
+  'theme.backdropDeleteConfirm': 'Remove this file from the library?',
+  'theme.backdropGlass': 'Pane opacity',
   'theme.backdropTooBig': 'File too large (max 25 MB)',
   'theme.custom.muted': 'Muted text (grey)',
   'theme.custom.surface': 'Cards',
@@ -82,7 +84,7 @@ const en: Record<keyof typeof vi, string> = {
   'theme.contrast': 'Contrast {n} (WCAG: body text needs 4.5, large text and icons 3)',
   'theme.backdropSuggest': 'Colors from the picture',
   'theme.backdropSuggestHint': 'Makes your own colors from the picture: background and text tinted by it, the accent its most vivid color, adjusted for contrast.',
-  'theme.backdropFloor': 'At least {n}% so muted text reads on this background'
+  'theme.backdropFloor': 'From {n}% up, muted text reads well on this background'
 }
 
 export default en

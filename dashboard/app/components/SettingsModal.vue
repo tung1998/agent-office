@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // The account's own settings (from the user menu), a panel on the right: the
-// sidebar's projects and which of its groups show (useProjectMenu), and the
-// theme (ThemePicker), kept with the account.
+// sidebar's projects and which of its groups show (useProjectMenu), kept with
+// the account. The theme has its own panel (ThemePanel).
 const open = defineModel<boolean>('open', { default: false })
 const { t } = useLang()
 const toast = useToast()
@@ -22,10 +22,6 @@ async function save(o: Parameters<typeof setOptions>[0] | (() => Promise<void>))
 <template>
   <USlideover v-model:open="open" side="right" :title="t('settings.title')">
     <template #body>
-      <section class="mb-6 space-y-3">
-        <h3 class="text-sm font-semibold">{{ t('theme.title') }}</h3>
-        <ThemePicker />
-      </section>
       <section class="space-y-3">
         <h3 class="text-sm font-semibold">{{ t('projects.menuOptions') }}</h3>
         <UFormField :label="t('projects.menuMax')">

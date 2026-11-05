@@ -1,17 +1,17 @@
 <script setup lang="ts">
 // Settings › Theme: the default look, the color themes, the person's own
 // three colors, and the live wallpapers with how they move (useTheme).
-import { BG_MAX, backdropFloor, backdropGlass, backdropSrc } from '~/composables/useTheme'
+import { BG_MAX, GLASS_MIN, backdropFloor, backdropGlass, backdropSrc, bgKind, bgVersion, type BgItem } from '~/composables/useTheme'
 import { suggestColors } from '~/utils/backdropColors'
 import type { WallLook } from '~/composables/useTheme'
 import { MEDIA_BACKGROUNDS, mediaFileKind, validMediaSource, type MediaBackground } from '~/utils/backgrounds'
 import { storeBackgroundFile, removeBackgroundFile } from '~/utils/localBackground'
 import type { MessageKey } from '~/locales/vi'
-import { COLOR_THEMES, WALLPAPER_THEMES, DEFAULT_CUSTOM, EXTRA_COLORS, autoColors, contrast, isHex, type ExtraColor, type ThemeColors, type Theme } from '~/utils/themes'
+import { COLOR_THEMES, WALLPAPER_THEMES, wallGlassFloor, DEFAULT_CUSTOM, EXTRA_COLORS, autoColors, contrast, isHex, type ExtraColor, type ThemeColors, type Theme } from '~/utils/themes'
 
 const { t } = useLang()
 const toast = useToast()
-const { saved, theme, look, background, saving, setTheme, setCustom, setLook, setMediaBackground, setBackground, clearBackground, sampleSaved, setGlass, previewGlass, previewLook } = useTheme()
+const { saved, theme, look, background, saving, setTheme, setCustom, setLook, library, loadLibrary, pickBackground, deleteBackground, setWallGlass, previewWallGlass, setMediaBackground, setBackground, clearBackground, sampleSaved, setGlass, previewGlass, previewLook } = useTheme()
 const colorMode = useColorMode()
 const custom = reactive<ThemeColors>({ ...DEFAULT_CUSTOM, ...saved.value.custom })
 const auto = computed(() => autoColors(custom))
@@ -101,7 +101,22 @@ function useSuggested() {
   for (const k of EXTRA_COLORS) delete custom[k]
   run(setCustom({ ...suggested.value }))
 }
-onMounted(() => run(sampleSaved()))
+onMounted(() => {
+  run(sampleSaved())
+  run(loadLibrary())
+})
+// the library: the file shown now is marked; picking another shows it
+const current = computed(() => saved.value.bg ? bgVersion(saved.value.bg.v) : 0)
+const libraryBusy = ref(0) // the file being put on
+async function pickItem(item: BgItem) {
+  if (libraryBusy.value || item.version === current.value) return
+  libraryBusy.value = item.version
+  await run(pickBackground(item))
+  libraryBusy.value = 0
+}
+function removeItem(item: BgItem) {
+  if (confirm(t('theme.backdropDeleteConfirm'))) run(deleteBackground(item))
+}
 async function upload(e: Event) {
   const input = e.target as HTMLInputElement
   const file = input.files?.[0]
@@ -115,6 +130,12 @@ async function upload(e: Event) {
   await run(setBackground(file))
   uploading.value = false
 }
+// the panes over a wallpaper theme: the readable glass, unless the person set theirs
+const wallFloor = computed(() => theme.value ? wallGlassFloor(theme.value) : 0)
+const wallGlass = computed(() => saved.value.wallGlass ?? wallFloor.value)
+const wallGlassDraft = ref<number>()
+function updateWallGlass(v: number) { wallGlassDraft.value = v; previewWallGlass(v) }
+async function keepWallGlass() { await nextTick(); await run(setWallGlass(wallGlassDraft.value ?? wallGlass.value)); wallGlassDraft.value = undefined }
 const glassDraft = ref<number>()
 function updateGlass(v: number) { glassDraft.value = v; previewGlass(v) }
 async function keepGlass() { await nextTick(); const p = setGlass(glassDraft.value ?? glass.value); if (p) await run(p); glassDraft.value = undefined }
@@ -123,7 +144,7 @@ const swatch = (th: Theme) => ({ background: th.wallpaper?.sky ?? th.bg, color: 
 </script>
 
 <template>
-  <fieldset :disabled="saving || busy || uploading" class="min-w-0 space-y-4">
+  <fieldset :disabled="saving || busy || uploading || !!libraryBusy" class="min-w-0 space-y-4">
     <div class="grid grid-cols-2 gap-2 sm:grid-cols-3">
       <button
         v-for="th in [{ id: 'default' }, ...COLOR_THEMES, { id: 'custom' }]"
@@ -216,8 +237,12 @@ const swatch = (th: Theme) => ({ background: th.wallpaper?.sky ?? th.bg, color: 
       <UFormField :label="t('theme.strength')">
         <USlider :disabled="saving || busy" :aria-label="t('theme.strength')" :tooltip="true" :model-value="look.strength" :min="0" :max="1" :step="0.05" @update:model-value="(v) => previewLook({ strength: v as number })" @change="commitLook('strength')" />
       </UFormField>
-      <UFormField v-if="!saved.bg" :label="t('theme.transparency')">
+      <UFormField v-if="background && !saved.bg" :label="t('theme.transparency')">
         <USlider :disabled="saving || busy" :aria-label="t('theme.transparency')" :tooltip="true" :model-value="look.transparency" :min="0" :max="0.9" :step="0.05" @update:model-value="(v) => previewLook({ transparency: v as number })" @change="commitLook('transparency')" />
+      </UFormField>
+      <UFormField v-if="theme?.wallpaper && !background" :label="t('theme.backdropGlass')" :help="t('theme.backdropFloor', { n: Math.round(wallFloor * 100) })">
+        <USlider :disabled="saving" :aria-label="t('theme.backdropGlass')" :model-value="wallGlassDraft ?? wallGlass" :min="GLASS_MIN" :max="1" :step="0.01" @update:model-value="(v) => updateWallGlass(v as number)" @change="keepWallGlass" />
+        <UButton v-if="saved.wallGlass !== undefined" size="xs" color="neutral" variant="ghost" :label="t('theme.custom.reset')" @click="run(setWallGlass(undefined))" />
       </UFormField>
       <UFormField :label="t('theme.blur')">
         <USlider :disabled="saving || busy" :aria-label="t('theme.blur')" :tooltip="true" :model-value="look.blur" :min="0" :max="30" :step="1" @update:model-value="(v) => previewLook({ blur: v as number })" @change="commitLook('blur')" />
@@ -237,15 +262,46 @@ const swatch = (th: Theme) => ({ background: th.wallpaper?.sky ?? th.bg, color: 
         {{ t('theme.backdrop') }}
         <UTooltip :text="t('theme.backdropHint')"><UIcon name="i-lucide-info" class="size-3.5" /></UTooltip>
       </h4>
-      <div class="flex flex-wrap items-center gap-2">
-        <template v-if="saved.bg">
-          <video v-if="saved.bg.kind === 'video'" :src="backdropSrc(saved.bg)" muted class="h-12 w-20 rounded-md border border-(--ui-border) object-cover" />
-          <img v-else :src="backdropSrc(saved.bg)" alt="" class="h-12 w-20 rounded-md border border-(--ui-border) object-cover">
-        </template>
-        <UButton size="sm" color="neutral" variant="outline" icon="i-lucide-upload" :loading="uploading" :label="saved.bg ? t('theme.backdropChange') : t('theme.backdropUpload')" @click="fileInput?.click()" />
-        <UButton v-if="saved.bg" size="sm" color="neutral" variant="ghost" icon="i-lucide-trash-2" :disabled="uploading || saving" :label="t('theme.backdropRemove')" @click="run(clearBackground())" />
+      <div class="grid grid-cols-3 gap-2 sm:grid-cols-4">
+        <button
+          type="button"
+          class="flex h-16 flex-col items-center justify-center gap-1 rounded-lg border border-dashed border-(--ui-border-accented) text-xs text-(--ui-text-muted) transition hover:border-(--ui-primary) hover:text-(--ui-text)"
+          :disabled="uploading"
+          @click="fileInput?.click()"
+        >
+          <UIcon :name="uploading ? 'i-lucide-loader-circle' : 'i-lucide-upload'" class="size-4" :class="{ 'animate-spin': uploading }" />
+          {{ t('theme.backdropUpload') }}
+        </button>
+        <div v-for="(item, index) in library" :key="item.version" class="group relative h-16">
+          <button
+            type="button"
+            class="size-full overflow-hidden rounded-lg border transition"
+            :class="item.version === current ? 'border-(--ui-primary) ring-2 ring-(--ui-primary)/40' : 'border-(--ui-border) hover:border-(--ui-border-accented)'"
+            :aria-pressed="item.version === current" :aria-label="t('theme.libraryItem', { n: index + 1 })"
+            @click="pickItem(item)"
+          >
+            <video v-if="bgKind(item.mime) === 'video'" :src="`${backdropSrc({ v: item.version })}#t=0.1`" muted preload="metadata" class="size-full object-cover" />
+            <img v-else :src="backdropSrc({ v: item.version })" alt="" loading="lazy" class="size-full object-cover">
+            <UIcon v-if="bgKind(item.mime) === 'video'" name="i-lucide-play" class="absolute bottom-1 left-1 size-3.5 text-white drop-shadow" />
+            <span v-if="libraryBusy === item.version" class="absolute inset-0 flex items-center justify-center bg-black/30">
+              <UIcon name="i-lucide-loader-circle" class="size-4 animate-spin text-white" />
+            </span>
+          </button>
+          <button
+            type="button"
+            class="absolute top-1 right-1 rounded-full bg-black/50 p-1 text-white opacity-70 transition hover:bg-black/70 hover:opacity-100 sm:opacity-0 sm:group-hover:opacity-100 sm:focus-visible:opacity-100"
+            :aria-label="t('theme.backdropDelete')"
+            :title="t('theme.backdropDelete')"
+            @click="removeItem(item)"
+          >
+            <UIcon name="i-lucide-x" class="size-3" />
+          </button>
+        </div>
+      </div>
+      <div v-if="saved.bg" class="flex flex-wrap items-center gap-2">
+        <UButton size="sm" color="neutral" variant="outline" icon="i-lucide-eye-off" :disabled="uploading || !!busy" :label="t('theme.backdropOff')" @click="run(clearBackground())" />
         <UTooltip v-if="suggested" :text="t('theme.backdropSuggestHint')">
-          <UButton size="sm" color="neutral" variant="outline" :disabled="uploading || saving" :label="t('theme.backdropSuggest')" @click="useSuggested">
+          <UButton size="sm" color="neutral" variant="outline" :disabled="uploading" :label="t('theme.backdropSuggest')" @click="useSuggested">
             <template #leading>
               <span class="flex -space-x-1">
                 <span v-for="c in [suggested.bg, suggested.text, suggested.accent]" :key="c" class="size-3.5 rounded-full ring-1 ring-(--ui-border)" :style="{ background: c }" />
@@ -253,10 +309,10 @@ const swatch = (th: Theme) => ({ background: th.wallpaper?.sky ?? th.bg, color: 
             </template>
           </UButton>
         </UTooltip>
-        <input ref="fileInput" type="file" accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm" class="hidden" @change="upload">
       </div>
+      <input ref="fileInput" type="file" accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm" class="hidden" @change="upload">
       <UFormField v-if="saved.bg" :label="t('theme.backdropGlass')" :help="floor ? t('theme.backdropFloor', { n: Math.round(floor * 100) }) : undefined">
-        <USlider :disabled="saving || uploading" :aria-label="t('theme.backdropGlass')" :model-value="glassDraft ?? glass" :min="floor || 0.65" :max="0.99" :step="0.01" @update:model-value="(v) => updateGlass(v as number)" @change="keepGlass" />
+        <USlider :aria-label="t('theme.backdropGlass')" :model-value="glassDraft ?? glass" :min="GLASS_MIN" :max="0.99" :step="0.01" @update:model-value="(v) => updateGlass(v as number)" @change="keepGlass" />
       </UFormField>
     </div>
 

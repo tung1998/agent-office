@@ -7,14 +7,14 @@
 import { cssHex, minGlass, sampleBackdrop } from '~/utils/backdropColors'
 import { componentColorsCss, readComponentColors, type ComponentColors } from '~/utils/component-colors'
 import { bounded, readMediaBackground, type MediaBackground } from '~/utils/backgrounds'
-import { findTheme, isDark, themeCss, type Theme, type ThemeColors } from '~/utils/themes'
+import { findTheme, isDark, themeCss, wallGlassFloor, type Theme, type ThemeColors } from '~/utils/themes'
 
 export interface WallLook { strength: number, speed: number, cell: number, still: boolean, transparency: number, blur: number }
 // a background of the person's own (/api/me/background), on any theme: the
 // file's kind, its version (the cache key), how opaque the panes over it are,
 // and a swatch of its colors (utils/backdropColors) to keep text readable on it
 export interface Backdrop { kind: 'image' | 'video', v: number, glass?: number, swatch?: string[] }
-export interface SavedTheme { id: string, custom?: ThemeColors, wall?: Partial<WallLook>, background?: MediaBackground, colors?: ComponentColors, bg?: Backdrop }
+export interface SavedTheme { id: string, custom?: ThemeColors, wall?: Partial<WallLook>, background?: MediaBackground, colors?: ComponentColors, bg?: Backdrop, wallGlass?: number }
 export const WALL_LOOK: WallLook = { strength: 0.45, speed: 1, cell: 18, still: false, transparency: 0.3, blur: 0 }
 const PREF_URL = '/api/me/prefs/theme'
 const KEY = 'office.theme'
@@ -24,7 +24,14 @@ const BACKDROP_ID = 'office-backdrop'
 export const BG_URL = '/api/me/background'
 export const BG_MAX = 25 << 20
 export const BG_GLASS = 0.82
-export const backdropSrc = (b: Backdrop) => `${BG_URL}?v=${b.v}`
+export const backdropSrc = (b: Pick<Backdrop, 'v'>) => `${BG_URL}?v=${b.v}`
+
+// a file of the person's background library (/api/me/backgrounds)
+export interface BgItem { mime: string, size: number, version: number }
+export const bgKind = (mime: string): Backdrop['kind'] => mime.startsWith('video/') ? 'video' : 'image'
+// a background saved before the library had its version in nanoseconds: the
+// server reads it as its millisecond, and so does this
+export const bgVersion = (v: number) => v > 1e15 ? Math.floor(v / 1e6) : v
 
 // The least glass over a background for the current theme's muted text to
 // read on every color of it (0 when its colors are not known)
@@ -34,7 +41,9 @@ export function backdropFloor(b: Backdrop): number {
   return bg && muted && dimmed ? minGlass(b.swatch, bg, muted, dimmed) : 0
 }
 // the glass in use: the person's, never below the floor
-export const backdropGlass = (b: Backdrop, floor = backdropFloor(b)) => Math.max(b.glass ?? (floor ? Math.max(floor, 0.6) : BG_GLASS), floor)
+export const backdropGlass = (b: Backdrop, floor = backdropFloor(b)) => b.glass ?? (floor ? Math.max(floor, 0.6) : BG_GLASS)
+
+export const GLASS_MIN = 0.2
 
 // The page over a background: no fill of its own, the sidebar and the page
 // panes are the theme's background color, see-through by glass.
@@ -98,8 +107,9 @@ export function paintTheme(s: SavedTheme): Theme | undefined {
     style.id = STYLE_ID
   }
   const look = wallLook(s.wall)
-  style.textContent = (t ? themeCss(t) : '') + (hasWallpaper ? `
-    html[data-wallpaper]{--office-surface:${t?.bg ?? 'var(--color-white)'};--office-glass:${(1 - look.transparency).toFixed(2)};background:${!background && t?.wallpaper ? t.wallpaper.sky : "var(--office-surface)"}}
+  const paneGlass = !background && !s.bg && t?.wallpaper ? (s.wallGlass ?? wallGlassFloor(t)) : 1 - look.transparency
+  style.textContent = (t ? themeCss(t, s.wallGlass) : '') + (hasWallpaper ? `
+    html[data-wallpaper]{--office-surface:${t?.bg ?? 'var(--color-white)'};--office-glass:${paneGlass.toFixed(2)};background:${!background && t?.wallpaper ? t.wallpaper.sky : "var(--office-surface)"}}
     html.dark[data-wallpaper]{--office-surface:${t?.bg ?? 'var(--color-neutral-900)'}}
     ${background || s.bg ? `html[data-wallpaper]:not([data-backdrop]) body{background:transparent;--ui-bg:color-mix(in srgb,var(--office-surface) calc(var(--office-glass)*100%),transparent)}
     html[data-wallpaper]:not([data-backdrop]) .office-sidebar,html[data-wallpaper]:not([data-backdrop]) .office-main{background:var(--ui-bg)}` : ''}
@@ -121,6 +131,7 @@ export function useTheme() {
   const saved = useState<SavedTheme>('theme', () => import.meta.client ? readSavedTheme() : { id: 'default' })
   const loadedFor = useState('theme:user', () => '')
   const theme = computed(() => saved.value.id === 'default' ? undefined : findTheme(saved.value.id, saved.value.custom))
+  const library = useState<BgItem[]>('theme:backgrounds', () => [])
   const saving = useState('theme:saving', () => false)
   const preview = useState<Partial<WallLook> | undefined>('theme:preview', () => undefined)
   const look = computed<WallLook>(() => wallLook({ ...(saved.value.bg ? { strength: 1 } : {}), ...saved.value.wall, ...preview.value }))
@@ -185,11 +196,22 @@ export function useTheme() {
   }
   const setColors = (colors: ComponentColors) => save({ ...saved.value, colors: readComponentColors(colors) })
   const setMediaBackground = (background?: MediaBackground) => save({ ...saved.value, background, bg: background ? undefined : saved.value.bg })
-  const setTheme = (id: string) => save({ ...saved.value, id, background: findTheme(id)?.wallpaper ? undefined : saved.value.background, bg: findTheme(id)?.wallpaper ? undefined : saved.value.bg })
+  const setTheme = (id: string) => save({ ...saved.value, id, wallGlass: undefined, background: findTheme(id)?.wallpaper ? undefined : saved.value.background, bg: findTheme(id)?.wallpaper ? undefined : saved.value.bg })
   const setCustom = (custom: ThemeColors) => save({ ...saved.value, id: 'custom', custom })
   const setLook = (o: Partial<WallLook>) => save({ ...saved.value, wall: { ...saved.value.wall, ...o } })
 
-  // the file goes up first, then the theme points at it
+  async function loadLibrary() {
+    library.value = await $fetch<BgItem[]>(`${BG_URL}s`)
+  }
+  // a file of the library becomes the background
+  async function pickBackground(item: BgItem) {
+    if (saved.value.bg && bgVersion(saved.value.bg.v) === item.version) return
+    const bg: Backdrop = { kind: bgKind(item.mime), v: item.version }
+    // its colors, for the glass's floor and the "colors from the picture" button
+    bg.swatch = await sampleBackdrop(backdropSrc(bg), bg.kind).catch(() => undefined)
+    await save({ ...saved.value, bg, background: undefined })
+  }
+  // the file goes into the library, then becomes the background
   async function setBackground(file: File) {
     const data = await new Promise<string>((resolve, reject) => {
       const r = new FileReader()
@@ -197,16 +219,19 @@ export function useTheme() {
       r.onerror = () => reject(r.error)
       r.readAsDataURL(file)
     })
-    const m = await $fetch<{ mime: string, version: number }>(BG_URL, { method: 'PUT', body: { data } })
-    const bg: Backdrop = { kind: m.mime.startsWith('video/') ? 'video' : 'image', v: m.version }
-    // its colors, for the glass's floor and the "colors from the picture" button
-    bg.swatch = await sampleBackdrop(backdropSrc(bg), bg.kind).catch(() => undefined)
-    await save({ ...saved.value, bg, background: undefined })
+    const item = await $fetch<BgItem>(BG_URL, { method: 'PUT', body: { data } })
+    library.value = [item, ...library.value]
+    await pickBackground(item)
   }
+  // no background; the file stays in the library
   async function clearBackground() {
     const { bg: _, ...rest } = saved.value
     await save(rest)
-    await $fetch(BG_URL, { method: 'DELETE' })
+  }
+  async function deleteBackground(item: BgItem) {
+    if (saved.value.bg && bgVersion(saved.value.bg.v) === item.version) await clearBackground()
+    await $fetch(BG_URL, { method: 'DELETE', query: { v: item.version } })
+    library.value = library.value.filter(i => i.version !== item.version)
   }
   // a background from before swatches: its colors, once
   async function sampleSaved() {
@@ -222,6 +247,8 @@ export function useTheme() {
     paintBackdrop({ ...saved.value.bg, glass })
   }
 
+  const setWallGlass = (v: number | undefined) => save({ ...saved.value, wallGlass: v })
+  function previewWallGlass(v: number) { paintTheme({ ...saved.value, wallGlass: v }) }
 
-  return { saved, theme, look, background, saving, load, setTheme, setCustom, setLook, setMediaBackground, setBackground, clearBackground, sampleSaved, setGlass, previewGlass, previewLook, setColors }
+  return { library, loadLibrary, pickBackground, deleteBackground, setWallGlass, previewWallGlass, saved, theme, look, background, saving, load, setTheme, setCustom, setLook, setMediaBackground, setBackground, clearBackground, sampleSaved, setGlass, previewGlass, previewLook, setColors }
 }
