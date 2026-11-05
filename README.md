@@ -228,6 +228,7 @@ Projects agent-office borrows ideas or content from (each with its license; deta
 - [antigravity-awesome-skills](https://github.com/sickn33/antigravity-awesome-skills): the skill library
 - [Claude Ads](https://github.com/AgriciDaniel/claude-ads): ad account audit skills
 - [Impeccable](https://github.com/pbakaus/impeccable): UI design skill
+- [Spec Kit](https://github.com/github/spec-kit): the `spec-kit` spec-driven workflow
 - [headcount](https://github.com/cbrock84/headcount): business skills
 - [Better Harness](https://github.com/QoderAI/better-harness) and [Harness²](https://github.com/google-research/harness2): the `better-harness` workflow
 - [ai-chat-themes](https://github.com/Aohkne/ai-chat-themes): the dashboard's color themes and live ASCII wallpapers

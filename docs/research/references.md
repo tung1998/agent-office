@@ -20,6 +20,10 @@ Kho bên ngoài dùng để tra cứu khi viết agent, skill hoặc quy trình 
 - [Better Harness](https://github.com/QoderAI/better-harness) (MIT): chấm vòng làm việc theo 5 mặt. Thành quy trình `better-harness` (ADR-181).
 - [Harness²](https://github.com/google-research/harness2) (Apache 2.0, arXiv 2610.14224): tự cải thiện vòng làm việc bằng Propose–Probe–Compose và thư viện bài học `cue / lesson / evidence`. Bản đã xem: `1cfe254` (24/10/2026). Đã lấy hai góc INV/DOM, định dạng bài học, quy tắc chọn thành phần vào `better-harness` (ADR-184). Prompt đáng đọc: `harness2/core/prompts.py` (`GENERALIZE`, `_INV_TEMPLATE`, `_DOM_TEMPLATE`, `_KEEP_BASE`).
 
+## Quy trình
+
+- [Spec Kit](https://github.com/github/spec-kit) (MIT): spec-driven development (constitution → specify → clarify → plan → tasks → analyze → implement). Bản ghim: `v1.3.0` (04/11/2026). Thành quy trình `spec-kit` (ADR-246): bước đầu chạy `uvx … specify init --integration claude` khi project chưa có `.specify/`, mỗi bước nạp skill `speckit-*` của pha mình. Đổi bản: sửa tag trong `internal/workflow/builtin/spec-kit.md`; project đã cài thì chạy `specify integration upgrade`.
+
 ## Skill
 
 - [antigravity-awesome-skills](https://github.com/sickn33/antigravity-awesome-skills) (code MIT, nội dung CC BY 4.0, cần ghi công khi chép): 2.712 skill dạng `skills/<name>/SKILL.md`, dùng được với Claude Code, Codex, Gemini CLI, Antigravity. Bản đã xem: `71b1c1a` (18/10/2026).
