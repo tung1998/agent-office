@@ -10,8 +10,10 @@ import (
 	"time"
 
 	"github.com/tung1998/agent-office/internal/actions"
+	"github.com/tung1998/agent-office/internal/deciding"
 	"github.com/tung1998/agent-office/internal/perm"
 	"github.com/tung1998/agent-office/internal/storage"
+	"github.com/tung1998/agent-office/internal/workflow"
 )
 
 const depDiff = `diff --git a/web/package.json b/web/package.json
@@ -90,6 +92,85 @@ func TestAutoDepsInstallsInBackground(t *testing.T) {
 	}
 	if work, _ := e.unmergedWork(ctx, own); len(work) != 0 {
 		t.Fatalf("still waiting after the install: %v", work)
+	}
+}
+
+// The project does not install on its own and no one decides the merged
+// diff's install card: a check step does not wait the 2 hours a diff gets,
+// it runs on the old libraries after depsWaitMax, saying so and how to have
+// office install on its own. An install that is running is waited for.
+func TestWaitMergedDepsOnlyShortCap(t *testing.T) {
+	e, st, _, own, pat := depsChat(t)
+	ctx := context.Background()
+	oldPoll, oldDeps := mergeWaitPoll, depsWaitMax
+	mergeWaitPoll, depsWaitMax = 5*time.Millisecond, 150*time.Millisecond
+	defer func() { mergeWaitPoll, depsWaitMax = oldPoll, oldDeps }()
+	if d, err := e.DecidePatch(ctx, pat.ID, true); err != nil || d.Status != "applied" {
+		t.Fatalf("merge = %s %v", d.Status, err)
+	}
+	acts, _ := st.Actions().List(ctx, own.ID, "", "")
+	if len(acts) != 1 || acts[0].Status != "pending" {
+		t.Fatalf("install card = %+v", acts)
+	}
+	step := workflow.Step{ID: "kiem", Type: workflow.StepCheck}
+
+	// being installed: waited for (no cap)
+	if !deciding.Begin("actions", acts[0].ID, "auto:office") {
+		t.Fatal("begin")
+	}
+	cctx, cancel := context.WithTimeout(ctx, 400*time.Millisecond)
+	err := e.waitMerged(cctx, own, step)
+	cancel()
+	deciding.End("actions", acts[0].ID)
+	if err == nil {
+		t.Fatal("a running install was not waited for")
+	}
+
+	// waiting for a person: the step goes on after the short cap
+	done := make(chan error, 1)
+	go func() { done <- e.waitMerged(ctx, own, step) }()
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatal(err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("the step waits for an install card no one decides")
+	}
+	if countNotes(t, st, own.ID, "Tự cài thư viện") < 2 || countNotes(t, st, own.ID, "thư viện cũ") < 1 {
+		t.Fatal("no note of the old libraries and of the auto install switch")
+	}
+}
+
+// A merged diff that only changes a package.json's scripts installs
+// nothing: no card on the diff, no install card, nothing for a check to wait on.
+func TestProposeDepsSkipsScriptsOnlyDiff(t *testing.T) {
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git missing")
+	}
+	st, p, own := mergeStore(t)
+	ctx := context.Background()
+	os.MkdirAll(filepath.Join(p.Path, "web"), 0o755)
+	os.WriteFile(filepath.Join(p.Path, "web", "package.json"), []byte("{\n  \"scripts\": {\n    \"dev\": \"nuxt dev\"\n  },\n  \"dependencies\": {\n    \"nuxt\": \"4.5.2\"\n  }\n}\n"), 0o644)
+	e := &Engine{store: st, acts: actions.New(st, nil)}
+	msg, _ := st.Chat().AddMessage(ctx, storage.Message{ConversationID: own.ID, Role: "assistant", Content: "done"})
+	diff := "diff --git a/web/package.json b/web/package.json\n--- a/web/package.json\n+++ b/web/package.json\n@@ -1,4 +1,4 @@\n {\n   \"scripts\": {\n-    \"dev\": \"nuxt dev\"\n+    \"dev\": \"nuxt dev --port 3001\"\n   },\n"
+	pat, err := st.Chat().AddPatch(ctx, storage.Patch{ConversationID: own.ID, MessageID: msg.ID, Diff: diff, Files: []string{"web/package.json"}, Status: "pending"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if dto := FullPatchDTO(pat); len(dto.Deps) != 0 {
+		t.Fatalf("card deps of a scripts-only diff = %+v", dto.Deps)
+	}
+	d, err := e.DecidePatch(ctx, pat.ID, true)
+	if err != nil || d.Status != "applied" {
+		t.Fatalf("merge = %s %q %v", d.Status, d.Detail, err)
+	}
+	if acts, _ := st.Actions().List(ctx, own.ID, "", ""); len(acts) != 0 {
+		t.Fatalf("a scripts-only diff made install cards: %+v", acts)
+	}
+	if work, _ := e.unmergedWork(ctx, own); len(work) != 0 {
+		t.Fatalf("a check would wait for: %v", work)
 	}
 }
 

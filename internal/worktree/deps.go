@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 )
 
@@ -71,6 +72,98 @@ func Detach(dir, rel string) ([]string, error) {
 		return nil
 	})
 	return out, err
+}
+
+// Kept are the dependency folders of a package a worktree already had of
+// its own (an earlier install there), moved aside while a new install runs
+// (Keep): Restore puts them back when it failed, Drop deletes them when it
+// worked. The copy sits next to the worktree (same disk: a rename, no copy).
+type Kept struct {
+	dir, tmp string
+	paths    []string // relative to dir, in the order they were moved
+}
+
+// Keep moves aside the dependency folders of the package rel of the
+// worktree dir that are its own (not links to the project's); a
+// node_modules is left as an empty folder for the install.
+func Keep(dir, rel string) (*Kept, error) {
+	var own []string
+	if err := walkDeps(dir, rel, func(p string, link bool) error {
+		if !link {
+			r, _ := filepath.Rel(dir, p)
+			own = append(own, r)
+		}
+		return nil
+	}); err != nil {
+		return nil, err
+	}
+	k := &Kept{dir: dir}
+	if len(own) == 0 {
+		return k, nil
+	}
+	tmp, err := os.MkdirTemp(filepath.Dir(dir), ".deps-keep-*")
+	if err != nil {
+		return nil, err
+	}
+	k.tmp = tmp
+	for i, r := range own {
+		src := filepath.Join(dir, r)
+		if err := os.Rename(src, filepath.Join(tmp, strconv.Itoa(i))); err != nil {
+			_ = k.Restore()
+			return nil, err
+		}
+		k.paths = append(k.paths, r)
+		if filepath.Base(r) == "node_modules" {
+			if err := os.Mkdir(src, 0o755); err != nil {
+				_ = k.Restore()
+				return nil, err
+			}
+		}
+	}
+	return k, nil
+}
+
+// Saved is how many folders Keep moved aside.
+func (k *Kept) Saved() int {
+	if k == nil {
+		return 0
+	}
+	return len(k.paths)
+}
+
+// Restore puts the folders Keep moved aside back where they were, over
+// what the install left there.
+func (k *Kept) Restore() error {
+	if k == nil {
+		return nil
+	}
+	var first error
+	for i, r := range k.paths {
+		p := filepath.Join(k.dir, r)
+		err := os.RemoveAll(p)
+		if err == nil {
+			err = os.Rename(filepath.Join(k.tmp, strconv.Itoa(i)), p)
+		}
+		if err != nil && first == nil {
+			first = err
+		}
+	}
+	if first == nil && k.tmp != "" {
+		_ = os.RemoveAll(k.tmp)
+	}
+	k.paths = nil
+	return first
+}
+
+// Drop deletes the folders Keep moved aside (the install worked).
+func (k *Kept) Drop() {
+	if k == nil {
+		return
+	}
+	if k.tmp != "" {
+		_ = os.RemoveAll(k.tmp)
+	}
+	k.paths = nil
 }
 
 // Relink links back the dependency folders of the package rel that Detach

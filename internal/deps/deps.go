@@ -22,9 +22,29 @@ import (
 // Change is a package whose dependencies a diff changes: Dir is where its
 // install runs, relative to the project ("." = the top), Manager what runs it
 // (pnpm, npm, yarn, bun, uv, pip; "" = not known from the files alone).
+// Files (pip only) are the requirements files it installs, relative to Dir,
+// when not requirements.txt: the ones the diff changed.
 type Change struct {
-	Dir     string `json:"dir"`
-	Manager string `json:"manager,omitempty"`
+	Dir     string   `json:"dir"`
+	Manager string   `json:"manager,omitempty"`
+	Files   []string `json:"files,omitempty"`
+}
+
+// defaultRequirements is the file pip installs when a change names none.
+const defaultRequirements = "requirements.txt"
+
+// requirementsFile: f (a path relative to the project) is a pip
+// requirements file: requirements*.txt, or a .txt in a requirements/
+// folder. Its package folder and its path from there.
+func requirementsFile(f string) (dir, rel string, ok bool) {
+	name, d := path.Base(f), path.Dir(f)
+	switch {
+	case strings.HasPrefix(name, "requirements") && strings.HasSuffix(name, ".txt"):
+		return d, name, true
+	case path.Base(d) == "requirements" && strings.HasSuffix(name, ".txt"):
+		return path.Dir(d), "requirements/" + name, true
+	}
+	return "", "", false
 }
 
 // lockfiles name the manager their file belongs to.
@@ -38,7 +58,7 @@ func kindOf(name string) string {
 	switch {
 	case name == "package.json":
 		return "node"
-	case name == "uv.lock" || name == "pyproject.toml" || strings.HasPrefix(name, "requirements") && strings.HasSuffix(name, ".txt"):
+	case name == "uv.lock" || name == "pyproject.toml":
 		return "python"
 	case lockfiles[name] != "":
 		return "node"
@@ -58,7 +78,25 @@ func Changes(root string, files []string) []Change {
 			if out[i].Manager == "" {
 				out[i].Manager = c.Manager
 			}
+			if out[i].Manager != "pip" {
+				out[i].Files = nil
+				return
+			}
+			// both pip: every requirements file of both (none named = the default)
+			files := reqFiles(out[i])
+			for _, f := range reqFiles(c) {
+				if !slices.Contains(files, f) {
+					files = append(files, f)
+				}
+			}
+			out[i].Files = files
+			if len(files) == 1 && files[0] == defaultRequirements {
+				out[i].Files = nil
+			}
 			return
+		}
+		if c.Manager != "pip" {
+			c.Files = nil
 		}
 		out = append(out, c)
 	}
@@ -68,6 +106,17 @@ func Changes(root string, files []string) []Change {
 			continue
 		}
 		name, dir := path.Base(f), path.Dir(f)
+		if d, rel, ok := requirementsFile(f); ok {
+			c := Change{Dir: d, Manager: "pip"}
+			if root != "" && exists(filepath.Join(root, d, "uv.lock")) {
+				c.Manager = "uv"
+			}
+			if rel != defaultRequirements {
+				c.Files = []string{rel}
+			}
+			add(c)
+			continue
+		}
 		switch kindOf(name) {
 		case "node":
 			if root != "" {
@@ -88,12 +137,6 @@ func Changes(root string, files []string) []Change {
 				if root != "" && exists(filepath.Join(root, dir, "uv.lock")) || slices.Contains(files, path.Join(dir, "uv.lock")) {
 					add(Change{Dir: dir, Manager: "uv"})
 				}
-			default:
-				m := "pip"
-				if root != "" && exists(filepath.Join(root, dir, "uv.lock")) {
-					m = "uv"
-				}
-				add(Change{Dir: dir, Manager: m})
 			}
 		}
 	}
@@ -143,15 +186,31 @@ func Command(c Change) []string {
 	case "uv":
 		return []string{"uv", "sync"}
 	case "pip":
-		return []string{filepath.Join(".venv", "bin", "python"), "-m", "pip", "install", "-r", "requirements.txt"}
+		argv := []string{filepath.Join(".venv", "bin", "python"), "-m", "pip", "install"}
+		for _, f := range reqFiles(c) {
+			argv = append(argv, "-r", f)
+		}
+		return argv
 	}
 	return nil
 }
 
-// Label is c as a card shows it: "dashboard (pnpm)".
+// reqFiles are the requirements files a pip change installs.
+func reqFiles(c Change) []string {
+	if len(c.Files) == 0 {
+		return []string{defaultRequirements}
+	}
+	return c.Files
+}
+
+// Label is c as a card shows it: "dashboard (pnpm)", "ml (pip:
+// requirements-dev.txt)".
 func (c Change) Label() string {
 	if c.Manager == "" {
 		return c.Dir
+	}
+	if c.Manager == "pip" && len(c.Files) > 0 {
+		return c.Dir + " (pip: " + strings.Join(c.Files, ", ") + ")"
 	}
 	return c.Dir + " (" + c.Manager + ")"
 }
@@ -204,6 +263,11 @@ func Install(ctx context.Context, root string, c Change) (string, error) {
 	dir := filepath.Join(root, filepath.FromSlash(c.Dir))
 	if rel, err := filepath.Rel(root, dir); err != nil || strings.HasPrefix(rel, "..") {
 		return "", errors.New("thư mục gói nằm ngoài project")
+	}
+	for _, f := range c.Files {
+		if f = path.Clean(filepath.ToSlash(f)); f == ".." || strings.HasPrefix(f, "../") || path.IsAbs(f) || strings.HasPrefix(f, "-") {
+			return "", errors.New("file requirements nằm ngoài thư mục gói: " + f)
+		}
 	}
 	ctx, cancel := context.WithTimeout(ctx, Timeout)
 	defer cancel()

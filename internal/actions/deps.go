@@ -48,10 +48,14 @@ func (s *Service) checkDeps(ctx context.Context, sc Scope, a *storage.Action) er
 			d.Manager = "pip"
 		}
 	}
-	if len(deps.Command(deps.Change{Dir: d.Dir, Manager: d.Manager})) == 0 {
+	if d.Manager != "pip" {
+		d.Files = nil
+	}
+	c := deps.Change{Dir: d.Dir, Manager: d.Manager, Files: d.Files}
+	if len(deps.Command(c)) == 0 {
 		return deps.ErrNoManager
 	}
-	a.Target = deps.Change{Dir: d.Dir, Manager: d.Manager}.Label()
+	a.Target = c.Label()
 	return nil
 }
 
@@ -69,18 +73,25 @@ func (s *Service) installDeps(ctx context.Context, a storage.Action) (string, st
 	if a.Args.Deps == nil {
 		return "failed", "thiếu thư mục gói"
 	}
-	c := deps.Change{Dir: a.Args.Deps.Dir, Manager: a.Args.Deps.Manager}
+	c := deps.Change{Dir: a.Args.Deps.Dir, Manager: a.Args.Deps.Manager, Files: a.Args.Deps.Files}
 	root, err := s.projectPath(ctx, a.ProjectID)
 	if err != nil {
 		return "failed", err.Error()
 	}
 	project, where := root, "project"
+	var kept *worktree.Kept
 	if a.Args.Dir != "" {
 		root, where = a.Args.Dir, "worktree"
 		if _, err := os.Stat(root); err != nil {
 			return "failed", "worktree của lượt này đã được dọn nên không cài được nữa"
 		}
+		// its own folders of an earlier install are set aside, so a failed
+		// install gives them back instead of the project's
+		if kept, err = worktree.Keep(root, c.Dir); err != nil {
+			return "failed", "để riêng thư viện cũ của worktree: " + err.Error()
+		}
 		if _, err := worktree.Detach(root, c.Dir); err != nil {
+			_ = kept.Restore()
 			return "failed", "tách thư viện của worktree: " + err.Error()
 		}
 	}
@@ -88,12 +99,23 @@ func (s *Service) installDeps(ctx context.Context, a storage.Action) (string, st
 	status, detail := "done", "Đã cài thư viện "+c.Label()+" trong "+where
 	if err != nil {
 		status, detail = "failed", "Cài thư viện "+c.Label()+" lỗi: "+err.Error()
-		if a.Args.Dir != "" { // the worktree is not left without any: the project's again
-			if back, rerr := worktree.Relink(project, root, c.Dir); rerr == nil && len(back) > 0 {
+		if a.Args.Dir != "" { // the worktree is not left without any
+			// those it detached use the project's again; its own come back
+			back, rerr := worktree.Relink(project, root, c.Dir)
+			if kept.Saved() > 0 {
+				if kerr := kept.Restore(); kerr != nil {
+					detail += " (không trả lại được thư viện riêng cũ: " + kerr.Error() + ")"
+				} else {
+					detail += " (worktree giữ thư viện riêng của lần cài trước)"
+				}
+			} else if rerr == nil && len(back) > 0 {
 				detail += " (worktree dùng lại thư viện của project)"
 			}
 		}
-	} else if a.Args.Dir == "" && a.Args.Tree != "" {
+	} else if kept != nil {
+		kept.Drop()
+	}
+	if err == nil && a.Args.Dir == "" && a.Args.Tree != "" {
 		if _, serr := os.Stat(a.Args.Tree); serr == nil {
 			_, _ = worktree.Relink(root, a.Args.Tree, c.Dir) // its copy is the project's now
 		}

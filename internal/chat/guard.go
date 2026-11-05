@@ -189,6 +189,11 @@ func Foreground(in io.Reader, out io.Writer) {
 			deny(out, "agent-office: không gửi dữ liệu của máy ra ngoài ("+why+"). Cần thật thì nhờ người chạy")
 			return
 		}
+		// a worktree's libraries are links to the project's (ADR-251)
+		if why := installInLinkedTree(cmd, ev.Cwd, linkedDeps); why != "" {
+			deny(out, "agent-office: "+why)
+			return
+		}
 	}
 	if bg, _ := ev.ToolInput["run_in_background"].(bool); bg {
 		deny(out, "agent-office: không chạy nền được — lượt chạy kết thúc khi bạn trả lời, việc chạy nền bị dừng và không có thông báo nào gọi lại bạn. Chạy ở tiền cảnh (Bash timeout tối đa 600000 ms) và đợi kết quả ngay trong lượt này; việc lâu hơn thì dùng propose_action (tiến trình) hoặc propose_automation")

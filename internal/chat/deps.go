@@ -66,7 +66,9 @@ func (e *Engine) proposeDeps(ctx context.Context, project storage.Repo, p storag
 	if e.acts == nil || project.Path == "" {
 		return nil
 	}
-	changes := deps.Changes(project.Path, p.Files)
+	// read against the merged files: a package.json whose scripts alone
+	// changed needs no install
+	changes := deps.ChangesOf(project.Path, p.Diff, p.Files)
 	if len(changes) == 0 {
 		return nil
 	}
@@ -75,7 +77,7 @@ func (e *Engine) proposeDeps(ctx context.Context, project storage.Repo, p storag
 	auto := perm.LoadPolicy(ctx, e.store, project.ID).AutoDeps
 	var out []storage.Action
 	for _, c := range changes {
-		args := storage.ActionArgs{Deps: &storage.DepsArgs{Dir: c.Dir, Manager: c.Manager}, Patch: p.ID, Tree: tree}
+		args := storage.ActionArgs{Deps: &storage.DepsArgs{Dir: c.Dir, Manager: c.Manager, Files: c.Files}, Patch: p.ID, Tree: tree}
 		a, err := e.acts.Propose(ctx, sc, "deps_install", c.Dir, "Diff vừa gộp đổi thư viện của "+c.Dir+": cài lại để project chạy đúng bản trong lockfile mới", args) // i18n-ignore
 		if err != nil {
 			slog.Warn("chat: deps install card", "patch", p.ID, "dir", c.Dir, "err", err)

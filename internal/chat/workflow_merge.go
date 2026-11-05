@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/tung1998/agent-office/internal/deciding"
 	"github.com/tung1998/agent-office/internal/storage"
 	"github.com/tung1998/agent-office/internal/workflow"
 )
@@ -20,7 +21,28 @@ var (
 	// as it is, saying so (a diff no one decides must not hold the run until
 	// its deadline).
 	mergeWaitMax = 2 * time.Hour
+	// depsWaitMax: how long a step waits at most when all that is left is a
+	// merged diff's install card no one decided (the project does not install
+	// on its own): the diff is in, so the step runs on the old libraries
+	// rather than hold the run for hours. An install running is waited for.
+	depsWaitMax = 15 * time.Minute
 )
+
+// depsWaitPrefix starts an install card waiting for a person in what
+// unmergedWork lists; depsRunningPrefix one being installed.
+const depsWaitPrefix = "cài thư viện " // i18n-ignore
+
+const depsRunningPrefix = "đang cài thư viện " // i18n-ignore
+
+// onlyDepsCards: everything left is install cards waiting for a person.
+func onlyDepsCards(waiting []string) bool {
+	for _, w := range waiting {
+		if !strings.HasPrefix(w, depsWaitPrefix) {
+			return false
+		}
+	}
+	return len(waiting) > 0
+}
 
 // maxRunChats caps the chats looked at for a run and its sub-runs.
 const maxRunChats = 50
@@ -71,7 +93,11 @@ func (e *Engine) unmergedWork(ctx context.Context, own storage.Conversation) ([]
 			// a merged diff's dependencies not installed in the project yet
 			// (a card waiting, or installing): a check would run on the old ones (ADR-251)
 			if followUp(a) && (a.Status == "pending" || a.Status == "queued") {
-				out = append(out, "cài thư viện "+truncate(a.Target, 80)) // i18n-ignore
+				prefix := depsWaitPrefix
+				if _, busy := deciding.Is(a.ID); busy || a.Status == "queued" {
+					prefix = depsRunningPrefix
+				}
+				out = append(out, prefix+truncate(a.Target, 80))
 			}
 		}
 	}
@@ -86,7 +112,7 @@ func (e *Engine) unmergedWork(ctx context.Context, own storage.Conversation) ([]
 // stopped run ends the wait.
 func (e *Engine) waitMerged(ctx context.Context, own storage.Conversation, s workflow.Step) error {
 	start := time.Now()
-	var told time.Time
+	var told, depsSince time.Time
 	for {
 		if err := ctx.Err(); err != nil {
 			return err
@@ -96,11 +122,27 @@ func (e *Engine) waitMerged(ctx context.Context, own storage.Conversation, s wor
 			return nil // unknown: the step runs as before
 		}
 		what := strings.Join(waiting, "; ")
-		switch now := time.Now(); {
+		now := time.Now()
+		onlyDeps := onlyDepsCards(waiting)
+		if !onlyDeps {
+			depsSince = time.Time{}
+		} else if depsSince.IsZero() {
+			depsSince = now
+		}
+		switch {
 		case now.Sub(start) >= mergeWaitMax:
 			e.post(own, s, fmt.Sprintf("Đã đợi %s mà vẫn chưa gộp: %s. Bước này chạy luôn trên project như hiện có, nên kết quả chưa tính phần đó.", // i18n-ignore
 				waited(now.Sub(start)), what))
 			return nil
+		case onlyDeps && now.Sub(depsSince) >= depsWaitMax:
+			// the diff is merged; only its install waits for a person
+			e.post(own, s, fmt.Sprintf("Thẻ %s chưa ai duyệt sau %s. Bước này chạy luôn trên thư viện cũ của project, chưa cài lại theo lockfile mới. Muốn office tự cài sau mỗi lần gộp thì bật \"Tự cài thư viện\" trong Chính sách của project.", // i18n-ignore
+				what, waited(now.Sub(depsSince))))
+			return nil
+		case told.IsZero() && onlyDeps:
+			e.post(own, s, fmt.Sprintf("Diff đã gộp, chỉ còn chờ duyệt thẻ %s rồi mới chạy bước này (tối đa %s, sau đó chạy luôn trên thư viện cũ). Bật \"Tự cài thư viện\" trong Chính sách để office tự cài.", // i18n-ignore
+				what, waited(depsWaitMax)))
+			told = now
 		case told.IsZero():
 			e.post(own, s, "Chờ diff (và commit, cài thư viện đi kèm) của lượt trước được duyệt và gộp vào project rồi mới chạy bước này: "+what+".") // i18n-ignore
 			told = now

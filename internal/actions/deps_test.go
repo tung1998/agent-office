@@ -133,6 +133,57 @@ func TestMergedInstallRelinksWorktree(t *testing.T) {
 	}
 }
 
+// A worktree that already has libraries of its own (an earlier install that
+// worked) keeps them when the next install fails: they are not swapped for
+// the project's, nor left half-written. One that works drops the old copy.
+func TestFailedInstallKeepsPrivateDeps(t *testing.T) {
+	ctx, _, svc, proj := depsProject(t)
+	os.MkdirAll(filepath.Join(proj.Path, "web", "node_modules", "shared"), 0o755)
+	tree := t.TempDir()
+	for _, f := range []string{"web/package.json", "web/package-lock.json"} {
+		p := filepath.Join(tree, f)
+		os.MkdirAll(filepath.Dir(p), 0o755)
+		os.WriteFile(p, []byte("{}"), 0o644)
+	}
+	own := filepath.Join(tree, "web", "node_modules")
+	os.MkdirAll(filepath.Join(own, "mine"), 0o755) // the earlier install's
+
+	// an npm that writes something, then fails
+	bin := t.TempDir()
+	os.WriteFile(filepath.Join(bin, "npm"), []byte("#!/bin/sh\nrm -rf node_modules/mine; mkdir -p node_modules/half\necho boom >&2\nexit 1\n"), 0o755)
+	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+	sc := Scope{ProjectID: proj.ID, RunRef: "k1", Agent: "a", Level: perm.Check, Access: at(perm.Check), Dir: tree}
+	a, err := svc.Propose(ctx, sc, "deps_install", "web", "bump")
+	if err != nil || a.Status != "failed" || !strings.Contains(a.Detail, "boom") {
+		t.Fatalf("failed install = %s %q %v", a.Status, a.Detail, err)
+	}
+	if fi, err := os.Lstat(own); err != nil || fi.Mode()&os.ModeSymlink != 0 {
+		t.Fatalf("the worktree's own node_modules became the project's: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(own, "mine")); err != nil {
+		t.Fatal("the earlier install's libraries were lost")
+	}
+	if _, err := os.Stat(filepath.Join(own, "half")); err == nil {
+		t.Fatal("the failed install's leftovers were kept")
+	}
+	if !strings.Contains(a.Detail, "giữ thư viện riêng") {
+		t.Fatalf("the card does not say the earlier ones were kept: %q", a.Detail)
+	}
+
+	// then one that works: the new libraries, no copy of the old left beside the worktree
+	fakeNPM(t, false)
+	sc.RunRef = "k2"
+	if a, err := svc.Propose(ctx, sc, "deps_install", "web", "again"); err != nil || a.Status != "done" {
+		t.Fatalf("install = %s %q %v", a.Status, a.Detail, err)
+	}
+	if _, err := os.Stat(filepath.Join(own, "fresh")); err != nil {
+		t.Fatal("not installed")
+	}
+	if left, _ := filepath.Glob(filepath.Join(filepath.Dir(tree), ".deps-keep-*")); len(left) != 0 {
+		t.Fatalf("saved copies left: %v", left)
+	}
+}
+
 // A failed install stays on its card with what the tool said.
 func TestDepsInstallFailureKeptOnCard(t *testing.T) {
 	fakeNPM(t, true)

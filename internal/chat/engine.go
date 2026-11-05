@@ -127,7 +127,7 @@ func toPatchDTO(p storage.Patch) PatchDTO {
 func FullPatchDTO(p storage.Patch) PatchDTO {
 	d := PatchDTO{ID: p.ID, MessageID: p.MessageID, Diff: p.Diff, Files: p.Files, Status: p.Status, Detail: p.Detail, DecidedBy: p.DecidedBy, DecidedAt: p.DecidedAt, Origin: p.Origin, Size: len(p.Diff)}
 	d.Deciding, _ = deciding.Is(p.ID)
-	d.Deps = deps.Changes("", p.Files)
+	d.Deps = deps.ChangesOf("", p.Diff, p.Files) // from the diff alone: a scripts-only package.json is none
 	for line := range strings.SplitSeq(p.Diff, "\n") {
 		switch {
 		case strings.HasPrefix(line, "+") && !strings.HasPrefix(line, "+++"):

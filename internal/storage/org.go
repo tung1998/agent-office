@@ -902,9 +902,11 @@ type ActionArgs struct {
 
 // DepsArgs is a package folder (relative to the project, "." = the top)
 // and what installs it (pnpm, npm, yarn, bun, uv, pip; "" = read from it).
+// Files: pip's requirements files, relative to Dir ("" = requirements.txt).
 type DepsArgs struct {
-	Dir     string `json:"dir"`
-	Manager string `json:"manager,omitempty"`
+	Dir     string   `json:"dir"`
+	Manager string   `json:"manager,omitempty"`
+	Files   []string `json:"files,omitempty"`
 }
 
 // RecordRef names a record of a project's collection.
