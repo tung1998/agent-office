@@ -126,7 +126,8 @@ func (r automationRepo) Disable(ctx context.Context, id, code, reason string, ne
 		code, reason, optTime(nextRunAt), fmtTime(time.Now()), id)
 }
 
-// UpdateSpec writes the proposal-editable columns only (storage.AutomationRepo),
+// UpdateSpec writes the proposal-editable columns only (storage.AutomationRepo,
+// limits included: trigger.Spec.Apply keeps the old ones when a spec has none),
 // leaving failures/enabled/disabled_code/disabled_reason/last_run_at as
 // RecordRun or Tick last set them. config's conversation_id and secret_hash
 // are read from the row's current config (not the possibly-stale a.Config),
@@ -137,8 +138,8 @@ func (r automationRepo) UpdateSpec(ctx context.Context, a storage.Automation) er
 	cfg.ConversationID, cfg.SecretHash = "", ""
 	return execOne(ctx, r.db, `UPDATE automations SET name=?, source=?, action=?, agent_id=?, prompt=?,
 		config = json_set(?, '$.conversation_id', json_extract(config, '$.conversation_id'), '$.secret_hash', json_extract(config, '$.secret_hash')),
-		script=?, escalate=?, next_run_at=?, updated_at=? WHERE id=?`,
-		a.Name, a.Source, a.Action, a.AgentID, a.Prompt, toJSON(cfg), toJSON(a.Script), toJSON(a.Escalate), optTime(a.NextRunAt), fmtTime(time.Now()), a.ID)
+		script=?, escalate=?, limits=?, next_run_at=?, updated_at=? WHERE id=?`,
+		a.Name, a.Source, a.Action, a.AgentID, a.Prompt, toJSON(cfg), toJSON(a.Script), toJSON(a.Escalate), toJSON(a.Limits), optTime(a.NextRunAt), fmtTime(time.Now()), a.ID)
 }
 
 func (r automationRepo) RecordRun(ctx context.Context, id string, now time.Time, result, failReason string, limit int, keptConv string) error {

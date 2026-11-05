@@ -78,3 +78,28 @@ func TestUpdateSpecKeepsConfigSecretsSetConcurrently(t *testing.T) {
 		t.Fatalf("UpdateSpec lost the secret hash UpdateSecretHash rotated: %+v", got.Config)
 	}
 }
+
+// UpdateSpec writes the limits a proposal changes (trigger.Spec.Apply sets
+// them): a raised daily cost cap or run time must not be dropped.
+func TestUpdateSpecWritesLimits(t *testing.T) {
+	ctx := context.Background()
+	st, p := openStore(t)
+	a, err := st.Automations().Create(ctx, storage.Automation{
+		ProjectID: p.ID, Name: "a", Source: "schedule", Action: "chat", AgentID: "ag", Enabled: true,
+		Limits: storage.AutomationLimits{DailyCostUSD: 15, MaxMinutes: 120},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	a.Limits = storage.AutomationLimits{DailyCostUSD: 20, MaxMinutes: 240}
+	if err := st.Automations().UpdateSpec(ctx, a); err != nil {
+		t.Fatal(err)
+	}
+	got, err := st.Automations().Get(ctx, a.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Limits.DailyCostUSD != 20 || got.Limits.MaxMinutes != 240 {
+		t.Fatalf("UpdateSpec dropped the limits: %+v", got.Limits)
+	}
+}
