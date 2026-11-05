@@ -249,7 +249,7 @@ const userMenu = computed<DropdownMenuItem[][]>(() => [
   [{ label: t('user.logout'), icon: 'i-lucide-log-out', color: 'error', onSelect: () => logout() }]
 ])
 // the account's theme (useTheme): checked once the person is known
-const { theme, look: themeLook, load: loadTheme } = useTheme()
+const { saved: savedTheme, theme, look: themeLook, load: loadTheme } = useTheme()
 watch(() => user.value?.id, () => loadTheme(), { immediate: true })
 </script>
 
@@ -316,7 +316,8 @@ watch(() => user.value?.id, () => loadTheme(), { immediate: true })
     </div>
     <slot />
     <FloatingChat />
-    <LazyThemeWallpaper v-if="theme?.wallpaper" :scene="theme.id" :look="themeLook" />
+    <ThemeBackdrop v-if="savedTheme.bg" :bg="savedTheme.bg" />
+    <LazyThemeWallpaper v-else-if="theme?.wallpaper" :scene="theme.id" :look="themeLook" />
     <SettingsModal v-model:open="settingsOpen" />
   </UDashboardGroup>
 </template>

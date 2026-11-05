@@ -32,7 +32,14 @@ const en: Record<keyof typeof vi, string> = {
   'theme.cell.small': 'Small',
   'theme.cell.medium': 'Medium',
   'theme.cell.large': 'Large',
-  'theme.still': 'Still (no motion)'
+  'theme.still': 'Still (no motion)',
+  'theme.backdrop': 'Background image or video',
+  'theme.backdropHint': 'An image (JPG, PNG, WebP, GIF) or a video (MP4, WebM), up to 25 MB, kept with your account. Works with any theme; a video plays muted on a loop.',
+  'theme.backdropUpload': 'Upload',
+  'theme.backdropChange': 'Change file',
+  'theme.backdropRemove': 'Remove',
+  'theme.backdropGlass': 'Pane opacity (for readable text)',
+  'theme.backdropTooBig': 'File too large (max 25 MB)'
 }
 
 export default en

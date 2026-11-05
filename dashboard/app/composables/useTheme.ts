@@ -7,11 +7,40 @@
 import { findTheme, isDark, themeCss, type Theme, type ThemeColors } from '~/utils/themes'
 
 export interface WallLook { strength: number, speed: number, cell: number, still: boolean }
-export interface SavedTheme { id: string, custom?: ThemeColors, wall?: Partial<WallLook> }
+// a background of the person's own (/api/me/background), on any theme: the
+// file's kind, its version (the cache key) and how opaque the panes over it are
+export interface Backdrop { kind: 'image' | 'video', v: number, glass?: number }
+export interface SavedTheme { id: string, custom?: ThemeColors, wall?: Partial<WallLook>, bg?: Backdrop }
 export const WALL_LOOK: WallLook = { strength: 0.45, speed: 1, cell: 18, still: false }
 const PREF_URL = '/api/me/prefs/theme'
 const KEY = 'office.theme'
 const STYLE_ID = 'office-theme'
+const BACKDROP_ID = 'office-backdrop'
+export const BG_URL = '/api/me/background'
+export const BG_MAX = 25 << 20
+export const BG_GLASS = 0.82
+export const backdropSrc = (b: Backdrop) => `${BG_URL}?v=${b.v}`
+
+// The page over a background: no fill of its own, the sidebar and the page
+// panes are the theme's background color, see-through by glass.
+function paintBackdrop(b: Backdrop | undefined) {
+  const root = document.documentElement
+  let style = document.getElementById(BACKDROP_ID)
+  if (!b) {
+    delete root.dataset.backdrop
+    style?.remove()
+    return
+  }
+  if (!style) {
+    style = document.createElement('style')
+    style.id = BACKDROP_ID
+  }
+  const g = Math.round((b.glass ?? BG_GLASS) * 100)
+  style.textContent = 'html[data-backdrop] body{background:transparent}'
+    + `html[data-backdrop] body .office-sidebar,html[data-backdrop] body .office-main{background:color-mix(in srgb,var(--ui-bg) ${g}%,transparent)}`
+  document.head.append(style)
+  root.dataset.backdrop = b.kind
+}
 
 export function readSavedTheme(): SavedTheme {
   try {
@@ -23,6 +52,7 @@ export function readSavedTheme(): SavedTheme {
 
 // Puts a theme on the page (also used before Vue mounts, by the plugin).
 export function paintTheme(s: SavedTheme): Theme | undefined {
+  paintBackdrop(s.bg)
   const root = document.documentElement
   const t = s.id === 'default' ? undefined : findTheme(s.id, s.custom)
   let style = document.getElementById(STYLE_ID)
@@ -98,5 +128,29 @@ export function useTheme() {
   const setCustom = (custom: ThemeColors) => save({ ...saved.value, id: 'custom', custom })
   const setLook = (o: Partial<WallLook>) => save({ ...saved.value, wall: { ...saved.value.wall, ...o } })
 
-  return { saved, theme, look, load, setTheme, setCustom, setLook }
+  // the file goes up first, then the theme points at it
+  async function setBackground(file: File) {
+    const data = await new Promise<string>((resolve, reject) => {
+      const r = new FileReader()
+      r.onload = () => resolve(String(r.result).replace(/^data:[^,]*,/, ''))
+      r.onerror = () => reject(r.error)
+      r.readAsDataURL(file)
+    })
+    const m = await $fetch<{ mime: string, version: number }>(BG_URL, { method: 'PUT', body: { data } })
+    await save({ ...saved.value, bg: { kind: m.mime.startsWith('video/') ? 'video' : 'image', v: m.version, glass: saved.value.bg?.glass } })
+  }
+  async function clearBackground() {
+    const { bg: _, ...rest } = saved.value
+    await save(rest)
+    await $fetch(BG_URL, { method: 'DELETE' })
+  }
+  const setGlass = (glass: number) => saved.value.bg && save({ ...saved.value, bg: { ...saved.value.bg, glass } })
+  // dragging shows the glass at once; setGlass keeps it when let go
+  function previewGlass(glass: number) {
+    if (!saved.value.bg) return
+    saved.value = { ...saved.value, bg: { ...saved.value.bg, glass } }
+    paintBackdrop(saved.value.bg)
+  }
+
+  return { saved, theme, look, load, setTheme, setCustom, setLook, setBackground, clearBackground, setGlass, previewGlass }
 }

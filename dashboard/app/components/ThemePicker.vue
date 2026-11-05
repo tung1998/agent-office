@@ -3,10 +3,11 @@
 // three colors, and the live wallpapers with how they move (useTheme).
 import type { MessageKey } from '~/locales/vi'
 import { COLOR_THEMES, WALLPAPER_THEMES, DEFAULT_CUSTOM, isHex, type Theme } from '~/utils/themes'
+import { BG_GLASS, BG_MAX, backdropSrc } from '~/composables/useTheme'
 
 const { t } = useLang()
 const toast = useToast()
-const { saved, theme, look, setTheme, setCustom, setLook } = useTheme()
+const { saved, theme, look, setTheme, setCustom, setLook, setBackground, clearBackground, setGlass, previewGlass } = useTheme()
 const custom = reactive({ ...DEFAULT_CUSTOM, ...saved.value.custom })
 const speeds = computed(() => [0.5, 1, 2, 4].map(v => ({ label: `${v}×`, value: v })))
 const cells = computed(() => ([[14, 'small'], [18, 'medium'], [22, 'large']] as const).map(([v, k]) => ({ label: t(`theme.cell.${k}`), value: v as number })))
@@ -25,6 +26,24 @@ function pickColor(k: keyof typeof custom, v: string) {
 }
 // dragging shows the strength at once; it is saved when let go
 const preview = (v: number) => { saved.value = { ...saved.value, wall: { ...saved.value.wall, strength: v } } }
+// a background image or video of the person's own, on top of any theme
+const fileInput = ref<HTMLInputElement>()
+const uploading = ref(false)
+const glass = computed(() => saved.value.bg?.glass ?? BG_GLASS)
+async function upload(e: Event) {
+  const input = e.target as HTMLInputElement
+  const file = input.files?.[0]
+  input.value = ''
+  if (!file) return
+  if (file.size > BG_MAX) {
+    toast.add({ title: t('theme.backdropTooBig'), color: 'error' })
+    return
+  }
+  uploading.value = true
+  await run(setBackground(file))
+  uploading.value = false
+}
+const keepGlass = () => { const p = setGlass(glass.value); if (p) run(p) }
 const nameOf = (id: string) => t(`theme.name.${id}` as MessageKey)
 const swatch = (th: Theme) => ({ background: th.wallpaper?.sky ?? th.bg, color: th.text })
 </script>
@@ -80,7 +99,26 @@ const swatch = (th: Theme) => ({ background: th.wallpaper?.sky ?? th.bg, color: 
       </div>
     </div>
 
-    <div v-if="theme?.wallpaper" class="space-y-3 rounded-lg border border-(--ui-border) p-3">
+    <div class="space-y-2">
+      <h4 class="flex items-center gap-1 text-xs font-semibold text-(--ui-text-muted)">
+        {{ t('theme.backdrop') }}
+        <UTooltip :text="t('theme.backdropHint')"><UIcon name="i-lucide-info" class="size-3.5" /></UTooltip>
+      </h4>
+      <div class="flex flex-wrap items-center gap-2">
+        <template v-if="saved.bg">
+          <video v-if="saved.bg.kind === 'video'" :src="backdropSrc(saved.bg)" muted class="h-12 w-20 rounded-md border border-(--ui-border) object-cover" />
+          <img v-else :src="backdropSrc(saved.bg)" alt="" class="h-12 w-20 rounded-md border border-(--ui-border) object-cover">
+        </template>
+        <UButton size="sm" color="neutral" variant="outline" icon="i-lucide-upload" :loading="uploading" :label="saved.bg ? t('theme.backdropChange') : t('theme.backdropUpload')" @click="fileInput?.click()" />
+        <UButton v-if="saved.bg" size="sm" color="neutral" variant="ghost" icon="i-lucide-trash-2" :disabled="uploading" :label="t('theme.backdropRemove')" @click="run(clearBackground())" />
+        <input ref="fileInput" type="file" accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm" class="hidden" @change="upload">
+      </div>
+      <UFormField v-if="saved.bg" :label="t('theme.backdropGlass')">
+        <USlider :model-value="glass" :min="0.5" :max="0.97" :step="0.01" @update:model-value="(v) => previewGlass(v as number)" @change="keepGlass" />
+      </UFormField>
+    </div>
+
+    <div v-if="theme?.wallpaper && !saved.bg" class="space-y-3 rounded-lg border border-(--ui-border) p-3">
       <UFormField :label="t('theme.strength')">
         <USlider :model-value="look.strength" :min="0.15" :max="1" :step="0.05" @update:model-value="(v) => preview(v as number)" @change="run(setLook({ strength: look.strength }))" />
       </UFormField>

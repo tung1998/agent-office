@@ -125,7 +125,7 @@ func setupWithStore(t *testing.T, proxies []netip.Prefix, wrap func(storage.Stor
 	acts.SetProjects(transfers)
 	office.SetProjects(transfers, t.TempDir())
 	h := api.New(api.Config{Peers: peers, Store: st, Auth: svc, AllowedOrigins: []string{"http://localhost:3000"}, TrustedProxies: proxies,
-		Providers: provs, Team: org, Setup: officesetup.New(st, provs, org), Transfer: transfers, Workflows: wfs, Usage: u, CLITools: cliManager(), Chat: chatEng,
+		Providers: provs, Team: org, Setup: officesetup.New(st, provs, org), Transfer: transfers, Workflows: wfs, Usage: u, CLITools: cliManager(), Chat: chatEng, BackgroundsDir: t.TempDir(),
 		Trigger: trigger.New(st, idleExec{}), Actions: acts, Office: office, MCP: mcp, Memory: mem, Events: bus, Automation: testAutomation(t, st),
 		Monitors: monitor.New(st, nil, chatEng), Ops: ops.NewManager(st, t.TempDir(), []string{}), Burn: burn.New(st, chatEng, nil),
 		Gateway: &mcpgateway.Gateway{Store: st, Box: box, Auth: mcp.Authorized, Identify: testIdentify(mcp)}})
