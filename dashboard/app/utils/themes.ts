@@ -46,7 +46,7 @@ export const WALLPAPER_THEMES: Theme[] = [
   live('jellyfish', ['#0a1830', '#dfe7fb', '#a58cf0'], bands(0.07, 'linear-gradient(#174784, #0c2b58 50%, #071a3a)'), 'rgba(12, 28, 58, .7)'),
   live('koi-pond', ['#11332d', '#e4f2ea', '#ef8a4a'], bands(0.12, 'linear-gradient(175deg, #4aa08c, #2f8070 50%, #1f6156)'), 'rgba(17, 51, 45, .72)'),
   live('honu-lagoon', ['#0f3a44', '#e3f6f2', '#5fd0b8'], bands(0.14, 'linear-gradient(#35a6f0, #1d7ad8 45%, #1650b2)'), 'rgba(15, 58, 68, .72)'),
-  live('cloud-drift', ['#d8ecfa', '#1d3447', '#1f5f99'], bands(0.22, 'linear-gradient(#4fa3e8, #86c3f0 55%, #b6dbf6)'), 'rgba(255, 255, 255, .7)')
+  live('cloud-drift', ['#d8ecfa', '#1d3447', '#1f5f99'], bands(0.22, 'linear-gradient(#4fa3e8, #86c3f0 55%, #b6dbf6)'), 'rgba(255, 255, 255, .78)')
 ]
 
 export const DEFAULT_CUSTOM: ThemeColors = { bg: '#1b1d24', text: '#e4e6ee', accent: '#8b7cf6' }
@@ -111,6 +111,9 @@ export function themeCss(t: Theme): string {
     css += `html[data-theme="${t.id}"]{background:${t.wallpaper.sky} fixed;--wall-glass:${t.wallpaper.glass}}`
       + `html[data-theme="${t.id}"] body{background:transparent}`
       + `html[data-theme="${t.id}"] .office-sidebar{background:var(--wall-glass)}`
+    // a light theme's text is dark: on a bright, saturated sky its muted
+    // shades fade, so the page (PageShell) is glass too
+    if (!dark) css += `html[data-theme="${t.id}"] .office-main{background:var(--wall-glass)}`
   }
   return css
 }
