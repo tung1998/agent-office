@@ -20,7 +20,7 @@
     "@vue-flow/core": "^1.48.2",
     "dompurify": "^3.4.17",
     "marked": "^18.0.14",
-    "nuxt": "^4.5.2",
+    "nuxt": "^4.6.4",
     "tailwindcss": "^4.3.3"
   },
   "devDependencies": {
