@@ -306,6 +306,11 @@ func (e *Engine) runStep(ctx context.Context, own storage.Conversation, run *wfR
 	if err != nil {
 		return workflow.StepResult{}, err
 	}
+	if readsProject(s) { // the roles' diffs reach the project first
+		if err := e.waitMerged(ctx, own, s); err != nil {
+			return workflow.StepResult{}, err
+		}
+	}
 	switch s.Type {
 	case workflow.StepAgent:
 		out, err := e.stepAgent(ctx, own, project, run, s, workflow.Render(s.Prompt, vars))

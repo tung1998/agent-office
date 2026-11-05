@@ -943,4 +943,7 @@ type ActionRepo interface {
 	List(ctx context.Context, conversationID, taskID, runRef string) ([]Action, error)
 	// Pending lists actions waiting for a person, newest first.
 	Pending(ctx context.Context, limit int) ([]Action, error)
+	// SetArgs replaces an action's arguments (a commit held for its turn's
+	// diff carried onto the diff that replaced it).
+	SetArgs(ctx context.Context, id string, args ActionArgs) error
 }

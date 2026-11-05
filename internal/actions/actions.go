@@ -487,8 +487,17 @@ func (s *Service) RunDeferred(ctx context.Context, sc Scope, id string, blocked 
 	if err != nil || a.Status != "pending" || !a.Args.AfterDiff {
 		return a, err
 	}
-	if s.autoAllowed(ctx, a, sc.Access) {
+	// an administrator's run as in Propose (ADR-188): its held commit is not
+	// left for a person when its other proposals act at once
+	admin := sc.Admin && s.adminAllowed(ctx, a)
+	if admin || s.autoAllowed(ctx, a, sc.Access) {
 		by := "auto:" + sc.Agent + " (" + perm.Label(sc.Access.Level) + ")"
+		if admin {
+			by = "auto:" + sc.Agent + " (administrator)"
+			if sc.AdminBy != "" {
+				ctx = WithPrincipal(ctx, sc.AdminBy)
+			}
+		}
 		if blocked {
 			return s.Queue(ctx, a.ID, by)
 		}
@@ -496,8 +505,13 @@ func (s *Service) RunDeferred(ctx context.Context, sc Scope, id string, blocked 
 		s.auditAuto(ctx, sc, done, err)
 		return done, err
 	}
-	if s.direct != nil && a.JobID != "" && !blocked {
+	// a chat in direct mode: approved by it now, run after the diff when that
+	// still waits (queued), not left for a person once it is merged
+	if s.direct != nil && a.JobID != "" {
 		if by, ok := s.direct(ctx, a); ok {
+			if blocked {
+				return s.Queue(ctx, a.ID, by)
+			}
 			return s.Decide(ctx, a.ID, true, by)
 		}
 	}

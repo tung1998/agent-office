@@ -58,6 +58,10 @@ func (r actionRepo) Update(ctx context.Context, a storage.Action) error {
 		nullStr(a.MessageID), a.Status, a.Detail, a.DecidedBy, optTime(a.DecidedAt), a.TargetID, a.ID)
 }
 
+func (r actionRepo) SetArgs(ctx context.Context, id string, args storage.ActionArgs) error {
+	return execOne(ctx, r.db, `UPDATE actions SET args=? WHERE id=?`, toJSON(args), id)
+}
+
 func (r actionRepo) Get(ctx context.Context, id string) (storage.Action, error) {
 	return scanAction(r.db.QueryRowContext(ctx, `SELECT `+actionCols+` FROM actions WHERE id=?`, id))
 }

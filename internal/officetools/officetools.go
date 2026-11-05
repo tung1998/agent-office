@@ -853,12 +853,15 @@ func (t *Toolbox) Call(ctx context.Context, sc Scope, name string, raw json.RawM
 		if t.decide == nil || !sc.Admin {
 			return "Chỉ administrator duyệt được thẻ", true
 		}
+		// approve must be given: a call without it is not a rejection
 		var d struct {
 			Kind, ID string
-			Approve  bool
+			Approve  *bool
 		}
-		_ = json.Unmarshal(raw, &d)
-		out, err = t.decide(ctx, sc, d.Kind, d.ID, d.Approve)
+		if jerr := json.Unmarshal(raw, &d); jerr != nil || d.Kind == "" || d.ID == "" || d.Approve == nil {
+			return "decide_request needs kind, id and approve (true to approve, false to reject); the card is unchanged", true
+		}
+		out, err = t.decide(ctx, sc, d.Kind, d.ID, *d.Approve)
 	case "send_file":
 		if t.sendFile == nil || !t.botChat(sc) {
 			return "send_file chỉ dùng trong cuộc chat của bot Discord/Telegram", true

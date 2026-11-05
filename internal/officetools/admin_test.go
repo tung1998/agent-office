@@ -59,3 +59,34 @@ func TestAdminRequests(t *testing.T) {
 		t.Fatalf("administrator could not decide: %v", decided)
 	}
 }
+
+// A decide_request without approve (or with a wrong type) is refused with a
+// message, never read as a rejection of the card.
+func TestDecideRequestNeedsApprove(t *testing.T) {
+	ctx := context.Background()
+	st, _ := sqlite.Open(filepath.Join(t.TempDir(), "o.db"))
+	defer st.Close()
+	st.Migrate(ctx)
+	p, _ := st.Repos().Create(ctx, storage.Repo{Name: "p", Path: t.TempDir()})
+	tb := New(st, nil, actions.New(st, nil))
+	var decided []string
+	tb.SetDecide(func(_ context.Context, _ Scope, kind, id string, approve bool) (string, error) {
+		decided = append(decided, kind+":"+id)
+		return "ok", nil
+	})
+	admin := Scope{ProjectID: p.ID, Agent: "a", Level: perm.Operate, Access: perm.Admin(perm.Access{}), Admin: true}
+	for _, raw := range []string{
+		`{"kind":"action","id":"act_1"}`,
+		`{"kind":"action","id":"act_1","approve":"yes"}`,
+		`{"kind":"action","approve":true}`,
+		`{"id":"act_1","approve":true}`,
+	} {
+		out, isErr := tb.Call(ctx, admin, "decide_request", []byte(raw))
+		if !isErr || len(decided) > 0 {
+			t.Fatalf("%s: decided %v (%q)", raw, decided, out)
+		}
+	}
+	if _, isErr := tb.Call(ctx, admin, "decide_request", []byte(`{"kind":"action","id":"act_1","approve":false}`)); isErr || len(decided) != 1 {
+		t.Fatalf("an explicit rejection is still taken: %v", decided)
+	}
+}

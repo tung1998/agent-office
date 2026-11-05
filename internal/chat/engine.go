@@ -1325,6 +1325,10 @@ func (e *Engine) run(ctx context.Context, turn *Turn, conv storage.Conversation,
 	if clash != "" {
 		req.System += "\n\n" + prompts.Render("chat/conflicts", map[string]any{"Files": clash})
 	}
+	// an administrator's run: what it proposes acts at once, its commit held
+	// for its diff too once the diff is merged (ADR-188, ADR-189)
+	var adminRun bool
+	var adminBy string
 	if noTools(ctx) { // untrusted text (a scope filter's YES/NO): the conversation only
 		// a bot's chats are not this: they run with their agent's own rights, as chosen
 		req.NoTools, req.UserMCP, req.Web, req.Write, req.FullAccess = true, false, false, false, false
@@ -1340,6 +1344,7 @@ func (e *Engine) run(ctx context.Context, turn *Turn, conv storage.Conversation,
 				sc.AdminBy = who
 			}
 			sc.Level = sc.Access.Level
+			adminRun, adminBy = true, sc.AdminBy
 		}
 		office, revoke := e.officeAccess(ctx, sc)
 		defer revoke()
@@ -1505,7 +1510,10 @@ func (e *Engine) run(ctx context.Context, turn *Turn, conv storage.Conversation,
 	}
 	if pl.tree != "" && !noPatch(wctx) { // a Burn item's changes are committed to its branch instead
 		// what the agent changed in its worktree, all pending changes in one diff
-		if pt, ok := e.treePatch(wctx, conv, msg.ID, pl.dir, pl.tree, policy); ok {
+		if pt, replaced, ok := e.treePatch(wctx, conv, msg.ID, pl.dir, pl.tree, policy); ok {
+			// a commit held for a replaced diff follows this one (ADR-189), before
+			// this diff is merged on its own (else it would wait before it)
+			e.carryDeferred(context.Background(), conv.ID, replaced, msg.ID, pt.Files)
 			held := false
 			if pt.Status == "" && acc.Can(perm.CapApply) { // merged with no person: checked first (ADR-222)
 				held = e.mergeCheck(wctx, turn, policy, pl.dir, &pt)
@@ -1558,6 +1566,10 @@ func (e *Engine) run(ctx context.Context, turn *Turn, conv storage.Conversation,
 		if e.acts != nil {
 			sc := actions.Scope{ProjectID: project.ID, ConversationID: conv.ID, TaskID: conv.TaskID, RunRef: turn.ID, JobID: turn.JobID,
 				Agent: agent.Name, Level: level, Access: acc, Dir: treeDir(pl)}
+			if adminRun { // as its office tools ran in the turn: else the commit waits for a person after all
+				sc.Admin, sc.AdminBy, sc.Access = true, adminBy, perm.Admin(acc)
+				sc.Level = sc.Access.Level
+			}
 			blocked := e.CheckOrder(context.Background(), conv.ID, a.ID) != nil
 			if done, err := e.acts.RunDeferred(context.Background(), sc, a.ID, blocked); err == nil {
 				a = done
@@ -1570,6 +1582,11 @@ func (e *Engine) run(ctx context.Context, turn *Turn, conv storage.Conversation,
 		ad.Seq = seq
 		dto.Actions = append(dto.Actions, ad)
 		turn.emit(Event{Type: "action", Action: &ad})
+	}
+	// a card queued behind what this turn merged on its own (a commit carried
+	// onto its diff) runs now: no person's decision is coming to drain it
+	if e.queueRun != nil && e.queuedFirst(context.Background(), conv.ID) {
+		safeGo("drain", func() { e.Drain(conv.ID) })
 	}
 	if !handoff {
 		mem.LastMessageID = msg.ID // it has seen everything up to its answer
@@ -1607,12 +1624,13 @@ func treeDir(pl place) string {
 
 // treePatch turns the pending changes of a conversation's worktree into one
 // diff, replacing the earlier pending one. Protected files are put back.
-// ok is false when nothing changed since the last diff.
-func (e *Engine) treePatch(ctx context.Context, conv storage.Conversation, messageID, dir, tree string, policy perm.Policy) (storage.Patch, bool) {
+// ok is false when nothing changed since the last diff. replaced: the
+// answers whose diffs the new one replaced (their held commits follow it).
+func (e *Engine) treePatch(ctx context.Context, conv storage.Conversation, messageID, dir, tree string, policy perm.Policy) (pt storage.Patch, replaced []string, ok bool) {
 	files, err := worktree.Changed(ctx, dir)
 	if err != nil {
 		return storage.Patch{ConversationID: conv.ID, MessageID: messageID, TaskID: conv.TaskID, Origin: "worktree", Tree: tree, Status: "failed",
-			Detail: "không đọc được thay đổi trong worktree: " + err.Error()}, true
+			Detail: "không đọc được thay đổi trong worktree: " + err.Error()}, nil, true
 	}
 	detail := ""
 	if denied := policy.Denied(files); len(denied) > 0 {
@@ -1621,12 +1639,12 @@ func (e *Engine) treePatch(ctx context.Context, conv storage.Conversation, messa
 	}
 	diff, files, err := worktree.Changes(ctx, dir, nil)
 	if err != nil || diff == "" {
-		return storage.Patch{}, false
+		return storage.Patch{}, nil, false
 	}
 	// conflict markers left from following the project never reach it
 	if left := worktree.Markers(dir, files); len(left) > 0 {
 		return storage.Patch{ConversationID: conv.ID, MessageID: messageID, TaskID: conv.TaskID, Origin: "worktree", Tree: tree, Status: "failed", Files: files,
-			Detail: "Chưa gộp được: còn dấu xung đột ở " + strings.Join(left, ", ") + ". Agent cần sửa xong các file đó ở lượt sau."}, true
+			Detail: "Chưa gộp được: còn dấu xung đột ở " + strings.Join(left, ", ") + ". Agent cần sửa xong các file đó ở lượt sau."}, nil, true
 	}
 	now := time.Now().UTC()
 	if old, err := e.store.Chat().ListPatches(ctx, conv.ID); err == nil {
@@ -1635,16 +1653,18 @@ func (e *Engine) treePatch(ctx context.Context, conv storage.Conversation, messa
 				continue // another agent's worktree: its diff stays (ADR-044)
 			}
 			if p.Diff == diff {
-				return storage.Patch{}, false // nothing new this turn
+				return storage.Patch{}, nil, false // nothing new this turn
 			}
 			why := "Thay bằng thay đổi mới hơn"
 			if first, _, _ := strings.Cut(p.Detail, "\n"); strings.HasPrefix(first, verify.Held) { // the harness review counts it
 				why = first + "\n" + why
 			}
-			_ = e.store.Chat().DecidePatch(ctx, p.ID, "rejected", why, "office", now)
+			if e.store.Chat().DecidePatch(ctx, p.ID, "rejected", why, "office", now) == nil && p.MessageID != "" && p.MessageID != messageID {
+				replaced = append(replaced, p.MessageID)
+			}
 		}
 	}
-	return storage.Patch{ConversationID: conv.ID, MessageID: messageID, TaskID: conv.TaskID, Diff: diff, Files: files, Origin: "worktree", Tree: tree, Detail: detail}, true
+	return storage.Patch{ConversationID: conv.ID, MessageID: messageID, TaskID: conv.TaskID, Diff: diff, Files: files, Origin: "worktree", Tree: tree, Detail: detail}, replaced, true
 }
 
 // patchTree is the name of the worktree a diff came from (older diffs: the
@@ -2207,8 +2227,11 @@ func (e *Engine) ProposeTree(ctx context.Context, conversationID, dir, tree stri
 			messageID = msgs[i].ID
 		}
 	}
-	if pt, ok := e.treePatch(ctx, conv, messageID, dir, tree, perm.LoadPolicy(ctx, e.store, conv.ProjectID)); ok {
+	if pt, replaced, ok := e.treePatch(ctx, conv, messageID, dir, tree, perm.LoadPolicy(ctx, e.store, conv.ProjectID)); ok {
 		_, err = e.store.Chat().AddPatch(ctx, pt)
+		if err == nil {
+			e.carryDeferred(ctx, conv.ID, replaced, messageID, pt.Files)
+		}
 	}
 	return err
 }

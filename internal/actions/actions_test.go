@@ -164,6 +164,23 @@ func TestGitActions(t *testing.T) {
 	if left, _ := svc.RunDeferred(ctx, wt, a.ID, false); left.Status != "pending" {
 		t.Fatalf("propose level = %+v", left)
 	}
+	// an administrator's run (ADR-188): its held commit acts as its other
+	// proposals do, whatever its own package lacks; queued behind a waiting diff
+	adm := wt
+	adm.Admin, adm.AdminBy = true, "a@b.c"
+	if q, err := svc.RunDeferred(ctx, adm, a.ID, true); err != nil || q.Status != "queued" || !strings.Contains(q.DecidedBy, "administrator") {
+		t.Fatalf("admin, behind a waiting diff = %v %+v", err, q)
+	}
+	// a chat in direct mode (ADR-054): approved by the chat, queued behind the
+	// diff instead of left for a person once the diff is merged
+	wt.RunRef, wt.JobID = "g8", "job_x"
+	st.Chat().AddPatch(ctx, storage.Patch{ConversationID: conv.ID, Diff: "x", Files: []string{"f.txt"}, Status: "pending", Origin: "worktree"})
+	a, _ = svc.Propose(ctx, wt, "git_commit", "", "lưu", storage.ActionArgs{Message: "feat: f"})
+	svc.SetAutoApprover(func(context.Context, storage.Action) (string, bool) { return "discord:an", true })
+	defer svc.SetAutoApprover(nil)
+	if q, err := svc.RunDeferred(ctx, wt, a.ID, true); err != nil || q.Status != "queued" || q.DecidedBy != "discord:an" {
+		t.Fatalf("direct, behind a waiting diff = %v %+v", err, q)
+	}
 }
 
 // at is the preset access of a package.
