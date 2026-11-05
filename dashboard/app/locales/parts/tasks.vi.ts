@@ -99,7 +99,7 @@ export default {
   'chat.sendNow': 'Gửi ngay',
   'chat.newMessages': 'Tin mới',
   'chat.toLatest': 'Cuộn xuống tin mới nhất',
-  'chat.sendNowHint': 'Dừng câu trả lời đang viết và gửi tin này luôn',
+  'chat.sendNowHint': 'Ngắt câu trả lời đang viết (phần đã viết vẫn giữ) và gửi tin này luôn',
   'chat.budgetHit': 'Đã chạm trần chi phí',
   'chat.skillChat': 'Chat soạn skill',
   'chat.backToSkillEditor': 'Mở trình soạn skill',

@@ -100,7 +100,7 @@ const en: Record<keyof typeof vi, string> = {
   'chat.sendNow': 'Send now',
   'chat.newMessages': 'New messages',
   'chat.toLatest': 'Jump to the latest',
-  'chat.sendNowHint': 'Stop the answer being written and send this at once',
+  'chat.sendNowHint': 'Cut the answer short (what it wrote stays) and send this at once',
   'chat.budgetHit': 'Hit the cost cap',
   'chat.skillChat': 'A skill editor chat',
   'chat.backToSkillEditor': 'Open the skill editor',

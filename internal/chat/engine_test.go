@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -970,5 +971,42 @@ func TestHandoffWaitsForBusyAgent(t *testing.T) {
 	}
 	if !second {
 		t.Fatal("the waiting hand-off never ran")
+	}
+}
+
+// Stopped mid-answer (Stop, or a message sent now), what the agent wrote so
+// far stays as its answer, cut short, not an error that drops it.
+func TestStopKeepsThePartialAnswer(t *testing.T) {
+	bin := filepath.Join(t.TempDir(), "claude")
+	fakebin.Write(bin, []byte(`#!/bin/sh
+cat >/dev/null
+echo '{"type":"system","subtype":"init","session_id":"sess-1"}'
+echo '{"type":"stream_event","event":{"type":"content_block_delta","delta":{"type":"text_delta","text":"Đang đọc code"}}}'
+sleep 5
+`))
+	f := setup(t, func(provs *provider.Service) storage.Provider {
+		p, _ := provs.Create(context.Background(), provider.Input{Name: "CC", Kind: storage.ProviderClaudeCLI, BaseURL: bin})
+		return p
+	})
+	ctx := context.Background()
+	conv, _ := f.engine.StartConversation(ctx, f.project.ID, "")
+	turn, _, err := f.engine.Send(ctx, conv.ID, "sửa lỗi", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for deadline := time.Now().Add(3 * time.Second); ; time.Sleep(20 * time.Millisecond) {
+		evs, _, _ := turn.Since(0)
+		if slices.ContainsFunc(evs, func(e chat.Event) bool { return e.Type == "text" }) {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("no text streamed")
+		}
+	}
+	turn.Cancel()
+	events := collect(t, turn)
+	last := events[len(events)-1]
+	if last.Type != "done" || last.Message == nil || !strings.Contains(last.Message.Content, "Đang đọc code") || !strings.Contains(last.Message.Content, "dừng giữa chừng") {
+		t.Fatalf("last = %s %+v", last.Type, last.Message)
 	}
 }

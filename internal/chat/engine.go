@@ -202,6 +202,26 @@ func (t *Turn) emit(e Event) {
 
 // Since returns events from seq on, whether the turn is over, and a channel
 // closed when more events arrive.
+// seq is the number of events so far.
+func (t *Turn) seq() int {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return len(t.events)
+}
+
+// textSince is the answer's text streamed from event seq on.
+func (t *Turn) textSince(seq int) string {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	var b strings.Builder
+	for _, e := range t.events[min(max(seq, 0), len(t.events)):] {
+		if e.Type == "text" {
+			b.WriteString(e.Text)
+		}
+	}
+	return b.String()
+}
+
 func (t *Turn) Since(seq int) ([]Event, bool, <-chan struct{}) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
@@ -1325,6 +1345,8 @@ func (e *Engine) run(ctx context.Context, turn *Turn, conv storage.Conversation,
 		runErr error
 		runID  string
 		cost   *float64
+		// where this run's events start: what it wrote, if it is stopped
+		streamFrom int
 	)
 	// the assistant as administrator runs so only on a connection that gives
 	// it the machine; on another (Codex's sandbox, an API) it is told it
@@ -1364,6 +1386,7 @@ func (e *Engine) run(ctx context.Context, turn *Turn, conv storage.Conversation,
 				}
 			}
 			turn.emit(Event{Type: "status", Text: fmt.Sprintf("%s đang trả lời (%s · %s)", agent.Name, p.Name, model)})
+			streamFrom = turn.seq()
 			res, runErr = runnerFor(p.Kind).Run(ctx, req, turn.emit)
 			res.Usage.CostUSD = e.turnCost(ctx, p.Kind, req.SessionID, res.SessionID, res.Usage.CostUSD)
 			runID, cost = "", nil
@@ -1420,6 +1443,18 @@ func (e *Engine) run(ctx context.Context, turn *Turn, conv storage.Conversation,
 		turn.emit(Event{Type: "error", Text: "Office đang khởi động lại, agent làm tiếp khi office lên lại"}) // its stream ends
 		return
 	}
+	// stopped by the person (Stop, or a message sent now): what it wrote and
+	// did so far stays as its answer, cut short, as the CLI keeps it; the
+	// next message goes on from there in the same session
+	if runErr != nil && !cut && errors.Is(ctx.Err(), context.Canceled) && strings.TrimSpace(res.Text) == "" &&
+		conv.Purpose == "" && turn.wfRun == "" && turn.wfRole == "" && turn.wfStep == "" && !turn.wfWatch {
+		if part := strings.TrimSpace(turn.textSince(streamFrom)); part != "" || len(res.Tools) > 0 {
+			res.Text, runErr = strings.TrimSpace(part+"\n\n_(dừng giữa chừng)_"), nil
+		}
+	}
+	// what follows the answer (its diff, the checks before merging) still runs
+	// for a stopped one; the next agent of the chain does not (nextTurn: ctx)
+	wctx := context.WithoutCancel(ctx)
 	if runErr != nil && strings.TrimSpace(res.Text) == "" {
 		if cut {
 			runErr = errors.New("office khởi động lại khi đang trả lời, hãy nhắn lại để làm tiếp")
@@ -1456,12 +1491,12 @@ func (e *Engine) run(ctx context.Context, turn *Turn, conv storage.Conversation,
 			turn.emit(Event{Type: "action", Action: &ad})
 		}
 	}
-	if pl.tree != "" && !noPatch(ctx) { // a Burn item's changes are committed to its branch instead
+	if pl.tree != "" && !noPatch(wctx) { // a Burn item's changes are committed to its branch instead
 		// what the agent changed in its worktree, all pending changes in one diff
-		if pt, ok := e.treePatch(ctx, conv, msg.ID, pl.dir, pl.tree, policy); ok {
+		if pt, ok := e.treePatch(wctx, conv, msg.ID, pl.dir, pl.tree, policy); ok {
 			held := false
 			if pt.Status == "" && acc.Can(perm.CapApply) { // merged with no person: checked first (ADR-222)
-				held = e.mergeCheck(ctx, turn, policy, pl.dir, &pt)
+				held = e.mergeCheck(wctx, turn, policy, pl.dir, &pt)
 			} else if leak := verify.Secrets(pl.dir, pt.Files); leak != "" { // a person approves it: they see it first (ADR-227)
 				pt.Detail = lines(leak, pt.Detail)
 			}
@@ -1488,7 +1523,7 @@ func (e *Engine) run(ctx context.Context, turn *Turn, conv storage.Conversation,
 			case len(policy.Denied(files)) > 0:
 				pt.Status, pt.Detail = "failed", "sửa file cấm của project: "+strings.Join(policy.Denied(files), ", ")
 			default:
-				if cerr := CheckPatch(ctx, project.Path, diff); cerr != nil {
+				if cerr := CheckPatch(wctx, project.Path, diff); cerr != nil {
 					pt.Status, pt.Detail = "failed", cerr.Error()
 				}
 			}
