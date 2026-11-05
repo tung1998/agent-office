@@ -45,7 +45,10 @@ func runEnv(ctx context.Context, bin string, stdin string, env []string, args ..
 		return "", StartError(bin, err) // it never started: a file that is gone, not executable
 	}
 	if err != nil {
-		if CLIBroken(stderr.String()) { // npm's wrapper ran but the native binary is gone
+		// npm's wrapper ran but the native binary is gone: it printed nothing.
+		// A CLI that wrote output started; "command not found" or an MCP
+		// server's "spawn npx ENOENT" in its stderr is not its own install.
+		if strings.TrimSpace(stdout.String()) == "" && CLIBroken(stderr.String()) {
 			return stdout.String(), &cliError{msg: CLIBrokenError(bin, stderr.String()).Error(), stderr: stderr.String(), cause: ErrCLIBroken}
 		}
 		return stdout.String(), &cliError{msg: fmt.Sprintf("%s: %v: %s", bin, err, cliFailure(stdout.String(), stderr.String())), stderr: stderr.String()}

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
@@ -54,8 +55,25 @@ func CLIBrokenError(bin, detail string) error {
 }
 
 // StartError reads why a CLI could not even start: not on PATH or not a
-// file any more is ErrCLIBroken; anything else is returned as it is.
-func StartError(bin string, err error) error {
+// file any more is ErrCLIBroken; anything else is returned as it is. A run's
+// folder that is gone (a worktree removed under it: chdir fails with the
+// same ENOENT) is the run's problem, not the connection's.
+func StartError(bin string, err error) error { return StartErrorIn(bin, "", err) }
+
+// StartErrorIn is StartError for a command started in dir. With its own
+// SysProcAttr (a process group) Go does not say chdir: the start fails as
+// "fork/exec <bin>: no such file or directory" whether the binary or the
+// folder is gone, so the folder is looked at.
+func StartErrorIn(bin, dir string, err error) error {
+	var pe *fs.PathError
+	if errors.As(err, &pe) && pe.Op == "chdir" {
+		return fmt.Errorf("không chạy được %s: thư mục làm việc %s không còn: %w", bin, pe.Path, err)
+	}
+	if dir != "" && errors.Is(err, fs.ErrNotExist) {
+		if _, serr := os.Stat(dir); serr != nil {
+			return fmt.Errorf("không chạy được %s: thư mục làm việc %s không còn: %w", bin, dir, err)
+		}
+	}
 	if errors.Is(err, exec.ErrNotFound) || errors.Is(err, fs.ErrNotExist) || CLIBroken(err.Error()) {
 		return CLIBrokenError(bin, err.Error())
 	}

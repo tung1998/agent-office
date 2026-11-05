@@ -3,6 +3,7 @@ package chat
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 
 	"github.com/tung1998/agent-office/internal/actions"
@@ -43,8 +44,11 @@ func (e *Engine) InstallDeps(ctx context.Context, patchID string) ([]ActionDTO, 
 	if err != nil {
 		return nil, err
 	}
-	acts := e.proposeDeps(ctx, project, p)
+	acts, why := e.proposeDeps(ctx, project, p)
 	if len(acts) == 0 {
+		if why != nil { // there were changes, no card could be made: say why
+			return nil, why
+		}
 		return nil, ErrNoDeps
 	}
 	out := make([]ActionDTO, len(acts))
@@ -61,26 +65,34 @@ const depsAgent = "office"
 // (ADR-251): one deps_install card per package, next to the diff, so the
 // project's node_modules/.venv follow the new lockfile. The project may
 // install them at once (policy AutoDeps). A card never holds the chat's other
-// proposals back (followUp). The cards made.
-func (e *Engine) proposeDeps(ctx context.Context, project storage.Repo, p storage.Patch) []storage.Action {
+// proposals back (followUp). The cards made, and why the others could not
+// be (each also told in the chat).
+func (e *Engine) proposeDeps(ctx context.Context, project storage.Repo, p storage.Patch) ([]storage.Action, error) {
 	if e.acts == nil || project.Path == "" {
-		return nil
+		return nil, nil
 	}
 	// read against the merged files: a package.json whose scripts alone
 	// changed needs no install
 	changes := deps.ChangesOf(project.Path, p.Diff, p.Files)
 	if len(changes) == 0 {
-		return nil
+		return nil, nil
 	}
 	sc := actions.Scope{ProjectID: project.ID, ConversationID: p.ConversationID, TaskID: p.TaskID, Agent: depsAgent}
 	tree := e.treeOf(project.ID, p)
 	auto := perm.LoadPolicy(ctx, e.store, project.ID).AutoDeps
 	var out []storage.Action
+	var failed []error
 	for _, c := range changes {
 		args := storage.ActionArgs{Deps: &storage.DepsArgs{Dir: c.Dir, Manager: c.Manager, Files: c.Files}, Patch: p.ID, Tree: tree}
 		a, err := e.acts.Propose(ctx, sc, "deps_install", c.Dir, "Diff vừa gộp đổi thư viện của "+c.Dir+": cài lại để project chạy đúng bản trong lockfile mới", args) // i18n-ignore
 		if err != nil {
+			// the project keeps its old libraries: say so where the diff is, or
+			// no one knows its install never got a card
 			slog.Warn("chat: deps install card", "patch", p.ID, "dir", c.Dir, "err", err)
+			failed = append(failed, fmt.Errorf("%s: %w", c.Label(), err))
+			if p.ConversationID != "" {
+				e.note(storage.Conversation{ID: p.ConversationID}, "Không tạo được thẻ cài thư viện cho "+c.Label()+" sau khi gộp diff: "+err.Error()+". Project vẫn dùng thư viện cũ; sửa rồi bấm Cài lại trên thẻ diff.") // i18n-ignore
+			}
 			continue
 		}
 		if a.MessageID != p.MessageID { // shown with the diff it follows
@@ -92,7 +104,7 @@ func (e *Engine) proposeDeps(ctx context.Context, project storage.Repo, p storag
 			e.autoInstall(ctx, a)
 		}
 	}
-	return out
+	return out, errors.Join(failed...)
 }
 
 // depsInstalled (tests only) is told each time a background install ends.

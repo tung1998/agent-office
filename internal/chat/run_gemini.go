@@ -223,7 +223,7 @@ func (geminiRunner) run(ctx context.Context, req RunRequest, emit func(Event)) (
 		return RunResult{}, err
 	}
 	if err := cmd.Start(); err != nil {
-		return RunResult{}, llm.StartError(bin, err)
+		return RunResult{}, llm.StartErrorIn(bin, cmd.Dir, err)
 	}
 	defer proctrack.Track(ctx, cmd.Process.Pid)()
 	res := RunResult{}
@@ -297,6 +297,11 @@ func (geminiRunner) run(ctx context.Context, req RunRequest, emit func(Event)) (
 		return res, scanErr
 	}
 	if res.Text == "" && (werr != nil || failure != "") {
+		// npm's wrapper ran, its native part or a module did not: no init
+		// event yet, so the connection is broken, not the turn
+		if werr != nil && failure == "" && res.SessionID == "" && llm.CLIBroken(stderr.String()) {
+			return res, llm.CLIBrokenError(bin, stderr.String())
+		}
 		msg := failure
 		if msg == "" {
 			msg = llm.GeminiError(stderr.String())

@@ -138,7 +138,7 @@ func (antigravityRunner) run(ctx context.Context, req RunRequest, emit func(Even
 		return RunResult{}, "", err
 	}
 	if err := cmd.Start(); err != nil {
-		return RunResult{}, "", llm.StartError(bin, err)
+		return RunResult{}, "", llm.StartErrorIn(bin, cmd.Dir, err)
 	}
 	defer proctrack.Track(ctx, cmd.Process.Pid)()
 	res.Usage.Model = req.Model

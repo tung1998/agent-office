@@ -134,11 +134,107 @@ exit 1
 	if err != nil {
 		t.Fatalf("err = %v: the part written is kept", err)
 	}
-	if !strings.HasPrefix(res.Text, "Half a review") || !strings.Contains(res.Text, "dừng giữa chừng") || !strings.Contains(streamed.String(), "dừng giữa chừng") {
-		t.Fatalf("text = %q, streamed = %q", res.Text, streamed.String())
+	if res.Text != "Half a review" || !strings.Contains(res.Notice, "dừng giữa chừng") || !strings.Contains(streamed.String(), "dừng giữa chừng") {
+		t.Fatalf("text = %q, notice = %q, streamed = %q", res.Text, res.Notice, streamed.String())
+	}
+	if c := answerContent(res, true); !strings.HasPrefix(c, "Half a review") || !strings.Contains(c, "dừng giữa chừng") {
+		t.Fatalf("a person's chat shows the note under the answer: %q", c)
 	}
 	if res.Limits == nil || res.Limits.Status != "rejected" || !overNow(*res.Limits, time.Now().Add(20*time.Minute)) {
 		t.Fatalf("limits = %+v: the quota it ran out of must hold the connection back", res.Limits)
+	}
+}
+
+// Codex prints {"type":"error"} for a reconnect it gets over: a turn that
+// reconnected, then answered in full, was marked cut short.
+func TestCodexReconnectIsNotACut(t *testing.T) {
+	bin, _ := codexBin(t, `echo '{"type":"thread.started","thread_id":"s1"}'
+echo '{"type":"error","message":"Reconnecting... 1/5"}'
+printf '%s\n' '{"type":"item.completed","item":{"type":"agent_message","text":"Full answer\nVERDICT: OK"}}'
+echo '{"type":"turn.completed","usage":{"input_tokens":3,"output_tokens":2}}'
+`)
+	var streamed strings.Builder
+	res, err := codexRunner{}.Run(context.Background(), RunRequest{Bin: bin, WorkDir: t.TempDir(), Prompt: "hi"}, func(ev Event) { streamed.WriteString(ev.Text) })
+	if err != nil || res.Text != "Full answer\nVERDICT: OK" || res.Notice != "" || strings.Contains(streamed.String(), "dừng giữa chừng") {
+		t.Fatalf("res = %+v err = %v streamed = %q: a reconnect is not a cut", res, err, streamed.String())
+	}
+}
+
+// A review Codex wrote in full then a turn.failed: the note went into the
+// text after "VERDICT: OK", so the workflow read no verdict. The note stays
+// out of what a role, a Burn task or a tool reads.
+func TestCodexCutNoteKeepsVerdictLast(t *testing.T) {
+	bin, _ := codexBin(t, `echo '{"type":"thread.started","thread_id":"s1"}'
+printf '%s\n' '{"type":"item.completed","item":{"type":"agent_message","text":"Review\nVERDICT: OK"}}'
+echo '{"type":"turn.failed","error":{"message":"stream disconnected before completion"}}'
+exit 1
+`)
+	res, err := codexRunner{}.Run(context.Background(), RunRequest{Bin: bin, WorkDir: t.TempDir(), Prompt: "hi"}, func(Event) {})
+	if err != nil || res.Notice == "" {
+		t.Fatalf("res = %+v err = %v", res, err)
+	}
+	for _, c := range []string{res.Text, answerContent(res, false)} {
+		lines := strings.Split(strings.TrimSpace(c), "\n")
+		if lines[len(lines)-1] != "VERDICT: OK" {
+			t.Fatalf("last line = %q, want the verdict", lines[len(lines)-1])
+		}
+	}
+}
+
+// Once Codex has a thread it runs: an MCP server of its config that cannot
+// start ("spawn npx ENOENT") must not mark the connection broken.
+func TestCodexMCPSpawnErrorIsNotBroken(t *testing.T) {
+	bin, _ := codexBin(t, `echo '{"type":"thread.started","thread_id":"s1"}'
+echo "ERROR rmcp: MCP client for docs failed to start: spawn npx ENOENT" >&2
+exit 1
+`)
+	_, err := codexRunner{}.Run(context.Background(), RunRequest{Bin: bin, WorkDir: t.TempDir(), Prompt: "hi"}, func(Event) {})
+	if err == nil || errors.Is(err, llm.ErrCLIBroken) || connectionBroken(err) {
+		t.Fatalf("err = %v: an MCP server's ENOENT is not a broken Codex", err)
+	}
+}
+
+// A run whose worktree was removed under it: the start fails with ENOENT,
+// and the connection was marked broken, its fallback put first.
+func TestStartErrorMissingDirIsNotBroken(t *testing.T) {
+	bin, _ := codexBin(t, `echo '{"type":"thread.started","thread_id":"s1"}'
+`)
+	gone := filepath.Join(t.TempDir(), "worktree-removed")
+	_, err := codexRunner{}.Run(context.Background(), RunRequest{Bin: bin, WorkDir: gone, Prompt: "hi"}, func(Event) {})
+	if err == nil || errors.Is(err, llm.ErrCLIBroken) || connectionBroken(err) || !strings.Contains(err.Error(), "worktree-removed") {
+		t.Fatalf("err = %v: a missing folder is not a broken CLI", err)
+	}
+	// the binary gone, its folder there: still a broken CLI
+	_, err = codexRunner{}.Run(context.Background(), RunRequest{Bin: filepath.Join(t.TempDir(), "codex"), WorkDir: t.TempDir(), Prompt: "hi"}, func(Event) {})
+	if !errors.Is(err, llm.ErrCLIBroken) {
+		t.Fatalf("missing binary: err = %v, want ErrCLIBroken", err)
+	}
+}
+
+// Gemini's npm wrapper ran and its native part did not: the error was a
+// plain one, so the connection was never marked broken.
+func TestGeminiHealthBrokenInstall(t *testing.T) {
+	dir := t.TempDir()
+	bin := filepath.Join(dir, "gemini")
+	fakebin.Write(bin, []byte(`#!/bin/sh
+cat >/dev/null
+echo "Error: Cannot find module '/x/node_modules/@google/gemini-cli/dist/index.js'" >&2
+echo "    at Module._resolveFilename (node:internal/modules/cjs/loader:1140:15)" >&2
+exit 1
+`))
+	_, err := geminiRunner{}.Run(context.Background(), RunRequest{Bin: bin, WorkDir: dir, Prompt: "hi"}, func(Event) {})
+	if !errors.Is(err, llm.ErrCLIBroken) || !connectionBroken(err) || !strings.Contains(err.Error(), "npm install -g @google/gemini-cli") {
+		t.Fatalf("err = %v, want ErrCLIBroken with the fix", err)
+	}
+	// it started (init), then failed on its own: a plain error
+	fakebin.Write(bin, []byte(`#!/bin/sh
+cat >/dev/null
+echo '{"type":"init","session_id":"s1"}'
+echo "command not found: rg" >&2
+exit 1
+`))
+	if _, err := (geminiRunner{}).Run(context.Background(), RunRequest{Bin: bin, WorkDir: dir, Prompt: "hi"}, func(Event) {}); err == nil || errors.Is(err, llm.ErrCLIBroken) {
+		t.Fatalf("err = %v: a started Gemini is not a broken install", err)
 	}
 }
 

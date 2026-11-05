@@ -143,6 +143,34 @@ func TestWaitMergedDepsOnlyShortCap(t *testing.T) {
 	}
 }
 
+// A merged diff whose install card could not be made (its package folder
+// gone from the project) was only logged: the chat said nothing, the project
+// kept its old libraries, and "Cài lại" answered "no dependency changed".
+func TestProposeDepsFailureTold(t *testing.T) {
+	e, st, p, own, pat := depsChat(t)
+	ctx := context.Background()
+	pat.Files = []string{"web/pnpm-lock.yaml", "gone/pnpm-lock.yaml"}
+	pat.Diff = ""
+	acts, err := e.proposeDeps(ctx, p, pat)
+	if len(acts) != 1 || acts[0].Target != "web (pnpm)" {
+		t.Fatalf("cards = %+v: the other package still gets its card", acts)
+	}
+	if err == nil || !strings.Contains(err.Error(), "gone") {
+		t.Fatalf("err = %v, want why gone's card failed", err)
+	}
+	if countNotes(t, st, own.ID, "Không tạo được thẻ cài thư viện cho gone") != 1 {
+		t.Fatal("the chat is not told")
+	}
+	// none could be made: "Cài lại" says why, not ErrNoDeps
+	only, err := st.Chat().AddPatch(ctx, storage.Patch{ConversationID: own.ID, MessageID: pat.MessageID, Files: []string{"gone/pnpm-lock.yaml"}, Status: "applied"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := e.InstallDeps(ctx, only.ID); err == nil || err == ErrNoDeps || !strings.Contains(err.Error(), "gone") {
+		t.Fatalf("install again = %v", err)
+	}
+}
+
 // A merged diff that only changes a package.json's scripts installs
 // nothing: no card on the diff, no install card, nothing for a check to wait on.
 func TestProposeDepsSkipsScriptsOnlyDiff(t *testing.T) {

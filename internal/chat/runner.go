@@ -182,6 +182,20 @@ type RunResult struct {
 	Tools     []storage.ToolCall
 	Limits    *Limits    // subscription usage windows, when the provider reports them
 	Context   ContextUse // the context after this turn (0 = unknown)
+	// Notice is a line about the answer, not part of it (Codex stopped
+	// writing it): a person's chat shows it under the answer; a workflow
+	// role, a Burn task or a tool reads Text alone, its VERDICT line last.
+	Notice string
+}
+
+// answerContent is the stored answer: in a person's own chat (plain) the
+// run's Notice goes under it, in italics; anywhere else the answer alone, so
+// whatever reads its last line (a role's VERDICT) reads the answer's.
+func answerContent(res RunResult, plain bool) string {
+	if !plain || res.Notice == "" {
+		return res.Text
+	}
+	return res.Text + "\n\n_" + res.Notice + "_"
 }
 
 // Runner executes a turn on one kind of provider.

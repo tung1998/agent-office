@@ -1564,8 +1564,10 @@ func (e *Engine) run(ctx context.Context, turn *Turn, conv storage.Conversation,
 		fail(runErr)
 		return
 	}
+	plain := conv.Purpose == "" && conv.TaskID == "" && !turn.background &&
+		turn.wfRun == "" && turn.wfRole == "" && turn.wfStep == "" && !turn.wfWatch
 	msg, err := e.store.Chat().AddMessage(context.Background(), storage.Message{
-		ConversationID: conv.ID, Role: "assistant", Content: res.Text, Tools: res.Tools, RunID: runID, Author: agent.Name, AgentID: agent.ID,
+		ConversationID: conv.ID, Role: "assistant", Content: answerContent(res, plain), Tools: res.Tools, RunID: runID, Author: agent.Name, AgentID: agent.ID,
 		Provider: p.Name, Model: model,
 	})
 	if err != nil {
@@ -2119,7 +2121,7 @@ func (e *Engine) DecidePatch(ctx context.Context, patchID string, approve bool) 
 	// waiting for the merge do not wait for it any more (ADR-189)
 	e.dropHeldFor(ctx, p, status, detail, who, now)
 	if status == "applied" { // its dependencies follow it into the project (ADR-251)
-		e.proposeDeps(ctx, project, p)
+		_, _ = e.proposeDeps(ctx, project, p) // a card it could not make is told in the chat
 	}
 	return withDeps(toPatchDTO(p), p, project.Path), nil
 }

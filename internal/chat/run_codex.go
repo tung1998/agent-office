@@ -146,13 +146,14 @@ func (codexRunner) run(ctx context.Context, req RunRequest, emit func(Event)) (R
 		return RunResult{}, err
 	}
 	if err := cmd.Start(); err != nil {
-		return RunResult{}, llm.StartError(bin, err)
+		return RunResult{}, llm.StartErrorIn(bin, cmd.Dir, err)
 	}
 	defer proctrack.Track(ctx, cmd.Process.Pid)()
 	res := RunResult{}
 	res.Usage.Model = req.Model
 	var answer []string
-	var failed []string // turn.failed / error lines: why a run that answered nothing failed
+	var failed []string     // turn.failed / error lines: why a run that answered nothing failed
+	var turnFailed []string // turn.failed alone: an "error" is also a reconnect it got over
 	sc := bufio.NewScanner(quiet.out(out))
 	sc.Buffer(make([]byte, 1<<20), 16<<20)
 	for sc.Scan() {
@@ -176,6 +177,9 @@ func (codexRunner) run(ctx context.Context, req RunRequest, emit func(Event)) (R
 		}
 		if ev.Type == "turn.failed" || ev.Type == "error" {
 			failed = append(failed, sc.Text())
+			if ev.Type == "turn.failed" {
+				turnFailed = append(turnFailed, sc.Text())
+			}
 		}
 		switch {
 		case ev.Type == "thread.started" && ev.ThreadID != "":
@@ -217,12 +221,13 @@ func (codexRunner) run(ctx context.Context, req RunRequest, emit func(Event)) (R
 	}
 	if res.Text != "" {
 		// it answered, then the turn failed (quota, a dropped stream): the
-		// answer is cut short, so say so under it, and a quota it ran out of
-		// still holds the connection back until its reset
-		if msg := llm.CodexFailure(strings.Join(failed, "\n")); msg != "" {
-			note := "\n\n_" + codexCutNote(truncate(msg, 300)) + "_"
-			res.Text += note
-			emit(Event{Type: "text", Text: note})
+		// answer is cut short, so say so beside it (Notice: Text stays the
+		// answer, its VERDICT line last), and a quota it ran out of still
+		// holds the connection back until its reset. An "error" event alone
+		// is a reconnect ("Reconnecting... 1/5") Codex got over.
+		if msg := llm.CodexFailure(strings.Join(turnFailed, "\n")); msg != "" {
+			res.Notice = codexCutNote(truncate(msg, 300))
+			emit(Event{Type: "status", Text: res.Notice})
 			if l := limitsFromError(res.Limits, errors.New(msg), time.Now()); l != nil {
 				res.Limits = l
 			}
@@ -246,7 +251,10 @@ func (codexRunner) run(ctx context.Context, req RunRequest, emit func(Event)) (R
 			llm.MarkCodexRejected(home)
 			return res, fmt.Errorf("%w: phiên Codex bị từ chối (%s), hãy bấm Đăng nhập ở Kết nối AI để ký lại", llm.ErrNeedsLogin, truncate(msg, 200))
 		}
-		if llm.CLIBroken(msg) { // npm's wrapper started, its native binary did not
+		// npm's wrapper started, its native binary did not: no thread yet. Once
+		// Codex has a thread it runs; an MCP server's "spawn npx ENOENT" or a
+		// command's "command not found" in its stderr is not its install.
+		if res.SessionID == "" && llm.CLIBroken(msg) {
 			return res, llm.CLIBrokenError(bin, msg)
 		}
 		return res, fmt.Errorf("codex: %s", truncate(msg, 500))

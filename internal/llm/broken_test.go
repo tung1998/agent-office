@@ -3,6 +3,7 @@ package llm
 import (
 	"context"
 	"errors"
+	"io/fs"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -41,5 +42,26 @@ exit 1
 	fakebin.Write(bin, []byte("#!/bin/sh\necho 'model not supported' >&2\nexit 2\n"))
 	if _, err := run(context.Background(), bin, "", "exec"); err == nil || errors.Is(err, ErrCLIBroken) {
 		t.Fatalf("err = %v: a failed run is not ErrCLIBroken", err)
+	}
+	// it started and wrote its output; an MCP server it spawns is missing
+	fakebin.Write(bin, []byte("#!/bin/sh\necho '{\"type\":\"thread.started\"}'\necho 'spawn npx ENOENT' >&2\nexit 1\n"))
+	if _, err := run(context.Background(), bin, "", "exec"); err == nil || errors.Is(err, ErrCLIBroken) {
+		t.Fatalf("err = %v: a CLI that wrote output started", err)
+	}
+}
+
+// A run's folder that is gone fails the start with ENOENT too: the run's
+// problem, not a broken CLI.
+func TestStartErrorMissingDir(t *testing.T) {
+	gone := filepath.Join(t.TempDir(), "gone")
+	err := StartErrorIn("codex", gone, &fs.PathError{Op: "fork/exec", Path: "/bin/codex", Err: fs.ErrNotExist})
+	if err == nil || errors.Is(err, ErrCLIBroken) || !strings.Contains(err.Error(), gone) {
+		t.Fatalf("err = %v", err)
+	}
+	if err := StartError("codex", &fs.PathError{Op: "chdir", Path: gone, Err: fs.ErrNotExist}); errors.Is(err, ErrCLIBroken) {
+		t.Fatalf("chdir: err = %v", err)
+	}
+	if err := StartErrorIn("codex", t.TempDir(), &fs.PathError{Op: "fork/exec", Path: "/bin/codex", Err: fs.ErrNotExist}); !errors.Is(err, ErrCLIBroken) {
+		t.Fatalf("binary gone, folder there: err = %v, want ErrCLIBroken", err)
 	}
 }
