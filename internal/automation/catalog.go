@@ -60,6 +60,8 @@ func Catalog() []MCPTemplate {
 	fsCfg := stdio("npx", "-y", "@modelcontextprotocol/server-filesystem", "{{DIR}}")
 	braveCfg := stdio("npx", "-y", "@brave/brave-search-mcp-server")
 	braveCfg["env"] = map[string]any{"BRAVE_API_KEY": "{{BRAVE_API_KEY}}"}
+	perplexityCfg := stdio("npx", "-y", "@perplexity-ai/mcp-server")
+	perplexityCfg["env"] = map[string]any{"PERPLEXITY_API_KEY": "{{PERPLEXITY_API_KEY}}"}
 	list := []MCPTemplate{
 		{ID: "context7", Name: "context7", Title: "Context7", Category: "Tài liệu", Description: "Tài liệu thư viện/framework mới nhất cho agent.", Homepage: "https://github.com/upstash/context7", Config: stdio("npx", "-y", "@upstash/context7-mcp")},
 		{ID: "playwright", Name: "playwright", Title: "Playwright", Category: "Trình duyệt", Description: "Điều khiển trình duyệt: mở trang, click, chụp ảnh, kiểm thử UI.", Homepage: "https://github.com/microsoft/playwright-mcp", Config: stdio("npx", "@playwright/mcp@latest")},
@@ -80,6 +82,14 @@ func Catalog() []MCPTemplate {
 		{ID: "time", Name: "time", Title: "Time", Category: "Tiện ích", Description: "Tra múi giờ và chuyển đổi thời gian để lịch, webhook và báo cáo không lệch timezone.", Homepage: "https://github.com/modelcontextprotocol/servers/tree/main/src/time", Config: stdio("npx", "-y", "@modelcontextprotocol/server-time")},
 		{ID: "brave-search", Name: "brave-search", Title: "Brave Search", Category: "Tìm kiếm", Description: "Tìm kiếm web và tin tức qua Brave Search cho research, monitoring và knowledge work.", Homepage: "https://github.com/brave/brave-search-mcp-server", Config: braveCfg,
 			Inputs: []Input{{Key: "BRAVE_API_KEY", Label: "Brave Search API key", Kind: "env", Secret: true, Required: true}}},
+		{ID: "slack", Name: "slack", Title: "Slack", Category: "Giao tiếp", Description: "Đọc/gửi tin nhắn, tìm kiếm kênh và lịch sử Slack.", Homepage: "https://mcp.slack.com/mcp", Config: httpMCP("https://mcp.slack.com/mcp"), Auth: "oauth"},
+		{ID: "granola", Name: "granola", Title: "Granola", Category: "Ghi chú cuộc họp", Description: "Tra cứu ghi chú và transcript các cuộc họp đã ghi trong Granola.", Homepage: "https://docs.granola.ai/help-center/sharing/integrations/mcp", Config: httpMCP("https://mcp.granola.ai/mcp"), Auth: "oauth"},
+		{ID: "zapier", Name: "zapier", Title: "Zapier", Category: "Tự động hóa", Description: "Gọi hơn 9000 app qua Zapier (Zap, action) từ agent.", Homepage: "https://docs.zapier.com/mcp", Config: httpMCP("{{ZAPIER_MCP_URL}}"),
+			Inputs: []Input{{Key: "ZAPIER_MCP_URL", Label: "URL MCP server Zapier", Kind: "arg", Required: true, Hint: "Đăng nhập mcp.zapier.com, tạo server rồi dán URL riêng (kèm key) vào đây"}}},
+		{ID: "perplexity", Name: "perplexity", Title: "Perplexity", Category: "Tìm kiếm", Description: "Tìm kiếm web, hỏi đáp và nghiên cứu sâu qua Perplexity API.", Homepage: "https://docs.perplexity.ai/guides/mcp-server", Config: perplexityCfg,
+			Inputs: []Input{{Key: "PERPLEXITY_API_KEY", Label: "Perplexity API key", Kind: "env", Secret: true, Required: true}}},
+		{ID: "higgsfield", Name: "higgsfield", Title: "Higgsfield", Category: "Sáng tạo nội dung", Description: "Tạo ảnh/video AI qua các model của Higgsfield (Soul, Flux, Kling, Veo...).", Homepage: "https://higgsfield.ai/mcp", Config: httpMCP("https://mcp.higgsfield.ai/mcp"), Auth: "oauth"},
+		{ID: "kondo", Name: "kondo", Title: "Kondo", Category: "Năng suất", Description: "Dọn và tổ chức tab, ghi chú trình duyệt qua Kondo.", Homepage: "https://docs.trykondo.com/mcp-setup", Config: httpMCP("https://relay.trykondo.com/mcp"), Auth: "oauth"},
 	}
 	for i := range list {
 		list[i].Source = "catalog"
