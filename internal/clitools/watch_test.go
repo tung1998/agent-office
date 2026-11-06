@@ -26,13 +26,21 @@ func registry(t *testing.T, versions map[string]string) *httptest.Server {
 type memSetting struct {
 	s    AutoSetting
 	told []string
+	fail int // the next sends that fail
 }
 
 func (x *memSetting) hooks() WatchHooks {
 	return WatchHooks{
-		Load:   func(context.Context) AutoSetting { return x.s },
-		Save:   func(_ context.Context, s AutoSetting) { x.s = s },
-		Notify: func(_ context.Context, text string) { x.told = append(x.told, text) },
+		Load: func(context.Context) AutoSetting { return x.s },
+		Save: func(_ context.Context, s AutoSetting) { x.s = s },
+		Notify: func(_ context.Context, text string) bool {
+			if x.fail > 0 {
+				x.fail--
+				return false
+			}
+			x.told = append(x.told, text)
+			return true
+		},
 	}
 }
 
@@ -162,5 +170,27 @@ func TestWatchAutoAfterNotify(t *testing.T) {
 	m2.WatchOnce(ctx, y.hooks())
 	if _, ok := m2.Upgrade("codex"); ok || len(y.told) != 1 {
 		t.Fatalf("a put-back version was updated to again; told %q", y.told)
+	}
+}
+
+// A notice the bot failed to send is not marked told: it goes on the next
+// look, and once sent it is not told again.
+func TestWatchRetriesAFailedSend(t *testing.T) {
+	m, dir := testManager(t)
+	m.registry = registry(t, map[string]string{"@google/gemini-cli": "0.67.0"}).URL
+	npmTool(t, dir, "gemini", "@google/gemini-cli", "0.66.0")
+	x := &memSetting{fail: 1}
+	ctx := context.Background()
+	m.WatchOnce(ctx, x.hooks())
+	if len(x.told) != 0 || x.s.Told["gemini"] != "" {
+		t.Fatalf("a failed send was marked told: %+v", x.s)
+	}
+	m.WatchOnce(ctx, x.hooks())
+	if len(x.told) != 1 || x.s.Told["gemini"] != "0.67.0" {
+		t.Fatalf("not told after the failure: %q %+v", x.told, x.s)
+	}
+	m.WatchOnce(ctx, x.hooks())
+	if len(x.told) != 1 {
+		t.Fatalf("told again after it went: %q", x.told)
 	}
 }

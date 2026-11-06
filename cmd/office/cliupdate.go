@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -121,7 +122,7 @@ func (c cliUpdates) recheck(ctx context.Context, tool string) string {
 		// only the connections that run this install: one pointed at a
 		// binary of its own (a path in BaseURL) neither tells about it nor
 		// makes it go back
-		if p.Kind != kind || !runsInstall(c.providers.CLIBin(p), shared) {
+		if p.Kind != kind || !c.runsInstall(c.providers.CLIBin(p), shared) {
 			continue
 		}
 		res, err := c.providers.Test(ctx, p.ID, "", "")
@@ -146,13 +147,20 @@ func samePath(p string) string {
 	return filepath.Clean(p)
 }
 
-// runsInstall: a connection's command (a bare name is found on PATH, as the
-// updated install is) is the install at shared.
-func runsInstall(bin, shared string) bool {
-	if !filepath.IsAbs(bin) {
-		return true
+// runsInstall: a connection's command is the install at shared. A bare
+// name is looked up on PATH the way runs find it (another command, e.g.
+// claude-old, is another install); a relative path depends on the run's
+// folder, so it cannot be told to be this install and is not counted.
+func (c cliUpdates) runsInstall(bin, shared string) bool {
+	switch {
+	case shared == "" || bin == "":
+		return false
+	case filepath.IsAbs(bin):
+		return samePath(bin) == shared
+	case strings.ContainsRune(bin, filepath.Separator):
+		return false
 	}
-	return shared != "" && samePath(bin) == shared
+	return samePath(c.m.LookPath(bin)) == shared
 }
 
 // installBroken: a check's failure says the CLI itself cannot start.
@@ -160,16 +168,21 @@ func installBroken(detail string) bool {
 	return strings.Contains(detail, llm.ErrCLIBroken.Error()) || llm.CLIBroken(detail)
 }
 
-// tell sends text to the chat the admin picked for alerts (Kết nối AI),
-// nowhere when none is.
-func (c cliUpdates) tell(ctx context.Context, text string) {
+// tell sends text to the chat the admin picked for alerts (Kết nối AI); it
+// says whether it went (none picked, or the bot failing: not sent, so the
+// watch tells it again on its next look).
+func (c cliUpdates) tell(ctx context.Context, text string) bool {
 	s := limitalert.Load(ctx, c.store)
 	if s.ChannelID == "" || s.ChatID == "" || c.notify == nil {
-		return
+		return false
 	}
 	ctx, cancel := context.WithTimeout(ctx, 20*time.Second)
 	defer cancel()
-	_ = c.notify(ctx, s.ChannelID, s.ChatID, text)
+	if err := c.notify(ctx, s.ChannelID, s.ChatID, text); err != nil {
+		slog.Warn("cli update: tell", "err", err)
+		return false
+	}
+	return true
 }
 
 // ended tells how an update ended (not one a person cancelled).

@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -155,5 +156,67 @@ func TestCLIRecheckOnlyTheUpdatedInstall(t *testing.T) {
 	_ = os.WriteFile(filepath.Join(shared, "claude"), []byte(broken), 0o755)
 	if why := cu.recheck(ctx, "claude"); why == "" {
 		t.Fatal("the updated install broken was not reported")
+	}
+}
+
+// A connection's command is the updated install only when it resolves to it:
+// another command name on PATH (claude-old) or a relative path is not.
+func TestRunsInstallResolvesTheCommand(t *testing.T) {
+	dir := t.TempDir()
+	script := []byte("#!/bin/sh\necho 1.0.0\n")
+	for _, n := range []string{"claude", "claude-old"} {
+		if err := os.WriteFile(filepath.Join(dir, n), script, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.Symlink(filepath.Join(dir, "claude"), filepath.Join(dir, "claude-link")); err != nil {
+		t.Fatal(err)
+	}
+	cu := cliUpdates{m: clitools.NewManagerWithPath(dir)}
+	shared := samePath(cu.m.LookPath("claude"))
+	cases := map[string]bool{
+		"claude":                         true, // found on PATH: the install
+		"claude-link":                    true, // a link to it
+		filepath.Join(dir, "claude"):     true,
+		"claude-old":                     false, // another command
+		filepath.Join(dir, "claude-old"): false,
+		"./tools/claude":                 false, // relative: cannot be told
+		filepath.Join("tools", "claude"): false,
+		"claude-missing":                 false,
+		"":                               false,
+	}
+	for bin, want := range cases {
+		if got := cu.runsInstall(bin, shared); got != want {
+			t.Errorf("runsInstall(%q) = %v, want %v", bin, got, want)
+		}
+	}
+}
+
+// tell says whether the text went: none picked or a bot failing is not sent.
+func TestTellSaysWhetherItWent(t *testing.T) {
+	ctx := context.Background()
+	st, err := sqlite.Open(filepath.Join(t.TempDir(), "o.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	_ = st.Migrate(ctx)
+	fail := true
+	cu := cliUpdates{store: st, notify: func(context.Context, string, string, string) error {
+		if fail {
+			return errors.New("bot offline")
+		}
+		return nil
+	}}
+	if cu.tell(ctx, "x") {
+		t.Fatal("sent with no alert chat")
+	}
+	_ = limitalert.Save(ctx, st, limitalert.Settings{ChannelID: "chn_1", ChatID: "42"})
+	if cu.tell(ctx, "x") {
+		t.Fatal("a failed send counted as sent")
+	}
+	fail = false
+	if !cu.tell(ctx, "x") {
+		t.Fatal("a send that went counted as not sent")
 	}
 }

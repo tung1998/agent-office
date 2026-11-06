@@ -50,9 +50,11 @@ const AutoBy = "tự cập nhật"
 
 // WatchHooks is what Watch reads and tells.
 type WatchHooks struct {
-	Load   func(ctx context.Context) AutoSetting
-	Save   func(ctx context.Context, s AutoSetting)
-	Notify func(ctx context.Context, text string)
+	Load func(ctx context.Context) AutoSetting
+	Save func(ctx context.Context, s AutoSetting)
+	// Notify sends a text; false = not sent (no alert chat, the bot
+	// failing): it is told again on the next look
+	Notify func(ctx context.Context, text string) bool
 }
 
 // Notice is what one look at tool found to tell or do: a newer version, or
@@ -164,8 +166,8 @@ func (m *Manager) WatchOnce(ctx context.Context, h WatchHooks) {
 			_, err := m.UpdateWhenIdle(n.Tool, AutoBy)
 			updating = err == nil
 		}
-		if n.Tell && h.Notify != nil {
-			h.Notify(ctx, n.Text(updating))
+		if n.Tell && (h.Notify == nil || !h.Notify(ctx, n.Text(updating))) {
+			continue // marked told only once it went
 		}
 		s.Told[n.Tool] = n.Key
 	}
