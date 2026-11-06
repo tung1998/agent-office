@@ -133,8 +133,9 @@ func (r *Runner) pursue(ctx, actx context.Context, a storage.Automation, j stora
 		if err := r.store.Jobs().SetGoalRounds(ctx, j.ID, round+1); err != nil {
 			return conv, reply, run, err
 		}
+		note := r.goalReflect(actx, a, j, g, fb)
 		text := prompts.Render("trigger/goal-again", map[string]any{"Round": round + 1, "Max": most, "Goal": goalText(g),
-			"Check": g.Check, "Exit": fb.exit, "Output": fb.output, "Judge": fb.judge})
+			"Check": g.Check, "Exit": fb.exit, "Output": fb.output, "Judge": fb.judge, "Note": note})
 		got, answer, err := r.exec.RunChat(actx, a.ProjectID, a.AgentID, conv, text, a.EditMode)
 		if got != "" {
 			conv = got
@@ -302,6 +303,42 @@ func (r *Runner) goalJudge(actx context.Context, a storage.Automation, j storage
 		_, _ = r.store.Jobs().Finish(actx, child.ID, status, code, msg, r.now().UTC())
 	}
 	return said, err
+}
+
+// goalReflect turns a round's raw feedback (fb) into a short "why not met,
+// what to change" note for the next round's prompt, closer to Reflexion
+// (arXiv:2303.11366) than passing the raw output along untouched. Only a goal
+// with its own judge pays for this extra call ("" otherwise, or on any
+// failure: the raw feedback still reaches the next round on its own).
+func (r *Runner) goalReflect(actx context.Context, a storage.Automation, j storage.Job, g *storage.AutomationGoal, fb feedback) string {
+	if !g.Judge || fb.output == "" && fb.judge == "" {
+		return ""
+	}
+	jd, ok := r.exec.(Judger)
+	if !ok {
+		return ""
+	}
+	now := r.now().UTC()
+	child, err := r.store.Jobs().Create(actx, storage.Job{ProjectID: a.ProjectID, Kind: "chat_turn", Origin: "automation", OriginID: a.ID, Trigger: j.Trigger,
+		Status: "running", StartedAt: &now, ParentJobID: j.ID, Title: a.Name + " · rút bài học mục tiêu", AgentID: a.AgentID, ExtraDirs: j.ExtraDirs})
+	if err != nil {
+		return ""
+	}
+	text := prompts.Render("trigger/goal-reflect", map[string]any{"Automation": a.Name, "Goal": goalText(g), "Check": g.Check,
+		"Exit": fb.exit, "Output": fb.output, "Judge": fb.judge})
+	jctx := WithTags(WithFollowUp(WithProgress(usage.WithJob(actx, child.ID), nil), nil), nil)
+	said, err := jd.Judge(WithCeiling(jctx, perm.Read), a.ProjectID, a.AgentID, text)
+	if cur, gerr := r.store.Jobs().Get(actx, child.ID); gerr == nil && (cur.Status == "running" || cur.Status == "pending") {
+		status, code, msg := "done", "", ""
+		if err != nil {
+			status, code, msg = "failed", "agent_error", err.Error()
+		}
+		_, _ = r.store.Jobs().Finish(actx, child.ID, status, code, msg, r.now().UTC())
+	}
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(said)
 }
 
 // truncateTail keeps the last n bytes of s (a cut rune at the start dropped).

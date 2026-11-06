@@ -81,6 +81,48 @@ func TestGoalCheckThenPasses(t *testing.T) {
 	}
 }
 
+// A goal with its own judge gets a short reflection note ("lesson") built
+// from a failed round's feedback before the next round, instead of just the
+// raw judge text (ADR-132 follow-up, closer to Reflexion).
+func TestGoalJudgeReflectsBeforeNextRound(t *testing.T) {
+	st, p := openStore(t)
+	ex := &goalExec{dir: p.Path, verdicts: []string{
+		"VERDICT: DISAGREE\nchưa xong việc X",
+		"nên làm Y trước khi thử lại",
+		"VERDICT: AGREE\nxong rồi",
+	}}
+	r := trigger.New(st, ex)
+	a := goalAutomation(t, st, p, storage.AutomationGoal{Judge: true, Text: "làm xong việc X"})
+	runOnce(t, r, st, a, "")
+	if len(ex.prompts) != 2 || !strings.Contains(ex.prompts[1], "Lesson from last round: nên làm Y trước khi thử lại") {
+		t.Fatalf("prompts = %q", ex.prompts)
+	}
+	if len(ex.judged) != 3 {
+		t.Fatalf("judge calls = %d, want 3 (round1 judge, reflect, round2 judge)", len(ex.judged))
+	}
+	for _, c := range ex.judged {
+		if c != "read" {
+			t.Fatalf("judge/reflect must run read-only, got ceiling %q", c)
+		}
+	}
+}
+
+// A goal with only a check command (no judge) never pays for a reflection
+// call: the check's own output is feedback enough.
+func TestGoalCheckOnlyNoReflectCall(t *testing.T) {
+	st, p := openStore(t)
+	ex := &goalExec{dir: p.Path, doneAt: 2}
+	r := trigger.New(st, ex)
+	a := goalAutomation(t, st, p, storage.AutomationGoal{Check: "test -f done || { echo 'chưa có file done'; exit 3; }"})
+	runOnce(t, r, st, a, "")
+	if len(ex.judged) != 0 {
+		t.Fatalf("a check-only goal must not call the judge/reflect agent, got %d calls", len(ex.judged))
+	}
+	if !strings.Contains(ex.prompts[1], "chưa có file done") {
+		t.Fatalf("prompts = %q", ex.prompts)
+	}
+}
+
 // A goal's run cut off by a restart and put back goes on with the round it
 // was cut in: its rounds are counted once, not again from 1 (ADR-258).
 func TestResumedGoalKeepsRounds(t *testing.T) {
