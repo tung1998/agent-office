@@ -172,6 +172,10 @@ func (r automationRepo) Reenable(ctx context.Context, id string, nextRunAt *time
 		optTime(nextRunAt), fmtTime(time.Now()), id)
 }
 
+func (r automationRepo) DisabledWith(ctx context.Context, code string) ([]storage.Automation, error) {
+	return r.list(ctx, `SELECT `+automationCols+` FROM automations WHERE enabled=0 AND disabled_code=? ORDER BY created_at`, code)
+}
+
 func (r automationRepo) Delete(ctx context.Context, id string) error {
 	return execOne(ctx, r.db, `DELETE FROM automations WHERE id=?`, id)
 }

@@ -299,3 +299,33 @@ func TestJobReopen(t *testing.T) {
 		t.Fatalf("Reopen a done job = %v", err)
 	}
 }
+
+// An automation's cost counts its own jobs, those of its tree (a workflow
+// step it started), and what a job still running spent so far; not another
+// automation's nor yesterday's (ADR-263).
+func TestCostSinceCountsTree(t *testing.T) {
+	ctx := context.Background()
+	st, p := openStore(t)
+	now := time.Now().UTC()
+	day := now.Add(-time.Hour)
+	mk := func(j storage.Job) storage.Job {
+		j.ProjectID, j.Kind, j.StartedAt = p.ID, "chat_turn", &now
+		got, err := st.Jobs().Create(ctx, j)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return got
+	}
+	mk(storage.Job{Origin: "automation", OriginID: "aut_a", Status: "done", CostUSD: 1})
+	mk(storage.Job{Origin: "user", Status: "done", CostUSD: 2, RootJobID: "job_r", RootAutomationID: "aut_a"})
+	running := mk(storage.Job{Origin: "user", Status: "running", RootJobID: "job_r", RootAutomationID: "aut_a"})
+	c := 0.5
+	if _, err := st.Runs().Create(ctx, storage.Run{Kind: "chat", JobID: running.ID, ProjectID: p.ID, Status: "ok", CostUSD: &c, CreatedAt: now}); err != nil {
+		t.Fatal(err)
+	}
+	mk(storage.Job{Origin: "user", Status: "done", CostUSD: 7, RootJobID: "job_o", RootAutomationID: "aut_b"})
+	mk(storage.Job{Origin: "user", Status: "done", CostUSD: 9, RootAutomationID: "aut_a", CreatedAt: now.AddDate(0, 0, -1)})
+	if got, err := st.Jobs().CostSince(ctx, "automation", "aut_a", day); err != nil || got != 3.5 {
+		t.Fatalf("cost = %v %v, want 3.5", got, err)
+	}
+}

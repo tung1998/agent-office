@@ -261,6 +261,7 @@ type turnSpec struct {
 	board         string // a hand-off's work board task (ADR-210)
 	fixes         int    // turns opened so far to fix failed checks (ADR-222)
 	trusted       bool   // a turn of a trusted run (withTrustedRun)
+	from          string // the job of the turn it follows (a hand-off's, a report's): its tree and cap (ADR-263)
 }
 
 // startTurn starts an agent's answer; nil and why when it cannot: the agent
@@ -335,7 +336,7 @@ func (e *Engine) startTurn(conv storage.Conversation, project storage.Repo, s tu
 		release()
 		return nil, err.Error()
 	}
-	job, err := e.beginJob(runCtx, conv, s.agent.ID, truncate(s.title, 80))
+	job, err := e.beginJob(runCtx, conv, s.agent.ID, truncate(s.title, 80), s.from)
 	if err != nil {
 		release()
 		return nil, err.Error()
@@ -387,7 +388,7 @@ func (e *Engine) nextTurn(ctx context.Context, prev *Turn, conv storage.Conversa
 				notes = append(notes, fmt.Sprintf("Đã dừng giao việc cho %s: quá %d lượt agent giao việc cho nhau trong một tin nhắn. Hãy tag lại nếu cần.", d.agent.Name, most))
 				continue
 			}
-			spec := turnSpec{agent: d.agent, effort: d.effort, background: true, delegator: agent.ID, hops: hops + 1, actor: prev.actor, total: prev.total, tier: prev.tier, ceiling: prev.ceiling, tree: prev.tree, limit: prev.limit, board: d.board,
+			spec := turnSpec{from: prev.jobID(), agent: d.agent, effort: d.effort, background: true, delegator: agent.ID, hops: hops + 1, actor: prev.actor, total: prev.total, tier: prev.tier, ceiling: prev.ceiling, tree: prev.tree, limit: prev.limit, board: d.board,
 				title:  agent.Name + " → " + d.agent.Name,
 				prompt: prompts.Handoff{From: agent.Name, Task: d.task}.String()}
 			if e.waitFor(conv, project, spec) { // busy with an earlier hand-off here: this one goes once it is done
@@ -415,7 +416,7 @@ func (e *Engine) nextTurn(ctx context.Context, prev *Turn, conv storage.Conversa
 			if tier == "" && agents[i].ModelTier == storage.TierStrong && agents[i].LLMModel == "" {
 				tier = storage.TierBalanced
 			}
-			_, why := e.startTurn(conv, project, turnSpec{agent: agents[i], hops: hops, actor: prev.actor, total: prev.total, tier: tier, ceiling: prev.ceiling, tree: prev.tree, limit: prev.limit, report: true, title: agent.Name + " → " + agents[i].Name,
+			_, why := e.startTurn(conv, project, turnSpec{from: prev.jobID(), agent: agents[i], hops: hops, actor: prev.actor, total: prev.total, tier: tier, ceiling: prev.ceiling, tree: prev.tree, limit: prev.limit, report: true, title: agent.Name + " → " + agents[i].Name,
 				prompt: prompts.Handoff{Kind: "report", From: agent.Name}.String()})
 			e.note(conv, why)
 		}
@@ -423,7 +424,7 @@ func (e *Engine) nextTurn(ctx context.Context, prev *Turn, conv storage.Conversa
 	}
 	// its diff failed the checks before merging: it fixes that first (ADR-222)
 	if prev.held != "" && prev.fixes < maxCheckFixes && prev.err == "" && prev.wfRun == "" && prev.wfStep == "" && !prev.wfWatch {
-		next, why := e.startTurn(conv, project, turnSpec{agent: agent, queue: prev.queue, hops: hops, answered: prev.answered + 1, actor: prev.actor,
+		next, why := e.startTurn(conv, project, turnSpec{from: prev.jobID(), agent: agent, queue: prev.queue, hops: hops, answered: prev.answered + 1, actor: prev.actor,
 			replace: prev, total: prev.total, tier: prev.tier, ceiling: prev.ceiling, tree: prev.tree, limit: prev.limit, fixes: prev.fixes + 1,
 			title:  agent.Name + " → sửa cho qua kiểm tra",
 			prompt: prompts.Render("handoff/checks", map[string]any{"Failed": prev.held, "Last": prev.fixes+1 == maxCheckFixes})})
@@ -434,7 +435,7 @@ func (e *Engine) nextTurn(ctx context.Context, prev *Turn, conv storage.Conversa
 	}
 	// the next agent the person tagged; one that cannot answer is skipped with a note
 	for i, q := range prev.queue {
-		next, why := e.startTurn(conv, project, turnSpec{agent: q.agent, queue: prev.queue[i+1:], hops: hops, answered: prev.answered + 1, actor: prev.actor,
+		next, why := e.startTurn(conv, project, turnSpec{from: prev.jobID(), agent: q.agent, queue: prev.queue[i+1:], hops: hops, answered: prev.answered + 1, actor: prev.actor,
 			replace: prev, total: prev.total, tier: prev.tier, ceiling: prev.ceiling, tree: prev.tree, limit: prev.limit, title: q.from + " → " + q.agent.Name,
 			prompt: prompts.Handoff{Kind: "tagged", From: promptName(q.from)}.String()})
 		if next != nil {
@@ -482,7 +483,7 @@ func (e *Engine) nextWork(conv storage.Conversation, project storage.Repo, agent
 	if seen {
 		return ""
 	}
-	started, _ := e.startTurn(conv, project, turnSpec{agent: agent, actor: prev.actor, replace: prev, total: &atomic.Int32{}, tier: prev.tier, ceiling: prev.ceiling, tree: prev.tree, limit: prev.limit,
+	started, _ := e.startTurn(conv, project, turnSpec{from: prev.jobID(), agent: agent, actor: prev.actor, replace: prev, total: &atomic.Int32{}, tier: prev.tier, ceiling: prev.ceiling, tree: prev.tree, limit: prev.limit,
 		title:  agent.Name + " → việc tiếp theo",
 		prompt: prompts.Render("handoff/next", next)})
 	if started == nil {

@@ -101,6 +101,7 @@ export interface Automation {
   bot?: { has_token: boolean, allow: string[], refusal: string }
   bot_status?: { kind: 'telegram' | 'discord', bot_name: string, enabled: boolean, last_error: string, last_message_at: string | null, shared: number, state?: BotState }
   last_job: Job | null
+  spent_today?: number // what its runs cost today, workflow steps included: what its daily cap counts (ADR-263)
   created_at: string
   version?: string // what an edit is made from (409 when changed since)
   // ADR-074: permission override
@@ -423,4 +424,12 @@ export function mergeDraft(d: AutomationDraft, patch: Record<string, unknown>): 
     if (any) changed.push(k)
   }
   return changed
+}
+
+// spentToday: what an automation spent today against its daily cap ('' = no cap) (ADR-263)
+export function spentToday(a: Automation): { spent: string, cap: string, over: boolean } | null {
+  const cap = a.limits?.daily_cost_usd ?? 0
+  if (cap <= 0) return null
+  const spent = a.spent_today ?? 0
+  return { spent: spent.toFixed(2), cap: cap.toFixed(2), over: spent >= cap }
 }

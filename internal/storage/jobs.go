@@ -57,6 +57,30 @@ type Job struct {
 	// itself (nil = not planned); RetryN: which try in a row (ADR-260).
 	RetryAt *time.Time
 	RetryN  int
+	// RootJobID: the job that started the run this one is part of (a
+	// workflow step's or a hand-off's job: the automation's or the person's
+	// job that called it; "" = it is its own root). RootAutomationID: that
+	// root's automation, whose daily cap and reports count it (ADR-263).
+	RootJobID        string
+	RootAutomationID string
+}
+
+// Root is the job at the top of j's tree and its automation ("" = none).
+func (j Job) Root() (jobID, automationID string) {
+	if j.RootJobID != "" {
+		return j.RootJobID, j.RootAutomationID
+	}
+	if j.Origin == "automation" {
+		return j.ID, j.OriginID
+	}
+	return j.ID, ""
+}
+
+// Automation returns the automation j runs for: its own, or its root's (a
+// workflow step an automation started, ADR-263); "" = none.
+func (j Job) Automation() string {
+	_, a := j.Root()
+	return a
 }
 
 // SendsAs is who a run speaks for when it sends into another chat: the person
@@ -416,6 +440,36 @@ type AutomationLimits struct {
 	MaxMinutes int `json:"max_minutes,omitempty"`
 }
 
+// DayStart is the start of now's day where the automation keeps its time
+// (its time zone; UTC when it has none or one that does not load): the day
+// its daily cost cap counts.
+func (a Automation) DayStart(now time.Time) time.Time {
+	loc := time.UTC
+	if tz := a.Config.Timezone; tz != "" {
+		if l, err := time.LoadLocation(tz); err == nil {
+			loc = l
+		}
+	}
+	local := now.In(loc)
+	return time.Date(local.Year(), local.Month(), local.Day(), 0, 0, 0, 0, loc)
+}
+
+// SpentToday is what a's runs cost since its day began, steps and hand-offs
+// they started included (ADR-263).
+func (a Automation) SpentToday(ctx context.Context, jobs JobRepo, now time.Time) float64 {
+	spent, _ := jobs.CostSince(ctx, "automation", a.ID, a.DayStart(now))
+	return spent
+}
+
+// OverDailyCap: a has a daily cost cap and its runs reached it today.
+func (a Automation) OverDailyCap(ctx context.Context, jobs JobRepo, now time.Time) (spent float64, over bool) {
+	if a.Limits.DailyCostUSD <= 0 {
+		return 0, false
+	}
+	spent = a.SpentToday(ctx, jobs, now)
+	return spent, spent >= a.Limits.DailyCostUSD
+}
+
 // Parallel is how many runs of a may run at once: a kept conversation is
 // one chat, answered one turn at a time.
 func (a Automation) Parallel() int {
@@ -479,6 +533,8 @@ type AutomationRepo interface {
 	// fields (name, config, script, ...), so a concurrent edit in
 	// AutomationBuilder isn't overwritten by a stale read-modify-write.
 	Reenable(ctx context.Context, id string, nextRunAt *time.Time) error
+	// DisabledWith lists the automations turned off with that code.
+	DisabledWith(ctx context.Context, code string) ([]Automation, error)
 	// SetNextRun writes next_run_at only, so a schedule tick computing the
 	// next run doesn't clobber a concurrent admin edit to the rest of the row.
 	SetNextRun(ctx context.Context, id string, nextRunAt *time.Time) error

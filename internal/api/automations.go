@@ -82,6 +82,9 @@ type automationDTO struct {
 	// CommandTaken: its custom command bears a name the bot keeps for one of
 	// its own (made before that one was added): it never runs (ADR-258)
 	CommandTaken string `json:"command_taken,omitempty"`
+	// SpentToday: what its runs cost since its day began, the workflow steps
+	// and hand-offs they started included: what its daily cap counts (ADR-263)
+	SpentToday float64 `json:"spent_today"`
 }
 
 func (s *server) toAutomationDTO(r *http.Request, a storage.Automation) automationDTO {
@@ -135,6 +138,9 @@ func (s *server) toAutomationDTO(r *http.Request, a storage.Automation) automati
 		}
 		j := s.toJobDTO(r, last, nil)
 		d.LastJob = &j
+	}
+	if a.Action != "script" {
+		d.SpentToday = a.SpentToday(r.Context(), s.cfg.Store.Jobs(), time.Now())
 	}
 	return d
 }

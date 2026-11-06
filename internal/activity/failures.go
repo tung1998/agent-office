@@ -64,6 +64,17 @@ func failureDigest(ctx context.Context, st storage.Store, projectID string, days
 		if len(g.Providers) > 0 {
 			fmt.Fprintf(&b, "; connections: %s", strings.Join(g.Providers, ", "))
 		}
+		if len(g.AutomationIDs) > 0 { // whose runs they were, workflow steps included (ADR-263)
+			autos := make([]string, 0, len(g.AutomationIDs))
+			for _, id := range g.AutomationIDs {
+				n := id
+				if a, err := st.Automations().Get(ctx, id); err == nil {
+					n = a.Name
+				}
+				autos = append(autos, n)
+			}
+			fmt.Fprintf(&b, "; automations: %s", strings.Join(autos, ", "))
+		}
 		fmt.Fprintf(&b, "; first %s, last %s", g.First.Local().Format("01-02 15:04"), g.Last.Local().Format("01-02 15:04"))
 		if len(g.JobIDs) > 0 {
 			fmt.Fprintf(&b, "; jobs: %s", strings.Join(g.JobIDs, ", "))

@@ -151,6 +151,7 @@ func NextRun(c storage.AutomationConfig, now time.Time) (time.Time, error) {
 
 // Tick queues the schedules that are due, then starts what is ready.
 func (r *Runner) Tick(ctx context.Context, now time.Time) {
+	r.reopenCapped(ctx, now)
 	due, _ := r.store.Automations().Due(ctx, now)
 	for _, a := range due {
 		if end := a.Config.EndsAt; end != nil && !now.Before(*end) { // its stop time: it stops, as a Burn does (runs going on finish)
@@ -465,14 +466,12 @@ func (r *Runner) execute(ctx context.Context, j storage.Job) {
 				return
 			}
 		}
-		if a.Limits.DailyCostUSD > 0 {
-			local := now.In(loc)
-			day := time.Date(local.Year(), local.Month(), local.Day(), 0, 0, 0, 0, loc)
-			if spent, _ := r.store.Jobs().CostSince(ctx, "automation", a.ID, day); spent >= a.Limits.DailyCostUSD {
-				_ = r.store.Automations().Disable(ctx, a.ID, "daily_cost", "chạm trần chi phí trong ngày", a.NextRunAt)
-				finish("skipped", "budget", "chạm trần chi phí trong ngày")
-				return
-			}
+		// the day's cap, its workflow steps and hand-offs counted: the run is
+		// skipped, the automation stays on and runs again once its day turns
+		// (it used to be turned off for good, ADR-263)
+		if spent, over := a.OverDailyCap(ctx, r.store.Jobs(), now); over {
+			finish("skipped", "budget", DailyCapNote(a, spent))
+			return
 		}
 	}
 	if a.Action == "script" {

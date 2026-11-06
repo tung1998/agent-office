@@ -1053,7 +1053,13 @@ func (e *Engine) SendWithContext(ctx context.Context, conversationID, text, page
 	for _, a := range paused { // tagged with others that answer
 		e.note(conv, storage.OffNotice(a.Name))
 	}
-	job, err := e.beginJob(ctx, conv, agent.ID, truncate(strings.Join(strings.Fields(firstNonEmpty(text, conv.Title)), " "), 80))
+	from := "" // a run's first turn: the job that called it (ADR-263)
+	if run != nil {
+		e.wf.mu.Lock()
+		from = rootOf(run).callerJob
+		e.wf.mu.Unlock()
+	}
+	job, err := e.beginJob(ctx, conv, agent.ID, truncate(strings.Join(strings.Fields(firstNonEmpty(text, conv.Title)), " "), 80), from)
 	if err != nil {
 		cancel()
 		e.finish(turn)

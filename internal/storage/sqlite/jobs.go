@@ -16,7 +16,7 @@ type jobRepo struct{ db dbtx }
 
 const jobCols = `id, project_id, kind, origin, origin_id, trigger, created_by, conversation_id, message_id, task_id, status, error, error_code,
 	agent_id, title, cost_usd, input_tokens, output_tokens, duration_ms, dedupe_key, debounce_key, debounce_until, payload, reply,
-	next_attempt_at, created_at, started_at, finished_at, output, exit_code, parent_job_id, full_access, full_access_by, extra_dirs, resumes, goal_rounds, retry_at, retry_n`
+	next_attempt_at, created_at, started_at, finished_at, output, exit_code, parent_job_id, full_access, full_access_by, extra_dirs, resumes, goal_rounds, retry_at, retry_n, root_job_id, root_automation_id`
 
 func scanJob(row scanner) (storage.Job, error) {
 	var (
@@ -29,7 +29,7 @@ func scanJob(row scanner) (storage.Job, error) {
 	)
 	if err := row.Scan(&j.ID, &j.ProjectID, &j.Kind, &j.Origin, &j.OriginID, &j.Trigger, &j.CreatedBy, &conv, &msg, &task, &j.Status, &j.Error,
 		&j.ErrorCode, &j.AgentID, &j.Title, &j.CostUSD, &j.InputTokens, &j.OutputTokens, &j.DurationMS, &j.DedupeKey, &j.DebounceKey,
-		&debounce, &j.Payload, &reply, &next, &created, &started, &finished, &j.Output, &exit, &j.ParentJobID, &j.FullAccess, &j.FullAccessBy, &extraDirs, &j.Resumes, &j.GoalRounds, &retry, &j.RetryN); err != nil {
+		&debounce, &j.Payload, &reply, &next, &created, &started, &finished, &j.Output, &exit, &j.ParentJobID, &j.FullAccess, &j.FullAccessBy, &extraDirs, &j.Resumes, &j.GoalRounds, &retry, &j.RetryN, &j.RootJobID, &j.RootAutomationID); err != nil {
 		return j, notFound(err)
 	}
 	if exit.Valid {
@@ -86,11 +86,11 @@ func (r jobRepo) Create(ctx context.Context, j storage.Job) (storage.Job, error)
 	if j.Trigger == "" {
 		j.Trigger = "ui"
 	}
-	_, err := r.db.ExecContext(ctx, `INSERT INTO jobs (`+jobCols+`) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+	_, err := r.db.ExecContext(ctx, `INSERT INTO jobs (`+jobCols+`) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 		j.ID, j.ProjectID, j.Kind, j.Origin, j.OriginID, j.Trigger, j.CreatedBy, nullStr(j.ConversationID), nullStr(j.MessageID), nullStr(j.TaskID),
 		j.Status, j.Error, j.ErrorCode, j.AgentID, j.Title, j.CostUSD, j.InputTokens, j.OutputTokens, j.DurationMS, j.DedupeKey, j.DebounceKey,
 		optTime(j.DebounceUntil), j.Payload, replyJSON(j.Reply), optTime(j.NextAttemptAt), fmtTime(j.CreatedAt), optTime(j.StartedAt), optTime(j.FinishedAt),
-		j.Output, exitArg(j.ExitCode), j.ParentJobID, j.FullAccess, j.FullAccessBy, extraDirsJSON(j.ExtraDirs), j.Resumes, j.GoalRounds, optTime(j.RetryAt), j.RetryN)
+		j.Output, exitArg(j.ExitCode), j.ParentJobID, j.FullAccess, j.FullAccessBy, extraDirsJSON(j.ExtraDirs), j.Resumes, j.GoalRounds, optTime(j.RetryAt), j.RetryN, j.RootJobID, j.RootAutomationID)
 	if isUnique(err) {
 		return j, storage.ErrConflict
 	}
@@ -313,10 +313,10 @@ func (r jobRepo) where(f storage.JobFilter) (string, []any) {
 	case "discord", "telegram":
 		conds = append(conds, "trigger=?")
 		args = append(args, f.Source)
-	case "web":
-		conds = append(conds, "origin<>'automation' AND trigger NOT IN ('discord','telegram')")
+	case "web": // a workflow step an automation started is the automation's (ADR-263)
+		conds = append(conds, "origin<>'automation' AND root_automation_id='' AND trigger NOT IN ('discord','telegram')")
 	case "auto":
-		conds = append(conds, "origin='automation' AND trigger NOT IN ('discord','telegram')")
+		conds = append(conds, "(origin='automation' OR root_automation_id<>'') AND trigger NOT IN ('discord','telegram')")
 	}
 	if q := strings.TrimSpace(f.Query); q != "" {
 		conds = append(conds, "title LIKE ? ESCAPE '\\'")
@@ -485,10 +485,15 @@ func percentile(sorted []int64, p float64) int64 {
 	return sorted[min(int(float64(len(sorted)-1)*p+0.5), len(sorted)-1)]
 }
 
+// CostSince sums what the jobs of an origin started since then cost; an
+// automation's count its whole tree too: the workflow steps and hand-offs
+// its runs started (root_automation_id, ADR-263). A job still running
+// counts what its calls cost so far (its cost_usd is written as it ends).
 func (r jobRepo) CostSince(ctx context.Context, origin, originID string, since time.Time) (float64, error) {
 	var v float64
-	err := r.db.QueryRowContext(ctx, `SELECT COALESCE(SUM(cost_usd),0) FROM jobs WHERE origin=? AND origin_id=? AND created_at >= ?`,
-		origin, originID, fmtTime(since)).Scan(&v)
+	err := r.db.QueryRowContext(ctx, `SELECT COALESCE(SUM(MAX(j.cost_usd, COALESCE((SELECT SUM(x.cost_usd) FROM runs x WHERE x.job_id=j.id AND x.job_id != ''),0))),0)
+		FROM jobs j WHERE j.created_at >= ? AND ((j.origin=? AND j.origin_id=?) OR (?='automation' AND j.root_automation_id=?))`,
+		fmtTime(since), origin, originID, origin, originID).Scan(&v)
 	return v, err
 }
 

@@ -163,3 +163,13 @@ func TestTransientText(t *testing.T) {
 		}
 	}
 }
+
+// A group says whose automation's runs failed so, a workflow step it started
+// included (ADR-263).
+func TestGatherAutomations(t *testing.T) {
+	now := time.Now()
+	g := Gather([]Event{{Error: "boom", JobID: "j1", Automation: "aut_a", At: now}, {Error: "boom", JobID: "j2", At: now}, {Error: "boom", JobID: "j3", Automation: "aut_a", At: now}})
+	if len(g) != 1 || len(g[0].AutomationIDs) != 1 || g[0].AutomationIDs[0] != "aut_a" {
+		t.Fatalf("groups = %+v", g)
+	}
+}

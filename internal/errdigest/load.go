@@ -36,7 +36,7 @@ func Load(ctx context.Context, st storage.Store, f storage.JobFilter) (groups []
 		if msg == "" {
 			msg = j.ErrorCode
 		}
-		events = append(events, Event{Error: msg, Code: j.ErrorCode, JobID: j.ID, ProjectID: j.ProjectID, AgentID: j.AgentID, At: at})
+		events = append(events, Event{Error: msg, Code: j.ErrorCode, JobID: j.ID, ProjectID: j.ProjectID, AgentID: j.AgentID, Automation: j.Automation(), At: at})
 	}
 	// model calls belong to no kind, origin, task or chat filter: only the
 	// project, agent and time ones apply to them

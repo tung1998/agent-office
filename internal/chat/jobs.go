@@ -13,13 +13,62 @@ import (
 
 // beginJob returns the job a chat answer runs as: the one ctx carries (an
 // automation's), marked running, or a new one for the person who sent it.
-func (e *Engine) beginJob(ctx context.Context, conv storage.Conversation, agentID, title string) (storage.Job, error) {
+//
+// from is the job the new one descends from ("" = none): the one that called
+// the chat's workflow, or the turn that handed off to this agent. The new job
+// keeps its root and the root's automation (ADR-263): that automation's
+// daily cap counts it, and once the cap is reached it does not start.
+func (e *Engine) beginJob(ctx context.Context, conv storage.Conversation, agentID, title, from string) (storage.Job, error) {
 	now := time.Now().UTC()
 	if id := usage.JobFrom(ctx); id != "" {
 		return e.store.Jobs().StartIfRunning(ctx, id, conv.ID, agentID, title, now)
 	}
-	return e.store.Jobs().Create(ctx, storage.Job{ProjectID: conv.ProjectID, Kind: "chat_turn", Origin: "user", Trigger: "ui",
-		CreatedBy: actor.From(ctx), ConversationID: conv.ID, AgentID: agentID, Title: title, Status: "running", StartedAt: &now})
+	j := storage.Job{ProjectID: conv.ProjectID, Kind: "chat_turn", Origin: "user", Trigger: "ui",
+		CreatedBy: actor.From(ctx), ConversationID: conv.ID, AgentID: agentID, Title: title, Status: "running", StartedAt: &now}
+	if from == "" {
+		from = e.runCaller(conv.ID)
+	}
+	if from != "" {
+		if p, err := e.store.Jobs().Get(ctx, from); err == nil {
+			j.RootJobID, j.RootAutomationID = p.Root()
+		}
+	}
+	if err := e.capReached(ctx, j.RootJobID, j.RootAutomationID); err != nil {
+		return storage.Job{}, err
+	}
+	return e.store.Jobs().Create(ctx, j)
+}
+
+// runCaller is the job that called the chat's running workflow, at the top
+// of its tree ("" = none).
+func (e *Engine) runCaller(conversationID string) string {
+	e.wf.mu.Lock()
+	defer e.wf.mu.Unlock()
+	if r := e.wf.byConv[conversationID]; r != nil {
+		return rootOf(r).callerJob
+	}
+	return ""
+}
+
+// capReached fails with a *usage.BudgetError once the automation a new turn
+// works for reached its daily cost cap: a long workflow it started stops
+// opening turns there, not only its next run (ADR-263). A run the person
+// started by hand is not held to it, as its start is not.
+func (e *Engine) capReached(ctx context.Context, rootJobID, automationID string) error {
+	if automationID == "" {
+		return nil
+	}
+	if root, err := e.store.Jobs().Get(ctx, rootJobID); err == nil && root.Trigger == "manual" {
+		return nil
+	}
+	a, err := e.store.Automations().Get(ctx, automationID)
+	if err != nil {
+		return nil
+	}
+	if spent, over := a.OverDailyCap(ctx, e.store.Jobs(), time.Now()); over {
+		return &usage.BudgetError{Scope: "tự động hóa " + a.Name, Limit: a.Limits.DailyCostUSD, Spent: spent}
+	}
+	return nil
 }
 
 // endJob finishes the job of an answer (cost and tokens come from its runs);

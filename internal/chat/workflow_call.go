@@ -61,7 +61,7 @@ func (e *Engine) callWorkflow(ctx context.Context, conv storage.Conversation, ag
 		return fail(err)
 	}
 	e.titleFrom(ctx, &conv, text, files)
-	job, err := e.beginJob(ctx, conv, agent.ID, truncate("⚙️ "+run.def.Name+": "+oneLine(firstNonEmpty(run.rec.Input, run.def.Name)), 80))
+	job, err := e.beginJob(ctx, conv, agent.ID, truncate("⚙️ "+run.def.Name+": "+oneLine(firstNonEmpty(run.rec.Input, run.def.Name)), 80), "")
 	if err != nil {
 		return fail(err)
 	}

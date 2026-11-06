@@ -97,7 +97,11 @@ func (r *wfRun) snapshot() (storage.WorkflowRun, int) {
 		c.Resumes, c.CallerJob = r.resumes, r.callerJob
 		r.rec.Checkpoint = &c
 	}
-	return r.rec, r.seq
+	// the copy is written without the lock: what a role's end changes in
+	// place (its status, result) must not be shared with it (a race -race saw)
+	rec := r.rec
+	rec.Roles, rec.Gates, rec.Log, rec.Outputs = slices.Clone(rec.Roles), slices.Clone(rec.Gates), slices.Clone(rec.Log), maps.Clone(rec.Outputs)
+	return rec, r.seq
 }
 
 // mark records what a running step waits on (with the lock held).

@@ -386,7 +386,7 @@ func (t *Toolbox) Tools() []Tool {
 					"board":   str("Also (or only, with no collection) the project's work board, the Burn's: open = work no one is doing (Burn off with pieces left, or a piece waiting for review); changed = a piece added, finished or waiting for review since its last run (not one being worked on); any = either"),
 				}),
 				"limits": obj(map[string]any{
-					"daily_cost_usd": map[string]any{"type": "number", "description": "Cost cap a day; it turns off when reached"},
+					"daily_cost_usd": map[string]any{"type": "number", "description": "Cost cap a day (the workflow steps its runs start count): once reached no new run or step starts that day; it runs again the next day"},
 					"max_minutes":    map[string]any{"type": "integer", "description": "How long one run may take"},
 				}),
 				"reason": str("Why this automation is needed"),

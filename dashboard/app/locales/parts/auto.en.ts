@@ -78,6 +78,8 @@ const en: Record<keyof typeof vi, string> = {
   'auto.insert': 'Insert:',
   'auto.maxPerHour': 'Max runs / hour',
   'auto.dailyCost': 'Cost cap / day (USD)',
+  'auto.spentToday': 'Today ${spent} / ${cap}',
+  'auto.spentTodayHint': 'Cost today, the workflow steps and hand-offs its runs started included. At the cap no new run or step starts until the day ends.',
   'auto.disableAfter': 'Turn off after N failures in a row',
   'auto.maxParallel': 'Runs at once (max)',
   'auto.maxParallelHelp': 'At its time with this many still running, this one is skipped; none running is stopped',

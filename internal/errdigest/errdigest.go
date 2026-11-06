@@ -150,9 +150,12 @@ type Event struct {
 	JobID     string
 	ProjectID string
 	AgentID   string
-	Provider  string // the AI connection, for a model call
-	Call      bool   // a model call (not a job)
-	At        time.Time
+	// Automation: the automation the job ran for, its own or the one whose
+	// run started it (a workflow step's job, ADR-263)
+	Automation string
+	Provider   string // the AI connection, for a model call
+	Call       bool   // a model call (not a job)
+	At         time.Time
 }
 
 // MaxSamples is how many jobs a group links to.
@@ -160,18 +163,21 @@ const MaxSamples = 3
 
 // Group is the failures of one cause.
 type Group struct {
-	Signature  string    `json:"signature"`
-	Category   string    `json:"category"`
-	Count      int       `json:"count"`
-	Jobs       int       `json:"jobs"`  // failed jobs
-	Calls      int       `json:"calls"` // failed model calls
-	AgentIDs   []string  `json:"agent_ids"`
-	Providers  []string  `json:"providers"`
-	ProjectIDs []string  `json:"project_ids"`
-	First      time.Time `json:"first"`
-	Last       time.Time `json:"last"`
-	Sample     string    `json:"sample"`  // the latest whole error
-	JobIDs     []string  `json:"job_ids"` // the latest jobs, at most MaxSamples
+	Signature string   `json:"signature"`
+	Category  string   `json:"category"`
+	Count     int      `json:"count"`
+	Jobs      int      `json:"jobs"`  // failed jobs
+	Calls     int      `json:"calls"` // failed model calls
+	AgentIDs  []string `json:"agent_ids"`
+	// AutomationIDs: the automations whose runs failed so, workflow steps
+	// they started included (ADR-263)
+	AutomationIDs []string  `json:"automation_ids"`
+	Providers     []string  `json:"providers"`
+	ProjectIDs    []string  `json:"project_ids"`
+	First         time.Time `json:"first"`
+	Last          time.Time `json:"last"`
+	Sample        string    `json:"sample"`  // the latest whole error
+	JobIDs        []string  `json:"job_ids"` // the latest jobs, at most MaxSamples
 }
 
 // maxSample cuts a sample error (a stack trace can be long).
@@ -202,7 +208,7 @@ func Gather(events []Event) []Group {
 		if g == nil {
 			// lists never null: a page reads their length
 			g = &Group{Signature: sig, Category: cat, First: e.At, Last: e.At,
-				AgentIDs: []string{}, Providers: []string{}, ProjectIDs: []string{}, JobIDs: []string{}}
+				AgentIDs: []string{}, AutomationIDs: []string{}, Providers: []string{}, ProjectIDs: []string{}, JobIDs: []string{}}
 			idx[key] = g
 			out = append(out, g)
 		}
@@ -213,6 +219,7 @@ func Gather(events []Event) []Group {
 			g.Jobs++
 		}
 		g.AgentIDs = addOnce(g.AgentIDs, e.AgentID)
+		g.AutomationIDs = addOnce(g.AutomationIDs, e.Automation)
 		g.Providers = addOnce(g.Providers, e.Provider)
 		g.ProjectIDs = addOnce(g.ProjectIDs, e.ProjectID)
 		if e.At.Before(g.First) {

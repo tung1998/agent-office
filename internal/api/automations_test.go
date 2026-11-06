@@ -496,3 +496,41 @@ func TestAutomationOnRestartAPI(t *testing.T) {
 		t.Fatalf("shadowed command not flagged: %v", body["automation"])
 	}
 }
+
+// An automation shows what it spent today against its cap, the workflow
+// steps its runs started counted; a step's job is named after it and listed
+// among its runs, not as a person's work (ADR-263).
+func TestAutomationShowsTreeCost(t *testing.T) {
+	e := setup(t)
+	admin := e.client(t)
+	login(t, e, admin, "admin@x.io", "admin-password")
+	_, body := do(t, admin, "POST", e.srv.URL+"/api/projects", map[string]any{"path": t.TempDir(), "name": "shop"}, nil)
+	pid := body["project"].(map[string]any)["id"].(string)
+	ctx := context.Background()
+	a, err := e.st.Automations().Create(ctx, storage.Automation{ProjectID: pid, Name: "Nâng cấp", Source: "schedule", Action: "workflow", Enabled: true,
+		Prompt: "x", Config: storage.AutomationConfig{EveryMinutes: 60, Workflow: "daily-upgrade"}, Limits: storage.AutomationLimits{DailyCostUSD: 15}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now().UTC()
+	root, _ := e.st.Jobs().Create(ctx, storage.Job{ProjectID: pid, Kind: "chat_turn", Origin: "automation", OriginID: a.ID, Trigger: "schedule", Status: "done",
+		StartedAt: &now, FinishedAt: &now})
+	step, _ := e.st.Jobs().Create(ctx, storage.Job{ProjectID: pid, Kind: "chat_turn", Origin: "user", Trigger: "ui", Status: "done", StartedAt: &now, FinishedAt: &now,
+		CostUSD: 4.5, RootJobID: root.ID, RootAutomationID: a.ID, Title: "bước Làm"})
+	_, body = do(t, admin, "GET", e.srv.URL+"/api/automations/"+a.ID, nil, nil)
+	if got := body["automation"].(map[string]any)["spent_today"]; got != 4.5 {
+		t.Fatalf("spent_today = %v, want the step's 4.5", got)
+	}
+	_, body = do(t, admin, "GET", e.srv.URL+"/api/jobs/"+step.ID, nil, nil)
+	if j := body["job"].(map[string]any); j["automation_name"] != "Nâng cấp" || j["root_job_id"] != root.ID {
+		t.Fatalf("step job = %v", j)
+	}
+	_, body = do(t, admin, "GET", e.srv.URL+"/api/jobs?source=auto&project_id="+pid, nil, nil)
+	found := false
+	for _, x := range body["jobs"].([]any) {
+		found = found || x.(map[string]any)["id"] == step.ID
+	}
+	if !found {
+		t.Fatalf("the step is not among the automations' jobs: %v", body["jobs"])
+	}
+}

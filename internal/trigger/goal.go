@@ -202,12 +202,8 @@ func (r *Runner) goalLimit(ctx context.Context, a storage.Automation, started ti
 	if a.Limits.MaxMinutes > 0 && now.Sub(started) >= time.Duration(a.Limits.MaxMinutes)*time.Minute {
 		return "hết thời gian cho phép"
 	}
-	if a.Limits.DailyCostUSD > 0 {
-		local := now.In(loc)
-		day := time.Date(local.Year(), local.Month(), local.Day(), 0, 0, 0, 0, loc)
-		if spent, _ := r.store.Jobs().CostSince(ctx, "automation", a.ID, day); spent >= a.Limits.DailyCostUSD {
-			return "chạm trần chi phí trong ngày"
-		}
+	if spent, over := a.OverDailyCap(ctx, r.store.Jobs(), now); over { // the rounds' workflow steps counted (ADR-263)
+		return DailyCapNote(a, spent)
 	}
 	return ""
 }

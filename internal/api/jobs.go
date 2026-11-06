@@ -47,6 +47,7 @@ type jobDTO struct {
 	Output         string     `json:"output,omitempty"` // script: only with the job itself
 	ExitCode       *int       `json:"exit_code"`
 	ParentJobID    string     `json:"parent_job_id"`
+	RootJobID      string     `json:"root_job_id,omitempty"` // the job whose run started it (ADR-263)
 	NextAttemptAt  *time.Time `json:"next_attempt_at"`
 	CreatedAt      time.Time  `json:"created_at"`
 	StartedAt      *time.Time `json:"started_at"`
@@ -78,14 +79,14 @@ func (s *server) toJobDTO(r *http.Request, j storage.Job, n *names) jobDTO {
 	d := jobDTO{ID: j.ID, ProjectID: j.ProjectID, Kind: j.Kind, Origin: j.Origin, OriginID: j.OriginID, Trigger: j.Trigger, CreatedBy: j.CreatedBy,
 		ConversationID: j.ConversationID, MessageID: j.MessageID, TaskID: j.TaskID, Status: j.Status, Error: j.Error, ErrorCode: j.ErrorCode,
 		AgentID: j.AgentID, Title: j.Title, CostUSD: j.CostUSD, InputTokens: j.InputTokens, OutputTokens: j.OutputTokens, DurationMS: j.DurationMS,
-		NextAttemptAt: j.NextAttemptAt, CreatedAt: j.CreatedAt, StartedAt: j.StartedAt, FinishedAt: j.FinishedAt, ExitCode: j.ExitCode, ParentJobID: j.ParentJobID, Resumes: j.Resumes}
+		NextAttemptAt: j.NextAttemptAt, CreatedAt: j.CreatedAt, StartedAt: j.StartedAt, FinishedAt: j.FinishedAt, ExitCode: j.ExitCode, ParentJobID: j.ParentJobID, RootJobID: j.RootJobID, Resumes: j.Resumes}
 	d.AgentName = look(n.agents, j.AgentID, func() (string, error) {
 		a, err := s.cfg.Store.Agents().Get(ctx, j.AgentID)
 		return a.Name, err
 	})
-	if j.Origin == "automation" {
-		d.AutomationName = look(n.automations, j.OriginID, func() (string, error) {
-			a, err := s.cfg.Store.Automations().Get(ctx, j.OriginID)
+	if id := j.Automation(); id != "" { // its own, or the one whose run started it (ADR-263)
+		d.AutomationName = look(n.automations, id, func() (string, error) {
+			a, err := s.cfg.Store.Automations().Get(ctx, id)
 			return a.Name, err
 		})
 	}
@@ -203,8 +204,9 @@ func (s *server) jobStats(w http.ResponseWriter, r *http.Request) {
 // failureDTO is one cause of failures with the names a page shows.
 type failureDTO struct {
 	errdigest.Group
-	AgentNames   []string `json:"agent_names"`
-	ProjectNames []string `json:"project_names"`
+	AgentNames      []string `json:"agent_names"`
+	ProjectNames    []string `json:"project_names"`
+	AutomationNames []string `json:"automation_names"`
 }
 
 // maxFailureGroups is how many causes a listing returns, the biggest first.
@@ -242,7 +244,13 @@ func (s *server) jobFailures(w http.ResponseWriter, r *http.Request) {
 		if len(out) >= maxFailureGroups {
 			continue
 		}
-		d := failureDTO{Group: g, AgentNames: []string{}, ProjectNames: []string{}}
+		d := failureDTO{Group: g, AgentNames: []string{}, ProjectNames: []string{}, AutomationNames: []string{}}
+		for _, id := range g.AutomationIDs {
+			d.AutomationNames = append(d.AutomationNames, cmp.Or(look(n.automations, id, func() (string, error) {
+				a, err := s.cfg.Store.Automations().Get(r.Context(), id)
+				return a.Name, err
+			}), id))
+		}
 		for _, id := range g.AgentIDs {
 			d.AgentNames = append(d.AgentNames, cmp.Or(look(n.agents, id, func() (string, error) {
 				a, err := s.cfg.Store.Agents().Get(r.Context(), id)
