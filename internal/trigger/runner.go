@@ -639,7 +639,7 @@ func (r *Runner) settle(ctx context.Context, j storage.Job, err error) {
 	}
 	if err != nil {
 		code := "agent_error"
-		if errdigest.Category("", err.Error()) == errdigest.CatTransient {
+		if errdigest.TransientText(err.Error()) { // as chat.Transient reads it (ADR-260)
 			code = TransientCode
 		}
 		_, _ = r.store.Jobs().Finish(ctx, j.ID, "failed", code, err.Error(), now)

@@ -256,3 +256,21 @@ func cut(s string, n int) string {
 	}
 	return string([]rune(s)[:n-1]) + "…"
 }
+
+// transientText reads a passing failure of an AI service in an error's text
+// (ADR-260): a 5xx status (529 overloaded included), the gateway errors and a
+// dropped connection, or a CLI that gave up on the API it kept retrying.
+var transientText = regexp.MustCompile(`(?i)\b(status|error|code|api error)[^a-z0-9]{0,3}5\d\d\b|\b5(00|02|03|04|29) [a-z_ ]*error\b|overloaded|internal server error|bad gateway|service unavailable|gateway timeout|stream (disconnected|error|closed)|connection (reset|closed|refused)|econnreset|socket hang up|unexpected eof|lỗi api cuối`)
+
+// TransientText: msg reads as a passing failure of the AI service, worth
+// running again a while later. The one definition the chat (chat.Transient),
+// workflow steps, Burn and automations share (ADR-260): what the person must
+// act on (a broken CLI, signed out, out of quota, rate limited, out of
+// budget, an MCP server) never is, whatever else the text says.
+func TransientText(msg string) bool {
+	switch Category("", msg) {
+	case CatCLIBroken, CatNeedsLogin, CatQuota, CatRateLimit, CatBudget, CatMCP:
+		return false
+	}
+	return transientText.MatchString(msg)
+}

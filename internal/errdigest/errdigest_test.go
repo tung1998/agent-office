@@ -140,3 +140,26 @@ func TestGather(t *testing.T) {
 		t.Fatalf("null lists: %+v", only[0])
 	}
 }
+
+// The one definition of a passing failure every layer reads (ADR-260).
+func TestTransientText(t *testing.T) {
+	for msg, want := range map[string]bool{
+		"claude: exit status 1 · lỗi API cuối: 529 overloaded_error, lần 10/10": true,
+		"codex: unexpected status 502 Bad Gateway":                              true,
+		"gemini: 503 Service Unavailable":                                       true,
+		"read: connection reset by peer":                                        true,
+		"codex: stream disconnected before completion":                          true,
+		"claude: API Error: 500 Internal server error":                          true,
+		"codex: You've hit your usage limit · 503":                              false, // quota first
+		"anthropic: 429 Too Many Requests overloaded":                           false,
+		"claude: not logged in · 503 Service Unavailable":                       false,
+		"mcp server sentry: connection refused":                                 false,
+		"codex: Error: spawn /x/codex ENOENT":                                   false,
+		"claude: exit status 1":                                                 false,
+		"go test: sau 500ms":                                                    false,
+	} {
+		if got := TransientText(msg); got != want {
+			t.Errorf("TransientText(%q) = %v, want %v", msg, got, want)
+		}
+	}
+}

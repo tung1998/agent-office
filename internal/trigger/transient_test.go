@@ -13,10 +13,12 @@ import (
 	"github.com/tung1998/agent-office/internal/usage"
 )
 
-// flakyExec fails its first fails runs on an overloaded API, then answers.
+// flakyExec fails its first fails runs on an overloaded API (or on msg),
+// then answers.
 type flakyExec struct {
 	mu      sync.Mutex
 	fails   int
+	msg     string
 	prompts []string
 	convs   []string
 }
@@ -26,6 +28,9 @@ func (f *flakyExec) RunChat(ctx context.Context, projectID, agentID, conv, promp
 	defer f.mu.Unlock()
 	f.prompts, f.convs = append(f.prompts, prompt), append(f.convs, conv)
 	if len(f.prompts) <= f.fails {
+		if f.msg != "" {
+			return "cnv_t", "", errors.New(f.msg)
+		}
 		return "cnv_t", "", errors.New("claude: exit status 1 · lỗi API cuối: 529 overloaded_error, lần 10/10")
 	}
 	return "cnv_t", "xong", nil
@@ -90,5 +95,44 @@ func TestAutomationRunGoesOnAfterTransient(t *testing.T) {
 	r3.Wait()
 	if jobs, _ := st.Jobs().List(ctx, storage.JobFilter{OriginID: c.ID}); len(jobs) != 1 || jobs[0].Status != "failed" {
 		t.Fatalf("off: %+v", jobs)
+	}
+}
+
+// An automation's run reads a passing failure as the chat, a workflow step and
+// Burn do (chat.Transient): a gateway error or a dropped connection is put
+// back too; signed out, out of quota or a broken CLI is not.
+func TestAutomationTransientSameAsChat(t *testing.T) {
+	old := trigger.TransientWaits
+	trigger.TransientWaits = []time.Duration{time.Minute}
+	t.Cleanup(func() { trigger.TransientWaits = old })
+	ctx := context.Background()
+	st, p := openStore(t)
+	past := time.Now().UTC().Add(-time.Minute)
+	for _, c := range []struct {
+		msg  string
+		back bool
+	}{
+		{"codex: unexpected status 502 Bad Gateway", true},
+		{"codex: unexpected status 503 Service Unavailable", true},
+		{"gemini: 504 Gateway Timeout", true},
+		{"gemini: read tcp 10.0.0.2:51234: read: connection reset by peer", true},
+		{"claude: read ECONNRESET", true},
+		{"codex: stream disconnected before completion", true},
+		{"codex: socket hang up", true},
+		{"codex: You've hit your usage limit", false},
+		{"claude: not logged in · Please run /login", false},
+		{"codex: Error: spawn /x/codex ENOENT", false},
+		{"go test ./... failed", false},
+	} {
+		ex := &flakyExec{fails: 1, msg: c.msg}
+		r := trigger.New(st, ex)
+		a, _ := st.Automations().Create(ctx, storage.Automation{ProjectID: p.ID, Name: c.msg, Source: "schedule", Action: "chat", Enabled: true,
+			Prompt: "x", Config: storage.AutomationConfig{EveryMinutes: 60 * 24}, NextRunAt: &past})
+		r.Tick(ctx, time.Now().UTC())
+		r.Wait()
+		jobs, _ := st.Jobs().List(ctx, storage.JobFilter{OriginID: a.ID})
+		if len(jobs) != 1 || (jobs[0].Status == "pending") != c.back {
+			t.Errorf("%q: put back = %v, job %s %s", c.msg, jobs[0].Status == "pending", jobs[0].Status, jobs[0].ErrorCode)
+		}
 	}
 }
