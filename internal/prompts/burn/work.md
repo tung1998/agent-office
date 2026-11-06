@@ -52,4 +52,5 @@ Once you report done, office runs these checks in this worktree first; one faili
 [[- end]]
 [[- end]]
 Once you report done, office merges your changes into this Burn run's branch [[.Branch]] as one commit (every piece of the run goes there).
+Before calling burn_done: run `git status`/`git diff` in this worktree and name at least one real file change (path + what changed) in your summary, unless the piece only asked you to investigate or plan — then say what you found instead. If code changes were expected and there are none, call burn_fail instead and say why.
 Finish with burn_done(item=[[printf "%q" .ID]], summary=what you did and how you verified it) or burn_fail(item=[[printf "%q" .ID]], reason=…) if you cannot do it.
