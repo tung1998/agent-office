@@ -278,7 +278,7 @@ case "$3" in
 esac
 `)
 	var after atomic.Int32
-	m.SetAfterUpdate(func(context.Context, string) { after.Add(1) })
+	m.SetAfterUpdate(func(context.Context, string) string { after.Add(1); return "" })
 	if _, err := m.UpdateNow("codex", "an"); err != nil {
 		t.Fatal(err)
 	}
@@ -308,10 +308,11 @@ echo "npm $*" >> "`+dir+`/npm.log"
 printf '#!/bin/sh\necho codex-cli 0.167.0\n' > "`+real+`"
 `)
 	var after atomic.Int32
-	m.SetAfterUpdate(func(_ context.Context, tool string) {
+	m.SetAfterUpdate(func(_ context.Context, tool string) string {
 		if tool == "codex" {
 			after.Add(1)
 		}
+		return ""
 	})
 	if _, err := m.UpdateWhenIdle("codex", "an"); err != nil {
 		t.Fatal(err)
@@ -356,5 +357,97 @@ func TestVersionLineSkipsWarnings(t *testing.T) {
 	}
 	if v := versionLine("weird\n"); v != "weird" {
 		t.Fatalf("no version = %q", v)
+	}
+}
+
+// When idle, the CLI is taken only while no run has it running: runs that
+// keep starting and ending (one right after another) never overlap the update.
+func TestUpdateNeverUnderARun(t *testing.T) {
+	m, dir := testManager(t)
+	m.upPoll, m.upMaxWait = time.Millisecond, 20*time.Second
+	npmTool(t, dir, "gemini", "@google/gemini-cli", "1.0.0")
+	writeBin(t, dir, "npm", "#!/bin/sh\nsleep 0.3\necho ok\n")
+	stop := make(chan struct{})
+	var overlap atomic.Bool
+	go func() { // a sampler: while held, no run may be counted
+		for {
+			select {
+			case <-stop:
+				return
+			default:
+			}
+			if cliuse.Held("gemini") && cliuse.InUse("gemini") > 0 {
+				overlap.Store(true)
+			}
+			time.Sleep(50 * time.Microsecond)
+		}
+	}()
+	go func() { // runs back to back
+		for {
+			select {
+			case <-stop:
+				return
+			default:
+			}
+			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+			done, err := cliuse.Begin(ctx, "gemini")
+			cancel()
+			if err == nil {
+				time.Sleep(2 * time.Millisecond)
+				done()
+			}
+			time.Sleep(time.Millisecond) // the next run starts soon after: idle only briefly
+		}
+	}()
+	if _, err := m.UpdateWhenIdle("gemini", "an"); err != nil {
+		t.Fatal(err)
+	}
+	waitUpgrade(t, m, "gemini", "done", "failed", "gave_up")
+	close(stop)
+	if overlap.Load() {
+		t.Fatal("a run had the CLI running while its update held it")
+	}
+}
+
+// The connections' check runs after the hold is let go (it starts the CLI),
+// and a check that finds the install broken puts the old version back; the
+// check after the rollback runs unheld too.
+func TestRollbackWhenConnectionCheckFails(t *testing.T) {
+	m, dir := testManager(t)
+	real := npmTool(t, dir, "codex", "@openai/codex", "0.166.0")
+	writeBin(t, dir, "npm", `#!/bin/sh
+echo "npm $*" >> "`+dir+`/npm.log"
+case "$3" in
+  *@latest) printf '#!/bin/sh\necho codex-cli 0.167.0\n' > "`+real+`";;
+  *@0.166.0) printf '#!/bin/sh\necho codex-cli 0.166.0\n' > "`+real+`";;
+esac
+`)
+	var checks []string
+	m.SetAfterUpdate(func(ctx context.Context, tool string) string {
+		done, err := cliuse.Begin(ctx, "codex") // the check runs the CLI: never held
+		if err != nil {
+			checks = append(checks, "held")
+			return "check held"
+		}
+		done()
+		v := m.version(tools[1])
+		checks = append(checks, v)
+		if v == "0.167.0" {
+			return "codex: CLI không chạy được: spawn …/codex ENOENT"
+		}
+		return ""
+	})
+	if _, err := m.UpdateNow("codex", "an"); err != nil {
+		t.Fatal(err)
+	}
+	v := waitUpgrade(t, m, "codex", "rolled_back", "failed", "done")
+	if v.State != "rolled_back" || v.To != "0.166.0" || !strings.Contains(v.Note, "ENOENT") {
+		t.Fatalf("update = %+v, checks %v", v, checks)
+	}
+	if strings.Join(checks, ",") != "0.167.0,0.166.0" {
+		t.Fatalf("checks = %v", checks)
+	}
+	if cliuse.Held("codex") {
+		t.Fatal("still held")
 	}
 }

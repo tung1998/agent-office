@@ -29,7 +29,7 @@ func TestCountsRunsPerTool(t *testing.T) {
 // A run of a held CLI waits for the update; other CLIs do not.
 func TestHoldMakesNewRunsWait(t *testing.T) {
 	ctx := context.Background()
-	release := Hold("gemini", time.Minute)
+	release := Hold("gemini")
 	if !Held("gemini") || Held("claude") {
 		t.Fatal("held")
 	}
@@ -60,23 +60,48 @@ func TestHoldMakesNewRunsWait(t *testing.T) {
 	}
 }
 
-// A hold that is never released ends at its limit; a run whose ctx ends stops waiting.
-func TestHoldHasALimit(t *testing.T) {
-	_ = Hold("dsh", 80*time.Millisecond)
-	start := time.Now()
-	done, err := Begin(context.Background(), "dsh")
-	if err != nil || time.Since(start) < 50*time.Millisecond {
-		t.Fatalf("err=%v waited=%v", err, time.Since(start))
+// TryHold takes the CLI only when no run has it running, in one step: a
+// run that begins after holds waits; one already running makes it fail.
+func TestTryHoldOnlyWhenIdle(t *testing.T) {
+	run, _ := Begin(context.Background(), "dsh")
+	if _, ok := TryHold("dsh"); ok {
+		t.Fatal("held while a run had the CLI running")
 	}
-	done()
-	release := Hold("dsh", time.Hour)
-	defer release()
+	if Held("dsh") {
+		t.Fatal("a failed TryHold left a hold")
+	}
+	run()
+	release, ok := TryHold("dsh")
+	if !ok {
+		t.Fatal("not held once idle")
+	}
+	if _, ok := TryHold("dsh"); ok {
+		t.Fatal("held twice")
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
 	defer cancel()
-	if _, err := Begin(ctx, "dsh"); err == nil {
-		t.Fatal("a cancelled run did not stop waiting")
+	if _, err := Begin(ctx, "dsh"); err == nil || InUse("dsh") != 0 {
+		t.Fatal("a run started under the hold")
 	}
-	if InUse("dsh") != 0 {
-		t.Fatal("a run that never started is counted")
+	release()
+	done, err := Begin(context.Background(), "dsh")
+	if err != nil {
+		t.Fatal(err)
+	}
+	done()
+}
+
+// A hold has no time limit of its own: it lasts as long as the update
+// replacing the files (whose commands time out), never ending under it.
+func TestHoldLastsUntilReleased(t *testing.T) {
+	release := Hold("codex")
+	ctx, cancel := context.WithTimeout(context.Background(), 150*time.Millisecond)
+	defer cancel()
+	if _, err := Begin(ctx, "codex"); err == nil {
+		t.Fatal("a run started before the hold was released")
+	}
+	release()
+	if Held("codex") {
+		t.Fatal("still held")
 	}
 }

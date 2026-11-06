@@ -24,9 +24,10 @@ type UpgradeView struct {
 	State   string     `json:"state"`
 	When    string     `json:"when"` // idle | now
 	By      string     `json:"by,omitempty"`
-	Waiting int        `json:"waiting"`        // runs still using the CLI
-	From    string     `json:"from,omitempty"` // the version before
-	To      string     `json:"to,omitempty"`   // the version after
+	Waiting int        `json:"waiting"`          // runs still using the CLI
+	From    string     `json:"from,omitempty"`   // the version before
+	Target  string     `json:"target,omitempty"` // the newest version known when it started
+	To      string     `json:"to,omitempty"`     // the version after
 	Note    string     `json:"note,omitempty"`
 	JobID   string     `json:"job_id,omitempty"`
 	Started time.Time  `json:"started_at"`
@@ -79,20 +80,20 @@ type upgrade struct {
 	cancel context.CancelFunc
 }
 
-// Defaults of an update (Manager fields override them in tests).
-const (
-	// UpgradeMaxWait is how long an update when idle waits for its runs.
-	UpgradeMaxWait = 12 * time.Hour
-	// upgradeHold bounds how long new runs wait for an update.
-	upgradeHold = 20 * time.Minute
-)
+// UpgradeMaxWait is how long an update when idle waits for its runs.
+const UpgradeMaxWait = 12 * time.Hour
 
 // ErrUpgrading: an update of the tool is already on its way.
 var ErrUpgrading = errors.New("công cụ này đang được cập nhật")
 
-// SetAfterUpdate is called once a tool's update ended with it starting
-// (checks its connections again: a broken mark goes, ADR-259).
-func (m *Manager) SetAfterUpdate(fn func(ctx context.Context, tool string)) { m.afterUpdate = fn }
+// SetAfterUpdate is called once a tool's files changed and runs may use it
+// again: it checks the connections on the tool (their broken mark goes, as
+// Kết nối AI's Kiểm tra) and says why the tool's install is broken ("" =
+// it is not; a signed-out account or a network error is not the install's).
+// A broken install is put back to the version it had (ADR-259).
+func (m *Manager) SetAfterUpdate(fn func(ctx context.Context, tool string) string) {
+	m.afterUpdate = fn
+}
 
 // SetOnUpgradeEnd is told how each update ended.
 func (m *Manager) SetOnUpgradeEnd(fn func(UpgradeView)) { m.onUpgradeEnd = fn }
@@ -196,15 +197,19 @@ func (m *Manager) runUpgrade(ctx context.Context, t Tool, meth Method, u *upgrad
 			m.onUpgradeEnd(v)
 		}
 	}
-	// when idle: until no run has the CLI running
+	var release func()
 	if u.view.When == "idle" {
+		// the CLI is taken only when no run has it running, in one step:
+		// a run never starts between the count and the hold
 		deadline := m.clock().Add(maxWait)
 		for {
-			n := cliuse.InUse(t.ID)
-			m.set(u, func(v *UpgradeView) { v.Waiting = n })
-			if n == 0 {
+			r, ok := cliuse.TryHold(t.ID)
+			if ok {
+				release = r
 				break
 			}
+			n := cliuse.InUse(t.ID)
+			m.set(u, func(v *UpgradeView) { v.Waiting = n })
 			if !m.clock().Before(deadline) {
 				end("gave_up", fmt.Sprintf("vẫn còn %d lượt dùng sau %s", n, maxWait))
 				return
@@ -216,28 +221,21 @@ func (m *Manager) runUpgrade(ctx context.Context, t Tool, meth Method, u *upgrad
 			case <-time.After(poll):
 			}
 		}
+	} else {
+		release = cliuse.Hold(t.ID) // runs already on it go on; new ones wait
 	}
-	hold := m.holdMax
-	if hold <= 0 {
-		hold = upgradeHold
-	}
-	release := cliuse.Hold(t.ID, hold) // new runs wait while its files change
-	released := false
+	held := true
 	free := func() {
-		if !released {
-			released = true
+		if held {
+			held = false
 			release()
 		}
 	}
 	defer free()
-	if u.view.When == "idle" { // a run that started just before the hold: let it end (briefly)
-		for until := m.clock().Add(2 * time.Minute); cliuse.InUse(t.ID) > 0 && m.clock().Before(until); {
-			time.Sleep(min(poll, time.Second))
-		}
-	}
 	m.set(u, func(v *UpgradeView) { v.State, v.Waiting = "updating", 0 })
 	from := m.version(t)
-	m.set(u, func(v *UpgradeView) { v.From = from })
+	target := m.latestKnown(t.ID)
+	m.set(u, func(v *UpgradeView) { v.From, v.Target = from, target })
 	j, err := m.start(t.ID, t.ID, "update", meth.update, 15*time.Minute, term{}, "HOMEBREW_NO_ASK=1", "HOMEBREW_ASK=")
 	if err != nil {
 		end("failed", err.Error())
@@ -247,19 +245,17 @@ func (m *Manager) runUpgrade(ctx context.Context, t Tool, meth Method, u *upgrad
 	j.Wait()
 	jv := j.Snapshot()
 	m.set(u, func(v *UpgradeView) { v.State = "checking" })
-	if why := m.broken(t); why != "" { // the new version does not start
+	why := m.broken(t) // the new version does not start
+	if why == "" {
+		free() // the connections' check runs the CLI: never under its own hold
+		why = m.recheck(t.ID)
+	}
+	if why != "" {
 		m.rollback(t, meth, u, from, why, end)
-		free()
 		return
 	}
 	to := m.version(t)
 	m.set(u, func(v *UpgradeView) { v.To = to })
-	free()
-	if m.afterUpdate != nil {
-		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
-		m.afterUpdate(ctx, t.ID)
-		cancel()
-	}
 	if jv.State != "succeeded" { // the command failed but the CLI still starts: the old one is kept
 		end("failed", cmpOr(jv.Error, "lệnh cập nhật lỗi")+" (CLI vẫn chạy được)")
 		return
@@ -267,33 +263,60 @@ func (m *Manager) runUpgrade(ctx context.Context, t Tool, meth Method, u *upgrad
 	end("done", "")
 }
 
-// rollback puts version from back after an update that left the CLI unable
-// to start: npm installs that exact version; Homebrew and the official
-// installer cannot pick a version, so the person is told how to fix it.
+// recheck checks the connections on the tool (SetAfterUpdate): why its
+// install is broken, "" when it is not.
+func (m *Manager) recheck(tool string) string {
+	if m.afterUpdate == nil {
+		return ""
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
+	defer cancel()
+	return m.afterUpdate(ctx, tool)
+}
+
+// latestKnown is the newest version kept for id ("" = none read yet).
+func (m *Manager) latestKnown(id string) string {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.latest[id].version
+}
+
+// rollback puts version from back after an update that left the CLI
+// broken: npm installs that exact version, new runs held meanwhile;
+// Homebrew and the official installer cannot pick a version, so the person
+// is told how to fix it.
 func (m *Manager) rollback(t Tool, meth Method, u *upgrade, from, why string, end func(state, note string)) {
+	m.mu.Lock()
+	if m.bad == nil {
+		m.bad = map[string]string{}
+	}
+	m.bad[t.ID] = u.view.Target // a broken version: Watch does not update to it again on its own
+	m.mu.Unlock()
 	p := pkgs[t.ID]
 	if meth.ID != "npm" || p.npm == "" || from == "" {
 		end("failed", fmt.Sprintf("bản mới không chạy được (%s); hãy cài lại: %s", why, cmpOr(manualFix(t), "cài lại CLI")))
 		return
 	}
 	m.set(u, func(v *UpgradeView) { v.State = "rolling_back" })
+	release := cliuse.Hold(t.ID) // a run on the broken version fails anyway: new ones wait
 	j, err := m.start(t.ID, t.ID, "update", []string{"npm", "install", "-g", p.npm + "@" + from}, 15*time.Minute, term{})
 	if err != nil {
+		release()
 		end("failed", fmt.Sprintf("bản mới không chạy được (%s), quay về bản %s lỗi: %v", why, from, err))
 		return
 	}
 	j.Wait()
-	if still := m.broken(t); still != "" {
+	still := m.broken(t)
+	release()
+	if still == "" {
+		still = m.recheck(t.ID)
+	}
+	if still != "" {
 		end("failed", fmt.Sprintf("bản mới không chạy được (%s), quay về bản %s vẫn lỗi: %s", why, from, still))
 		return
 	}
 	to := m.version(t)
 	m.set(u, func(v *UpgradeView) { v.To = to })
-	if m.afterUpdate != nil {
-		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
-		m.afterUpdate(ctx, t.ID)
-		cancel()
-	}
 	end("rolled_back", "Lỗi của bản mới: "+why)
 }
 

@@ -334,8 +334,8 @@ type Manager struct {
 	upgrades     map[string]*upgrade
 	upPoll       time.Duration // 0 = 5s
 	upMaxWait    time.Duration // 0 = UpgradeMaxWait
-	holdMax      time.Duration // 0 = upgradeHold
-	afterUpdate  func(ctx context.Context, tool string)
+	afterUpdate  func(ctx context.Context, tool string) string
+	bad          map[string]string // per tool, a version whose update was put back
 	onUpgradeEnd func(UpgradeView)
 }
 

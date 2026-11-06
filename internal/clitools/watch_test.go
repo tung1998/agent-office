@@ -128,3 +128,39 @@ func TestModeOf(t *testing.T) {
 		t.Fatal("modes")
 	}
 }
+
+// A version told under notify is updated once the mode turns auto; a version
+// whose update was put back is not tried again on its own.
+func TestWatchAutoAfterNotify(t *testing.T) {
+	m, dir := testManager(t)
+	m.registry = registry(t, map[string]string{"@openai/codex": "0.167.0"}).URL
+	real := npmTool(t, dir, "codex", "@openai/codex", "0.166.0")
+	writeBin(t, dir, "npm", "#!/bin/sh\nprintf '#!/bin/sh\\necho codex-cli 0.167.0\\n' > \""+real+"\"\n")
+	x := &memSetting{}
+	ctx := context.Background()
+	m.WatchOnce(ctx, x.hooks())
+	if len(x.told) != 1 {
+		t.Fatalf("told = %q", x.told)
+	}
+	x.s.Mode = AutoUpdate
+	m.forgetLatest("codex")
+	m.WatchOnce(ctx, x.hooks())
+	if len(x.told) != 1 {
+		t.Fatalf("told again: %q", x.told)
+	}
+	v := waitUpgrade(t, m, "codex", "done", "failed", "rolled_back")
+	if v.State != "done" || v.To != "0.167.0" {
+		t.Fatalf("not updated after notify -> auto: %+v", v)
+	}
+
+	// a bad version: not updated to again on its own
+	m2, dir2 := testManager(t)
+	m2.registry = m.registry
+	npmTool(t, dir2, "codex", "@openai/codex", "0.166.0")
+	m2.bad = map[string]string{"codex": "0.167.0"}
+	y := &memSetting{s: AutoSetting{Mode: AutoUpdate}}
+	m2.WatchOnce(ctx, y.hooks())
+	if _, ok := m2.Upgrade("codex"); ok || len(y.told) != 1 {
+		t.Fatalf("a put-back version was updated to again; told %q", y.told)
+	}
+}

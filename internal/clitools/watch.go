@@ -63,7 +63,8 @@ type Notice struct {
 	Latest         string
 	Broken         string // why it does not start ("" = it does)
 	Key            string
-	UpdateWhenIdle bool
+	Tell           bool // not told yet (AutoSetting.Told)
+	UpdateWhenIdle bool // auto mode: updated whether it was told or not
 }
 
 // Check looks at every installed CLI once: what to tell or update under s.
@@ -97,9 +98,16 @@ func (m *Manager) Check(ctx context.Context, s *AutoSetting) (out []Notice, chan
 				continue
 			}
 			n.Latest, n.Key = latest, latest
-			n.UpdateWhenIdle = mode == AutoUpdate
+			m.mu.Lock()
+			bad := m.bad[t.ID] == latest // its update was put back: not again on its own
+			m.mu.Unlock()
+			n.UpdateWhenIdle = mode == AutoUpdate && !bad
 		}
-		if s.Told[t.ID] == n.Key {
+		// being told once and being updated are apart: a version told under
+		// notify is still updated once the mode is auto, and an update that
+		// failed or gave up is tried again on the next look
+		n.Tell = s.Told[t.ID] != n.Key
+		if !n.Tell && !n.UpdateWhenIdle {
 			continue
 		}
 		out = append(out, n)
@@ -156,7 +164,7 @@ func (m *Manager) WatchOnce(ctx context.Context, h WatchHooks) {
 			_, err := m.UpdateWhenIdle(n.Tool, AutoBy)
 			updating = err == nil
 		}
-		if h.Notify != nil {
+		if n.Tell && h.Notify != nil {
 			h.Notify(ctx, n.Text(updating))
 		}
 		s.Told[n.Tool] = n.Key

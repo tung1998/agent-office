@@ -8,7 +8,6 @@ import (
 	"context"
 	"path/filepath"
 	"sync"
-	"time"
 )
 
 // bins maps a CLI's command to its tool id (clitools' ids).
@@ -17,10 +16,7 @@ var bins = map[string]string{"claude": "claude", "codex": "codex", "gemini": "ge
 // Tool is the tool id of the CLI at bin ("" = not one office updates).
 func Tool(bin string) string { return bins[filepath.Base(bin)] }
 
-type hold struct {
-	done  chan struct{}
-	until time.Time
-}
+type hold struct{ done chan struct{} }
 
 var (
 	mu    sync.Mutex
@@ -30,8 +26,8 @@ var (
 
 // Begin says a run is about to start the CLI at bin; call what it returns
 // once the process is done. While an update of that CLI holds runs back, it
-// waits for the update to end (at most the hold's own limit, or until ctx
-// ends: then the error is ctx's).
+// waits for the update to let go (the update's own commands time out, so the
+// wait is bounded), or until ctx ends: then the error is ctx's.
 func Begin(ctx context.Context, bin string) (func(), error) {
 	tool := Tool(bin)
 	if tool == "" {
@@ -40,7 +36,7 @@ func Begin(ctx context.Context, bin string) (func(), error) {
 	for {
 		mu.Lock()
 		h := holds[tool]
-		if h == nil || !time.Now().Before(h.until) {
+		if h == nil {
 			count[tool]++
 			mu.Unlock()
 			var once sync.Once
@@ -55,15 +51,11 @@ func Begin(ctx context.Context, bin string) (func(), error) {
 			}, nil
 		}
 		mu.Unlock()
-		t := time.NewTimer(time.Until(h.until))
 		select {
 		case <-ctx.Done():
-			t.Stop()
 			return func() {}, ctx.Err()
 		case <-h.done:
-		case <-t.C:
 		}
-		t.Stop()
 	}
 }
 
@@ -74,16 +66,32 @@ func InUse(tool string) int {
 	return count[tool]
 }
 
-// Hold makes new runs of tool wait (at most max) until release is called:
-// an update replacing its files. A hold already on is replaced.
-func Hold(tool string, max time.Duration) (release func()) {
-	h := &hold{done: make(chan struct{}), until: time.Now().Add(max)}
+// TryHold holds new runs of tool back only if none runs now, in one step
+// (no run can start between the count and the hold); ok false leaves
+// nothing held. An update when idle takes the CLI this way.
+func TryHold(tool string) (release func(), ok bool) {
 	mu.Lock()
-	if old := holds[tool]; old != nil {
-		close(old.done)
+	defer mu.Unlock()
+	if count[tool] > 0 || holds[tool] != nil {
+		return nil, false
 	}
-	holds[tool] = h
-	mu.Unlock()
+	return hold1(tool), true
+}
+
+// Hold holds new runs of tool back until release, whatever runs now (an
+// update now, a rollback). A hold already on is kept: release ends this one.
+func Hold(tool string) (release func()) {
+	mu.Lock()
+	defer mu.Unlock()
+	return hold1(tool)
+}
+
+func hold1(tool string) func() {
+	h := holds[tool]
+	if h == nil {
+		h = &hold{done: make(chan struct{})}
+		holds[tool] = h
+	}
 	var once sync.Once
 	return func() {
 		once.Do(func() {
@@ -101,6 +109,5 @@ func Hold(tool string, max time.Duration) (release func()) {
 func Held(tool string) bool {
 	mu.Lock()
 	defer mu.Unlock()
-	h := holds[tool]
-	return h != nil && time.Now().Before(h.until)
+	return holds[tool] != nil
 }

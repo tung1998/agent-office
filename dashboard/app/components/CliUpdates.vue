@@ -36,6 +36,7 @@ const active = (u?: Upgrade) => !!u && ['waiting', 'updating', 'checking', 'roll
 const installed = computed(() => (data.value?.tools ?? []).filter(x => x.installed))
 const outdated = computed(() => installed.value.filter(x => x.outdated).length)
 
+let unread = 0 // looks while the newest versions are read in the background
 async function load() {
   clearTimeout(timer)
   try {
@@ -43,13 +44,22 @@ async function load() {
   } catch {
     return
   }
-  // an update on its way: followed until it ends
+  // an update on its way is followed until it ends; newest versions the
+  // server is still reading (first look, or after 6h) are fetched again soon
   if (installed.value.some(x => active(x.upgrade))) timer = setTimeout(load, 3000)
+  else if (installed.value.some(x => !x.latest) && unread++ < 5) timer = setTimeout(load, 4000)
 }
 
 async function update(tool: Tool, when: 'idle' | 'now') {
-  if (when === 'now' && tool.in_use > 0 && !confirm(t('cliup.confirmNow', { name: tool.name, n: tool.in_use }))) return
   busy.value = tool.id
+  if (when === 'now') {
+    // the runs using it now, not those of the last look
+    const inUse = await $fetch<Tool>(`/api/cli-tools/${tool.id}`).then(x => x.in_use, () => tool.in_use)
+    if (inUse > 0 && !confirm(t('cliup.confirmNow', { name: tool.name, n: inUse }))) {
+      busy.value = ''
+      return
+    }
+  }
   try {
     await $fetch(`/api/cli-tools/${tool.id}/update`, { method: 'POST', body: { when } })
     await load()

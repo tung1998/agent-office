@@ -11,6 +11,7 @@ import (
 
 	"github.com/tung1998/agent-office/internal/clitools"
 	"github.com/tung1998/agent-office/internal/limitalert"
+	"github.com/tung1998/agent-office/internal/llm"
 	"github.com/tung1998/agent-office/internal/provider"
 	"github.com/tung1998/agent-office/internal/selfupdate"
 	"github.com/tung1998/agent-office/internal/storage"
@@ -101,22 +102,35 @@ func (c cliUpdates) UpdateCLI(_ context.Context, tool, by string) (string, error
 	return u.Summary(c.name(tool)) + ". Office báo khi xong.", nil
 }
 
-// recheck tests again the connections a CLI drives once it changed: one
-// marked broken by a run that failed on it is cleared when it answers.
-func (c cliUpdates) recheck(ctx context.Context, tool string) {
+// recheck tests again the connections a CLI drives once it changed (as
+// Kết nối AI's Kiểm tra): one marked broken by a run that failed on it is
+// cleared when it answers. It says why the CLI's install is broken ("" = it
+// is not): a signed-out account or a network error is the connection's, not
+// the install's, and is not a reason to put the old version back.
+func (c cliUpdates) recheck(ctx context.Context, tool string) string {
 	kind, ok := cliKinds[tool]
 	if !ok || c.providers == nil {
-		return
+		return ""
 	}
 	list, err := c.store.Providers().List(ctx)
 	if err != nil {
-		return
+		return ""
 	}
 	for _, p := range list {
-		if p.Kind == kind {
-			_, _ = c.providers.Test(ctx, p.ID, "", "")
+		if p.Kind != kind {
+			continue
+		}
+		res, err := c.providers.Test(ctx, p.ID, "", "")
+		if err == nil && !res.OK && installBroken(res.Detail) {
+			return res.Detail
 		}
 	}
+	return ""
+}
+
+// installBroken: a check's failure says the CLI itself cannot start.
+func installBroken(detail string) bool {
+	return strings.Contains(detail, llm.ErrCLIBroken.Error()) || llm.CLIBroken(detail)
 }
 
 // tell sends text to the chat the admin picked for alerts (Kết nối AI),

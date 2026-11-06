@@ -2,12 +2,18 @@ package main
 
 import (
 	"context"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/tung1998/agent-office/internal/clitools"
 	"github.com/tung1998/agent-office/internal/limitalert"
+	"github.com/tung1998/agent-office/internal/llm"
+	"github.com/tung1998/agent-office/internal/provider"
+	"github.com/tung1998/agent-office/internal/secrets"
+	"github.com/tung1998/agent-office/internal/storage"
 	"github.com/tung1998/agent-office/internal/storage/sqlite"
 )
 
@@ -54,5 +60,54 @@ func TestCLIUpdatesHooks(t *testing.T) {
 	}
 	if !strings.Contains(cu.CLIStatus(ctx), "chưa cài") {
 		t.Fatalf("status = %q", cu.CLIStatus(ctx))
+	}
+}
+
+// After an update the connections on the CLI are checked for real: a
+// connection marked broken goes back to ok in the store; a CLI that does not
+// start is reported (the update puts the old version back), a signed-out
+// account is not.
+func TestCLIRecheckClearsBrokenMark(t *testing.T) {
+	ctx := context.Background()
+	dir := t.TempDir()
+	st, err := sqlite.Open(filepath.Join(dir, "o.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	if err := st.Migrate(ctx); err != nil {
+		t.Fatal(err)
+	}
+	box, _ := secrets.Load(filepath.Join(dir, "k"))
+	provs := provider.NewService(st, box, llm.Options{})
+	bin := filepath.Join(dir, "claude")
+	write := func(script string) {
+		if err := os.WriteFile(bin, []byte(script), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	p, err := st.Providers().Create(ctx, storage.Provider{Name: "Claude Code", Kind: storage.ProviderClaudeCLI, BaseURL: bin, Enabled: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = st.Providers().SetStatus(ctx, p.ID, "error", "claude: CLI không chạy được: spawn ENOENT", nil, time.Now())
+	cu := cliUpdates{store: st, providers: provs}
+
+	write("#!/bin/sh\ncase \"$1 $2\" in\n  \"--version \"*) echo 2.1.319;;\n  \"auth status\") echo '{\"loggedIn\":true,\"email\":\"a@b.c\"}';;\nesac\n")
+	if why := cu.recheck(ctx, "claude"); why != "" {
+		t.Fatalf("healthy = %q", why)
+	}
+	if got, _ := st.Providers().Get(ctx, p.ID); got.Status != "ok" {
+		t.Fatalf("broken mark stayed: %s %s", got.Status, got.StatusDetail)
+	}
+
+	write("#!/bin/sh\necho 'Error: spawn /x/vendor/claude ENOENT' >&2\nexit 1\n")
+	if why := cu.recheck(ctx, "claude"); why == "" {
+		t.Fatal("a CLI that does not start was not reported")
+	}
+
+	write("#!/bin/sh\ncase \"$1 $2\" in\n  \"--version \"*) echo 2.1.319;;\n  \"auth status\") echo '{\"loggedIn\":false}'; exit 1;;\nesac\n")
+	if why := cu.recheck(ctx, "claude"); why != "" {
+		t.Fatalf("a signed-out account was taken for a broken install: %q", why)
 	}
 }
