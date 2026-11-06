@@ -172,6 +172,7 @@ func TestRunsInstallResolvesTheCommand(t *testing.T) {
 	if err := os.Symlink(filepath.Join(dir, "claude"), filepath.Join(dir, "claude-link")); err != nil {
 		t.Fatal(err)
 	}
+	t.Setenv("PATH", dir) // the PATH a connection's bare command is started with
 	cu := cliUpdates{m: clitools.NewManagerWithPath(dir)}
 	shared := samePath(cu.m.LookPath("claude"))
 	cases := map[string]bool{
@@ -218,5 +219,57 @@ func TestTellSaysWhetherItWent(t *testing.T) {
 	fail = false
 	if !cu.tell(ctx, "x") {
 		t.Fatal("a send that went counted as not sent")
+	}
+}
+
+// office's own PATH (where a connection's bare command is started) and the
+// CLI manager's (where the updated install is found) may hold two binaries of
+// the same name: a bare "claude" connection runs office's, so its broken
+// binary never puts the manager's install back; a connection with no command
+// runs the manager's and is checked.
+func TestRecheckResolvesLikeTheRun(t *testing.T) {
+	ctx := context.Background()
+	dir := t.TempDir()
+	st, err := sqlite.Open(filepath.Join(dir, "o.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	if err := st.Migrate(ctx); err != nil {
+		t.Fatal(err)
+	}
+	box, _ := secrets.Load(filepath.Join(dir, "k"))
+	provs := provider.NewService(st, box, llm.Options{})
+	managerDir, processDir := filepath.Join(dir, "a"), filepath.Join(dir, "b")
+	for _, d := range []string{managerDir, processDir} {
+		if err := os.MkdirAll(d, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	healthy := "#!/bin/sh\ncase \"$1 $2\" in\n  \"--version \"*) echo 2.1.319;;\n  \"auth status\") echo '{\"loggedIn\":true}';;\nesac\n"
+	broken := "#!/bin/sh\necho 'Error: spawn /x/vendor/claude ENOENT' >&2\nexit 1\n"
+	_ = os.WriteFile(filepath.Join(managerDir, "claude"), []byte(healthy), 0o755)
+	_ = os.WriteFile(filepath.Join(processDir, "claude"), []byte(broken), 0o755)
+	t.Setenv("PATH", processDir+":/usr/bin:/bin")
+	m := clitools.NewManagerWithPath(managerDir)
+	provs.SetBinResolver(m.LookPath)
+	cu := cliUpdates{m: m, store: st, providers: provs}
+	shared := samePath(m.LookPath("claude"))
+	if cu.runsInstall("claude", shared) {
+		t.Fatal("a bare command found on office's PATH was taken for the manager's install")
+	}
+	bare, _ := st.Providers().Create(ctx, storage.Provider{Name: "bare", Kind: storage.ProviderClaudeCLI, BaseURL: "claude", Enabled: true})
+	if why := cu.recheck(ctx, "claude"); why != "" {
+		t.Fatalf("another binary of the same name made the update broken: %q", why)
+	}
+	if p, _ := st.Providers().Get(ctx, bare.ID); p.Status == "ok" || p.Status == "error" {
+		t.Fatalf("the bare connection was tested: %s", p.Status)
+	}
+	own, _ := st.Providers().Create(ctx, storage.Provider{Name: "default", Kind: storage.ProviderClaudeCLI, Enabled: true})
+	if why := cu.recheck(ctx, "claude"); why != "" {
+		t.Fatalf("healthy install reported broken: %q", why)
+	}
+	if p, _ := st.Providers().Get(ctx, own.ID); p.Status != "ok" {
+		t.Fatalf("the connection on the manager's install was not checked: %s", p.Status)
 	}
 }

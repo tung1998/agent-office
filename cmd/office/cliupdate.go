@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -147,10 +148,12 @@ func samePath(p string) string {
 	return filepath.Clean(p)
 }
 
-// runsInstall: a connection's command is the install at shared. A bare
-// name is looked up on PATH the way runs find it (another command, e.g.
-// claude-old, is another install); a relative path depends on the run's
-// folder, so it cannot be told to be this install and is not counted.
+// runsInstall: a connection's command is the install at shared. A
+// connection with no command runs the one the CLI manager found
+// (provider.CLIBin gives that path); a bare name is looked up as its runs
+// look it up (another command, e.g. claude-old, is another install); a
+// relative path depends on the run's folder, so it cannot be told to be this
+// install and is not counted.
 func (c cliUpdates) runsInstall(bin, shared string) bool {
 	switch {
 	case shared == "" || bin == "":
@@ -160,7 +163,14 @@ func (c cliUpdates) runsInstall(bin, shared string) bool {
 	case strings.ContainsRune(bin, filepath.Separator):
 		return false
 	}
-	return samePath(c.m.LookPath(bin)) == shared
+	// a bare name in a connection is started by exec.Command, which looks it
+	// up on office's own PATH (not the CLI manager's wider one): found the
+	// same way here, so the binary compared is the one its runs start
+	p, err := exec.LookPath(bin)
+	if err != nil {
+		return false
+	}
+	return samePath(p) == shared
 }
 
 // installBroken: a check's failure says the CLI itself cannot start.
