@@ -46,7 +46,7 @@ useLive(['jobs', 'runs'], () => refresh())
         <div class="relative flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
           <JobStatusBadge :status="j.status" />
           <span class="min-w-0 flex-1 truncate font-medium">{{ j.automation_name || j.title || t('auto.title') }}</span>
-          <UBadge v-if="j.resumes" color="info" variant="subtle" size="sm" icon="i-lucide-rotate-cw" :label="t('job.resumed', { n: j.resumes })" class="shrink-0" />
+          <UBadge v-if="j.resumes" color="info" variant="subtle" size="sm" icon="i-lucide-rotate-cw" :label="t('job.resumed', { n: j.resumes })" class="shrink-0 max-sm:order-last" />
           <span class="shrink-0 text-xs text-(--ui-text-muted)">{{ when(j.created_at) }} · ${{ j.cost_usd.toFixed(3) }}</span>
         </div>
         <p v-if="j.title && j.title !== j.automation_name" class="relative mt-1 line-clamp-1 text-xs text-(--ui-text-muted)">{{ j.title }}</p>

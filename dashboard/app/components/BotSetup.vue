@@ -42,7 +42,8 @@ const settingsOpen = ref(isNew.value)
 const guideOpen = ref(false)
 
 // its commands: drafts of their automations
-interface Cmd { key: string, id?: string, draft: AutomationDraft, open: boolean, version?: string }
+// taken: its saved name is one the bot keeps for its own, so it never runs (ADR-258)
+interface Cmd { key: string, id?: string, draft: AutomationDraft, open: boolean, version?: string, taken?: string }
 let seq = 0
 function draftFor(command: string): AutomationDraft {
   const d = emptyDraft()
@@ -56,7 +57,7 @@ const cmds = ref<Cmd[]>([])
 const removed: string[] = []
 {
   const mine = (autoData.value?.automations ?? []).filter(a => isChannelSource(a.source) && a.config.channel_id === props.botId && !isNew.value)
-  cmds.value = mine.map(a => ({ key: `k${seq++}`, id: a.id, version: a.version, draft: draftFrom(a), open: false }))
+  cmds.value = mine.map(a => ({ key: `k${seq++}`, id: a.id, version: a.version, draft: draftFrom(a), open: false, taken: a.command_taken }))
   cmds.value.sort((a, b) => Number(!!a.draft.config.command) - Number(!!b.draft.config.command)) // "@bot" first
   if (!cmds.value.some(c => !c.draft.config.command)) cmds.value.unshift({ key: `k${seq++}`, draft: draftFor(''), open: isNew.value })
 }
@@ -353,6 +354,10 @@ async function save() {
                   <template v-else>/{{ cmdLabel(commandName(c.draft.config.command) || '…') }}<span v-if="c.draft.config.command_arg" class="text-(--ui-text-dimmed)"> &lt;{{ c.draft.config.command_arg }}&gt;</span></template>
                 </span>
                 <UBadge v-if="!c.draft.config.command" :label="t('bot.basic')" color="neutral" variant="subtle" size="sm" />
+                <UBadge
+                  v-else-if="c.taken && commandName(c.draft.config.command ?? '') === c.taken" color="warning" variant="subtle" size="sm" icon="i-lucide-terminal"
+                  :label="t('auto.commandTaken', { name: c.taken })" :title="t('auto.commandTakenHint')"
+                />
                 <UBadge v-else-if="c.draft.config.skill" :label="t('bot.skillBadge')" color="primary" variant="subtle" size="sm" icon="i-lucide-sparkles" />
                 <span class="min-w-0 flex-1 truncate text-xs text-(--ui-text-muted)">→ {{ summary(c) }}</span>
                 <USwitch v-model="c.draft.enabled" size="sm" @click.stop />

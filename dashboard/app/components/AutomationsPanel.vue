@@ -136,6 +136,11 @@ async function runNow(a: Automation) {
             {{ b.kind === 'telegram' ? 'Telegram' : 'Discord' }} · {{ t('bot.commands', { n: b.cmds.length }) }}
             <template v-for="c in b.cmds.filter(x => x.config.command)" :key="c.id"> · /{{ c.config.command }}</template>
           </span>
+          <!-- a command bearing a built-in name never runs (ADR-258): under the name, not squeezing it -->
+          <span
+            v-for="c in b.cmds.filter(x => x.command_taken)" :key="'taken-' + c.id" :title="t('auto.commandTakenHint')"
+            class="mt-0.5 flex items-center gap-1 text-xs text-(--ui-warning)"
+          ><UIcon name="i-lucide-terminal" class="size-3.5 shrink-0" />{{ t('auto.commandTaken', { name: c.command_taken ?? '' }) }}</span>
         </NuxtLink>
         <UBadge v-if="b.error" color="error" variant="subtle" size="sm" icon="i-lucide-bot" :label="b.error" :title="b.error" class="max-w-64 truncate" />
         <UBadge v-else-if="b.connecting" color="warning" variant="subtle" size="sm" icon="i-lucide-loader-circle" :label="t('channels.connecting')" />
@@ -159,7 +164,6 @@ async function runNow(a: Automation) {
         </NuxtLink>
         <span v-if="a.config.tags?.length" class="flex flex-wrap items-center gap-1"><ChatTags :tags="a.config.tags" /></span>
         <UBadge v-if="isFullAccess(a)" color="warning" variant="subtle" size="sm" icon="i-lucide-shield-alert" :label="t('auto.adminBadge')" :title="t('auto.adminBadgeHint')" />
-        <UBadge v-if="a.command_taken" color="warning" variant="subtle" size="sm" icon="i-lucide-terminal" :label="t('auto.commandTaken', { name: a.command_taken })" :title="t('auto.commandTakenHint')" />
         <UBadge v-if="a.disabled_code" color="error" variant="subtle" size="sm" icon="i-lucide-circle-alert" :label="t('auto.disabledBy', { reason: a.disabled_reason })" class="max-w-64 truncate" />
         <UBadge v-else-if="a.bot_status?.last_error" color="error" variant="subtle" size="sm" icon="i-lucide-bot" :label="a.bot_status.last_error" :title="a.bot_status.last_error" class="max-w-64 truncate" />
         <span v-else class="flex items-center gap-1.5 text-xs text-(--ui-text-muted)">

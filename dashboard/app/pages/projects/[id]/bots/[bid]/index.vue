@@ -89,6 +89,7 @@ async function remove() {
         >
           <span class="font-mono text-sm">{{ cmdLabel(a) }}<span v-if="a.config.command_arg" class="text-(--ui-text-dimmed)"> &lt;{{ a.config.command_arg }}&gt;</span></span>
           <UBadge v-if="!a.config.command" :label="t('bot.basic')" color="neutral" variant="subtle" size="sm" />
+          <UBadge v-if="a.command_taken" color="warning" variant="subtle" size="sm" icon="i-lucide-terminal" :label="t('auto.commandTaken', { name: a.command_taken })" :title="t('auto.commandTakenHint')" />
           <span class="min-w-0 flex-1 truncate text-xs text-(--ui-text-muted)">→ {{ summary(a) }}</span>
           <UBadge v-if="!a.enabled" :label="t('auto.off')" color="neutral" variant="subtle" size="sm" />
           <ChatTags v-if="a.config.tags?.length" :tags="a.config.tags" />
