@@ -9,6 +9,8 @@ const en: Record<keyof typeof vi, string> = {
   'audit.secretChanged': '(secret, changed)',
   'audit.noDiff': 'No before/after values',
   'audit.empty': 'No changes yet.',
+  'audit.today': 'Today',
+  'audit.yesterday': 'Yesterday',
   'audit.more': 'Load more',
   'audit.failed': 'Failed',
   'audit.colTime': 'Time',

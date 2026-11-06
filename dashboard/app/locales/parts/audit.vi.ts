@@ -8,6 +8,8 @@ export default {
   'audit.secretChanged': '(bí mật, đã đổi)',
   'audit.noDiff': 'Không có giá trị trước/sau',
   'audit.empty': 'Chưa có thay đổi nào.',
+  'audit.today': 'Hôm nay',
+  'audit.yesterday': 'Hôm qua',
   'audit.more': 'Xem thêm',
   'audit.failed': 'Thất bại',
   'audit.colTime': 'Thời gian',

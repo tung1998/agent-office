@@ -5,7 +5,7 @@ import type { MessageKey } from '~/locales/vi'
 
 const props = defineProps<{ filter?: { project?: string, resource?: string, resource_id?: string }, showFilters?: boolean, projects?: { id: string, name: string }[], compact?: boolean }>()
 const toast = useToast()
-const { t, when } = useLang()
+const { t, when, dateLocale } = useLang()
 
 const kind = ref('')
 const via = ref('')
@@ -89,6 +89,23 @@ function openJob(j: Job) {
 }
 // how many filters differ from the default (shown on the filter icon)
 const activeFilters = computed(() => [!!kind.value, !!via.value, !!resource.value && !props.filter?.resource, !!project.value && !props.filter?.project, since.value !== '168h'].filter(Boolean).length)
+
+// group rows by calendar day so a long list reads in sections, not one wall of timestamps
+function dayKey(d: string) {
+  const at = new Date(d)
+  return `${at.getFullYear()}-${at.getMonth()}-${at.getDate()}`
+}
+function dayLabel(d: string) {
+  const at = new Date(d)
+  const now = new Date()
+  const days = Math.round((new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime() - new Date(at.getFullYear(), at.getMonth(), at.getDate()).getTime()) / 86400000)
+  if (days === 0) return t('audit.today')
+  if (days === 1) return t('audit.yesterday')
+  const o: Intl.DateTimeFormatOptions = { weekday: 'short', day: '2-digit', month: '2-digit' }
+  if (at.getFullYear() !== now.getFullYear()) o.year = 'numeric'
+  return at.toLocaleDateString(dateLocale.value, o)
+}
+const rows = computed(() => entries.value.map((e, i) => ({ e, dayHeader: i === 0 || dayKey(e.at) !== dayKey(entries.value[i - 1]!.at) ? dayLabel(e.at) : null })))
 defineExpose({ reload: () => load() })
 useLive(['audit_log'], () => load())
 </script>
@@ -115,12 +132,18 @@ useLive(['audit_log'], () => load())
               <th class="w-20 px-2 py-2 font-medium sm:w-28 sm:px-4">{{ t('audit.colTime') }}</th>
               <th class="w-48 px-2 py-2 font-medium max-sm:hidden">{{ t('audit.colWho') }}</th>
               <th class="w-28 px-2 py-2 font-medium sm:w-44">{{ t('audit.colChange') }}</th>
-              <th class="px-2 py-2 font-medium">{{ t('audit.colTarget') }}</th>
-              <th v-if="!compact" class="w-16 px-2 py-2 font-medium sm:w-32 sm:px-4">{{ t('audit.colSource') }}</th>
+              <th class="truncate px-2 py-2 font-medium">{{ t('audit.colTarget') }}</th>
+              <th v-if="!compact" class="w-10 truncate px-2 py-2 font-medium sm:w-32 sm:px-4"><span class="max-sm:hidden">{{ t('audit.colSource') }}</span></th>
             </tr>
           </thead>
           <tbody>
-            <template v-for="e in entries" :key="e.id">
+            <template v-for="{ e, dayHeader } in rows" :key="e.id">
+              <tr v-if="dayHeader" class="max-sm:hidden bg-(--ui-bg-elevated)/60">
+                <td :colspan="compact ? 4 : 5" class="px-2 py-1 text-xs font-medium text-(--ui-text-muted) sm:px-4">{{ dayHeader }}</td>
+              </tr>
+              <tr v-if="dayHeader" class="sm:hidden bg-(--ui-bg-elevated)/60">
+                <td :colspan="compact ? 3 : 4" class="px-2 py-1 text-xs font-medium text-(--ui-text-muted)">{{ dayHeader }}</td>
+              </tr>
               <tr class="cursor-pointer border-b border-(--ui-border) last:border-0 hover:bg-(--ui-bg-elevated)/40" @click="open = open === e.id ? null : e.id">
                 <td class="truncate px-2 py-2 text-xs text-(--ui-text-muted) sm:px-4">{{ when(e.at) }}</td>
                 <td class="px-2 py-2 max-sm:hidden">
