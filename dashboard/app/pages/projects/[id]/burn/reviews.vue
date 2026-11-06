@@ -27,6 +27,9 @@ const reviewerItems = computed(() => {
   return groups
 })
 const reviewerIcon = (v: string) => v.startsWith('w:') ? 'i-lucide-workflow' : 'i-lucide-bot'
+const stageIcons: Record<ReviewStage, string> = { issue: 'i-lucide-circle-help', plan: 'i-lucide-list-checks', result: 'i-lucide-shield-check' }
+// which stages a profile covers, for the sidebar row (no need to open it to see)
+const profileStages = (p: BurnReviewProfile) => reviewStageKeys.filter(k => p.stages[k])
 
 // the profile being edited ('' = a new one)
 const selected = ref<string | null>(null)
@@ -95,21 +98,30 @@ async function remove() {
     </div>
     <UAlert v-if="error" color="error" variant="subtle" :title="apiError(error)" :actions="[{ label: t('common.refresh'), onClick: () => refresh() }]" />
     <LoadingRows v-else-if="!data" />
-    <div v-else class="grid gap-4 md:grid-cols-[16rem_1fr]">
+    <div v-else class="grid gap-4 md:grid-cols-[17rem_1fr]">
       <!-- the profiles -->
       <div class="space-y-1">
         <UButton block color="neutral" variant="outline" icon="i-lucide-plus" :label="t('burn.review.new')" @click="load()" />
         <button
           v-for="p in profiles" :key="p.id" type="button"
-          class="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-start text-sm hover:bg-(--ui-bg-elevated)"
-          :class="selected === p.id ? 'bg-(--ui-bg-elevated) font-medium' : ''"
+          class="flex w-full items-center gap-2 rounded-lg border px-3 py-2 text-start text-sm transition-colors"
+          :class="selected === p.id ? 'border-(--ui-primary) bg-(--ui-primary)/5' : 'border-transparent hover:bg-(--ui-bg-elevated)'"
           @click="load(p)"
         >
-          <UIcon name="i-lucide-scan-eye" class="size-4 shrink-0 text-(--ui-text-muted)" />
-          <span class="min-w-0 flex-1 truncate">{{ p.name }}</span>
+          <UIcon name="i-lucide-scan-eye" class="size-4 shrink-0" :class="selected === p.id ? 'text-(--ui-primary)' : 'text-(--ui-text-muted)'" />
+          <span class="min-w-0 flex-1 truncate" :class="selected === p.id ? 'font-medium' : ''">{{ p.name }}</span>
+          <span v-if="profileStages(p).length" class="flex shrink-0 items-center gap-0.5">
+            <span v-for="k in profileStages(p)" :key="k" class="inline-flex" :title="t(`burn.review.${k}`)">
+              <UIcon :name="stageIcons[k]" class="size-3.5 text-(--ui-text-dimmed)" />
+              <span class="sr-only">{{ t(`burn.review.${k}`) }}</span>
+            </span>
+          </span>
           <UBadge v-if="p.in_use" :label="t('burn.review.inUse')" color="warning" variant="subtle" size="sm" />
         </button>
-        <p v-if="!profiles.length" class="px-3 py-2 text-xs text-(--ui-text-dimmed)">{{ t('burn.review.empty') }}</p>
+        <div v-if="!profiles.length" class="flex flex-col items-center gap-1 rounded-lg border border-dashed border-(--ui-border) px-3 py-6 text-center">
+          <UIcon name="i-lucide-scan-eye" class="size-4 text-(--ui-text-dimmed)" />
+          <p class="text-xs text-(--ui-text-dimmed)">{{ t('burn.review.empty') }}</p>
+        </div>
       </div>
 
       <!-- one profile -->
@@ -117,9 +129,15 @@ async function remove() {
         <UFormField :label="t('burn.review.name')" required data-field="name" :error="errors.name">
           <UInput v-model="form.name" class="w-full" :placeholder="t('burn.review.namePlaceholder')" />
         </UFormField>
-        <div v-for="k in reviewStageKeys" :key="k" class="space-y-3 rounded-lg border border-(--ui-border) p-3">
-          <USwitch v-model="form.stages[k].on" :label="t('burn.review.stageTitle', { stage: t(`burn.review.${k}`) })" :description="t(`burn.review.${k}Help`)" />
-          <div v-if="form.stages[k].on" class="space-y-1.5">
+        <div
+          v-for="k in reviewStageKeys" :key="k" class="space-y-3 rounded-lg border p-3 transition-colors"
+          :class="form.stages[k].on ? 'border-(--ui-border)' : 'border-(--ui-border)/60 bg-(--ui-bg-elevated)/30'"
+        >
+          <div class="flex items-start gap-2.5">
+            <UIcon :name="stageIcons[k]" class="mt-0.5 size-4 shrink-0" :class="form.stages[k].on ? 'text-(--ui-primary)' : 'text-(--ui-text-dimmed)'" />
+            <USwitch v-model="form.stages[k].on" class="flex-1" :label="t('burn.review.stageTitle', { stage: t(`burn.review.${k}`) })" :description="t(`burn.review.${k}Help`)" />
+          </div>
+          <div v-if="form.stages[k].on" class="space-y-1.5 ps-[1.625rem]">
             <p class="flex items-center gap-1.5 text-sm font-medium">
               {{ t('burn.review.reviewer') }}
               <InfoTip :text="t('burn.review.reviewerHelp')" icon-class="size-3.5 text-(--ui-text-dimmed)" />
