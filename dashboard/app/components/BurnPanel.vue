@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { MessageKey } from '~/locales/vi'
 // A project's Burn (spec 2026-10-01-burn-design): its main agent runs on its
 // own with full access, finding work and doing it, one piece at a time in its
 // own worktree, until stopped or its time is up. This page runs it; the chat
@@ -227,6 +228,20 @@ const columns = computed(() => [
   return { ...c, all, items: expanded.value.has(c.key) ? all : all.slice(0, colMax) }
 }))
 const kindColor = (k: Item['kind']) => ({ '': 'neutral', bug: 'error', unfinished: 'warning', upgrade: 'info', idea: 'primary', quest: 'success' } as const)[k]
+// a status icon on the card, on top of its column: doing/handed/review already move, the rest just need telling apart at a glance
+const statusIcons: Record<string, string> = {
+  doing: 'i-lucide-loader-circle', handed: 'i-lucide-user-round-cog', review: 'i-lucide-scan-eye',
+  queued: 'i-lucide-clock', failed: 'i-lucide-circle-x', skipped: 'i-lucide-circle-slash', done: 'i-lucide-circle-check'
+}
+const statusColors: Record<string, string> = {
+  doing: 'text-(--ui-warning)', handed: 'text-(--ui-warning)', review: 'text-(--ui-info)',
+  queued: 'text-(--ui-text-dimmed)', failed: 'text-(--ui-error)', skipped: 'text-(--ui-text-dimmed)', done: 'text-(--ui-success)'
+}
+const statusTitleKeys: Record<string, MessageKey> = {
+  doing: 'burn.col.doing', handed: 'burn.handed', review: 'burn.review.waiting',
+  queued: 'burn.status.queued', failed: 'burn.status.failed', skipped: 'burn.status.skipped', done: 'burn.status.done'
+}
+const statusTitle = (s: string) => statusTitleKeys[s] ? t(statusTitleKeys[s]) : ''
 const itemActing = ref<Record<string, string>>({})
 async function itemAction(it: Item, action: 'skip' | 'first' | 'drop-worktree') {
   if (itemActing.value[it.id]) return
@@ -267,40 +282,41 @@ const builderDone = computed(() => builderFeatures.value.filter(f => f.passes).l
     </div>
     <!-- side by side on every screen: scrolled across below xl -->
     <div class="flex snap-x snap-mandatory items-start gap-3 overflow-x-auto pb-2 xl:grid xl:grid-cols-5 xl:overflow-visible xl:pb-0">
-      <div v-for="col in columns" :key="col.key" class="w-[80%] min-w-0 shrink-0 snap-start space-y-2 rounded-xl border border-(--ui-border) p-2 sm:w-[45%] xl:w-auto">
-        <p class="flex items-center gap-2 px-1 text-xs font-medium text-(--ui-text-muted)">
+      <div v-for="col in columns" :key="col.key" class="w-[80%] min-w-0 shrink-0 snap-start space-y-2 rounded-xl border border-(--ui-border) bg-(--ui-bg)/40 p-2.5 sm:w-[45%] xl:w-auto">
+        <p class="flex items-center gap-2 px-0.5 text-xs font-semibold tracking-wide text-(--ui-text-muted) uppercase">
           {{ col.label }}<UBadge :label="String(col.all.length)" color="neutral" variant="subtle" size="sm" />
-          <span v-if="col.key === 'found' && coverage.total" class="ms-auto tabular-nums text-(--ui-text-dimmed)" :title="t('burn.col.coverage', { n: coverage.done, max: coverage.total })">{{ coverage.done }}/{{ coverage.total }}</span>
+          <span v-if="col.key === 'found' && coverage.total" class="ms-auto text-xs font-normal normal-case tabular-nums text-(--ui-text-dimmed)" :title="t('burn.col.coverage', { n: coverage.done, max: coverage.total })">{{ coverage.done }}/{{ coverage.total }}</span>
         </p>
         <LoadingRows v-if="loading" :n="2" :icon="false" />
-        <p v-else-if="!col.items.length" class="px-1 py-2 text-xs text-(--ui-text-dimmed)">—</p>
-        <div v-for="it in col.items" :key="it.id" class="space-y-1.5 rounded-lg bg-(--ui-bg-elevated)/60 p-2.5 text-sm">
+        <div v-else-if="!col.items.length" class="flex flex-col items-center justify-center gap-1 rounded-lg border border-dashed border-(--ui-border) px-2 py-6 text-center">
+          <UIcon name="i-lucide-inbox" class="size-4 text-(--ui-text-dimmed)" />
+          <p class="text-xs text-(--ui-text-dimmed)">{{ t('burn.col.empty') }}</p>
+        </div>
+        <div v-for="it in col.items" :key="it.id" class="space-y-2 rounded-lg border border-transparent bg-(--ui-bg-elevated)/60 p-3 text-sm transition-colors hover:border-(--ui-border)">
           <div class="flex items-start gap-2">
-            <UIcon v-if="it.status === 'doing'" name="i-lucide-loader-circle" class="mt-0.5 size-4 shrink-0 animate-spin text-(--ui-warning)" />
-            <UIcon v-else-if="it.status === 'handed'" name="i-lucide-user-round-cog" class="mt-0.5 size-4 shrink-0 text-(--ui-warning)" :title="t('burn.handed')" />
-            <UIcon v-else-if="it.status === 'review'" name="i-lucide-scan-eye" class="mt-0.5 size-4 shrink-0 text-(--ui-info)" :title="t('burn.review.waiting')" />
-            <span class="min-w-0 flex-1 font-medium">{{ it.title }}</span>
-            <UBadge v-if="it.kind" :label="t(`burn.kind.${it.kind}`)" :color="kindColor(it.kind)" variant="subtle" size="sm" />
-            <UBadge v-else :label="t('burn.kind.hunting')" color="neutral" variant="subtle" size="sm" />
+            <UIcon v-if="statusIcons[it.status]" :name="statusIcons[it.status]" class="mt-0.5 size-4 shrink-0" :class="[statusColors[it.status], it.status === 'doing' && 'animate-spin']" :title="statusTitle(it.status)" />
+            <span class="min-w-0 flex-1 leading-snug font-medium">{{ it.title }}</span>
+            <UBadge v-if="it.kind" :label="t(`burn.kind.${it.kind}`)" :color="kindColor(it.kind)" variant="subtle" size="sm" class="shrink-0" />
+            <UBadge v-else :label="t('burn.kind.hunting')" color="neutral" variant="subtle" size="sm" class="shrink-0" />
           </div>
-          <p v-if="it.summary" class="line-clamp-4 whitespace-pre-line text-xs text-(--ui-text-muted)">{{ it.summary }}</p>
-          <p v-else-if="it.detail" class="line-clamp-3 text-xs text-(--ui-text-muted)">{{ it.detail }}</p>
-          <p v-if="it.review_note" class="flex gap-1 text-xs text-(--ui-text-muted)" :title="it.review_note">
+          <ClampText v-if="it.summary" :text="it.summary" :lines="4" class="text-xs text-(--ui-text-muted)" />
+          <ClampText v-else-if="it.detail" :text="it.detail" :lines="3" class="text-xs text-(--ui-text-muted)" />
+          <p v-if="it.review_note" class="flex gap-1 rounded-md bg-(--ui-bg)/60 p-1.5 text-xs text-(--ui-text-muted)" :title="it.review_note">
             <UIcon name="i-lucide-scan-eye" class="mt-0.5 size-3.5 shrink-0" /><span class="line-clamp-2">{{ it.review_note }}</span>
           </p>
-          <div class="flex flex-wrap items-center gap-x-2 text-xs text-(--ui-text-dimmed)">
-            <span v-if="it.owner" class="inline-flex items-center gap-0.5" :title="t('burn.owner')"><UIcon name="i-lucide-user-round" class="size-3" />{{ it.owner }}</span>
-            <span v-if="it.cost_usd">${{ it.cost_usd.toFixed(2) }}</span>
-            <span v-if="it.subagents">{{ t('burn.subagents', { n: it.subagents }) }}</span>
-            <span v-if="it.status === 'review'" class="text-(--ui-info)">{{ t('burn.review.waiting') }}</span>
-            <span v-else-if="it.reviewed?.length">{{ t('burn.review.passed', { stages: it.reviewed.map(v => t(`burn.review.${v}`)).join(', ') }) }}</span>
-            <span>{{ when(it.updated_at) }}</span>
+          <div class="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs text-(--ui-text-dimmed)">
+            <span v-if="it.owner" class="inline-flex items-center gap-1" :title="t('burn.owner')"><UIcon name="i-lucide-user-round" class="size-3" />{{ it.owner }}</span>
+            <span v-if="it.cost_usd" class="inline-flex items-center gap-1 tabular-nums"><UIcon name="i-lucide-dollar-sign" class="size-3" />{{ it.cost_usd.toFixed(2) }}</span>
+            <span v-if="it.subagents" class="inline-flex items-center gap-1"><UIcon name="i-lucide-users" class="size-3" />{{ t('burn.subagents', { n: it.subagents }) }}</span>
+            <span v-if="it.status === 'review'" class="inline-flex items-center gap-1 text-(--ui-info)"><UIcon name="i-lucide-scan-eye" class="size-3" />{{ t('burn.review.waiting') }}</span>
+            <span v-else-if="it.reviewed?.length" class="inline-flex items-center gap-1 text-(--ui-success)"><UIcon name="i-lucide-check" class="size-3" />{{ t('burn.review.passed', { stages: it.reviewed.map(v => t(`burn.review.${v}`)).join(', ') }) }}</span>
+            <span class="ms-auto">{{ when(it.updated_at) }}</span>
           </div>
-          <div class="flex flex-wrap gap-1">
+          <div v-if="hasReviews(it) || ['found', 'skipped', 'failed', 'queued', 'paused', 'review'].includes(it.status) || (it.worktree && ['done', 'failed', 'skipped'].includes(it.status))" class="flex flex-wrap items-center gap-1 border-t border-(--ui-border)/60 pt-2">
             <UButton v-if="hasReviews(it)" size="xs" color="neutral" variant="ghost" icon="i-lucide-scan-eye" :label="t('burn.review.view')" @click="openReviews(it)" />
             <UButton v-if="['found', 'skipped', 'failed'].includes(it.status)" size="xs" color="neutral" variant="outline" icon="i-lucide-arrow-up-to-line" :label="t('burn.first')" :loading="itemActing[it.id] === 'first'" :disabled="!!itemActing[it.id] && itemActing[it.id] !== 'first'" @click="itemAction(it, 'first')" />
             <UButton v-if="['found', 'queued', 'paused', 'review'].includes(it.status)" size="xs" color="neutral" variant="ghost" :label="t('burn.skip')" :loading="itemActing[it.id] === 'skip'" :disabled="!!itemActing[it.id] && itemActing[it.id] !== 'skip'" @click="itemAction(it, 'skip')" />
-            <UButton v-if="it.worktree && ['done', 'failed', 'skipped'].includes(it.status)" size="xs" color="neutral" variant="ghost" icon="i-lucide-trash-2" :label="t('burn.dropWorktree')" :loading="itemActing[it.id] === 'drop-worktree'" :disabled="!!itemActing[it.id] && itemActing[it.id] !== 'drop-worktree'" @click="itemAction(it, 'drop-worktree')" />
+            <UButton v-if="it.worktree && ['done', 'failed', 'skipped'].includes(it.status)" size="xs" color="error" variant="ghost" icon="i-lucide-trash-2" :label="t('burn.dropWorktree')" class="ms-auto" :loading="itemActing[it.id] === 'drop-worktree'" :disabled="!!itemActing[it.id] && itemActing[it.id] !== 'drop-worktree'" @click="itemAction(it, 'drop-worktree')" />
           </div>
         </div>
         <UButton v-if="col.all.length > col.items.length" size="xs" color="neutral" variant="ghost" block :label="t('burn.showMore', { n: col.all.length - col.items.length })" @click="expand(col.key)" />
@@ -343,20 +359,20 @@ const builderDone = computed(() => builderFeatures.value.filter(f => f.passes).l
             <UButton size="sm" color="neutral" icon="i-lucide-square" :label="t('burn.stopNow')" :loading="acting === 'stop'" @click="stop('stop')" />
           </template>
           <!-- on is on: it runs by the saved plan, nothing more is asked -->
-          <div v-else class="flex items-center gap-2 rounded-lg border border-(--ui-border) py-1 ps-3 pe-2">
-            <span class="text-sm font-medium">{{ on ? t('burn.switchOn') : t('burn.switchOff') }}</span>
+          <div v-else class="flex items-center gap-2 rounded-lg border border-(--ui-border) bg-(--ui-bg)/40 py-1.5 ps-3 pe-2">
+            <span class="text-sm font-medium" :class="on ? 'text-(--ui-warning)' : 'text-(--ui-text-muted)'">{{ on ? t('burn.switchOn') : t('burn.switchOff') }}</span>
             <InfoTip :text="t('burn.confirmDesc')" icon-class="size-3.5 text-(--ui-text-dimmed)" />
             <USwitch :model-value="on" color="warning" size="lg" :loading="acting === 'start' || acting === 'drain'" :disabled="loading || !!offAgent || !!acting" :aria-label="t('burn.toggle')" @update:model-value="toggle" />
           </div>
         </div>
       </div>
       <USkeleton v-if="loading" class="h-3.5 w-2/3" />
-      <p v-else class="text-xs text-(--ui-text-muted)">
-        {{ t('burn.summary', { tier: t(`burn.tier.${form.model_tier}`), n: form.max_parallel }) }} · {{ t(`burn.template.${form.template}`) }}<template v-if="form.template === 'general'"> · {{ t(`burn.order.${form.order}`) }}</template>
+      <p v-else class="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-(--ui-text-muted)">
+        <span>{{ t('burn.summary', { tier: t(`burn.tier.${form.model_tier}`), n: form.max_parallel }) }} · {{ t(`burn.template.${form.template}`) }}<template v-if="form.template === 'general'"> · {{ t(`burn.order.${form.order}`) }}</template></span>
         <!-- a profile named "review …" is not said twice -->
-        <template v-if="reviewSummary"> · {{ /^review\b/i.test(reviewSummary) ? reviewSummary : t('burn.review.summary', { profile: reviewSummary }) }}</template>
-        <template v-if="burn?.run_branch"> · <button type="button" class="font-mono hover:text-(--ui-text)" :title="burn.run_tree ? t('burn.copyRunTree') : undefined" @click="burn.run_tree && copy(`cd ${burn.run_tree}`)">{{ burn.run_branch }}</button></template>
-        <template v-if="shown.length"> · {{ t('burn.cost', { usd: totalCost.toFixed(2), n: shown.filter(i => i.status === 'done').length }) }}</template>
+        <template v-if="reviewSummary"><span class="text-(--ui-text-dimmed)">·</span><span>{{ /^review\b/i.test(reviewSummary) ? reviewSummary : t('burn.review.summary', { profile: reviewSummary }) }}</span></template>
+        <template v-if="burn?.run_branch"><span class="text-(--ui-text-dimmed)">·</span><button type="button" class="font-mono hover:text-(--ui-text)" :title="burn.run_tree ? t('burn.copyRunTree') : undefined" @click="burn.run_tree && copy(`cd ${burn.run_tree}`)">{{ burn.run_branch }}</button></template>
+        <template v-if="shown.length"><span class="text-(--ui-text-dimmed)">·</span><span class="tabular-nums">{{ t('burn.cost', { usd: totalCost.toFixed(2), n: shown.filter(i => i.status === 'done').length }) }}</span></template>
       </p>
       <UAlert v-if="offAgent" color="warning" variant="subtle" icon="i-lucide-power-off" :title="t('burn.agentOff', { name: offAgent.name })"
         :actions="[{ label: t('burn.agentOffChange'), color: 'warning', variant: 'outline', onClick: () => { settingsOpen = true } }, { label: t('burn.agentOffOpen'), color: 'neutral', variant: 'ghost', to: `/projects/${projectId}/agents/${offAgent.id}` }]" />

@@ -127,6 +127,7 @@ const en: Record<MessageKey, string> = {
   'common.status': 'Status',
   'common.actions': 'Actions',
   'common.more': 'More…',
+  'common.less': 'Show less',
   'log.lines': '{n} lines',
   'log.clear': 'Clear',
   'log.empty': 'No logs yet.',

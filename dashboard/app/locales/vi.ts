@@ -126,6 +126,7 @@ const vi = {
   'common.status': 'Trạng thái',
   'common.actions': 'Thao tác',
   'common.more': 'Thêm…',
+  'common.less': 'Thu gọn',
   'log.lines': '{n} dòng',
   'log.clear': 'Xóa màn hình',
   'log.empty': 'Chưa có log.',
