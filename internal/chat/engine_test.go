@@ -340,12 +340,13 @@ func call(t *testing.T, dir string, n int) (args, stdin string) {
 }
 
 // fakeGroupClaude: like fakeTeamClaude, replies from reply-<who> files and
-// sleeps from sleep-<who> files (who = lead | dev).
+// sleeps from sleep-<who> files (who = lead | dev). It gives up when the
+// test's temp dir is gone, or a run left behind spins on the lock forever.
 func fakeGroupClaude(t *testing.T) (bin, dir string) {
 	dir = t.TempDir()
 	bin = filepath.Join(dir, "claude")
 	fakebin.Write(bin, []byte(`#!/bin/sh
-while ! mkdir `+dir+`/.lock 2>/dev/null; do sleep 0.01; done
+while ! mkdir `+dir+`/.lock 2>/dev/null; do [ -d `+dir+` ] || exit 1; sleep 0.01; done
 n=$(ls `+dir+` | grep -c 'args$')
 n=$((n+1))
 echo "$*" > `+dir+`/call$n.args

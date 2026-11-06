@@ -215,7 +215,7 @@ func TestHoldReleasedAfterUpdate(t *testing.T) {
 	m, dir := testManager(t)
 	npmTool(t, dir, "dsh", "@deepseek-ai/dsh", "1.0.0")
 	gate := filepath.Join(dir, "gate")
-	writeBin(t, dir, "npm", "#!/bin/sh\nwhile [ ! -f "+gate+" ]; do sleep 0.05; done\necho ok\n")
+	writeBin(t, dir, "npm", "#!/bin/sh\nwhile [ ! -f "+gate+" ] && [ -d "+dir+" ]; do sleep 0.05; done\necho ok\n")
 	if _, err := m.UpdateNow("dsh", "an"); err != nil {
 		t.Fatal(err)
 	}

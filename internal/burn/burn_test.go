@@ -446,7 +446,7 @@ p=$(cat)
 case "$p" in
 *"result review"*)
   touch "`+started+`"
-  while [ ! -f "`+marker+`" ]; do sleep 0.05; done
+  while [ ! -f "`+marker+`" ] && [ -d "`+tmp+`" ]; do sleep 0.05; done
   r="VERDICT: AGREE. Đúng phạm vi";;
 *) echo "do agent viết" > made-by-agent.txt; sleep 1; r="xong lượt";;
 esac
@@ -513,7 +513,7 @@ func TestBurnWorkDoesNotOverwriteASkipRacingTheChecks(t *testing.T) {
 	ends := time.Now().Add(time.Hour)
 	f.st.Burn().SaveSession(ctx, storage.BurnSession{
 		ProjectID: f.project.ID, ModelTier: "fast", ResultMode: "branch", EndsAt: &ends, State: "stopped",
-		Verify: `touch "` + started + `"; while [ ! -f "` + marker + `" ]; do sleep 0.05; done`,
+		Verify: `touch "` + started + `"; while [ ! -f "` + marker + `" ] && [ -d "` + tmp + `" ]; do sleep 0.05; done`,
 	}) // no review profile: a done item goes straight to checked()
 	b, err := f.svc.Begin(ctx, f.project.ID, "admin@x.io")
 	if err != nil {

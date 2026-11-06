@@ -40,7 +40,7 @@ func TestBusyChatTellsAndLogs(t *testing.T) {
 	ch, _ := st.Channels().Create(ctx, storage.Channel{ProjectID: project.ID, Kind: "telegram", Name: "Hỗ trợ", Enabled: true, Allow: []string{"42"}})
 	rule, _ := st.Automations().Create(ctx, storage.Automation{ProjectID: project.ID, Name: "Chậm", Source: "telegram", Action: "script", Enabled: true,
 		Config: storage.AutomationConfig{ChannelID: ch.ID, Keywords: []string{"TIN"}},
-		Script: storage.AutomationScript{Lang: "bash", Body: `while [ ! -f ` + gate + ` ]; do sleep 0.05; done; echo xong`, TimeoutS: 30}})
+		Script: storage.AutomationScript{Lang: "bash", Body: `while [ ! -f ` + gate + ` ] && [ -d ` + tmp + ` ]; do sleep 0.05; done; echo xong`, TimeoutS: 30}})
 	m := channels.NewManager(st, engine, runner, func(storage.Channel) (channels.Adapter, error) { return bot, nil })
 	runner.SetOnReply(m.Reply)
 	runCtx, cancel := context.WithCancel(ctx)
@@ -177,7 +177,7 @@ func busyNoticeRetried(t *testing.T, slash bool) {
 	ch, _ := st.Channels().Create(ctx, storage.Channel{ProjectID: project.ID, Kind: "telegram", Name: "Hỗ trợ", Enabled: true, Allow: []string{"42"}})
 	rule, _ := st.Automations().Create(ctx, storage.Automation{ProjectID: project.ID, Name: "Chậm", Source: "telegram", Action: "script", Enabled: true,
 		Config: storage.AutomationConfig{ChannelID: ch.ID, Keywords: []string{"TIN"}},
-		Script: storage.AutomationScript{Lang: "bash", Body: `while [ ! -f ` + gate + ` ]; do sleep 0.05; done; echo xong`, TimeoutS: 30}})
+		Script: storage.AutomationScript{Lang: "bash", Body: `while [ ! -f ` + gate + ` ] && [ -d ` + tmp + ` ]; do sleep 0.05; done; echo xong`, TimeoutS: 30}})
 	m := channels.NewManager(st, engine, runner, func(storage.Channel) (channels.Adapter, error) { return bot, nil })
 	runner.SetOnReply(m.Reply)
 	runCtx, cancel := context.WithCancel(ctx)
