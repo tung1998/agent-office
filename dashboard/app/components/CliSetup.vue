@@ -29,6 +29,7 @@ interface ToolStatus {
   job?: JobView
   latest?: string
   outdated?: boolean
+  latest_checking?: boolean
   in_use?: number
   upgrade?: { state: string, waiting: number, from?: string, to?: string, note?: string }
 }
@@ -178,9 +179,17 @@ const selectedMethod = computed(() => status.value?.methods.find(m => m.id === m
 const running = computed(() => job.value?.state === 'running')
 
 watch(() => props.tool, () => { status.value = null; job.value = null; method.value = ''; load() })
+// the newest version the server still reads (first look, or after 6h): its badge shows a little later
+let looks = 0
+async function lookLatest() {
+  const st = status.value
+  if (!st?.installed || upgrading.value || running.value || (st.latest && !st.latest_checking) || looks++ >= 3) return
+  timer = setTimeout(async () => { await load(); lookLatest() }, 4000)
+}
 onMounted(async () => {
   await load()
   if (upgrading.value) followUpgrade()
+  else lookLatest()
 })
 onBeforeUnmount(() => clearTimeout(timer))
 </script>

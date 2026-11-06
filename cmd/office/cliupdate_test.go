@@ -91,7 +91,7 @@ func TestCLIRecheckClearsBrokenMark(t *testing.T) {
 		t.Fatal(err)
 	}
 	_ = st.Providers().SetStatus(ctx, p.ID, "error", "claude: CLI không chạy được: spawn ENOENT", nil, time.Now())
-	cu := cliUpdates{store: st, providers: provs}
+	cu := cliUpdates{m: clitools.NewManagerWithPath(dir), store: st, providers: provs}
 
 	write("#!/bin/sh\ncase \"$1 $2\" in\n  \"--version \"*) echo 2.1.319;;\n  \"auth status\") echo '{\"loggedIn\":true,\"email\":\"a@b.c\"}';;\nesac\n")
 	if why := cu.recheck(ctx, "claude"); why != "" {
@@ -109,5 +109,51 @@ func TestCLIRecheckClearsBrokenMark(t *testing.T) {
 	write("#!/bin/sh\ncase \"$1 $2\" in\n  \"--version \"*) echo 2.1.319;;\n  \"auth status\") echo '{\"loggedIn\":false}'; exit 1;;\nesac\n")
 	if why := cu.recheck(ctx, "claude"); why != "" {
 		t.Fatalf("a signed-out account was taken for a broken install: %q", why)
+	}
+}
+
+// A connection pointed at a binary of its own is not the install that was
+// updated: its own broken binary neither marks the update broken nor is
+// tested for it.
+func TestCLIRecheckOnlyTheUpdatedInstall(t *testing.T) {
+	ctx := context.Background()
+	dir := t.TempDir()
+	st, err := sqlite.Open(filepath.Join(dir, "o.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	if err := st.Migrate(ctx); err != nil {
+		t.Fatal(err)
+	}
+	box, _ := secrets.Load(filepath.Join(dir, "k"))
+	provs := provider.NewService(st, box, llm.Options{})
+	shared, own := filepath.Join(dir, "bin"), filepath.Join(dir, "own")
+	for _, d := range []string{shared, own} {
+		if err := os.MkdirAll(d, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	healthy := "#!/bin/sh\ncase \"$1 $2\" in\n  \"--version \"*) echo 2.1.319;;\n  \"auth status\") echo '{\"loggedIn\":true}';;\nesac\n"
+	broken := "#!/bin/sh\necho 'Error: spawn /x/vendor/claude ENOENT' >&2\nexit 1\n"
+	_ = os.WriteFile(filepath.Join(shared, "claude"), []byte(healthy), 0o755)
+	_ = os.WriteFile(filepath.Join(own, "claude"), []byte(broken), 0o755)
+	m := clitools.NewManagerWithPath(shared)
+	provs.SetBinResolver(m.LookPath)
+	onShared, _ := st.Providers().Create(ctx, storage.Provider{Name: "shared", Kind: storage.ProviderClaudeCLI, Enabled: true})
+	onOwn, _ := st.Providers().Create(ctx, storage.Provider{Name: "own", Kind: storage.ProviderClaudeCLI, BaseURL: filepath.Join(own, "claude"), Enabled: true})
+	cu := cliUpdates{m: m, store: st, providers: provs}
+	if why := cu.recheck(ctx, "claude"); why != "" {
+		t.Fatalf("a binary of its own made the update broken: %q", why)
+	}
+	if p, _ := st.Providers().Get(ctx, onShared.ID); p.Status != "ok" {
+		t.Fatalf("shared connection = %s", p.Status)
+	}
+	if p, _ := st.Providers().Get(ctx, onOwn.ID); p.Status == "ok" || p.Status == "error" {
+		t.Fatalf("a connection on another binary was tested: %s", p.Status)
+	}
+	_ = os.WriteFile(filepath.Join(shared, "claude"), []byte(broken), 0o755)
+	if why := cu.recheck(ctx, "claude"); why == "" {
+		t.Fatal("the updated install broken was not reported")
 	}
 }

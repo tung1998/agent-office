@@ -95,6 +95,8 @@ type Status struct {
 	// Outdated whether it is newer than the installed one (ADR-259)
 	Latest   string `json:"latest,omitempty"`
 	Outdated bool   `json:"outdated,omitempty"`
+	// LatestChecking: the newest version is being read again (it may change soon)
+	LatestChecking bool `json:"latest_checking,omitempty"`
 	// InUse: runs that have the CLI running now; Upgrade: its update in
 	// progress or the last one
 	InUse   int          `json:"in_use"`
@@ -502,7 +504,7 @@ func (m *Manager) StatusIn(ctx context.Context, id, home string) (Status, error)
 			s.UpdateCmd = displayCommand(meth.update)
 		}
 		if home == "" {
-			s.Latest = m.latestCached(id)
+			s.Latest, s.LatestChecking = m.latestState(id)
 			s.Outdated = Newer(s.Version, s.Latest)
 		}
 	}

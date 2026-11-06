@@ -116,8 +116,12 @@ func (c cliUpdates) recheck(ctx context.Context, tool string) string {
 	if err != nil {
 		return ""
 	}
+	shared := samePath(c.m.LookPath(cliBins[tool]))
 	for _, p := range list {
-		if p.Kind != kind {
+		// only the connections that run this install: one pointed at a
+		// binary of its own (a path in BaseURL) neither tells about it nor
+		// makes it go back
+		if p.Kind != kind || !runsInstall(c.providers.CLIBin(p), shared) {
 			continue
 		}
 		res, err := c.providers.Test(ctx, p.ID, "", "")
@@ -126,6 +130,29 @@ func (c cliUpdates) recheck(ctx context.Context, tool string) string {
 		}
 	}
 	return ""
+}
+
+// cliBins is each CLI's command.
+var cliBins = map[string]string{"claude": "claude", "codex": "codex", "gemini": "gemini", "antigravity": "agy", "dsh": "dsh"}
+
+// samePath is p with its links followed ("" stays "").
+func samePath(p string) string {
+	if p == "" {
+		return ""
+	}
+	if r, err := filepath.EvalSymlinks(p); err == nil {
+		return r
+	}
+	return filepath.Clean(p)
+}
+
+// runsInstall: a connection's command (a bare name is found on PATH, as the
+// updated install is) is the install at shared.
+func runsInstall(bin, shared string) bool {
+	if !filepath.IsAbs(bin) {
+		return true
+	}
+	return shared != "" && samePath(bin) == shared
 }
 
 // installBroken: a check's failure says the CLI itself cannot start.

@@ -126,6 +126,13 @@ func (m *Manager) LatestNow(ctx context.Context, id string) (string, error) {
 // (or none) is read again in the background, so a slow or broken network
 // never holds the status up.
 func (m *Manager) latestCached(id string) string {
+	v, _ := m.latestState(id)
+	return v
+}
+
+// latestState is latestCached, with whether a read of it is on its way (the
+// dashboard looks again soon then: a stale version is replaced shortly).
+func (m *Manager) latestState(id string) (string, bool) {
 	m.mu.Lock()
 	if m.latest == nil {
 		m.latest = map[string]latestEntry{}
@@ -147,8 +154,9 @@ func (m *Manager) latestCached(id string) string {
 			}
 		}()
 	}
+	busy := m.latest[id].busy
 	m.mu.Unlock()
-	return e.version
+	return e.version, busy
 }
 
 // forgetLatest drops what is kept of id's newest version (after an update).

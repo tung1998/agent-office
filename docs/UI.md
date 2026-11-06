@@ -104,7 +104,7 @@ Base `/api`. Auth bằng cookie phiên `office_session` sau khi đăng nhập t�
 | POST | `/api/cli-tools/:id/install` | admin | `{method}`: native \| brew \| npm |
 | POST | `/api/cli-tools/:id/update` | admin | `{when: idle\|now}` (ADR-259): `idle` chờ các lượt đang chạy CLI đó xong (tối đa 12 giờ), `now` chạy ngay; cả hai giữ lượt mới lại trong lúc thay file, kiểm `--version` sau khi cập nhật, bản mới không chạy được thì cài lại bản cũ (npm). Trả `UpgradeView` (state waiting/updating/checking/rolling_back/done/rolled_back/failed/gave_up/cancelled) |
 | POST | `/api/cli-tools/:id/update/cancel` | admin | Hủy cập nhật đang chờ lượt dùng |
-| PUT | `/api/cli-tools/auto-update` | admin | `{mode: off\|notify\|auto, tools: {id: mode}}`: tự báo bản mới / CLI hỏng, hoặc tự cập nhật khi rảnh (setting `system.cli_auto_update`). `GET /api/cli-tools` trả kèm `auto_update`; mỗi CLI có thêm `latest`, `outdated`, `in_use`, `upgrade` |
+| PUT | `/api/cli-tools/auto-update` | admin | `{mode: off\|notify\|auto, tools: {id: mode}}`: tự báo bản mới / CLI hỏng, hoặc tự cập nhật khi rảnh (setting `system.cli_auto_update`). `GET /api/cli-tools` trả kèm `auto_update`; mỗi CLI có thêm `latest`, `outdated`, `latest_checking` (đang đọc lại bản mới nhất: dashboard xem lại sau vài giây), `in_use`, `upgrade` |
 | POST | `/api/cli-tools/:id/login` | admin | Bắt đầu đăng nhập |
 | GET | `/api/cli-jobs/:id` | admin | Output, link, mã thiết bị, trạng thái |
 | POST | `/api/cli-jobs/:id/input` \| `/cancel` | admin | Gửi mã / hủy |

@@ -105,3 +105,19 @@ func TestHoldLastsUntilReleased(t *testing.T) {
 		t.Fatal("still held")
 	}
 }
+
+// The update's own check goes through its hold; other runs still wait.
+func TestExemptPassesTheHold(t *testing.T) {
+	release := Hold("claude")
+	defer release()
+	done, err := Begin(Exempt(context.Background()), "claude")
+	if err != nil || InUse("claude") != 0 {
+		t.Fatalf("exempt check: %v, in use %d", err, InUse("claude"))
+	}
+	done()
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+	if _, err := Begin(ctx, "claude"); err == nil {
+		t.Fatal("a run went through the hold")
+	}
+}

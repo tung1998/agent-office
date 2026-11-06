@@ -30,7 +30,7 @@ var (
 // wait is bounded), or until ctx ends: then the error is ctx's.
 func Begin(ctx context.Context, bin string) (func(), error) {
 	tool := Tool(bin)
-	if tool == "" {
+	if tool == "" || ctx.Value(exemptKey{}) != nil {
 		return func() {}, nil
 	}
 	for {
@@ -58,6 +58,14 @@ func Begin(ctx context.Context, bin string) (func(), error) {
 		}
 	}
 }
+
+type exemptKey struct{}
+
+// Exempt marks ctx as the update's own check of the CLI it holds (its
+// connections tested after the files changed): it is neither held nor
+// counted, so the hold stays on for every other run until the check says
+// whether the old version must be put back.
+func Exempt(ctx context.Context) context.Context { return context.WithValue(ctx, exemptKey{}, true) }
 
 // InUse is how many runs have tool's CLI running now.
 func InUse(tool string) int {

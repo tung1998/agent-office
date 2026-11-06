@@ -203,7 +203,19 @@ func (m *Manager) runUpgrade(ctx context.Context, t Tool, meth Method, u *upgrad
 		// a run never starts between the count and the hold
 		deadline := m.clock().Add(maxWait)
 		for {
+			// taking the CLI and leaving "waiting" happen under m.mu, where a
+			// cancel is decided too: one cancelled never takes it
+			m.mu.Lock()
+			if ctx.Err() != nil {
+				m.mu.Unlock()
+				end("cancelled", "")
+				return
+			}
 			r, ok := cliuse.TryHold(t.ID)
+			if ok {
+				u.view.State, u.view.Waiting = "updating", 0
+			}
+			m.mu.Unlock()
 			if ok {
 				release = r
 				break
@@ -224,14 +236,9 @@ func (m *Manager) runUpgrade(ctx context.Context, t Tool, meth Method, u *upgrad
 	} else {
 		release = cliuse.Hold(t.ID) // runs already on it go on; new ones wait
 	}
-	held := true
-	free := func() {
-		if held {
-			held = false
-			release()
-		}
-	}
-	defer free()
+	// the hold stays on until the update ends (rollback included): the
+	// connections' check runs the CLI exempt from it, every other run waits
+	defer release()
 	m.set(u, func(v *UpgradeView) { v.State, v.Waiting = "updating", 0 })
 	from := m.version(t)
 	target := m.latestKnown(t.ID)
@@ -247,7 +254,6 @@ func (m *Manager) runUpgrade(ctx context.Context, t Tool, meth Method, u *upgrad
 	m.set(u, func(v *UpgradeView) { v.State = "checking" })
 	why := m.broken(t) // the new version does not start
 	if why == "" {
-		free() // the connections' check runs the CLI: never under its own hold
 		why = m.recheck(t.ID)
 	}
 	if why != "" {
@@ -269,7 +275,7 @@ func (m *Manager) recheck(tool string) string {
 	if m.afterUpdate == nil {
 		return ""
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
+	ctx, cancel := context.WithTimeout(cliuse.Exempt(context.Background()), 3*time.Minute)
 	defer cancel()
 	return m.afterUpdate(ctx, tool)
 }
@@ -282,7 +288,8 @@ func (m *Manager) latestKnown(id string) string {
 }
 
 // rollback puts version from back after an update that left the CLI
-// broken: npm installs that exact version, new runs held meanwhile;
+// broken: npm installs that exact version, under the update's hold (no run
+// started since the files changed);
 // Homebrew and the official installer cannot pick a version, so the person
 // is told how to fix it.
 func (m *Manager) rollback(t Tool, meth Method, u *upgrade, from, why string, end func(state, note string)) {
@@ -298,16 +305,13 @@ func (m *Manager) rollback(t Tool, meth Method, u *upgrade, from, why string, en
 		return
 	}
 	m.set(u, func(v *UpgradeView) { v.State = "rolling_back" })
-	release := cliuse.Hold(t.ID) // a run on the broken version fails anyway: new ones wait
 	j, err := m.start(t.ID, t.ID, "update", []string{"npm", "install", "-g", p.npm + "@" + from}, 15*time.Minute, term{})
 	if err != nil {
-		release()
 		end("failed", fmt.Sprintf("bản mới không chạy được (%s), quay về bản %s lỗi: %v", why, from, err))
 		return
 	}
 	j.Wait()
 	still := m.broken(t)
-	release()
 	if still == "" {
 		still = m.recheck(t.ID)
 	}

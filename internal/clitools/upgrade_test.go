@@ -147,7 +147,7 @@ func TestLatestCached(t *testing.T) {
 	now = now.Add(LatestTTL + time.Minute) // stale: read again, but not waited on
 	start := time.Now()
 	s, _ := m.Status(context.Background(), "gemini")
-	if time.Since(start) > 3*time.Second || s.Latest != "3.0.0" || !s.Outdated {
+	if time.Since(start) > 3*time.Second || s.Latest != "3.0.0" || !s.Outdated || !s.LatestChecking {
 		t.Fatalf("status took %v, latest %q", time.Since(start), s.Latest)
 	}
 }
@@ -424,7 +424,14 @@ esac
 `)
 	var checks []string
 	m.SetAfterUpdate(func(ctx context.Context, tool string) string {
-		done, err := cliuse.Begin(ctx, "codex") // the check runs the CLI: never held
+		// a person's run started while the connections are checked waits
+		// for the update to end: a rollback never replaces files under it
+		short, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+		if _, err := cliuse.Begin(short, "codex"); err == nil {
+			checks = append(checks, "a run started during the check")
+		}
+		cancel()
+		done, err := cliuse.Begin(ctx, "codex") // the check itself runs the CLI: exempt
 		if err != nil {
 			checks = append(checks, "held")
 			return "check held"
@@ -449,5 +456,52 @@ esac
 	}
 	if cliuse.Held("codex") {
 		t.Fatal("still held")
+	}
+}
+
+// A cancel decided while the update waits is never followed by the update:
+// either the cancel is refused (it already took the CLI) or nothing runs.
+func TestCancelNeverUpdates(t *testing.T) {
+	for i := 0; i < 30; i++ {
+		m, dir := testManager(t)
+		m.upPoll = time.Millisecond
+		npmTool(t, dir, "dsh", "@deepseek-ai/dsh", "1.0.0")
+		log := filepath.Join(dir, "npm.log")
+		writeBin(t, dir, "npm", "#!/bin/sh\necho ran >> "+log+"\n")
+		if _, err := m.UpdateWhenIdle("dsh", "an"); err != nil {
+			t.Fatal(err)
+		}
+		cancelled := m.CancelUpgrade("dsh") == nil
+		v := waitUpgrade(t, m, "dsh", "done", "cancelled", "failed")
+		_, err := os.Stat(log)
+		ran := err == nil
+		if cancelled && (ran || v.State != "cancelled") {
+			t.Fatalf("round %d: cancel accepted but the update ran (%s)", i, v.State)
+		}
+		if !cancelled && v.State == "cancelled" {
+			t.Fatalf("round %d: cancel refused but the update says cancelled", i)
+		}
+	}
+}
+
+// A cancel before the update even looked: nothing runs.
+func TestCancelBeforeItStarts(t *testing.T) {
+	m, dir := testManager(t)
+	m.upPoll = time.Millisecond
+	npmTool(t, dir, "dsh", "@deepseek-ai/dsh", "1.0.0")
+	log := filepath.Join(dir, "npm.log")
+	writeBin(t, dir, "npm", "#!/bin/sh\necho ran >> "+log+"\n")
+	run, _ := cliuse.Begin(context.Background(), "dsh")
+	if _, err := m.UpdateWhenIdle("dsh", "an"); err != nil {
+		t.Fatal(err)
+	}
+	if err := m.CancelUpgrade("dsh"); err != nil {
+		t.Fatal(err)
+	}
+	run() // idle now: a cancelled update must not take it
+	waitUpgrade(t, m, "dsh", "cancelled", "done")
+	time.Sleep(50 * time.Millisecond)
+	if _, err := os.Stat(log); err == nil {
+		t.Fatal("a cancelled update ran")
 	}
 }

@@ -19,6 +19,7 @@ interface Tool {
   version?: string
   latest?: string
   outdated?: boolean
+  latest_checking?: boolean // the server reads the newest version again: looked at soon
   update_command?: string
   in_use: number
   upgrade?: Upgrade
@@ -47,7 +48,8 @@ async function load() {
   // an update on its way is followed until it ends; newest versions the
   // server is still reading (first look, or after 6h) are fetched again soon
   if (installed.value.some(x => active(x.upgrade))) timer = setTimeout(load, 3000)
-  else if (installed.value.some(x => !x.latest) && unread++ < 5) timer = setTimeout(load, 4000)
+  else if (installed.value.some(x => !x.latest || x.latest_checking) && unread++ < 5) timer = setTimeout(load, 4000)
+  else unread = 0
 }
 
 async function update(tool: Tool, when: 'idle' | 'now') {
