@@ -382,6 +382,17 @@ func serveCmd() *cobra.Command {
 					}
 				}
 			}
+			// the AI CLIs kept up to date: updated when no run uses them, a
+			// version that does not start put back, new ones told (ADR-259)
+			if cliTools != nil {
+				cu := cliUpdates{m: cliTools, store: a.store, providers: a.providers, notify: bots.Notify}
+				cliTools.SetAfterUpdate(cu.recheck)
+				cliTools.SetOnUpgradeEnd(cu.ended)
+				acts.SetCLIUpdater(cu)
+				bots.SetCLIUpdater(cu)
+				office.AddProvider(officetools.CLIUpdateTools{Store: a.store, Actions: acts, Root: officeRoot()})
+				go cliTools.Watch(ctx, clitools.LatestTTL, cu.hooks())
+			}
 			go monitors.Run(ctx)
 			log := slog.New(slog.NewJSONHandler(os.Stderr, nil))
 			// the MCP servers office manages, at /mcp/s/<name> with the runs' tokens (ADR-091);

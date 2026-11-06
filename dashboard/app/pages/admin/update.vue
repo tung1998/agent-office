@@ -325,6 +325,9 @@ const lastMeta = computed(() => ({
         </div>
       </UCard>
 
+      <!-- the AI CLIs office runs: their own updates (ADR-259) -->
+      <CliUpdates />
+
       <div v-if="restarting" class="flex items-center gap-2 rounded-lg border border-(--ui-border) p-4 text-sm">
         <UIcon name="i-lucide-loader-circle" class="size-5 animate-spin text-primary" />
         {{ t('admin.updateRestarting') }}

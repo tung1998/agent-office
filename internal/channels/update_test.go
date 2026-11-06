@@ -65,3 +65,42 @@ func TestUpdateCommand(t *testing.T) {
 		t.Fatal("a custom command could take /update")
 	}
 }
+
+type fakeCLI struct{ updated []string }
+
+func (f *fakeCLI) CLIStatus(context.Context) string { return "Codex 0.166.0 (có bản 0.167.0)" }
+func (f *fakeCLI) UpdateCLI(_ context.Context, tool, by string) (string, error) {
+	if tool != "codex" {
+		return "", errors.New("chưa cài " + tool)
+	}
+	f.updated = append(f.updated, tool+"|"+by)
+	return "Codex: chờ 1 lượt đang dùng chạy xong rồi cập nhật", nil
+}
+
+// /update cli [tool] (ADR-259): anyone sees the CLIs, the bot's admins update
+// one; the menu has /update even where office cannot update itself.
+func TestUpdateCLICommand(t *testing.T) {
+	ctx := context.Background()
+	ch := storage.Channel{Kind: "telegram", Approvers: []string{"u-admin"}}
+	m := &Manager{}
+	if out := m.updateCommand(ctx, ch, Incoming{UserID: "u-admin"}, "cli codex", "an"); !strings.Contains(out, "không cập nhật CLI") {
+		t.Fatalf("no updater = %q", out)
+	}
+	cli := &fakeCLI{}
+	m.SetCLIUpdater(cli)
+	if out := m.updateCommand(ctx, ch, Incoming{UserID: "u-other"}, "cli", "bob"); !strings.Contains(out, "0.167.0") {
+		t.Fatalf("status = %q", out)
+	}
+	if out := m.updateCommand(ctx, ch, Incoming{UserID: "u-other"}, "cli codex", "bob"); !strings.Contains(out, "Chỉ người") || len(cli.updated) != 0 {
+		t.Fatalf("a non-admin updated: %q", out)
+	}
+	if out := m.updateCommand(ctx, ch, Incoming{UserID: "u-admin"}, "CLI Codex", "an"); !strings.Contains(out, "chờ 1 lượt") || !slices.Equal(cli.updated, []string{"codex|telegram:an"}) {
+		t.Fatalf("admin = %q %v", out, cli.updated)
+	}
+	if out := m.updateCommand(ctx, ch, Incoming{UserID: "u-admin"}, "cli gemini", "an"); !strings.Contains(out, "chưa cài gemini") {
+		t.Fatalf("unknown = %q", out)
+	}
+	if out := m.updateCommand(ctx, ch, Incoming{UserID: "u-admin"}, "", "an"); !strings.Contains(out, "không tự cập nhật") {
+		t.Fatalf("office update without an updater = %q", out)
+	}
+}

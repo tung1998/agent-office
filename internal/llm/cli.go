@@ -18,6 +18,8 @@ import (
 	"strings"
 	"time"
 	"unicode/utf8"
+
+	"github.com/tung1998/agent-office/internal/cliuse"
 )
 
 // run executes bin with args, feeding stdin; stderr is kept for error messages.
@@ -27,6 +29,13 @@ func run(ctx context.Context, bin string, stdin string, args ...string) (string,
 
 // runEnv is run with extra environment variables.
 func runEnv(ctx context.Context, bin string, stdin string, env []string, args ...string) (string, error) {
+	if len(args) == 0 || args[0] != "--version" { // a version check is no run: an update's own check must not wait for itself
+		inUse, err := cliuse.Begin(ctx, bin) // an update of this CLI holds new runs back (ADR-259)
+		if err != nil {
+			return "", err
+		}
+		defer inUse()
+	}
 	cmd := exec.CommandContext(ctx, bin, args...)
 	if len(env) > 0 {
 		cmd.Env = append(os.Environ(), env...)

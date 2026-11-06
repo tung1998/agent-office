@@ -34,7 +34,7 @@ func Builtins() []Command {
 }
 
 // UpdateCommand is /update, on the bots of an office that updates itself (ADR-255).
-var UpdateCommand = Command{"update", "Cập nhật office khi rảnh (status: xem, cancel: hủy), chỉ Admin", "status|cancel", true}
+var UpdateCommand = Command{"update", "Cập nhật office hoặc CLI AI khi rảnh (status, cancel, cli <tên>), chỉ Admin", "status|cancel|cli <tên>", true}
 
 // Reserved are names a custom command may not take.
 var Reserved = []string{"job", "create-conversation", "close-conversation", "create-thread", "create-conversion", "close-conversion", "start", "help", "pending", "approve", "approve-always", "reject", "skip", "stop", "push", "dung", "mode", "cho-duyet", "duyet", "tu-choi", "bo-qua", "update", "cap-nhat"}

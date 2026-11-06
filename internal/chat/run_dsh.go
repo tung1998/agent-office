@@ -16,6 +16,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/tung1998/agent-office/internal/cliuse"
 	"github.com/tung1998/agent-office/internal/llm"
 	"github.com/tung1998/agent-office/internal/mcpserver"
 	"github.com/tung1998/agent-office/internal/officetools"
@@ -217,6 +218,11 @@ func (dshRunner) run(ctx context.Context, req RunRequest, emit func(Event)) (res
 	if err != nil {
 		return res, err
 	}
+	inUse, err := cliuse.Begin(ctx, bin) // an update of this CLI holds new runs back (ADR-259)
+	if err != nil {
+		return res, err
+	}
+	defer inUse()
 	if err := cmd.Start(); err != nil {
 		return res, fmt.Errorf("không chạy được %s (cài: npm install -g @deepseek-ai/dsh): %w", bin, err)
 	}

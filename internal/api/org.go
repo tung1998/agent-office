@@ -205,6 +205,8 @@ func (s *server) orgRoutes(mux *http.ServeMux) {
 		mux.Handle("GET /api/cli-tools/{id}", admin(s.cliTool))
 		mux.Handle("POST /api/cli-tools/{id}/install", admin(s.cliInstall))
 		mux.Handle("POST /api/cli-tools/{id}/update", admin(s.cliUpdate))
+		mux.Handle("POST /api/cli-tools/{id}/update/cancel", admin(s.cliUpdateCancel))
+		mux.Handle("PUT /api/cli-tools/auto-update", admin(s.cliAutoSave))
 		mux.Handle("POST /api/cli-tools/{id}/login", admin(s.cliLogin))
 		mux.Handle("POST /api/cli-tools/{id}/logout", admin(s.cliLogout))
 		mux.Handle("GET /api/cli-jobs/{id}", admin(s.cliJob))

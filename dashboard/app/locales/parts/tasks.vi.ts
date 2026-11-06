@@ -159,6 +159,7 @@ export default {
   'action.kind.install_skill': 'Cài skill cho agent',
   'action.kind.deps_install': 'Cài thư viện',
   'action.kind.office_update': 'Cập nhật office khi rảnh',
+  'action.kind.cli_update': 'Cập nhật CLI AI khi rảnh',
   'action.depsWorktree': 'Trong worktree riêng của agent, thư mục thư viện của riêng nó: project không bị đụng',
   'action.depsProject': 'Trong thư mục project, để project chạy đúng bản trong lockfile vừa gộp',
   'patch.deps': 'Đổi thư viện: {deps}',

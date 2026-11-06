@@ -16,6 +16,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/tung1998/agent-office/internal/cliuse"
 	"github.com/tung1998/agent-office/internal/llm"
 	"github.com/tung1998/agent-office/internal/mcpserver"
 	"github.com/tung1998/agent-office/internal/officetools"
@@ -145,6 +146,11 @@ func (codexRunner) run(ctx context.Context, req RunRequest, emit func(Event)) (R
 	if err != nil {
 		return RunResult{}, err
 	}
+	inUse, err := cliuse.Begin(ctx, bin) // an update of this CLI holds new runs back (ADR-259)
+	if err != nil {
+		return RunResult{}, err
+	}
+	defer inUse()
 	if err := cmd.Start(); err != nil {
 		return RunResult{}, llm.StartErrorIn(bin, cmd.Dir, err)
 	}

@@ -66,6 +66,7 @@ type Manager struct {
 	ProgressAfter time.Duration
 	decider       Decider              // decides proposals from the chat (nil = only on the dashboard)
 	updater       Updater              // office's self-update, /update (nil = none, ADR-255)
+	cliUpdater    CLIUpdater           // the AI CLIs' updates, /update cli (nil = none, ADR-259)
 	tap           Tap                  // a feature pack taking messages before the rules (nil = none)
 	cut           map[string][]cutNote // by channel id: chats told their answer was cut (ADR-258)
 }
@@ -766,7 +767,7 @@ func command(text string) (cmd, arg string, ok bool) {
 // commands are a bot's menu: its own, then its automations' custom ones.
 func (m *Manager) commands(ctx context.Context, ch storage.Channel) []Command {
 	out := Builtins()
-	if m.updater != nil {
+	if m.updater != nil || m.cliUpdater != nil {
 		out = append(out, UpdateCommand)
 	}
 	if ch.Kind != "discord" { // threads are Discord's

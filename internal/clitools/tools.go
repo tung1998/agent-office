@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -17,6 +18,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/tung1998/agent-office/internal/cliuse"
 	"github.com/tung1998/agent-office/internal/llm"
 )
 
@@ -89,6 +91,14 @@ type Status struct {
 	// UpdateCmd updates the tool the way it was installed ("" when that is unknown)
 	UpdateCmd string   `json:"update_command,omitempty"`
 	Job       *JobView `json:"job,omitempty"` // running or last job
+	// Latest is the newest version published ("" = not known yet) and
+	// Outdated whether it is newer than the installed one (ADR-259)
+	Latest   string `json:"latest,omitempty"`
+	Outdated bool   `json:"outdated,omitempty"`
+	// InUse: runs that have the CLI running now; Upgrade: its update in
+	// progress or the last one
+	InUse   int          `json:"in_use"`
+	Upgrade *UpgradeView `json:"upgrade,omitempty"`
 }
 
 var tools = []Tool{
@@ -312,6 +322,21 @@ type Manager struct {
 	last  map[string]*Job // latest job per tool
 	env   []string
 	tools []Tool
+
+	// newest versions published (ADR-259)
+	latest   map[string]latestEntry
+	registry string       // npm registry ("" = registry.npmjs.org)
+	httpc    *http.Client // nil = a default one
+	noFetch  bool         // Status never reads newest versions on its own (tests)
+	now      func() time.Time
+
+	// updates of a CLI in use (ADR-259)
+	upgrades     map[string]*upgrade
+	upPoll       time.Duration // 0 = 5s
+	upMaxWait    time.Duration // 0 = UpgradeMaxWait
+	holdMax      time.Duration // 0 = upgradeHold
+	afterUpdate  func(ctx context.Context, tool string)
+	onUpgradeEnd func(UpgradeView)
 }
 
 // NewManager builds a Manager. PATH is extended with the usual install
@@ -471,11 +496,19 @@ func (m *Manager) StatusIn(ctx context.Context, id, home string) (Status, error)
 		ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 		defer cancel()
 		v, _ := runOut(ctx, m.env, path, "--version")
-		s.Version = strings.TrimSpace(strings.SplitN(v, "\n", 2)[0])
+		s.Version = versionLine(v)
 		s.Auth = t.status(ctx, path, env)
 		if meth, ok := updateMethod(t, path); ok {
 			s.UpdateCmd = displayCommand(meth.update)
 		}
+		if home == "" {
+			s.Latest = m.latestCached(id)
+			s.Outdated = Newer(s.Version, s.Latest)
+		}
+	}
+	s.InUse = cliuse.InUse(id)
+	if u, ok := m.Upgrade(id); ok {
+		s.Upgrade = &u
 	}
 	m.mu.Lock()
 	if j := m.last[jobKey(id, home)]; j != nil {
@@ -500,7 +533,19 @@ func (m *Manager) Detect(ctx context.Context, id string) (installed bool, versio
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 	v, _ := runOut(ctx, m.env, path, "--version")
-	return true, strings.TrimSpace(strings.SplitN(v, "\n", 2)[0]), nil
+	return true, versionLine(v), nil
+}
+
+// versionLine is the line of a CLI's --version output that has its version:
+// a warning printed first (Codex about its PATH aliases) is skipped.
+func versionLine(out string) string {
+	lines := strings.Split(strings.TrimSpace(out), "\n")
+	for _, l := range lines {
+		if VersionOf(l) != "" {
+			return strings.TrimSpace(l)
+		}
+	}
+	return strings.TrimSpace(lines[0])
 }
 
 // Install starts an install job with one of the tool's methods.

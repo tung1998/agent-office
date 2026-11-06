@@ -17,6 +17,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/tung1998/agent-office/internal/cliuse"
 	"github.com/tung1998/agent-office/internal/llm"
 	"github.com/tung1998/agent-office/internal/mcpserver"
 	"github.com/tung1998/agent-office/internal/officetools"
@@ -256,6 +257,11 @@ func (r claudeRunner) run(ctx context.Context, req RunRequest, emit func(Event),
 	if err != nil {
 		return RunResult{}, err
 	}
+	inUse, err := cliuse.Begin(ctx, bin) // an update of this CLI holds new runs back (ADR-259)
+	if err != nil {
+		return RunResult{}, err
+	}
+	defer inUse()
 	if err := cmd.Start(); err != nil {
 		return RunResult{}, llm.StartErrorIn(bin, cmd.Dir, err) // gone from PATH or no file: the connection is broken
 	}
@@ -702,6 +708,11 @@ func compactClaude(ctx context.Context, bin string, env []string, dir, model, se
 	if err != nil {
 		return 0, err
 	}
+	inUse, err := cliuse.Begin(ctx, bin) // ADR-259
+	if err != nil {
+		return 0, err
+	}
+	defer inUse()
 	if err := cmd.Start(); err != nil {
 		return 0, err
 	}

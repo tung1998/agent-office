@@ -37,7 +37,7 @@ func testManager(t *testing.T) (*Manager, string) {
 		}
 	}
 	env = append(env, "PATH="+dir+":/usr/bin:/bin")
-	m := &Manager{jobs: map[string]*Job{}, last: map[string]*Job{}, env: env, tools: tools}
+	m := &Manager{jobs: map[string]*Job{}, last: map[string]*Job{}, env: env, tools: tools, noFetch: true}
 	return m, dir
 }
 

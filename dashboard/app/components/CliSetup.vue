@@ -27,6 +27,10 @@ interface ToolStatus {
   auth: { logged_in: boolean, account?: string, detail?: string }
   methods: Method[]
   job?: JobView
+  latest?: string
+  outdated?: boolean
+  in_use?: number
+  upgrade?: { state: string, waiting: number, from?: string, to?: string, note?: string }
 }
 
 // provider: the connection whose account it is (one signed in to an account of its own, ADR-178)
@@ -55,7 +59,7 @@ async function load() {
     status.value = await $fetch<ToolStatus>(`/api/cli-tools/${props.tool}`, { query: query.value })
     const methods = status.value.methods
     if (!method.value) method.value = (methods.find(m => m.recommended && m.available) ?? methods.find(m => m.available))?.id ?? ''
-    if (status.value.job?.state === 'running') follow(status.value.job)
+    if (status.value.job?.state === 'running' && status.value.job.action !== 'update') follow(status.value.job)
   } catch (e) {
     if ((e as { statusCode?: number }).statusCode === 404) disabled.value = true
     else loadError.value = apiError(e)
@@ -94,7 +98,33 @@ function follow(j: JobView) {
   tick()
 }
 
-async function start(action: 'install' | 'update' | 'login') {
+// an update waits for the runs using the CLI (ADR-259): followed until it ends
+const upgrading = computed(() => ['waiting', 'updating', 'checking', 'rolling_back'].includes(status.value?.upgrade?.state ?? ''))
+async function followUpgrade() {
+  clearTimeout(timer)
+  await load()
+  const u = status.value?.upgrade
+  if (upgrading.value) {
+    timer = setTimeout(followUpgrade, 3000)
+    return
+  }
+  if (!u) return
+  const name = status.value?.name ?? ''
+  if (u.state === 'done') toast.add({ title: t('cli.updated', { name }), description: status.value?.version, color: 'success' })
+  else if (u.state === 'rolled_back') toast.add({ title: t('cliup.rolledBack', { v: u.from ?? '' }), description: u.note, color: 'warning' })
+  else if (u.state !== 'cancelled') toast.add({ title: t('cli.updateFailed', { name }), description: u.note, color: 'error' })
+}
+
+async function updateWhenIdle() {
+  try {
+    await $fetch(`/api/cli-tools/${props.tool}/update`, { method: 'POST', body: { when: 'idle' } })
+    await followUpgrade()
+  } catch (e) {
+    toast.add({ title: apiError(e), color: 'error' })
+  }
+}
+
+async function start(action: 'install' | 'login') {
   try {
     const body = action === 'install' ? { method: method.value } : {}
     follow(await $fetch<JobView>(`/api/cli-tools/${props.tool}/${action}`, { method: 'POST', body, query: query.value }))
@@ -148,7 +178,10 @@ const selectedMethod = computed(() => status.value?.methods.find(m => m.id === m
 const running = computed(() => job.value?.state === 'running')
 
 watch(() => props.tool, () => { status.value = null; job.value = null; method.value = ''; load() })
-onMounted(load)
+onMounted(async () => {
+  await load()
+  if (upgrading.value) followUpgrade()
+})
 onBeforeUnmount(() => clearTimeout(timer))
 </script>
 
@@ -170,9 +203,14 @@ onBeforeUnmount(() => clearTimeout(timer))
     <span class="min-w-0 flex-1 basis-40 truncate">
       {{ status.login_command ? t('cli.loggedIn', { name: status.name }) : t('cli.installedReady', { name: status.name }) }}<span v-if="status.auth.account" class="text-(--ui-text-muted)"> · {{ status.auth.account }}</span>
     </span>
+    <UBadge v-if="status.outdated && !upgrading" color="warning" variant="subtle" size="sm" :label="t('cliup.newer', { v: status.latest ?? '' })" />
+    <span v-if="upgrading" class="inline-flex items-center gap-1 text-xs text-(--ui-text-muted)">
+      <UIcon name="i-lucide-loader-circle" class="size-3.5 animate-spin" />
+      {{ status.upgrade?.state === 'waiting' ? t('cliup.waitingShort', { n: status.upgrade.waiting }) : t('cli.updating') }}
+    </span>
     <UButton
-      v-if="status.update_command" size="xs" color="neutral" variant="ghost" icon="i-lucide-circle-arrow-up"
-      :label="t('cli.update')" :title="`${status.version ?? ''} · ${status.update_command}`" @click="start('update')"
+      v-else-if="status.update_command" size="xs" color="neutral" variant="ghost" icon="i-lucide-circle-arrow-up"
+      :label="t('cli.update')" :title="`${status.version ?? ''} · ${status.update_command}`" @click="updateWhenIdle"
     />
     <!-- DeepSeek Harness has no account: its key is the connection's -->
     <template v-if="status.login_command">

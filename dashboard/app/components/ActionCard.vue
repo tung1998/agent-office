@@ -87,7 +87,8 @@ const kindLabels: Record<string, string> = {
   import_project: 'action.kind.import_project',
   install_skill: 'action.kind.install_skill',
   deps_install: 'action.kind.deps_install',
-  office_update: 'action.kind.office_update'
+  office_update: 'action.kind.office_update',
+  cli_update: 'action.kind.cli_update'
 }
 // an install's output, as a command's, opens right here
 const ownLog = computed(() => props.action.kind === 'run_command' || props.action.kind === 'deps_install')

@@ -1,8 +1,10 @@
 package api
 
 import (
+	"cmp"
 	"errors"
 	"net/http"
+	"slices"
 
 	"github.com/tung1998/agent-office/internal/clitools"
 )
@@ -13,7 +15,51 @@ func (s *server) cliTools(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]any{"enabled": false, "tools": []any{}})
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"enabled": true, "tools": s.cfg.CLITools.List(r.Context())})
+	writeJSON(w, http.StatusOK, map[string]any{"enabled": true, "tools": s.cfg.CLITools.List(r.Context()), "auto_update": s.cliAuto(r)})
+}
+
+// cliAuto is how office keeps the CLIs up to date (ADR-259), without what it
+// already told.
+func (s *server) cliAuto(r *http.Request) clitools.AutoSetting {
+	var a clitools.AutoSetting
+	_, _ = s.cfg.Store.Settings().Get(r.Context(), clitools.AutoUpdateKey, &a)
+	a.Mode = cmp.Or(clitools.CleanMode(a.Mode), clitools.AutoNotify)
+	if a.Tools == nil {
+		a.Tools = map[string]string{}
+	}
+	a.Told = nil
+	return a
+}
+
+// cliAutoSave changes the mode, for every CLI and per CLI ("" = as every CLI).
+func (s *server) cliAutoSave(w http.ResponseWriter, r *http.Request) {
+	var in clitools.AutoSetting
+	if !decode(w, r, &in) {
+		return
+	}
+	var a clitools.AutoSetting
+	_, _ = s.cfg.Store.Settings().Get(r.Context(), clitools.AutoUpdateKey, &a)
+	if a.Mode = clitools.CleanMode(in.Mode); a.Mode == "" {
+		writeError(w, http.StatusBadRequest, "chế độ phải là off, notify hoặc auto")
+		return
+	}
+	a.Tools = map[string]string{}
+	for id, m := range in.Tools {
+		if m == "" {
+			continue
+		}
+		if clitools.CleanMode(m) == "" || !slices.Contains(s.cfg.CLITools.IDs(), id) {
+			writeError(w, http.StatusBadRequest, "chế độ của "+id+" không hợp lệ")
+			return
+		}
+		a.Tools[id] = m
+	}
+	if err := s.cfg.Store.Settings().Set(r.Context(), clitools.AutoUpdateKey, a); err != nil {
+		s.writeDomainError(w, r, err)
+		return
+	}
+	s.auditAction(r, "cli.auto_update", "", map[string]any{"mode": a.Mode, "tools": a.Tools})
+	writeJSON(w, http.StatusOK, s.cliAuto(r))
 }
 
 // cliHome is the config folder of the connection named by ?provider= (its
@@ -73,9 +119,49 @@ func (s *server) cliInstall(w http.ResponseWriter, r *http.Request) {
 	s.cliStarted(w, r, j, err, "install")
 }
 
+// cliUpdate updates a CLI (ADR-259): when idle (no run has it running), or
+// now; either way new runs wait while its files change, and a version that
+// does not start is put back.
 func (s *server) cliUpdate(w http.ResponseWriter, r *http.Request) {
-	j, err := s.cfg.CLITools.Update(r.PathValue("id"))
-	s.cliStarted(w, r, j, err, "update")
+	var in struct {
+		When string `json:"when"` // idle (default) | now
+	}
+	if r.ContentLength != 0 && !decode(w, r, &in) {
+		return
+	}
+	id, by := r.PathValue("id"), Actor(r)
+	var u clitools.UpgradeView
+	var err error
+	if in.When == "now" {
+		u, err = s.cfg.CLITools.UpdateNow(id, by)
+	} else {
+		u, err = s.cfg.CLITools.UpdateWhenIdle(id, by)
+	}
+	switch {
+	case errors.Is(err, clitools.ErrBusy), errors.Is(err, clitools.ErrUpgrading):
+		writeError(w, http.StatusConflict, err.Error())
+		return
+	case errors.Is(err, clitools.ErrUnknownTool), errors.Is(err, clitools.ErrNotInstalled), errors.Is(err, clitools.ErrUnknownInstall):
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	case err != nil:
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	s.auditAction(r, "cli.update", id, map[string]any{"when": u.When, "in_use": u.Waiting})
+	writeJSON(w, http.StatusAccepted, u)
+}
+
+// cliUpdateCancel drops an update still waiting for its runs.
+func (s *server) cliUpdateCancel(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	if err := s.cfg.CLITools.CancelUpgrade(id); err != nil {
+		writeError(w, http.StatusConflict, err.Error())
+		return
+	}
+	s.auditAction(r, "cli.update_cancel", id, nil)
+	st, _ := s.cfg.CLITools.Status(r.Context(), id)
+	writeJSON(w, http.StatusOK, st)
 }
 
 func (s *server) cliLogin(w http.ResponseWriter, r *http.Request) {
