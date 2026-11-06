@@ -84,3 +84,53 @@ esac
 		t.Fatalf("note: %+v", note)
 	}
 }
+
+// An answer cut off by restarts too many times in a row (it may be what
+// brings office down) is not gone on with again: the chat is told, and the
+// person sends a message to go on (ADR-257). One cut fewer times goes on.
+func TestRestartGivesUpAfterCutsInARow(t *testing.T) {
+	tmp := t.TempDir()
+	bin := filepath.Join(tmp, "claude")
+	fakebin.Write(bin, []byte(`#!/bin/sh
+cat >/dev/null
+echo '{"type":"system","subtype":"init","session_id":"s"}'
+echo '{"type":"result","subtype":"success","is_error":false,"result":"tiếp","session_id":"s","usage":{"input_tokens":1,"output_tokens":1}}'
+`))
+	f := setup(t, func(provs *provider.Service) storage.Provider {
+		p, _ := provs.Create(context.Background(), provider.Input{Name: "CC", Kind: storage.ProviderClaudeCLI, BaseURL: bin})
+		return p
+	})
+	ctx := actor.With(context.Background(), "human:a@b.c")
+	agents, _ := f.st.Agents().List(ctx, f.project.ID)
+	agent := agents[0]
+	cuts := func(conv string, n int) storage.Job {
+		var last storage.Job
+		for i := range n {
+			j := storage.Job{ProjectID: f.project.ID, Kind: "chat_turn", Origin: "user", ConversationID: conv, AgentID: agent.ID, CreatedBy: "human:a@b.c",
+				Status: "failed", ErrorCode: "restart", CreatedAt: time.Now().UTC().Add(time.Duration(i-n) * time.Minute)}
+			if i == n-1 {
+				j.Status, j.ErrorCode = "running", "" // the one just cut
+			}
+			last, _ = f.st.Jobs().Create(ctx, j)
+		}
+		return last
+	}
+	looping, _ := f.engine.StartConversation(ctx, f.project.ID, "")
+	fine, _ := f.engine.StartConversation(ctx, f.project.ID, "")
+	jobs := []storage.Job{cuts(looping.ID, storage.MaxJobResumes+1), cuts(fine.ID, storage.MaxJobResumes)}
+	if n := f.engine.ResumeInterrupted(context.Background(), jobs); n != 1 {
+		t.Fatalf("went on in %d chats", n)
+	}
+	if _, ok := f.engine.Active(looping.ID); ok {
+		t.Fatal("went on once more")
+	}
+	msgs, _ := f.st.Chat().ListMessages(ctx, looping.ID)
+	if len(msgs) != 1 || msgs[0].Role != "error" || !strings.Contains(msgs[0].Content, "@"+agent.Name) || !strings.Contains(msgs[0].Content, "3 lần") {
+		t.Fatalf("looping chat: %+v", msgs)
+	}
+	turn, ok := f.engine.Active(fine.ID)
+	if !ok {
+		t.Fatal("the other did not go on")
+	}
+	collect(t, turn)
+}

@@ -132,13 +132,13 @@ func (r burnRepo) sessions(ctx context.Context, where string) ([]storage.BurnSes
 	return out, rows.Err()
 }
 
-const burnItemCols = `id, session_id, title, kind, detail, status, priority, branch, worktree, summary, attempts, subagents, cost_usd, created_at, updated_at, reviewed, review_note, review_conversations, work_conversation_id, review_err_attempts, run_branch, files, owner`
+const burnItemCols = `id, session_id, title, kind, detail, status, priority, branch, worktree, summary, attempts, subagents, cost_usd, created_at, updated_at, reviewed, review_note, review_conversations, work_conversation_id, review_err_attempts, run_branch, files, owner, restarts`
 
 func scanBurnItem(row interface{ Scan(...any) error }) (storage.BurnItem, error) {
 	var it storage.BurnItem
 	var created, updated, reviewed, convs, files string
 	err := row.Scan(&it.ID, &it.SessionID, &it.Title, &it.Kind, &it.Detail, &it.Status, &it.Priority, &it.Branch, &it.Worktree, &it.Summary, &it.Attempts, &it.Subagents, &it.CostUSD, &created, &updated,
-		&reviewed, &it.ReviewNote, &convs, &it.WorkConversationID, &it.ReviewErrAttempts, &it.RunBranch, &files, &it.Owner)
+		&reviewed, &it.ReviewNote, &convs, &it.WorkConversationID, &it.ReviewErrAttempts, &it.RunBranch, &files, &it.Owner, &it.Restarts)
 	if errors.Is(err, sql.ErrNoRows) {
 		return it, storage.ErrNotFound
 	}
@@ -159,9 +159,9 @@ func (r burnRepo) AddItem(ctx context.Context, it storage.BurnItem) (storage.Bur
 	if it.Status == "" {
 		it.Status = "found"
 	}
-	_, err := r.db.ExecContext(ctx, `INSERT INTO burn_items (`+burnItemCols+`) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+	_, err := r.db.ExecContext(ctx, `INSERT INTO burn_items (`+burnItemCols+`) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 		it.ID, it.SessionID, it.Title, it.Kind, it.Detail, it.Status, it.Priority, it.Branch, it.Worktree, it.Summary, it.Attempts, it.Subagents, it.CostUSD, fmtTime(now), fmtTime(now),
-		strings.Join(it.Reviewed, ","), it.ReviewNote, jsonMap(it.ReviewConversations), it.WorkConversationID, it.ReviewErrAttempts, it.RunBranch, strings.Join(it.Files, "\n"), it.Owner)
+		strings.Join(it.Reviewed, ","), it.ReviewNote, jsonMap(it.ReviewConversations), it.WorkConversationID, it.ReviewErrAttempts, it.RunBranch, strings.Join(it.Files, "\n"), it.Owner, it.Restarts)
 	return it, err
 }
 
@@ -170,13 +170,13 @@ func (r burnRepo) DeleteItem(ctx context.Context, id string) error {
 }
 
 func (r burnRepo) UpdateItem(ctx context.Context, it storage.BurnItem) error {
-	return execOne(ctx, r.db, `UPDATE burn_items SET title=?, kind=?, detail=?, status=?, priority=?, branch=?, worktree=?, summary=?, attempts=?, subagents=?, cost_usd=?, reviewed=?, review_note=?, review_conversations=?, work_conversation_id=?, review_err_attempts=?, run_branch=?, files=?, owner=?, updated_at=? WHERE id=?`,
-		it.Title, it.Kind, it.Detail, it.Status, it.Priority, it.Branch, it.Worktree, it.Summary, it.Attempts, it.Subagents, it.CostUSD, strings.Join(it.Reviewed, ","), it.ReviewNote, jsonMap(it.ReviewConversations), it.WorkConversationID, it.ReviewErrAttempts, it.RunBranch, strings.Join(it.Files, "\n"), it.Owner, fmtTime(time.Now()), it.ID)
+	return execOne(ctx, r.db, `UPDATE burn_items SET title=?, kind=?, detail=?, status=?, priority=?, branch=?, worktree=?, summary=?, attempts=?, subagents=?, cost_usd=?, reviewed=?, review_note=?, review_conversations=?, work_conversation_id=?, review_err_attempts=?, run_branch=?, files=?, owner=?, restarts=?, updated_at=? WHERE id=?`,
+		it.Title, it.Kind, it.Detail, it.Status, it.Priority, it.Branch, it.Worktree, it.Summary, it.Attempts, it.Subagents, it.CostUSD, strings.Join(it.Reviewed, ","), it.ReviewNote, jsonMap(it.ReviewConversations), it.WorkConversationID, it.ReviewErrAttempts, it.RunBranch, strings.Join(it.Files, "\n"), it.Owner, it.Restarts, fmtTime(time.Now()), it.ID)
 }
 
 func (r burnRepo) UpdateItemFrom(ctx context.Context, it storage.BurnItem, fromStatus string) error {
-	if err := execOne(ctx, r.db, `UPDATE burn_items SET title=?, kind=?, detail=?, status=?, priority=?, branch=?, worktree=?, summary=?, attempts=?, subagents=?, cost_usd=?, reviewed=?, review_note=?, review_conversations=?, work_conversation_id=?, review_err_attempts=?, run_branch=?, files=?, owner=?, updated_at=? WHERE id=? AND status=?`,
-		it.Title, it.Kind, it.Detail, it.Status, it.Priority, it.Branch, it.Worktree, it.Summary, it.Attempts, it.Subagents, it.CostUSD, strings.Join(it.Reviewed, ","), it.ReviewNote, jsonMap(it.ReviewConversations), it.WorkConversationID, it.ReviewErrAttempts, it.RunBranch, strings.Join(it.Files, "\n"), it.Owner, fmtTime(time.Now()), it.ID, fromStatus); err != nil {
+	if err := execOne(ctx, r.db, `UPDATE burn_items SET title=?, kind=?, detail=?, status=?, priority=?, branch=?, worktree=?, summary=?, attempts=?, subagents=?, cost_usd=?, reviewed=?, review_note=?, review_conversations=?, work_conversation_id=?, review_err_attempts=?, run_branch=?, files=?, owner=?, restarts=?, updated_at=? WHERE id=? AND status=?`,
+		it.Title, it.Kind, it.Detail, it.Status, it.Priority, it.Branch, it.Worktree, it.Summary, it.Attempts, it.Subagents, it.CostUSD, strings.Join(it.Reviewed, ","), it.ReviewNote, jsonMap(it.ReviewConversations), it.WorkConversationID, it.ReviewErrAttempts, it.RunBranch, strings.Join(it.Files, "\n"), it.Owner, it.Restarts, fmtTime(time.Now()), it.ID, fromStatus); err != nil {
 		if errors.Is(err, storage.ErrNotFound) {
 			return storage.ErrConflict
 		}

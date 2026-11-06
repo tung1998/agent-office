@@ -8,7 +8,7 @@ interface UpdateState {
   when_idle?: boolean, by?: string, waiting_since?: string, wait_until?: string, busy?: string
 }
 // the work a restart cuts off, by kind
-interface BusyItem { id: string, name: string, project_id: string, link: string }
+interface BusyItem { id: string, name: string, project_id: string, link: string, goes_on?: boolean }
 interface Busy { chats: number, chat_items: BusyItem[], workflows: BusyItem[], automations: BusyItem[], burn: BusyItem[], tasks: BusyItem[], parked?: BusyItem[] }
 interface Status {
   supervised: boolean
@@ -278,8 +278,10 @@ const lastMeta = computed(() => ({
             <div v-for="g in busyGroups" :key="g.key" class="mt-2">
               <p class="text-xs text-(--ui-text-muted)">{{ g.label }}</p>
               <ul class="mt-0.5 space-y-0.5">
-                <li v-for="it in g.items.slice(0, 8)" :key="it.id" class="truncate text-xs">
-                  <NuxtLink :to="it.link" class="hover:underline">{{ it.name }}</NuxtLink>
+                <li v-for="it in g.items.slice(0, 8)" :key="it.id" class="flex min-w-0 items-center gap-1.5 text-xs">
+                  <NuxtLink :to="it.link" class="truncate hover:underline">{{ it.name }}</NuxtLink>
+                  <!-- cut, then gone on with after the restart (ADR-256/257) -->
+                  <span v-if="it.goes_on" class="flex shrink-0 items-center gap-0.5 text-(--ui-info)"><UIcon name="i-lucide-rotate-cw" class="size-3" />{{ t('admin.updateGoesOn') }}</span>
                 </li>
                 <li v-if="g.items.length > 8 || g.more" class="text-xs text-(--ui-text-dimmed)">{{ t('admin.updateBusyMore', { n: Math.max(g.items.length - 8, 0) + g.more }) }}</li>
               </ul>

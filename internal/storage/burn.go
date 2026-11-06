@@ -89,8 +89,11 @@ type BurnItem struct {
 	ReviewNote                string            // the reviewer's last word: guidance, or why not
 	ReviewConversations       map[string]string // stage → its hidden review chat (ADR-114)
 	WorkConversationID        string            // its hidden chat with the agent that does it (ADR-116)
-	CostUSD                   float64
-	CreatedAt, UpdatedAt      time.Time
+	// Restarts: times in a row office restarted (or the Burn stopped) while
+	// it was being done: not tries of its own (ADR-257).
+	Restarts             int
+	CostUSD              float64
+	CreatedAt, UpdatedAt time.Time
 }
 
 // BurnRepo stores Burn sessions (one a project) and their items.

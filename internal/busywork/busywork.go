@@ -19,6 +19,10 @@ type Item struct {
 	Name      string `json:"name"`
 	ProjectID string `json:"project_id"`
 	Link      string `json:"link"` // where it is seen in the dashboard
+	// GoesOn: a restart would not lose it, it goes on after (ADR-256/257):
+	// a person's answer, an automation's run that resumes, a Burn piece, a
+	// graph of steps. It still counts: it is cut, then gone on with.
+	GoesOn bool `json:"goes_on,omitempty"`
 }
 
 // Report is the work in progress, by kind.
@@ -120,9 +124,9 @@ func (c Counter) Count(ctx context.Context) Report {
 				if j.Origin == "automation" && j.OriginID != "" {
 					link = "/projects/" + j.ProjectID + "/automations/" + j.OriginID
 				}
-				r.Automations = append(r.Automations, Item{ID: j.ID, Name: name, ProjectID: j.ProjectID, Link: link})
+				r.Automations = append(r.Automations, Item{ID: j.ID, Name: name, ProjectID: j.ProjectID, Link: link, GoesOn: c.goesOn(ctx, j)})
 			case j.Kind == "chat_turn" && j.TaskID == "":
-				r.ChatItems = append(r.ChatItems, Item{ID: j.ID, Name: name, ProjectID: j.ProjectID, Link: chatLink(j.ProjectID, j.ConversationID)})
+				r.ChatItems = append(r.ChatItems, Item{ID: j.ID, Name: name, ProjectID: j.ProjectID, Link: chatLink(j.ProjectID, j.ConversationID), GoesOn: j.Origin == "user"})
 			}
 		}
 	}
@@ -140,6 +144,8 @@ func (c Counter) Count(ctx context.Context) Report {
 				r.Parked = append(r.Parked, it)
 				continue
 			}
+			_, _, err := workflow.CanResume(ctx, c.Store, w) // a graph of steps goes on from its checkpoint (ADR-256)
+			it.GoesOn = err == nil
 			r.Workflows = append(r.Workflows, it)
 		}
 	}
@@ -151,7 +157,7 @@ func (c Counter) Count(ctx context.Context) Report {
 			}
 			for _, it := range items {
 				if it.Status == "doing" {
-					r.Burn = append(r.Burn, Item{ID: it.ID, Name: it.Title, ProjectID: b.ProjectID, Link: "/projects/" + b.ProjectID + "?tab=burn"})
+					r.Burn = append(r.Burn, Item{ID: it.ID, Name: it.Title, ProjectID: b.ProjectID, Link: "/projects/" + b.ProjectID + "?tab=burn", GoesOn: true})
 				}
 			}
 		}
@@ -164,6 +170,16 @@ func (c Counter) Count(ctx context.Context) Report {
 		}
 	}
 	return r
+}
+
+// goesOn: an automation's run office would put back after a restart
+// (ADR-257, as trigger.RequeueCut decides).
+func (c Counter) goesOn(ctx context.Context, j storage.Job) bool {
+	if j.Origin != "automation" || j.ParentJobID != "" || j.Resumes >= storage.MaxJobResumes || (j.Kind != "chat_turn" && j.Kind != "script") {
+		return false
+	}
+	a, err := c.Store.Automations().Get(ctx, j.OriginID)
+	return err == nil && a.ResumesOnRestart()
 }
 
 func chatLink(projectID, conversationID string) string {

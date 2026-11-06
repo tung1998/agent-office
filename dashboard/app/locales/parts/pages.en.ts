@@ -336,6 +336,7 @@ const en: Record<keyof typeof vi, string> = {
   'admin.updateBusyAutomations': 'Automation runs',
   'admin.updateBusyBurn': 'Burn pieces',
   'admin.updateBusyTasks': 'Tasks',
+  'admin.updateGoesOn': 'goes on after restart',
   'admin.updateParkedTitle': 'Workflows only waiting ({n})',
   'admin.updateParkedInfo': 'These workflows only wait (until a time, or for a card to be decided). A restart loses none of their work: they go on from where they stopped, so an update does not wait for them.',
   'admin.updateBusyMore': '… and {n} more',

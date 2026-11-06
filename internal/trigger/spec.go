@@ -38,6 +38,8 @@ type Spec struct {
 	StopWhen string `json:"stop_when,omitempty"`
 	// OnlyIf: a schedule runs only when its data says there is work (ADR-194)
 	OnlyIf *storage.AutomationCondition `json:"only_if,omitempty"`
+	// OnRestart: a run cut off by office restarting: resume | stop (none = the one it has, ADR-257)
+	OnRestart string `json:"on_restart,omitempty"`
 	// Limits: its guards (none = the ones it has)
 	Limits *storage.AutomationLimits `json:"limits,omitempty"`
 }
@@ -148,6 +150,10 @@ func (s Spec) Apply(a *storage.Automation, now time.Time) {
 	if s.EndsAt != nil {
 		end := s.EndsAt.UTC()
 		cfg.EndsAt = &end
+	}
+	cfg.OnRestart = a.Config.OnRestart
+	if v := storage.CleanOnRestart(s.OnRestart); v != "" {
+		cfg.OnRestart = v
 	}
 	cfg.StopWhen = a.Config.StopWhen
 	if w := strings.TrimSpace(s.StopWhen); w == "-" {

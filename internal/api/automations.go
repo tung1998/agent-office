@@ -85,7 +85,7 @@ func (s *server) toAutomationDTO(r *http.Request, a storage.Automation) automati
 	c := a.Config
 	cfg := map[string]any{"every_minutes": c.EveryMinutes, "cron": c.Cron, "timezone": c.Timezone, "auth": c.Auth, "auth_name": c.AuthName,
 		"pull_request": c.PullRequest, "notify_channel_id": c.NotifyChannelID, "notify_chat_id": c.NotifyChatID, "ends_at": c.EndsAt, "stop_when": c.StopWhen, "goal": c.Goal,
-		"only_if": c.OnlyIf} // read back as it is saved: an edit that sends the config back keeps it (ADR-219)
+		"only_if": c.OnlyIf, "on_restart": c.OnRestart} // read back as it is saved: an edit that sends the config back keeps it (ADR-219)
 	if a.Source == "event" { // its event too: a switch on the list sends the config back (ADR-243)
 		cfg["event"], cfg["event_from"], cfg["event_same_chat"] = c.Event, c.EventFrom, c.EventSameChat
 	}
@@ -95,7 +95,7 @@ func (s *server) toAutomationDTO(r *http.Request, a storage.Automation) automati
 			keywords = []string{}
 		}
 		cfg = map[string]any{"channel_id": c.ChannelID, "keywords": keywords, "scope": c.Scope,
-			"command": c.Command, "command_description": c.CommandDescription, "command_arg": c.CommandArg, "skill": c.Skill, "reply_mode": c.ReplyMode, "own_setup": c.OwnSetup}
+			"command": c.Command, "command_description": c.CommandDescription, "command_arg": c.CommandArg, "skill": c.Skill, "reply_mode": c.ReplyMode, "own_setup": c.OwnSetup, "on_restart": c.OnRestart}
 	}
 	tags := c.Tags
 	if tags == nil {
@@ -244,7 +244,8 @@ func (s *server) applyAutomation(r *http.Request, in automationInput, a *storage
 	if err := trigger.CheckAgents(r.Context(), s.cfg.Store, a.ProjectID, in.AgentID, ""); err != nil {
 		return err
 	}
-	cfg := storage.AutomationConfig{ConversationID: a.Config.ConversationID, SecretHash: a.Config.SecretHash}
+	cfg := storage.AutomationConfig{ConversationID: a.Config.ConversationID, SecretHash: a.Config.SecretHash,
+		OnRestart: storage.CleanOnRestart(in.Config.OnRestart)} // ADR-257
 	if in.Source == "schedule" {
 		cfg.EveryMinutes, cfg.Cron, cfg.Timezone = in.Config.EveryMinutes, strings.TrimSpace(in.Config.Cron), strings.TrimSpace(in.Config.Timezone)
 		cfg.OnlyIf = in.Config.OnlyIf // ADR-194: kept as it came (the dashboard sends back what it read)

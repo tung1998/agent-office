@@ -29,6 +29,7 @@ export interface Job {
   finished_at: string | null
   exit_code: number | null
   parent_job_id: string
+  resumes?: number // put back to run after office restarted under it (ADR-257)
   output?: string
   payload?: string
 }
@@ -50,6 +51,7 @@ export interface AutomationConfig {
   tags?: string[] // put on the chat of each run
   ends_at?: string | null // a schedule or event automation turns itself off then (as a Burn); none = runs until turned off
   stop_when?: string // a run whose answer contains it turns it off (ADR-244)
+  on_restart?: '' | 'resume' | 'stop' // a run cut off by office restarting ('' = an agent's goes on, a script's stops; ADR-257)
   goal?: AutomationGoal | null // chat/workflow: runs until it is reached (ADR-132)
   // source event (ADR-243): runs when this ends in the project; from: one agent / automation / workflow key ('' = any, 'self' = itself, ADR-244);
   // same_chat: a turn.* run goes on in the chat that turn ended in

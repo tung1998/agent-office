@@ -49,6 +49,7 @@ const facts = computed(() => {
         <div class="flex flex-wrap items-center gap-2 text-xs text-(--ui-text-muted)">
           <JobStatusBadge :status="data.job.status" />
           <span v-if="data.job.exit_code !== null">{{ t('job.exit', { n: data.job.exit_code }) }}</span>
+          <UBadge v-if="data.job.resumes" color="info" variant="subtle" size="sm" icon="i-lucide-rotate-cw" :label="t('job.resumed', { n: data.job.resumes })" />
           <span>{{ when(data.job.created_at) }}</span>
         </div>
         <!-- why it failed, first -->

@@ -429,11 +429,19 @@ func (s *Service) wake(projectID string) {
 	}
 }
 
+// pauseDoing: the pieces in progress wait to go on (office restarted, or
+// the Burn stopped). Being cut off is not a try of their own: their try is
+// given back, so a piece is not failed for restarts (ADR-257) — unless it
+// keeps being cut (it may be what brings office down), then it counts.
 func (s *Service) pauseDoing(ctx context.Context, sessionID string) {
 	items, _ := s.store.Burn().Items(ctx, sessionID)
 	for _, it := range items {
 		if it.Status == "doing" {
 			it.Status = "paused"
+			if it.Restarts < storage.MaxJobResumes {
+				it.Attempts = max(it.Attempts-1, 0)
+			}
+			it.Restarts++
 			_ = s.store.Burn().UpdateItem(ctx, it)
 		}
 	}
@@ -796,7 +804,7 @@ func (s *Service) work(ctx context.Context, b storage.BurnSession, it storage.Bu
 	// its worktree first: a run without one would write in the project's own folder
 	p, perr := s.store.Repos().Get(ctx, b.ProjectID)
 	// tried before, yet its worktree is gone: its chat remembers work that is not there
-	fresh := it.Attempts > 1 && s.trees != nil && !s.trees.Exists(b.ProjectID, tree)
+	fresh := (it.Attempts > 1 || from == "paused") && s.trees != nil && !s.trees.Exists(b.ProjectID, tree)
 	if perr == nil && s.trees != nil {
 		it.Worktree, perr = s.pieceTree(ctx, b, p.Path, tree)
 	} else if perr == nil {
@@ -861,6 +869,9 @@ func (s *Service) work(ctx context.Context, b storage.BurnSession, it storage.Bu
 	}
 	cur.Subagents += res.subagents
 	cur.CostUSD += res.cost
+	if ctx.Err() == nil { // its turn ran to its end: the restarts in a row are over
+		cur.Restarts = 0
+	}
 	fromCur := cur.Status // read before checked()'s build/test (which can take a while): the person may skip it meanwhile, and theirs wins
 	switch {
 	case ctx.Err() != nil: // stopped: it waits

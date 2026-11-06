@@ -123,8 +123,10 @@ func serveCmd() *cobra.Command {
 			// why office went down last (an update, a stop, else a crash): told
 			// to the chats whose work it cut (ADR-255)
 			downWhy := selfupdate.TakeRestart(h.Dir)
-			// chat answers cut off by the last shutdown go on (below); other jobs do not run again (ADR-040)
+			// chat answers cut off by the last shutdown go on (below), and the
+			// automations' runs that resume on a restart run again (ADR-257)
 			interrupted, _ := a.store.Jobs().List(ctx, storage.JobFilter{Kind: "chat_turn", Status: "running", Limit: 200})
+			cutRuns, _ := a.store.Jobs().List(ctx, storage.JobFilter{Origin: "automation", Status: "running", Limit: 500})
 			if n, err := a.store.Jobs().FailRunning(ctx, "restart", "office khởi động lại khi job đang chạy: "+downWhy, time.Now().UTC()); err == nil && n > 0 {
 				fmt.Fprintf(cmd.ErrOrStderr(), "office: %d job đang chạy dở được đánh dấu lỗi (khởi động lại)\n", n)
 			}
@@ -139,6 +141,10 @@ func serveCmd() *cobra.Command {
 				fmt.Fprintf(cmd.ErrOrStderr(), "office: %d quy trình đang chạy dở được đánh dấu lỗi (khởi động lại)\n", n)
 			}
 			interrupted = chat.WithoutRunCallers(ctx, a.store, interrupted, resumable) // their chats wait for the run, not a new answer
+			cutRuns = chat.WithoutRunCallers(ctx, a.store, cutRuns, resumable)         // they wait for the run itself (ADR-256)
+			if back := trigger.RequeueCut(ctx, a.store, cutRuns, time.Now().UTC()); len(back) > 0 {
+				fmt.Fprintf(cmd.ErrOrStderr(), "office: %d lượt tự động hóa bị cắt được chạy tiếp (khởi động lại)\n", len(back))
+			}
 			chatEngine.SetAttachments(attach.Store{Dir: filepath.Join(h.Dir, "attachments")})
 			// agents edit and check in their own git worktrees (ADR-037)
 			trees := worktree.New(filepath.Join(h.Dir, "worktrees"))

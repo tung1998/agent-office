@@ -1,0 +1,1 @@
+⚠️ Office khởi động lại khi [[range $i, $a := .Agents]][[if $i]], [[end]]@[[$a]][[end]] đang trả lời, và lượt này đã bị cắt quá [[.Max]] lần liên tiếp nên không tự làm tiếp nữa (có thể chính lượt này làm office dừng). Hãy xem lại rồi gửi tin để làm tiếp.

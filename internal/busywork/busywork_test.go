@@ -145,3 +145,38 @@ func TestBusyworkSkipsResumableWait(t *testing.T) {
 		t.Fatalf("a changed workflow = %+v", r)
 	}
 }
+
+// The update page says what a restart only cuts and goes on with (ADR-257):
+// a person's answer, an automation's agent run (not a script by default,
+// not one put back too often), a Burn piece.
+func TestCountSaysWhatGoesOn(t *testing.T) {
+	ctx := context.Background()
+	st := open(t)
+	p, _ := st.Repos().Create(ctx, storage.Repo{Name: "p", Path: "/p"})
+	chat, _ := st.Automations().Create(ctx, storage.Automation{ProjectID: p.ID, Name: "kiểm tra", Source: "schedule", Action: "chat", Enabled: true})
+	script, _ := st.Automations().Create(ctx, storage.Automation{ProjectID: p.ID, Name: "sao lưu", Source: "schedule", Action: "script", Enabled: true})
+	for _, j := range []storage.Job{
+		{Kind: "chat_turn", Origin: "automation", OriginID: chat.ID, Title: "agent"},
+		{Kind: "chat_turn", Origin: "automation", OriginID: chat.ID, Title: "quá lần", Resumes: storage.MaxJobResumes},
+		{Kind: "script", Origin: "automation", OriginID: script.ID, Title: "script"},
+		{Kind: "chat_turn", Origin: "user", ConversationID: "cnv_c", Title: "người"},
+	} {
+		j.ProjectID, j.Status = p.ID, "running"
+		if _, err := st.Jobs().Create(ctx, j); err != nil {
+			t.Fatal(err)
+		}
+	}
+	b, _ := st.Burn().SaveSession(ctx, storage.BurnSession{ProjectID: p.ID, State: "running", RunBranch: "burn/x"})
+	_, _ = st.Burn().AddItem(ctx, storage.BurnItem{SessionID: b.ID, Title: "mảnh", Status: "doing"})
+	r := busywork.Counter{Store: st}.Count(ctx)
+	got := map[string]bool{}
+	for _, it := range append(append(r.Automations, r.ChatItems...), r.Burn...) {
+		got[it.Name] = it.GoesOn
+	}
+	want := map[string]bool{"agent": true, "quá lần": false, "script": false, "người": true, "mảnh": true}
+	for k, v := range want {
+		if g, ok := got[k]; !ok || g != v {
+			t.Errorf("%s: goes on %v (listed %v), want %v", k, g, ok, v)
+		}
+	}
+}

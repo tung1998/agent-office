@@ -60,6 +60,7 @@ func (e *Engine) ResumeInterrupted(ctx context.Context, jobs []storage.Job) int 
 	type cut struct {
 		who    string
 		agents []string
+		over   []string // cut too many times in a row: not again (ADR-257)
 	}
 	var order []string
 	chats := map[string]*cut{}
@@ -73,16 +74,28 @@ func (e *Engine) ResumeInterrupted(ctx context.Context, jobs []storage.Job) int 
 			chats[j.ConversationID] = c
 			order = append(order, j.ConversationID)
 		}
-		if a, err := e.store.Agents().Get(ctx, j.AgentID); err == nil && !slices.Contains(c.agents, a.Name) {
-			c.agents = append(c.agents, a.Name)
+		a, err := e.store.Agents().Get(ctx, j.AgentID)
+		if err != nil || slices.Contains(c.agents, a.Name) || slices.Contains(c.over, a.Name) {
+			continue
 		}
+		if e.cutInARow(ctx, j.ConversationID, j.AgentID) > storage.MaxJobResumes { // its answer keeps bringing office down
+			c.over = append(c.over, a.Name)
+			continue
+		}
+		c.agents = append(c.agents, a.Name)
 	}
 	n := 0
 	for _, id := range order {
 		c := chats[id]
 		conv, err := e.store.Chat().GetConversation(ctx, id)
 		// the project's chats only: a bot's answers outsiders, a workflow's ended with it
-		if err != nil || conv.Purpose != "" || conv.TaskID != "" || conv.Cleaned != "" || len(c.agents) == 0 {
+		if err != nil || conv.Purpose != "" || conv.TaskID != "" || conv.Cleaned != "" {
+			continue
+		}
+		if len(c.over) > 0 {
+			e.note(conv, prompts.Render("chat/resume-over", map[string]any{"Agents": c.over, "Max": storage.MaxJobResumes}))
+		}
+		if len(c.agents) == 0 {
 			continue
 		}
 		text := prompts.Render("chat/resumed", map[string]any{"Agents": c.agents})
@@ -100,6 +113,24 @@ func (e *Engine) ResumeInterrupted(ctx context.Context, jobs []storage.Job) int 
 		if _, _, err := e.SendWithContext(as, id, text, from.Context, nil); err != nil {
 			slog.Warn("chat: resume after restart", "conversation", id, "err", err)
 			continue
+		}
+		n++
+	}
+	return n
+}
+
+// cutInARow is how many of agentID's latest turns in a chat in a row were
+// cut off by office restarting (still running or ended "restart"): one that
+// keeps bringing office down is not resumed for ever (ADR-257).
+func (e *Engine) cutInARow(ctx context.Context, conversationID, agentID string) int {
+	jobs, err := e.store.Jobs().List(ctx, storage.JobFilter{ConversationID: conversationID, Kind: "chat_turn", AgentID: agentID, Limit: storage.MaxJobResumes + 2})
+	if err != nil {
+		return 0
+	}
+	n := 0
+	for _, j := range jobs {
+		if j.Status != "running" && j.ErrorCode != "restart" {
+			break
 		}
 		n++
 	}

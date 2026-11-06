@@ -47,6 +47,9 @@ type Job struct {
 	// ExtraDirs: extra directories this run may read, computed once at job
 	// start (an automation's override replaces the agent's own, never adds to it).
 	ExtraDirs []string
+	// Resumes: how many times office put it back to run after restarting
+	// under it (ADR-257).
+	Resumes int
 }
 
 // SendsAs is who a run speaks for when it sends into another chat: the person
@@ -207,6 +210,10 @@ type JobRepo interface {
 	// running: the work it waited for goes on after the restart (ADR-256).
 	// ErrConflict when it is not such a job.
 	Reopen(ctx context.Context, id, errCode string) (Job, error)
+	// Requeue puts a job FailRunning ended (error code errCode) back to
+	// pending, due at, one resume more, while it has been put back fewer
+	// than limit times (ADR-257). ErrConflict when it is not such a job.
+	Requeue(ctx context.Context, id, errCode string, limit int, at time.Time) (Job, error)
 }
 
 // Automation starts jobs on a schedule or a trigger (ADR-040).
@@ -300,6 +307,42 @@ type AutomationConfig struct {
 	Event         string `json:"event,omitempty"`
 	EventFrom     string `json:"event_from,omitempty"`
 	EventSameChat bool   `json:"event_same_chat,omitempty"`
+	// OnRestart: what a run cut off by office restarting does (ADR-257):
+	// OnRestartResume runs it again (an agent: on in its chat, told it was
+	// cut), OnRestartStop ends it failed; "" = resume for action chat, stop
+	// otherwise (a script may not be safe to run twice).
+	OnRestart string `json:"on_restart,omitempty"`
+}
+
+// What a run cut off by a restart does (AutomationConfig.OnRestart, ADR-257).
+const (
+	OnRestartResume = "resume"
+	OnRestartStop   = "stop"
+)
+
+// MaxJobResumes: a run office restarted under goes on at most this many
+// times (ADR-257); one that keeps bringing office down then ends.
+const MaxJobResumes = 3
+
+// ResumesOnRestart says whether a's run cut off by office restarting runs
+// again (ADR-257): its own choice, else an agent's chat does, a script or
+// a workflow (its graph of steps goes on by itself, ADR-256) does not.
+func (a Automation) ResumesOnRestart() bool {
+	switch a.Config.OnRestart {
+	case OnRestartResume:
+		return true
+	case OnRestartStop:
+		return false
+	}
+	return a.Action == "chat"
+}
+
+// CleanOnRestart keeps a known OnRestart value ("" otherwise).
+func CleanOnRestart(v string) string {
+	if v = strings.TrimSpace(v); v == OnRestartResume || v == OnRestartStop {
+		return v
+	}
+	return ""
 }
 
 // EventSelf: event_from naming the automation itself, so it repeats (ADR-244).

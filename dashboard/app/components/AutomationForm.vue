@@ -121,6 +121,16 @@ watch([endMode, endHours, endAt, weeklyReset], () => {
     default: form.config.ends_at = null
   }
 })
+// a run cut off by office restarting (ADR-257): '' = by its action (an agent's goes on, a script's stops)
+const onRestart = computed({
+  get: () => form.config.on_restart || 'auto',
+  set: (v: string) => { form.config.on_restart = v === 'auto' ? '' : v as 'resume' | 'stop' }
+})
+const onRestartItems = computed(() => [
+  { value: 'auto', label: form.action === 'chat' ? t('auto.onRestartAutoResume') : t('auto.onRestartAutoStop') },
+  { value: 'resume', label: t('auto.onRestartResume') },
+  { value: 'stop', label: t('auto.onRestartStop') }
+])
 const endItems = computed(() => [
   { value: 'none', label: t('burn.endNone') },
   ...(weeklyReset.value ? [{ value: 'reset', label: t('burn.endReset', { at: fmt(weeklyReset.value) }) }] : []),
@@ -488,6 +498,10 @@ async function testRun() {
           <UInputNumber v-model="form.limits.max_parallel" :min="1" :max="10" :disabled="form.keep_context" class="w-full" />
         </UFormField>
         <UFormField :label="t('auto.maxMinutes')" :help="t('auto.maxMinutesHelp')"><UInputNumber v-model="form.limits.max_minutes" :min="0" class="w-full" /></UFormField>
+        <UFormField>
+          <template #label><InfoLabel :label="t('auto.onRestart')" :info="t('auto.onRestartHint')" /></template>
+          <USelect v-model="onRestart" :items="onRestartItems" class="w-full" />
+        </UFormField>
       </div>
       <div v-if="form.source === 'webhook'" class="mt-3 grid gap-3 @lg:grid-cols-3">
         <UFormField :label="t('auto.debounce')"><UInputNumber v-model="form.limits.debounce_seconds" :min="0" :max="3600" class="w-full" /></UFormField>

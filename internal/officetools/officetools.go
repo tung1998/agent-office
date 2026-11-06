@@ -354,9 +354,10 @@ func (t *Toolbox) Tools() []Tool {
 					"judge":      map[string]any{"type": "boolean", "description": "A separate read-only chat with the agent judges whether text is met"},
 					"max_rounds": map[string]any{"type": "integer", "description": "Turns at most, default 5, max 20; each failed round sends the check's output back to the chat"},
 				}),
-				"ends_at":   str("schedule/event: time to stop on its own (RFC3339, e.g. 2026-10-12T00:00:00+07:00); empty = runs until turned off"),
-				"stop_when": str("Turns off when a run's answer contains this text, e.g. RESEARCH DONE (tell the agent in the prompt to write it when done); \"-\" clears it"),
-				"tags":      map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "description": "chat: tags put on each run's chat (max 10; empty = keep the current tags)"},
+				"ends_at":    str("schedule/event: time to stop on its own (RFC3339, e.g. 2026-10-12T00:00:00+07:00); empty = runs until turned off"),
+				"stop_when":  str("Turns off when a run's answer contains this text, e.g. RESEARCH DONE (tell the agent in the prompt to write it when done); \"-\" clears it"),
+				"on_restart": map[string]any{"type": "string", "enum": []string{"resume", "stop"}, "description": "A run cut off by office restarting: resume (runs again; an agent goes on in its chat) or stop; empty = keep (default: resume for chat, stop for script/workflow)"},
+				"tags":       map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "description": "chat: tags put on each run's chat (max 10; empty = keep the current tags)"},
 				"only_if": obj(map[string]any{
 					"collection": str("Data table (collection key) of the project to look at"),
 					"where": map[string]any{"type": "array", "description": "Run when a record matches all of these; \"$today\"/\"$now\" stand for the tick's date/time, e.g. [{\"field\":\"status\",\"op\":\"in\",\"value\":[\"cho-kiem-tra\"]}] or [{\"field\":\"due\",\"op\":\"lt\",\"value\":\"$today\"}]",

@@ -146,6 +146,7 @@ useLive(['jobs'], () => load())
                 <span class="flex items-center gap-1.5">
                   <UIcon :name="j.kind === 'task' ? 'i-lucide-list-todo' : j.kind === 'script' ? 'i-lucide-square-terminal' : 'i-lucide-messages-square'" class="size-3.5 shrink-0 text-(--ui-text-muted)" />
                   <span class="truncate" :title="j.title">{{ j.title || '—' }}</span>
+                  <UIcon v-if="j.resumes" name="i-lucide-rotate-cw" class="size-3.5 shrink-0 text-(--ui-info)" :title="t('job.resumed', { n: j.resumes })" />
                 </span>
                 <span v-if="j.error" class="block truncate text-xs text-(--ui-error)" :title="j.error">{{ j.error }}</span>
                 <span v-if="!filter?.project && j.project_name" class="block truncate text-xs text-(--ui-text-muted)">{{ j.project_name }}</span>

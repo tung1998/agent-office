@@ -51,6 +51,7 @@ type jobDTO struct {
 	CreatedAt      time.Time  `json:"created_at"`
 	StartedAt      *time.Time `json:"started_at"`
 	FinishedAt     *time.Time `json:"finished_at"`
+	Resumes        int        `json:"resumes"` // put back to run after office restarted under it (ADR-257)
 }
 
 // names caches the labels a job listing needs.
@@ -77,7 +78,7 @@ func (s *server) toJobDTO(r *http.Request, j storage.Job, n *names) jobDTO {
 	d := jobDTO{ID: j.ID, ProjectID: j.ProjectID, Kind: j.Kind, Origin: j.Origin, OriginID: j.OriginID, Trigger: j.Trigger, CreatedBy: j.CreatedBy,
 		ConversationID: j.ConversationID, MessageID: j.MessageID, TaskID: j.TaskID, Status: j.Status, Error: j.Error, ErrorCode: j.ErrorCode,
 		AgentID: j.AgentID, Title: j.Title, CostUSD: j.CostUSD, InputTokens: j.InputTokens, OutputTokens: j.OutputTokens, DurationMS: j.DurationMS,
-		NextAttemptAt: j.NextAttemptAt, CreatedAt: j.CreatedAt, StartedAt: j.StartedAt, FinishedAt: j.FinishedAt, ExitCode: j.ExitCode, ParentJobID: j.ParentJobID}
+		NextAttemptAt: j.NextAttemptAt, CreatedAt: j.CreatedAt, StartedAt: j.StartedAt, FinishedAt: j.FinishedAt, ExitCode: j.ExitCode, ParentJobID: j.ParentJobID, Resumes: j.Resumes}
 	d.AgentName = look(n.agents, j.AgentID, func() (string, error) {
 		a, err := s.cfg.Store.Agents().Get(ctx, j.AgentID)
 		return a.Name, err

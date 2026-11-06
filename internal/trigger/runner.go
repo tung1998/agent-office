@@ -546,6 +546,9 @@ func (r *Runner) execute(ctx context.Context, j storage.Job) {
 	if ev := eventOf(j); a.Config.EventSameChat && ev.ConversationID != "" {
 		conv = ev.ConversationID // goes on in the chat whose turn ended (ADR-243)
 	}
+	if c := resumeIn(a, j); c != "" { // cut off by a restart: it goes on where it was (ADR-257)
+		conv, prompt = c, resumedPrompt()
+	}
 	if fromChannel { // the files sent with the message go to the agent with it
 		actx = WithAttachments(actx, channelPayloadOf(origin).Attachments)
 		actx = WithSender(actx, channelPayloadOf(origin).Sender)
