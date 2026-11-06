@@ -37,6 +37,7 @@ interface List {
 const { t } = useLang()
 const toast = useToast()
 const data = ref<List | null>(null)
+const loadError = ref(false)
 const busy = ref('')
 let timer: ReturnType<typeof setTimeout> | undefined
 
@@ -53,7 +54,9 @@ async function load() {
   clearTimeout(timer)
   try {
     data.value = await $fetch<List>('/api/cli-tools')
+    loadError.value = false
   } catch {
+    loadError.value = true
     return
   }
   // an update on its way is followed until it ends; newest versions the
@@ -149,7 +152,11 @@ onBeforeUnmount(() => clearTimeout(timer))
 </script>
 
 <template>
-  <USkeleton v-if="!data" class="h-24 w-full" />
+  <UAlert
+    v-if="loadError && !data" color="error" variant="subtle" icon="i-lucide-circle-alert" :title="t('cliup.loadError')"
+    :actions="[{ label: t('common.refresh'), onClick: load }]"
+  />
+  <USkeleton v-else-if="!data" class="h-24 w-full" />
   <UCard v-else-if="data.enabled && installed.length" :ui="{ body: 'space-y-3 sm:p-4' }">
     <div class="flex flex-wrap items-center gap-2">
       <UIcon name="i-lucide-circle-arrow-up" class="size-4 text-(--ui-text-muted)" />

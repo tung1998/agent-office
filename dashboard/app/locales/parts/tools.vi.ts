@@ -355,6 +355,7 @@ export default {
   'tools.gwCallDenied': 'bị chặn',
   // cliup.* — CliUpdates.vue, CliSetup.vue (ADR-259)
   'cliup.title': 'Cập nhật CLI AI',
+  'cliup.loadError': 'Không tải được danh sách CLI.',
   'cliup.help': 'Office đọc bản mới nhất của từng CLI (npm hoặc Homebrew). "Khi rảnh" chờ các lượt đang dùng CLI đó chạy xong; lượt mới chỉ chờ trong lúc thay file. Bản mới không chạy được thì office cài lại bản cũ (npm) và báo ở bot cảnh báo.',
   'cliup.mode': 'Chế độ cập nhật',
   'cliup.modeOf': 'Chế độ cập nhật của {name}',

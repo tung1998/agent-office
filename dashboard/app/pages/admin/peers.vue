@@ -170,9 +170,13 @@ const changed = (p: Peer) => JSON.stringify(shared[p.id] ?? []) !== JSON.stringi
         <code class="rounded bg-(--ui-bg-elevated) px-2 py-0.5 font-semibold tracking-widest">{{ o.code }}</code>
         <UButton size="xs" color="neutral" variant="ghost" icon="i-lucide-x" class="ms-auto" :title="t('common.cancel')" @click="cancelConnect(o)" />
       </div>
-      <p v-if="!peers.length && !data?.requests?.length && !data?.outgoing?.length" class="text-sm text-(--ui-text-muted)">
-        {{ t('peers.empty') }}
-      </p>
+      <div
+        v-if="!peers.length && !data?.requests?.length && !data?.outgoing?.length"
+        class="flex flex-col items-center justify-center gap-1.5 rounded-lg border border-dashed border-(--ui-border) px-4 py-10 text-center"
+      >
+        <UIcon name="i-lucide-building-2" class="size-5 text-(--ui-text-dimmed)" />
+        <p class="text-sm text-(--ui-text-dimmed)">{{ t('peers.empty') }}</p>
+      </div>
       <UCard v-for="p in peers" :key="p.id" :ui="{ body: 'space-y-3 sm:p-4' }">
         <div class="flex flex-wrap items-center gap-2">
           <UIcon name="i-lucide-building-2" class="size-4 text-primary" />
