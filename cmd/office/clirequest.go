@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"slices"
+	"sync"
 	"time"
 
 	"github.com/tung1998/agent-office/internal/clitools"
@@ -41,9 +42,9 @@ func (r cliRequest) lastBeat() time.Time {
 	return r.At
 }
 
-// dropped: an office took r and has not said it is alive for cliBeatLost.
-func (r cliRequest) dropped(now time.Time) bool {
-	return r.Taken != nil && !r.Done && now.Sub(r.lastBeat()) > cliBeatLost
+// dropped: an office took r and has not said it is alive for lost.
+func (r cliRequest) dropped(now time.Time, lost time.Duration) bool {
+	return r.Taken != nil && !r.Done && now.Sub(r.lastBeat()) > lost
 }
 
 // cliRequestKey holds the requests not ended yet.
@@ -114,7 +115,7 @@ func editRequests(ctx context.Context, st storage.Store, fn func([]cliRequest) (
 // result that changed. taken false: no office took it in takeWait, the
 // request is taken back and nothing was done.
 func requestCLIUpdate(ctx context.Context, st storage.Store, tools []string, by string, now bool, takeWait, poll time.Duration, progress func(cliResult)) ([]cliResult, bool, error) {
-	id := fmt.Sprintf("clu_%d", time.Now().UnixNano())
+	id, lost := fmt.Sprintf("clu_%d", time.Now().UnixNano()), cliBeatLost
 	at := time.Now().UTC()
 	if _, err := editRequests(ctx, st, func(l []cliRequest) ([]cliRequest, bool) {
 		return append(l, cliRequest{ID: id, Tools: tools, By: by, Now: now, At: at}), true
@@ -144,7 +145,7 @@ func requestCLIUpdate(ctx context.Context, st storage.Store, tools []string, by 
 			})
 			return r.Res, true, nil
 		}
-		if r.dropped(time.Now().UTC()) { // the office went down under it: not waited on for 14h (ADR-260)
+		if r.dropped(time.Now().UTC(), lost) { // the office went down under it: not waited on for 14h (ADR-260)
 			_, _ = editRequests(ctx, st, func(l []cliRequest) ([]cliRequest, bool) {
 				return slices.DeleteFunc(l, func(x cliRequest) bool { return x.ID == id }), true
 			})
@@ -180,12 +181,49 @@ func requestCLIUpdate(ctx context.Context, st storage.Store, tools []string, by 
 type cliRequestServer struct {
 	st      storage.Store
 	m       *clitools.Manager
+	every   time.Duration // cliBeatEvery and cliBeatLost, read once
+	lost    time.Duration
+	mu      sync.Mutex      // started: once and the beat read it
 	started map[string]bool // requests this office started
+}
+
+func (s *cliRequestServer) isStarted(id string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.started[id]
+}
+
+// beat says, every cliBeatEvery, that this office still follows the requests
+// it started (ADR-260). Its own loop: once() runs the CLIs (detect, version),
+// which can be slow, and a beat stuck behind them would read as office gone.
+func (s *cliRequestServer) beat(ctx context.Context) {
+	t := time.NewTicker(s.every)
+	defer t.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+		}
+		now := time.Now().UTC()
+		if _, err := editRequests(ctx, s.st, func(l []cliRequest) ([]cliRequest, bool) {
+			changed := false
+			for i := range l {
+				if r := &l[i]; !r.Done && r.Taken != nil && s.isStarted(r.ID) {
+					r.Beat, changed = &now, true
+				}
+			}
+			return l, changed
+		}); err != nil && ctx.Err() == nil {
+			slog.Warn("cli update request: beat", "err", err)
+		}
+	}
 }
 
 // serveCLIRequests takes `office tools update` requests every interval.
 func serveCLIRequests(ctx context.Context, st storage.Store, m *clitools.Manager, every time.Duration) {
-	s := &cliRequestServer{st: st, m: m, started: map[string]bool{}}
+	s := &cliRequestServer{st: st, m: m, started: map[string]bool{}, every: cliBeatEvery, lost: cliBeatLost}
+	go s.beat(ctx)
 	t := time.NewTicker(every)
 	defer t.Stop()
 	for {
@@ -217,7 +255,7 @@ func (s *cliRequestServer) once(ctx context.Context) {
 		})
 		for i := range l {
 			r := &l[i]
-			if !r.Done && !s.started[r.ID] && r.Res != nil && r.dropped(now) {
+			if !r.Done && !s.isStarted(r.ID) && r.Res != nil && r.dropped(now, s.lost) {
 				// started by an office that went down: nobody follows it
 				// any more, so it ends here, failed, not kept for 14h (ADR-260)
 				for j := range r.Res {
@@ -228,7 +266,7 @@ func (s *cliRequestServer) once(ctx context.Context) {
 				r.Done, changed = true, true
 				continue
 			}
-			if r.Done || s.started[r.ID] || r.Taken != nil && r.Res != nil {
+			if r.Done || s.isStarted(r.ID) || r.Taken != nil && r.Res != nil {
 				continue
 			}
 			if r.Taken == nil {
@@ -244,7 +282,9 @@ func (s *cliRequestServer) once(ctx context.Context) {
 	}
 	started := map[string][]cliResult{}
 	for _, r := range take {
+		s.mu.Lock()
 		s.started[r.ID] = true
+		s.mu.Unlock()
 		started[r.ID] = s.begin(ctx, r)
 	}
 	// write what started and how each update goes
@@ -255,11 +295,8 @@ func (s *cliRequestServer) once(ctx context.Context) {
 			if res, ok := started[r.ID]; ok {
 				r.Res, changed = res, true
 			}
-			if r.Done || r.Taken == nil || r.Res == nil || !s.started[r.ID] {
+			if r.Done || r.Taken == nil || r.Res == nil || !s.isStarted(r.ID) {
 				continue
-			}
-			if r.Beat == nil || now.Sub(*r.Beat) >= cliBeatEvery { // still followed (ADR-260)
-				r.Beat, changed = &now, true
 			}
 			done := true
 			for j := range r.Res {

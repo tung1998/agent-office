@@ -153,6 +153,12 @@ func TestToolsUpdateOfficeDiedAfterClaim(t *testing.T) {
 	st := requestStore(t)
 	dir := t.TempDir()
 	fakeCodex(t, dir, "0.166.0", "0.167.0")
+	// a slow CLI (a loaded machine): reading its version takes longer than
+	// cliBeatLost, and the office still says it is alive meanwhile
+	slow := filepath.Join(dir, "node_modules", "@openai", "codex", "bin", "codex")
+	if err := os.WriteFile(slow, []byte("#!/bin/sh\nsleep 2\necho codex-cli 0.166.0\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
 	m := clitools.NewManagerWithPath(dir + ":/usr/bin:/bin")
 	officeCtx, officeDown := context.WithCancel(context.Background())
 	go serveCLIRequests(officeCtx, st, m, 10*time.Millisecond)
@@ -171,7 +177,7 @@ func TestToolsUpdateOfficeDiedAfterClaim(t *testing.T) {
 		done <- out{res, err}
 	}()
 	waitFor(t, func() bool { u, ok := m.Upgrade("codex"); return ok && u.State == "waiting" })
-	time.Sleep(100 * time.Millisecond) // beats while alive: not dropped
+	time.Sleep(3 * time.Second) // beats while alive, its CLI slow: not dropped
 	select {
 	case o := <-done:
 		t.Fatalf("ended while the office was alive: %+v %v", o, o.err)
@@ -184,7 +190,7 @@ func TestToolsUpdateOfficeDiedAfterClaim(t *testing.T) {
 	case <-time.After(10 * time.Second):
 		t.Fatal("the command still waits for an office that is gone")
 	}
-	if !errors.Is(o.err, errOfficeGone) || time.Since(start) > 5*time.Second {
+	if !errors.Is(o.err, errOfficeGone) || time.Since(start) > 15*time.Second {
 		t.Fatalf("result = %+v", o)
 	}
 
@@ -196,7 +202,7 @@ func TestToolsUpdateOfficeDiedAfterClaim(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	next := &cliRequestServer{st: st, m: clitools.NewManagerWithPath(t.TempDir()), started: map[string]bool{}}
+	next := &cliRequestServer{st: st, m: clitools.NewManagerWithPath(t.TempDir()), started: map[string]bool{}, every: cliBeatEvery, lost: cliBeatLost}
 	next.once(ctx)
 	var left []cliRequest
 	_, _ = st.Settings().Get(ctx, cliRequestKey, &left)
