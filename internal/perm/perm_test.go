@@ -2,9 +2,11 @@ package perm
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"slices"
+	"sync"
 	"testing"
 
 	"github.com/tung1998/agent-office/internal/storage"
@@ -102,6 +104,108 @@ func TestLoadPolicyUpgradesOldEnvPattern(t *testing.T) {
 	p := LoadPolicy(context.Background(), st, "proj")
 	if len(p.Denied([]string{"backend/.env.local"})) != 1 {
 		t.Fatalf("stale saved policy should still block nested .env files: %v", p.DenyPaths)
+	}
+}
+
+// TestSavePolicyIfConcurrent: two admins both read the same policy, then
+// both save at once with the expectedRaw from that shared read. Only one of
+// the two real goroutines may land; the other must get storage.ErrConflict
+// instead of silently clobbering the winner's write (the bug this guards:
+// SavePolicy used to be a bare Settings().Set with no compare-and-swap).
+func TestSavePolicyIfConcurrent(t *testing.T) {
+	st, err := sqlite.Open(filepath.Join(t.TempDir(), "office.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	if err := st.Migrate(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+	if err := SavePolicy(ctx, st, "proj", DefaultPolicy()); err != nil {
+		t.Fatal(err)
+	}
+	_, raw := LoadPolicyRaw(ctx, st, "proj")
+
+	a := DefaultPolicy()
+	a.DenyPaths = []string{"a.env"}
+	b := DefaultPolicy()
+	b.DenyPaths = []string{"b.env"}
+
+	var wg sync.WaitGroup
+	var start sync.WaitGroup
+	start.Add(1)
+	errs := make([]error, 2)
+	for i, p := range []Policy{a, b} {
+		wg.Add(1)
+		go func(i int, p Policy) {
+			defer wg.Done()
+			start.Wait()
+			errs[i] = SavePolicyIf(ctx, st, "proj", raw, p)
+		}(i, p)
+	}
+	start.Done()
+	wg.Wait()
+
+	oks, conflicts, winner := 0, 0, -1
+	for i, e := range errs {
+		switch {
+		case e == nil:
+			oks++
+			winner = i
+		case errors.Is(e, storage.ErrConflict):
+			conflicts++
+		default:
+			t.Fatalf("unexpected error: %v", e)
+		}
+	}
+	if oks != 1 || conflicts != 1 {
+		t.Fatalf("want exactly one write to land and one conflict, got oks=%d conflicts=%d (errs=%v)", oks, conflicts, errs)
+	}
+
+	want := []Policy{a, b}[winner].DenyPaths
+	final := LoadPolicy(ctx, st, "proj")
+	if !slices.Equal(final.DenyPaths, want) {
+		t.Fatalf("final policy must be exactly the winning goroutine's write (%v), got %v", want, final.DenyPaths)
+	}
+}
+
+// TestLoadPolicyRawKeepsCorruptRaw: a stored policy that is not valid JSON
+// must still be recoverable through SavePolicyIf. LoadPolicyRaw decodes it as
+// the default policy but must keep the original (corrupt) raw string instead
+// of resetting it to "" — "" means "no row yet" to SetIf, which would take
+// the INSERT ... ON CONFLICT DO NOTHING branch and leave the corrupt row in
+// place forever, locking an admin out of fixing it through the editor.
+func TestLoadPolicyRawKeepsCorruptRaw(t *testing.T) {
+	st, err := sqlite.Open(filepath.Join(t.TempDir(), "office.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	if err := st.Migrate(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+	if err := st.Settings().Set(ctx, policyKey("proj"), "not valid json"); err != nil {
+		t.Fatal(err)
+	}
+
+	p, raw := LoadPolicyRaw(ctx, st, "proj")
+	if raw == "" {
+		t.Fatal("raw must keep the stored corrupt value, not reset to \"\"")
+	}
+	if !slices.Equal(p.DenyPaths, DefaultPolicy().DenyPaths) {
+		t.Fatalf("a corrupt row must decode as the default policy, got %+v", p)
+	}
+
+	want := DefaultPolicy()
+	want.DenyPaths = []string{"fixed.env"}
+	if err := SavePolicyIf(ctx, st, "proj", raw, want); err != nil {
+		t.Fatalf("SavePolicyIf over a corrupt row must succeed: %v", err)
+	}
+	got := LoadPolicy(ctx, st, "proj")
+	if !slices.Equal(got.DenyPaths, want.DenyPaths) {
+		t.Fatalf("the fix must have landed, got %+v", got)
 	}
 }
 
