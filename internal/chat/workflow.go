@@ -1175,6 +1175,9 @@ func (e *Engine) wfGate(ctx context.Context, sc officetools.Scope, run *wfRun, k
 		status, out = "passed", "Gate "+g.Name+" PASSED.\n$ "+a.Target+"\n"+truncate(a.Detail, 4000)
 	case "failed":
 		status, out = "failed", "Gate "+g.Name+" FAILED.\n$ "+a.Target+"\n"+truncate(a.Detail, 4000)
+		if note := e.AdviseFailure(ctx, csc, a.Target, a.Detail); note != "" { // the gate failed so before: a second opinion (ADR-262)
+			out += "\n\n---\n" + note
+		}
 	}
 	e.wf.mu.Lock()
 	if rg := run.gate(key); rg != nil {

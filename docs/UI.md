@@ -262,11 +262,16 @@ Dashboard mặc định chạy ở cổng **2704** (`make dev-ui`, `make ui-star
 | POST | `/api/projects/:id/setup/apply` | Áp dụng |
 
 ### Chi phí + trạng thái
+
+Khi agent gặp cùng lỗi hai lần trong một lượt, Chat hiện thẻ **Cố vấn** có thể gập/mở dưới câu trả lời, gồm model, chi phí và lời khuyên. Chế độ tự hỏi cố vấn và ngân sách/ngày ở **Kết nối AI → Ngân sách chung**; Tổng quan hiển thị số lần cố vấn và số lượt hoàn tất trong 7 ngày (ADR-262).
+
 | Method | Path | Mô tả |
 |---|---|---|
 | GET | `/api/usage/summary?days=` | Chi phí hôm nay, theo ngày, theo project/model (Tổng quan) |
 | GET | `/api/usage/runs?...` | Lịch sử lượt gọi AI |
 | PUT | `/api/usage/settings` | Trần chung office + giá model (trang Kết nối AI) |
+| GET | `/api/conversations/:id/advice` | Lời khuyên của cố vấn trong chat |
+| GET | `/api/advice/stats` | Số lần cố vấn và lượt hoàn tất trong 7 ngày |
 | GET/PUT | `/api/projects/:id/budget` | Ngân sách riêng của project (tab Thông tin) |
 | GET | `/api/features` | Danh sách gói tính năng |
 | GET/PUT | `/api/projects/:id/features` | Gói tính năng của project: cài đặt, tính năng bật, lý do tắt (`project` \| `no_folder`) |

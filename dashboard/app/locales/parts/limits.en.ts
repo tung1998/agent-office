@@ -100,6 +100,22 @@ const en: Record<keyof typeof vi, string> = {
   'limits.context': 'Context window',
   'limits.contextTitle': 'Context used {pct}%',
   'limits.contextUnknown': 'unknown yet',
-  'limits.fromLastRun': 'As of the latest run'
+  'limits.fromLastRun': 'As of the latest run',
+  // an advisor's second opinion for a stuck agent (ADR-262)
+  'advice.title': 'Advisor {advisor} for {agent}',
+  'advice.reviewed': 'Advisor {advisor} reviewed the answer',
+  'advice.objected': 'Advisor {advisor} does not agree with the answer',
+  'advice.skipped': 'No advisor could be asked for {agent}',
+  'advice.setting': 'Advisor when an agent is stuck',
+  'advice.settingHelp': 'When a command fails the same way twice in one run, office asks an agent on another vendor’s model and gives its advice to the agent with the failure. At most 2 times per run. With review: a run that got stuck has its answer read by the advisor before it ends; an objection adds a warning.',
+  'advice.perDay': 'USD per day',
+  'advice.mode.off': 'Off',
+  'advice.mode.repeat': 'On a repeated failure',
+  'advice.mode.repeat_done': 'On a repeated failure + review before done',
+  'advice.statsTitle': 'Advisors, last 7 days',
+  'advice.statsHelp': 'How often a stuck agent got an answer from an advisor of another vendor, how many of those runs ended done, and the cost.',
+  'advice.asked': 'advices',
+  'advice.runsDone': 'runs done after',
+  'advice.cost': 'cost',
 }
 export default en

@@ -152,9 +152,11 @@ func (s *server) orgRoutes(mux *http.ServeMux) {
 		mux.Handle("GET /api/projects/{id}/chat-tags", auth(s.projectTags))
 		mux.Handle("POST /api/conversations/{id}/stop", auth(s.ownChat(s.stopConversation)))
 		mux.Handle("DELETE /api/conversations/{id}/queued", auth(s.ownChat(s.unqueue)))
-		mux.Handle("POST /api/conversations/{id}/retry-now", auth(s.ownChat(s.retryNow)))  // ADR-260
-		mux.Handle("DELETE /api/conversations/{id}/retry", auth(s.ownChat(s.cancelRetry))) // ADR-260
-		mux.Handle("GET /api/conversations/{id}/retry", auth(s.ownChat(s.plannedRetry)))   // ADR-261
+		mux.Handle("POST /api/conversations/{id}/retry-now", auth(s.ownChat(s.retryNow)))       // ADR-260
+		mux.Handle("DELETE /api/conversations/{id}/retry", auth(s.ownChat(s.cancelRetry)))      // ADR-260
+		mux.Handle("GET /api/conversations/{id}/retry", auth(s.ownChat(s.plannedRetry)))        // ADR-261
+		mux.Handle("GET /api/conversations/{id}/advice", auth(s.ownChat(s.conversationAdvice))) // ADR-262
+		mux.Handle("GET /api/advice/stats", admin(s.adviceStats))                               // ADR-262
 		mux.Handle("GET /api/patches/{id}", auth(s.getPatch))
 		mux.Handle("POST /api/patches/{id}/approve", admin(s.approvePatch))
 		mux.Handle("POST /api/patches/{id}/reject", admin(s.rejectPatch))

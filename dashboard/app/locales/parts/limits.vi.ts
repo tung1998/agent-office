@@ -99,5 +99,21 @@ export default {
   'limits.context': 'Context window',
   'limits.contextTitle': 'Context đã dùng {pct}%',
   'limits.contextUnknown': 'chưa có',
-  'limits.fromLastRun': 'Cập nhật theo lượt chạy gần nhất'
+  'limits.fromLastRun': 'Cập nhật theo lượt chạy gần nhất',
+  // an advisor's second opinion for a stuck agent (ADR-262)
+  'advice.title': 'Cố vấn {advisor} gợi ý cho {agent}',
+  'advice.reviewed': 'Cố vấn {advisor} đã soát câu trả lời',
+  'advice.objected': 'Cố vấn {advisor} chưa đồng ý với câu trả lời',
+  'advice.skipped': 'Không hỏi được cố vấn cho {agent}',
+  'advice.setting': 'Cố vấn khi agent bị kẹt',
+  'advice.settingHelp': 'Khi một lệnh lỗi y hệt 2 lần trong cùng một lượt, office hỏi một agent dùng model của hãng khác, đưa lời khuyên kèm lỗi cho agent. Mỗi lượt hỏi tối đa 2 lần. Chế độ có soát: lượt từng bị kẹt được cố vấn đọc câu trả lời trước khi xong, không đồng ý thì thêm cảnh báo.',
+  'advice.perDay': 'USD mỗi ngày',
+  'advice.mode.off': 'Tắt',
+  'advice.mode.repeat': 'Khi lỗi lặp lại',
+  'advice.mode.repeat_done': 'Khi lỗi lặp lại + soát trước khi xong',
+  'advice.statsTitle': 'Cố vấn 7 ngày qua',
+  'advice.statsHelp': 'Số lần agent bị kẹt được cố vấn khác hãng trả lời, bao nhiêu lượt trong số đó xong, và chi phí.',
+  'advice.asked': 'lần cố vấn',
+  'advice.runsDone': 'lượt xong sau đó',
+  'advice.cost': 'chi phí',
 }

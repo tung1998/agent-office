@@ -2,6 +2,7 @@
 import type { Patch } from './PatchCard.vue'
 import type { ProposedAction } from './ActionCard.vue'
 import type { Attachment } from './PromptInput.vue'
+import type { Advice } from './AdviceCard.vue'
 
 interface ToolCall { name: string, summary: string, error?: boolean }
 interface Message {
@@ -25,10 +26,12 @@ interface Message {
   relay?: { agent: string, project: string, project_id: string, conversation_id: string, title: string, report: boolean, url?: string }
   // an expert's answer to a question an agent here asked (ADR-177)
   consult?: { agent: string, project: string, office?: string, link?: string }
+  // what an advisor told the agent stuck in this run (ADR-262)
+  advice?: Advice[]
 }
 interface Queued { id: string, text: string, attachments: Attachment[], created_at: string }
 interface Conversation { id: string, project_id?: string, agent_id: string, agent_name: string, title: string, updated_at: string, source?: Source, purpose?: string, external_url?: string, active_turn?: string, mode?: PermLevel, edit_mode?: 'worktree' | 'direct', effort?: string, cleaned?: string, context_tokens?: number, context_window?: number, tags?: string[], queued?: Queued[] }
-interface ChatEvent { seq: number, type: 'text' | 'tool' | 'status' | 'patch' | 'done' | 'error', text?: string, tool?: ToolCall, patch?: Patch, message?: Message, next_turn_id?: string }
+interface ChatEvent { seq: number, type: 'text' | 'tool' | 'status' | 'patch' | 'advice' | 'done' | 'error', text?: string, tool?: ToolCall, patch?: Patch, advice?: Advice, message?: Message, next_turn_id?: string }
 // the agents in a chat and the answers in progress (ADR-044)
 interface Member { agent_id: string, agent_name: string, level: string, context_tokens: number, context_window: number }
 interface RunningTurn { turn_id: string, agent_name: string, background: boolean }
@@ -214,6 +217,7 @@ const streaming = ref(false)
 const sending = ref(false) // closes the window before streaming.value is set, inside follow()
 const liveText = ref('')
 const liveTools = ref<ToolCall[]>([])
+const liveAdvice = ref<Advice[]>([]) // an advisor answered while the run goes on (ADR-262)
 const liveStatus = ref('')
 let unfollow: (() => void) | null = null // the answer followed on the tab's stream (ADR-127)
 let turnId = ''
@@ -681,6 +685,7 @@ function follow(id: string) {
   streaming.value = true
   liveText.value = ''
   liveTools.value = []
+  liveAdvice.value = []
   liveStatus.value = ''
   let afterTool = false // text after a tool call is a new paragraph, not glued to the last one
   unfollow = followTurn<ChatEvent>(id, (ev) => {
@@ -691,6 +696,7 @@ function follow(id: string) {
         afterTool = false
         liveText.value += ev.text ?? ''; scrollDown(); break
       case 'tool': if (ev.tool) liveTools.value.push(ev.tool); afterTool = true; scrollDown(); break
+      case 'advice': if (ev.advice) liveAdvice.value.push(ev.advice); scrollDown(); break
       case 'done':
       case 'error':
         if (ev.message) {
@@ -725,6 +731,7 @@ function finishStream() {
   streaming.value = false
   liveText.value = ''
   liveTools.value = []
+  liveAdvice.value = []
 }
 function stopStream() {
   unfollow?.()
@@ -1181,6 +1188,7 @@ onBeforeUnmount(() => {
                 <li v-for="(t, i) in m.tools" :key="i" :class="t.error ? 'text-(--ui-error)' : ''">{{ t.summary }}</li>
               </ul>
             </details>
+            <AdviceCard v-for="a in m.advice ?? []" :key="a.id" :advice="a" :project-id="projectId" />
             <!-- eslint-disable-next-line vue/no-v-html -->
             <div class="markdown min-w-0 text-sm @max-[420px]/chat:text-xs" :class="purpose && `md-apply-${purpose}`" @click="onMarkdownClick" v-html="renderMarkdown(m.content, true, projectId)" />
             <UButton
@@ -1230,6 +1238,7 @@ onBeforeUnmount(() => {
           <ul v-if="liveTools.length" class="space-y-0.5 ps-6 text-xs text-(--ui-text-muted)">
             <li v-for="(t, i) in liveTools" :key="i" class="line-clamp-2 break-all" :title="t.summary">{{ t.summary }}</li>
           </ul>
+          <AdviceCard v-for="a in liveAdvice" :key="a.id" :advice="a" :project-id="projectId" />
           <!-- eslint-disable-next-line vue/no-v-html -->
           <div v-if="liveText" class="markdown text-sm" v-html="renderMarkdown(liveText, true, projectId)" />
         </div>

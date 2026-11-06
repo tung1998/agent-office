@@ -112,6 +112,7 @@ func (s *Store) Processes() storage.ProcessRepo      { return processRepo{s.q} }
 func (s *Store) Monitors() storage.MonitorRepo       { return monitorRepo{s.q} }
 func (s *Store) Actions() storage.ActionRepo         { return actionRepo{s.q} }
 func (s *Store) Consults() storage.ConsultRepo       { return consultRepo{s.q} }
+func (s *Store) Advice() storage.AdviceRepo          { return adviceRepo{s.q} }
 func (s *Store) Jobs() storage.JobRepo               { return jobRepo{s.q} }
 func (s *Store) Automations() storage.AutomationRepo { return automationRepo{s.q} }
 func (s *Store) Memories() storage.MemoryRepo        { return memoryRepo{s.q} }

@@ -292,6 +292,7 @@ diff --git a/dashboard/app/layouts/default.vue b/dashboard/app/layouts/default.v
       '**Cause:** `go vet` flagged a copied `sync.Mutex` in `internal/ops/manager.go:214` after yesterday\'s refactor.\n\n**Fix:** pass `*Manager` instead of `Manager` to `sampleOnce`. I delegated it to @' + dev.name + ', who is on it now.\n\n| Step | Result |\n|---|---|\n| `make build` | ok |\n| `go vet ./...` | 1 error |\n| `go test ./...` | ok |',
       '**Nguyên nhân:** `go vet` báo copy `sync.Mutex` ở `internal/ops/manager.go:214` sau đợt refactor hôm qua.\n\n**Cách sửa:** truyền `*Manager` thay vì `Manager` vào `sampleOnce`. Mình đã giao cho @' + dev.name + ', đang làm.\n\n| Bước | Kết quả |\n|---|---|\n| `make build` | ok |\n| `go vet ./...` | 1 lỗi |\n| `go test ./...` | ok |'), 95,
       [{ name: 'process_logs', summary: T('go vet (last 200 lines)', 'go vet (200 dòng cuối)') }, { name: 'Grep', summary: 'sampleOnce' }, { name: 'delegate', summary: dev.name }]),
+    `INSERT INTO advice (id, project_id, conversation_id, message_id, agent_id, agent_name, advisor_id, advisor_name, provider, model, trigger, command, error, answer, status, cost_usd, created_at) VALUES ('adv_demo_build', ${q(ao.id)}, 'cnv_demo_build', 'msg_demo_b2', ${q(lead.id)}, ${q(lead.name)}, ${q(qa.id)}, ${q(qa.name)}, 'openai', 'gpt-5', 'repeat', 'go vet ./...', 'copylocks: sampleOnce passes lock by value', ${q(T('Pass a pointer to Manager, then run go vet again before marking the build fixed.', 'Truyền con trỏ Manager, rồi chạy lại go vet trước khi báo build đã sửa.'))}, 'answered', 0.012, ${q(ts(95))})`,
     conv('cnv_demo_plan', lead, T('Plan next week: release + docs', 'Kế hoạch tuần sau: phát hành + tài liệu'), 600),
     msg('msg_demo_p1', 'cnv_demo_plan', 'user', user, T('Plan next week. Goal: ship the single-binary release and write the user guide.', 'Lên kế hoạch tuần sau. Mục tiêu: phát hành bản một file chạy và viết hướng dẫn sử dụng.'), 605),
     msg('msg_demo_p2', 'cnv_demo_plan', 'assistant', lead.name, T(
@@ -539,11 +540,17 @@ async function capture({ ao, shop, lead }) {
       await requirePackNotice()
     }],
     ['50-agent-pack-add', `${P}?tab=agents&add=office/teacher`, requirePackNotice],
-    ['02-overview', '/'],
+    ['02-overview', '/', async () => {
+      if (!await page.eval(`document.body.textContent.includes(${JSON.stringify(T('Advisors, last 7 days', 'Cố vấn 7 ngày qua'))})`)) throw new Error('advisor overview stats not found')
+    }],
     ['03-projects', '/projects'],
     ['04a-new-project-idea', '/projects', openIdeaModal],
     ['04-chat', `${P}?tab=chat&c=cnv_demo_theme`],
     ['05-chat-answer', `${P}?tab=chat&c=cnv_demo_build`],
+    ['05a-advice-open', `${P}?tab=chat&c=cnv_demo_build`, async () => {
+      const opened = await page.eval(`(() => { const card = [...document.querySelectorAll('details')].find(e => e.textContent.includes(${JSON.stringify(T('Advisor', 'Cố vấn'))})); if (!card) return false; card.open = true; return true })()`)
+      if (!opened) throw new Error('advisor card not found')
+    }],
     // linked projects (ADR-155): a report back (opened) and the other side's card, decided here
     ['45-linked-chat', `${P}?tab=chat&c=cnv_demo_linked`, async () => {
       await page.eval(`(() => { document.querySelector('[id="m-msg_demo_l3"] summary')?.click(); return true })()`)
@@ -608,6 +615,11 @@ async function capture({ ao, shop, lead }) {
     // proposals are numbered and approved in order; a card from an older answer is marked "old"
     ['47-approval-order', `${P}?tab=chat&c=cnv_demo_order`],
     ['23-providers', '/providers'],
+    ['23b-advisor-budget', '/providers', async () => {
+      if (!await page.click(T('Budget', 'Ngân sách'))) throw new Error('office budget button not found')
+      await sleep(400)
+      if (!await page.eval(`document.body.textContent.includes(${JSON.stringify(T('Advisor when an agent is stuck', 'Cố vấn khi agent bị kẹt'))})`)) throw new Error('auto advisor setting not found')
+    }],
     ['24-templates', '/workflows'],
     ['25-library', '/skills'],
     ['26-jobs', '/jobs'],

@@ -163,8 +163,9 @@ func (codexRunner) run(ctx context.Context, req RunRequest, emit func(Event)) (R
 	res := RunResult{}
 	res.Usage.Model = req.Model
 	var answer []string
-	var failed []string     // turn.failed / error lines: why a run that answered nothing failed
-	var turnFailed []string // turn.failed alone: an "error" is also a reconnect it got over
+	var failed []string          // turn.failed / error lines: why a run that answered nothing failed
+	var turnFailed []string      // turn.failed alone: an "error" is also a reconnect it got over
+	commands := map[string]int{} // command item id → its place in res.Tools
 	sc := bufio.NewScanner(quiet.out(out))
 	sc.Buffer(make([]byte, 1<<20), 16<<20)
 	for sc.Scan() {
@@ -172,11 +173,15 @@ func (codexRunner) run(ctx context.Context, req RunRequest, emit func(Event)) (R
 			Type     string `json:"type"`
 			ThreadID string `json:"thread_id"`
 			Item     struct {
+				ID      string `json:"id"`
 				Type    string `json:"type"`
 				Text    string `json:"text"`
 				Command string `json:"command"`
-				Server  string `json:"server"`
-				Tool    string `json:"tool"`
+				// command_execution completed: how it ended
+				ExitCode *int   `json:"exit_code"`
+				Output   string `json:"aggregated_output"`
+				Server   string `json:"server"`
+				Tool     string `json:"tool"`
 			} `json:"item"`
 			Usage struct {
 				InputTokens  int `json:"input_tokens"`
@@ -204,8 +209,17 @@ func (codexRunner) run(ctx context.Context, req RunRequest, emit func(Event)) (R
 		case ev.Type == "item.started" && ev.Item.Type == "command_execution":
 			in, _ := json.Marshal(map[string]string{"command": ev.Item.Command})
 			tc := storage.ToolCall{Name: "command_execution", Summary: toolSummary("command_execution", in)}
+			if ev.Item.ID != "" {
+				commands[ev.Item.ID] = len(res.Tools)
+			}
 			res.Tools = append(res.Tools, tc)
 			emit(Event{Type: "tool", Tool: &tc})
+		case ev.Type == "item.completed" && ev.Item.Type == "command_execution" && ev.Item.ExitCode != nil && *ev.Item.ExitCode != 0:
+			if i, ok := commands[ev.Item.ID]; ok {
+				res.Tools[i].Error = true
+				tc := res.Tools[i]
+				emit(Event{Type: "tool_failed", Tool: &tc, Text: truncate(ev.Item.Output, 4000)}) // counted for an advisor, not shown (ADR-262)
+			}
 		case ev.Type == "item.started" && ev.Item.Type == "mcp_tool_call":
 			tc := storage.ToolCall{Name: "mcp__" + ev.Item.Server + "__" + ev.Item.Tool}
 			res.Tools = append(res.Tools, tc)

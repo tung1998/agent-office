@@ -7,6 +7,7 @@ package chat
 
 import (
 	"cmp"
+	"github.com/tung1998/agent-office/internal/advice"
 
 	"context"
 	"encoding/json"
@@ -83,6 +84,7 @@ type MessageDTO struct {
 	Consult     *Consult             `json:"consult,omitempty"`  // an expert's answer to a question asked here (ADR-177)
 	Provider    string               `json:"provider,omitempty"` // the connection that wrote it
 	Model       string               `json:"model,omitempty"`
+	Advice      []AdviceDTO          `json:"advice,omitempty"` // an advisor's answers in its run (ADR-262)
 }
 
 // PatchDTO is a proposed change.
@@ -330,6 +332,7 @@ type Engine struct {
 	peers        Peers           // linked projects in other offices (ADR-167; nil = none)
 	stopping     atomic.Bool     // office is going down: answers cut off now go on after it (Shutdown)
 	retries      retryTimers     // turns cut by a passing API failure, planned to go on (ADR-260)
+	advisor      advice.Tracker  // failures repeated in a run: a second opinion (ADR-262)
 
 	// rechecks: provider id → when a connection marked broken was last
 	// checked again in the background (recheckBroken)
@@ -379,6 +382,7 @@ func (e *Engine) SetOffice(tools *officetools.Toolbox, mcp *mcpserver.Server, mc
 		tools.SetDelegate(e.Delegate)
 		tools.SetAskExpert(e.AskExpert, func(ctx context.Context, projectID string) bool { return len(e.Experts(ctx, projectID)) > 0 })
 		tools.SetWorkflow(e)
+		tools.SetAdvice(e.AdviseFailure, e.TakeAdvice)
 	}
 }
 
@@ -1188,6 +1192,7 @@ func (e *Engine) finish(t *Turn) {
 func (e *Engine) run(ctx context.Context, turn *Turn, conv storage.Conversation, project storage.Repo, agent storage.Agent, history []storage.Message, text string, files []attach.File) {
 	defer turn.cancel()
 	defer e.finish(turn)
+	defer e.advisor.Drop(turn.JobID) // its failures counted for an advisor (ADR-262)
 	// the chat as it is now: a chained or background turn may start long after
 	// the message (the person may have changed its mode or default agent)
 	if c, err := e.store.Chat().GetConversation(ctx, conv.ID); err == nil {
@@ -1204,6 +1209,10 @@ func (e *Engine) run(ctx context.Context, turn *Turn, conv storage.Conversation,
 			e.planRetry(j, conv)
 		}
 		dto := MessageDTO{ID: m.ID, Role: "error", Content: m.Content, CreatedAt: m.CreatedAt, Tools: []storage.ToolCall{}, Attachments: []storage.Attachment{}, Patches: []PatchDTO{}}
+		if turn.JobID != "" && m.ID != "" { // what an advisor told the run that failed (ADR-262)
+			_ = e.store.Advice().SetMessage(context.Background(), turn.JobID, m.ID)
+			dto.Advice = e.adviceOf(context.Background(), conv.ID)[m.ID]
+		}
 		turn.emit(Event{Type: "error", Text: err.Error(), Message: &dto, NextTurnID: e.nextTurn(ctx, turn, conv, project, agent, "")})
 	}
 	defer func() {
@@ -1502,7 +1511,7 @@ func (e *Engine) run(ctx context.Context, turn *Turn, conv storage.Conversation,
 			}
 			turn.emit(Event{Type: "status", Text: fmt.Sprintf("%s đang trả lời (%s · %s)", agent.Name, p.Name, model)})
 			streamFrom = turn.seq()
-			res, runErr = runnerFor(p.Kind).Run(ctx, req, turn.emit)
+			res, runErr = runnerFor(p.Kind).Run(ctx, req, e.watchFails(ctx, turn, conv, agent, treeDir(pl), turn.emit))
 			res.Usage.CostUSD = e.turnCost(ctx, p.Kind, req.SessionID, res.SessionID, res.Usage.CostUSD)
 			runID, cost = "", nil
 			if e.usage != nil {
@@ -1581,6 +1590,10 @@ func (e *Engine) run(ctx context.Context, turn *Turn, conv storage.Conversation,
 	}
 	plain := conv.Purpose == "" && conv.TaskID == "" && !turn.background &&
 		turn.wfRun == "" && turn.wfRole == "" && turn.wfStep == "" && !turn.wfWatch
+	// a run that repeated a failure: an advisor reads its answer before it ends (ADR-262)
+	if runErr == nil && conv.Purpose != "consult" {
+		res.Text = e.reviewBeforeDone(wctx, turn, conv, agent, treeDir(pl), res.Text)
+	}
 	msg, err := e.store.Chat().AddMessage(context.Background(), storage.Message{
 		ConversationID: conv.ID, Role: "assistant", Content: answerContent(res, plain), Tools: res.Tools, RunID: runID, Author: agent.Name, AgentID: agent.ID,
 		Provider: p.Name, Model: model,
@@ -1590,6 +1603,11 @@ func (e *Engine) run(ctx context.Context, turn *Turn, conv storage.Conversation,
 		return
 	}
 	dto := MessageDTO{ID: msg.ID, Role: msg.Role, Content: msg.Content, Tools: msg.Tools, Attachments: []storage.Attachment{}, Author: msg.Author, CreatedAt: msg.CreatedAt, CostUSD: cost, Provider: msg.Provider, Model: msg.Model, Patches: []PatchDTO{}, Actions: []ActionDTO{}}
+	// what an advisor told it in this run goes with its answer (ADR-262)
+	if turn.JobID != "" {
+		_ = e.store.Advice().SetMessage(context.Background(), turn.JobID, msg.ID)
+		dto.Advice = e.adviceOf(context.Background(), conv.ID)[msg.ID]
+	}
 	// operations the agent proposed during this run belong to its answer
 	seq := e.cardsBefore(context.Background(), conv.ID, msg.ID)
 	var deferred []storage.Action // commits that come after this answer's diff (ADR-189)
@@ -1916,6 +1934,12 @@ func (e *Engine) Invoke(ctx context.Context, project storage.Repo, agent storage
 	if emit == nil {
 		emit = func(Event) {}
 	}
+	show := emit
+	emit = func(ev Event) { // a tool's failure is counted in a chat's turn only (ADR-262)
+		if ev.Type != "tool_failed" {
+			show(ev)
+		}
+	}
 	cands, err := e.choices(ctx, withTier(ctx, agent))
 	if err != nil {
 		return InvokeResult{}, err
@@ -2048,8 +2072,9 @@ func (e *Engine) History(ctx context.Context, conversationID string) ([]MessageD
 	}
 	out := make([]MessageDTO, 0, len(msgs))
 	names := map[string]string{} // project names, for older relayed messages
+	advised := e.adviceOf(ctx, conversationID)
 	for _, m := range msgs {
-		d := MessageDTO{ID: m.ID, Role: m.Role, Content: m.Content, Tools: m.Tools, Attachments: nonNilAtt(m.Attachments), Author: m.Author, Sender: m.Sender, CreatedAt: m.CreatedAt, Patches: byMsg[m.ID], Relay: RelayOf(m), Consult: ConsultOf(m), Provider: m.Provider, Model: m.Model}
+		d := MessageDTO{ID: m.ID, Role: m.Role, Content: m.Content, Tools: m.Tools, Attachments: nonNilAtt(m.Attachments), Author: m.Author, Sender: m.Sender, CreatedAt: m.CreatedAt, Patches: byMsg[m.ID], Relay: RelayOf(m), Consult: ConsultOf(m), Provider: m.Provider, Model: m.Model, Advice: advised[m.ID]}
 		e.fillRelay(ctx, d.Relay, names)
 		if d.Patches == nil {
 			d.Patches = []PatchDTO{}

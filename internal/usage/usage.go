@@ -29,6 +29,32 @@ type Settings struct {
 	// TransientRetries is how many times in a row (0: 3, at most 5).
 	NoTransientRetry bool `json:"no_transient_retry,omitempty"`
 	TransientRetries int  `json:"transient_retries,omitempty"`
+	// An agent stuck on the same failure gets a second opinion from an agent
+	// of another vendor (ADR-262): AutoAdvisor is off | repeat | repeat_done
+	// ("" = repeat), AdvisorDailyUSD what its advices may cost a day (0: 2).
+	AutoAdvisor     string  `json:"auto_advisor,omitempty"`
+	AdvisorDailyUSD float64 `json:"advisor_daily_usd,omitempty"`
+}
+
+// DefaultAdvisorDailyUSD is what the advices may cost a day when the
+// settings do not say (ADR-262).
+const DefaultAdvisorDailyUSD = 2.0
+
+// Advisor is when an advisor is asked: off | repeat | repeat_done.
+func (s Settings) Advisor() string {
+	switch s.AutoAdvisor {
+	case "off", "repeat_done":
+		return s.AutoAdvisor
+	}
+	return "repeat"
+}
+
+// AdvisorBudget is what the advices may cost a day.
+func (s Settings) AdvisorBudget() float64 {
+	if s.AdvisorDailyUSD <= 0 {
+		return DefaultAdvisorDailyUSD
+	}
+	return s.AdvisorDailyUSD
 }
 
 // DefaultTransientRetries is how many times in a row a turn cut by a passing
@@ -103,6 +129,14 @@ func (s *Service) saveSettings(ctx context.Context, st Settings) error {
 	}
 	if st.TransientRetries < 0 || st.TransientRetries > 5 {
 		return fmt.Errorf("số lần tự chạy tiếp phải từ 1 đến 5")
+	}
+	switch st.AutoAdvisor {
+	case "", "off", "repeat", "repeat_done":
+	default:
+		return fmt.Errorf("cố vấn tự động: %q không hợp lệ (off, repeat, repeat_done)", st.AutoAdvisor)
+	}
+	if st.AdvisorDailyUSD < 0 {
+		return fmt.Errorf("ngân sách cố vấn không được âm")
 	}
 	for k, v := range st.ProjectLimits {
 		if v <= 0 {

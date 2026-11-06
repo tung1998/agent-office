@@ -347,6 +347,7 @@ func (r claudeRunner) run(ctx context.Context, req RunRequest, emit func(Event),
 					Input     json.RawMessage `json:"input"`
 					ToolUseID string          `json:"tool_use_id"`
 					IsError   bool            `json:"is_error"`
+					Content   json.RawMessage `json:"content"` // tool_result: what the tool said
 				} `json:"content"`
 			} `json:"message"`
 			// system/api_retry: the API failed and the CLI tries again
@@ -414,6 +415,8 @@ func (r claudeRunner) run(ctx context.Context, req RunRequest, emit func(Event),
 				if c.Type == "tool_result" && c.IsError {
 					if i, ok := pending[c.ToolUseID]; ok {
 						res.Tools[i].Error = true
+						tc := res.Tools[i]
+						emit(Event{Type: "tool_failed", Tool: &tc, Text: toolResultText(c.Content)}) // counted for an advisor, not shown (ADR-262)
 					}
 				}
 			}
@@ -854,4 +857,28 @@ func subagentLabel(name string, input json.RawMessage) string {
 	}
 	_ = json.Unmarshal(input, &in)
 	return truncate(strings.TrimSpace(cmp.Or(in.Type, "subagent")+" · "+in.Description), 60)
+}
+
+// toolResultText is the text of a tool_result's content: a string, or
+// blocks of type text; cut to what says what failed.
+func toolResultText(raw json.RawMessage) string {
+	var s string
+	if json.Unmarshal(raw, &s) == nil {
+		return truncate(s, 4000)
+	}
+	var blocks []struct {
+		Type string `json:"type"`
+		Text string `json:"text"`
+	}
+	if json.Unmarshal(raw, &blocks) != nil {
+		return ""
+	}
+	var b strings.Builder
+	for _, x := range blocks {
+		if x.Type == "text" {
+			b.WriteString(x.Text)
+			b.WriteByte('\n')
+		}
+	}
+	return truncate(strings.TrimSpace(b.String()), 4000)
 }

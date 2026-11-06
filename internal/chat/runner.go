@@ -28,6 +28,7 @@ type Event struct {
 	Patch   *PatchDTO         `json:"patch,omitempty"`
 	Action  *ActionDTO        `json:"action,omitempty"`
 	Message *MessageDTO       `json:"message,omitempty"`
+	Advice  *AdviceDTO        `json:"advice,omitempty"` // an advisor's answer for a stuck agent (ADR-262)
 	// done/error: the turn of the next agent tagged in the chat (ADR-044)
 	NextTurnID string `json:"next_turn_id,omitempty"`
 }

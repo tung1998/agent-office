@@ -291,6 +291,9 @@ const steps = computed(() => [
       </ol>
     </UCard>
 
+    <!-- how often a stuck agent got a second opinion (ADR-262) -->
+    <AdviceStats v-if="isOfficeAdmin" />
+
     <!-- every piece of work: what runs, failed, and what it cost -->
     <JobGroups :projects="projects.map(p => ({ id: p.id, name: p.name }))" />
 

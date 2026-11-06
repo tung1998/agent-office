@@ -155,6 +155,8 @@ type Store interface {
 	Consults() ConsultRepo
 	// Harness reads what a project's agents did, for the harness review (ADR-181).
 	Harness() HarnessRepo
+	// Advice keeps an advisor's second opinions for stuck agents (ADR-262).
+	Advice() AdviceRepo
 
 	// InTx runs fn in one transaction; the Store passed to fn is bound to it.
 	InTx(ctx context.Context, fn func(Store) error) error

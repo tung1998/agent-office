@@ -3,6 +3,8 @@ package chat
 import (
 	"context"
 	"time"
+
+	"github.com/tung1998/agent-office/internal/storage"
 )
 
 // SetTestStepPanic (tests only): runSteps' per-step goroutine panics
@@ -29,4 +31,16 @@ func (e *Engine) TestTurn(id, conversationID, actor, agentID, agentName string) 
 // SweepOrphans (tests only): sweepOrphans with its age.
 func (e *Engine) SweepOrphans(ctx context.Context, age time.Duration) int {
 	return e.sweepOrphans(ctx, age)
+}
+
+// ReviewBeforeDone (tests only): reviewBeforeDone at the end of run jobID.
+func (e *Engine) ReviewBeforeDone(ctx context.Context, conv storage.Conversation, agent storage.Agent, jobID, answer string) string {
+	return e.reviewBeforeDone(ctx, &Turn{JobID: jobID, wake: make(chan struct{})}, conv, agent, "", answer)
+}
+
+// ToolFailed (tests only): a CLI's own tool failed in run jobID, as its
+// runner tells it; shown is what reached the chat.
+func (e *Engine) ToolFailed(ctx context.Context, conv storage.Conversation, agent storage.Agent, jobID string, ev Event) (shown []Event) {
+	e.watchFails(ctx, &Turn{JobID: jobID, wake: make(chan struct{})}, conv, agent, "", func(ev Event) { shown = append(shown, ev) })(ev)
+	return shown
 }

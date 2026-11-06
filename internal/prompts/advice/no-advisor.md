@@ -1,0 +1,1 @@
+[office] This failure happened [[.Count]] times in your run, and no advisor could be asked ([[.Reason]]). Do not run it again unchanged: read the error, change your approach, or stop and tell the person what blocks you.

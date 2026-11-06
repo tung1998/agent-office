@@ -57,6 +57,11 @@ type Toolbox struct {
 	// administrator's run (ADR-188), set by the office binary
 	decide func(ctx context.Context, sc Scope, kind, id string, approve bool) (string, error)
 	burn   func(ctx context.Context, sc Scope, name string, in BurnInput) (string, error)
+	// advise counts a failed command of a run and, repeated, asks an
+	// advisor (ADR-262); takeAdvice hands over advices kept for the run.
+	// Both set by the chat engine.
+	advise     func(ctx context.Context, sc Scope, command, errText string) string
+	takeAdvice func(sc Scope) string
 	// config reads settings for describe/list/get (the API's registry, ADR-045)
 	config ConfigReader
 	// assistant is the office assistant's own project (hidden from the list)
@@ -205,6 +210,21 @@ type BurnInput struct{ Title, Kind, Detail, Item, Summary, Reason, What, Scanned
 // SetBurn turns on the burn_* tools (a Burn's conversation only).
 func (t *Toolbox) SetBurn(fn func(ctx context.Context, sc Scope, name string, in BurnInput) (string, error)) {
 	t.burn = fn
+}
+
+// SetAdvice gives a stuck agent an advisor's second opinion (ADR-262):
+// advise with a failed command, takeAdvice with any later tool call.
+func (t *Toolbox) SetAdvice(advise func(ctx context.Context, sc Scope, command, errText string) string, take func(sc Scope) string) {
+	t.advise, t.takeAdvice = advise, take
+}
+
+// Advise counts a failure of command in sc's run and returns what an
+// advisor says of it once repeated ("" = nothing).
+func (t *Toolbox) Advise(ctx context.Context, sc Scope, command, errText string) string {
+	if t.advise == nil {
+		return ""
+	}
+	return t.advise(ctx, sc, command, errText)
 }
 
 // SetSendFile turns on the send_file tool (a bot's chat posts the file, ADR-083).
@@ -656,6 +676,16 @@ func (t *Toolbox) Has(sc Scope, name string) bool {
 
 // Call runs a tool for a project and returns text (and whether it failed).
 func (t *Toolbox) Call(ctx context.Context, sc Scope, name string, raw json.RawMessage) (string, bool) {
+	out, failed := t.call(ctx, sc, name, raw)
+	if t.takeAdvice != nil { // an advisor's answer kept for the run (ADR-262)
+		if note := t.takeAdvice(sc); note != "" {
+			out += "\n\n---\n" + note
+		}
+	}
+	return out, failed
+}
+
+func (t *Toolbox) call(ctx context.Context, sc Scope, name string, raw json.RawMessage) (string, bool) {
 	if t.mcpTools != nil && !sc.Consult {
 		for _, tool := range t.mcpTools.Tools(sc) {
 			if tool.Name == name {
@@ -792,7 +822,11 @@ func (t *Toolbox) Call(ctx context.Context, sc Scope, name string, raw json.RawM
 			case "done":
 				out = "$ " + a.Target + "\n" + a.Detail
 			case "failed":
-				return "$ " + a.Target + "\nLỗi: " + a.Detail, true
+				out = "$ " + a.Target + "\nLỗi: " + a.Detail
+				if note := t.Advise(ctx, sc, a.Target, a.Detail); note != "" { // the same failure again: a second opinion (ADR-262)
+					out += "\n\n---\n" + note
+				}
+				return out, true
 			default:
 				out = fmt.Sprintf("Command %q is not on the list you may run yourself; created proposal %s, waiting for the person's approval. Nothing has run yet; tell the person.", a.Target, a.ID)
 			}
