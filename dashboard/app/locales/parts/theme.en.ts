@@ -43,7 +43,7 @@ const en: Record<keyof typeof vi, string> = {
   'theme.backdropBlur': 'Background blur',
   'theme.transparency': 'Card transparency',
   'theme.colorsTitle': 'Colors',
-  'theme.colorsHint': 'The colors of the look in use. Change one and they become yours, edited from there.',
+  'theme.colorsHint': 'The colors of the look in use. Change one and they become yours, edited from there. On a live wallpaper the scene stays; pick that theme again for its own colors.',
   'theme.pack': '{name} pack · {n}',
   'theme.regions.title': 'Advanced: colors by region',
   'theme.regions.hint': 'A background and text color of their own for each region. Left on automatic, a region uses the theme\'s; muted text and raised surfaces are worked out from what you pick.',

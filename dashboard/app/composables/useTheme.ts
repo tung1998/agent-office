@@ -22,8 +22,9 @@ export const BLUR_MAX = 30
 export const CLEAR_MAX = 0.9
 // wallGlass: how opaque the panes over a wallpaper theme are, the person's own;
 // regions: the custom theme's advanced colors (utils/regionColors.ts);
-// clear: how see-through the cards are over a background or wallpaper (0–0.9)
-export interface SavedTheme { id: string, custom?: ThemeColors, regions?: RegionColors, wall?: Partial<WallLook>, wallGlass?: number, bg?: Backdrop, clear?: number }
+// clear: how see-through the cards are over a background or wallpaper (0–0.9);
+// tweak: the person's colors over a wallpaper theme, which keeps its scene
+export interface SavedTheme { id: string, custom?: ThemeColors, tweak?: ThemeColors, regions?: RegionColors, wall?: Partial<WallLook>, wallGlass?: number, bg?: Backdrop, clear?: number }
 export const WALL_LOOK: WallLook = { strength: 0.45, speed: 1, cell: 18, still: false, blur: 0 }
 const CLEAR_ID = 'office-clear'
 const REGIONS_ID = 'office-regions'
@@ -123,7 +124,7 @@ function paintClear(clear: number | undefined) {
 }
 function paintColors(s: SavedTheme): Theme | undefined {
   const root = document.documentElement
-  const t = s.id === 'default' ? undefined : findTheme(s.id, s.custom)
+  const t = s.id === 'default' ? undefined : findTheme(s.id, s.custom, s.tweak)
   let style = document.getElementById(STYLE_ID)
   if (!t) {
     delete root.dataset.theme
@@ -149,7 +150,7 @@ export function useTheme() {
   const saved = useState<SavedTheme>('theme', () => import.meta.client ? readSavedTheme() : { id: 'default' })
   const loadedFor = useState('theme:user', () => '')
   const library = useState<BgItem[]>('theme:backgrounds', () => [])
-  const theme = computed(() => saved.value.id === 'default' ? undefined : findTheme(saved.value.id, saved.value.custom))
+  const theme = computed(() => saved.value.id === 'default' ? undefined : findTheme(saved.value.id, saved.value.custom, saved.value.tweak))
   const look = computed<WallLook>(() => ({ ...WALL_LOOK, ...saved.value.wall }))
 
   function apply(s: SavedTheme) {
@@ -195,8 +196,12 @@ export function useTheme() {
   }
 
   // a new theme starts with its own readable glass
-  const setTheme = (id: string) => save({ ...saved.value, id, wallGlass: undefined })
-  const setCustom = (custom: ThemeColors) => save({ ...saved.value, id: 'custom', custom })
+  const setTheme = (id: string) => save({ ...saved.value, id, wallGlass: undefined, tweak: undefined })
+  // own colors: over a wallpaper theme they tweak it (the scene stays), else
+  // they are the custom theme
+  const setCustom = (custom: ThemeColors) => findTheme(saved.value.id)?.wallpaper
+    ? save({ ...saved.value, tweak: custom })
+    : save({ ...saved.value, id: 'custom', custom })
   const setLook = (o: Partial<WallLook>) => save({ ...saved.value, wall: { ...saved.value.wall, ...o } })
 
   async function loadLibrary() {

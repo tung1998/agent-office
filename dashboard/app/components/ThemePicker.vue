@@ -46,18 +46,24 @@ function currentColors(): ThemeColors {
   const bg = cssHex('var(--ui-bg)'), text = cssHex('var(--ui-text)'), accent = cssHex('var(--ui-primary)')
   return bg && text && accent ? { bg, text, accent } : { ...DEFAULT_CUSTOM }
 }
-const pick = (id: string) => saved.value.id !== id && run(setTheme(id))
+// picking the wallpaper in use again drops the person's colors over it
+const pick = (id: string) => (saved.value.id !== id || saved.value.tweak) && run(setTheme(id))
 // the color form always shows the colors in use; changing one makes them the
 // person's own (the custom theme), starting from those
 function fillFromTheme() {
   if (saved.value.id === 'custom') return
+  if (saved.value.tweak) { // the wallpaper's colors as the person set them
+    for (const k of EXTRA_COLORS) delete custom[k]
+    Object.assign(custom, saved.value.tweak)
+    return
+  }
   const c = currentColors()
   for (const k of EXTRA_COLORS) delete custom[k]
   Object.assign(custom, c)
 }
 onMounted(fillFromTheme)
 // after the new theme is painted: the default look's colors are read from the page
-watch(() => [saved.value.id, colorMode.value], () => nextTick(fillFromTheme))
+watch(() => [saved.value.id, !saved.value.tweak, colorMode.value], () => nextTick(fillFromTheme))
 function pickColor(k: ColorKey, v: string) {
   custom[k] = v
   if (isHex(v)) run(setCustom({ ...custom }))

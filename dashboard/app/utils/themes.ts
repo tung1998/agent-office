@@ -73,14 +73,29 @@ export function onAccent(t: ThemeColors): string {
   return score('#ffffff') >= score(darkInk) ? '#ffffff' : darkInk
 }
 
-export function findTheme(id: string, custom?: ThemeColors): Theme | undefined {
+// tweak: the person's colors over a wallpaper theme (it keeps its scene)
+export function findTheme(id: string, custom?: ThemeColors, tweak?: ThemeColors): Theme | undefined {
   if (id === 'custom') {
     const c = custom && isHex(custom.bg) && isHex(custom.text) && isHex(custom.accent) ? custom : DEFAULT_CUSTOM
     const t: Theme = { id, bg: c.bg, text: c.text, accent: c.accent }
     for (const k of EXTRA_COLORS) if (isHex(c[k])) t[k] = c[k]
     return t
   }
-  return COLOR_THEMES.find(t => t.id === id) ?? WALLPAPER_THEMES.find(t => t.id === id)
+  const t = COLOR_THEMES.find(t => t.id === id) ?? WALLPAPER_THEMES.find(t => t.id === id)
+  return t?.wallpaper && tweak ? tweakTheme(t, tweak) : t
+}
+
+// A wallpaper theme with the person's colors over it: the scene and its sky
+// stay, the panes over it take the new background color at the theme's own
+// opacity.
+function tweakTheme(t: Theme, c: ThemeColors): Theme {
+  const out: Theme = { ...t }
+  for (const k of ['bg', 'text', 'accent', ...EXTRA_COLORS] as const) if (isHex(c[k])) out[k] = c[k]
+  if (out.bg !== t.bg && t.wallpaper) {
+    const a = t.wallpaper.glass.match(/rgba\([^)]*,\s*([\d.]+)\)/)?.[1] ?? '.72'
+    out.wallpaper = { ...t.wallpaper, glass: `rgba(${rgb(out.bg).map(v => Math.round(v * 255)).join(', ')}, ${a})` }
+  }
+  return out
 }
 
 const SHADES = [50, 100, 200, 300, 400, 500, 600, 700, 800, 900, 950] as const

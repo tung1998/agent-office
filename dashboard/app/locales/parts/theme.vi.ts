@@ -42,7 +42,7 @@ export default {
   'theme.backdropBlur': 'Độ mờ hình nền',
   'theme.transparency': 'Độ trong suốt của thẻ',
   'theme.colorsTitle': 'Màu',
-  'theme.colorsHint': 'Màu của giao diện đang chọn. Đổi một màu là thành màu của bạn, sửa tiếp từ đó.',
+  'theme.colorsHint': 'Màu của giao diện đang chọn. Đổi một màu là thành màu của bạn, sửa tiếp từ đó. Với hình nền động, cảnh vẫn giữ nguyên; bấm lại theme đó để về màu gốc.',
   'theme.pack': 'Bộ {name} · {n}',
   'theme.regions.title': 'Nâng cao: màu từng vùng',
   'theme.regions.hint': 'Màu nền và chữ riêng cho từng vùng. Để tự động thì vùng đó dùng màu của theme; chữ phụ và nền nổi tự tính từ màu đã chọn.',
