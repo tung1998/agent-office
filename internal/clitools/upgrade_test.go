@@ -524,3 +524,48 @@ func TestHoldGoneWhenUpdateEnds(t *testing.T) {
 		t.Fatal("the CLI was still held while its end was told")
 	}
 }
+
+// A read again that fails keeps the newest version known (the badge, the
+// update's target) and is tried again soon, not LatestTTL later.
+func TestLatestKeptWhenReadFails(t *testing.T) {
+	var fail atomic.Bool
+	var calls atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls.Add(1)
+		if fail.Load() {
+			http.Error(w, "down", http.StatusInternalServerError)
+			return
+		}
+		_, _ = w.Write([]byte(`{"version":"3.0.0"}`))
+	}))
+	defer srv.Close()
+	m, dir := testManager(t)
+	m.registry = srv.URL
+	now := time.Now()
+	m.now = func() time.Time { return now }
+	npmTool(t, dir, "gemini", "@google/gemini-cli", "2.0.0")
+	if _, err := m.LatestNow(context.Background(), "gemini"); err != nil {
+		t.Fatal(err)
+	}
+	fail.Store(true)
+	now = now.Add(LatestTTL + time.Minute)
+	if _, err := m.LatestNow(context.Background(), "gemini"); err == nil {
+		t.Fatal("a failed read said nothing")
+	}
+	s, _ := m.Status(context.Background(), "gemini")
+	if s.Latest != "3.0.0" || !s.Outdated || m.latestKnown("gemini") != "3.0.0" {
+		t.Fatalf("a failed read lost the version known: latest %q outdated %v", s.Latest, s.Outdated)
+	}
+	// tried again after LatestRetry, not LatestTTL
+	m.noFetch = false
+	n := calls.Load()
+	now = now.Add(LatestRetry + time.Minute)
+	m.latestCached("gemini")
+	deadline := time.Now().Add(3 * time.Second)
+	for calls.Load() == n && time.Now().Before(deadline) {
+		time.Sleep(10 * time.Millisecond)
+	}
+	if calls.Load() == n {
+		t.Fatal("a failed read was not tried again soon")
+	}
+}

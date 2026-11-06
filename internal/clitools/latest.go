@@ -33,12 +33,16 @@ var pkgs = map[string]pkgRef{
 // LatestTTL is how long a newest version read stays good.
 const LatestTTL = 6 * time.Hour
 
+// LatestRetry is how soon a read that failed is tried again.
+const LatestRetry = 15 * time.Minute
+
 // latestEntry is a newest version read, or why it could not be.
 type latestEntry struct {
 	version string
 	err     string
 	at      time.Time
-	busy    bool // a read is on its way
+	ttl     time.Duration // how long it stays good (LatestRetry after a failed read)
+	busy    bool          // a read is on its way
 }
 
 var versionRe = regexp.MustCompile(`\d+\.\d+\.\d+`)
@@ -109,13 +113,15 @@ func (m *Manager) LatestNow(ctx context.Context, id string) (string, error) {
 	default:
 		err = errors.New("không rõ bản mới nhất của công cụ này")
 	}
-	e := latestEntry{version: v, at: m.clock()}
-	if err != nil {
-		e.err = err.Error()
-	}
+	e := latestEntry{version: v, at: m.clock(), ttl: LatestTTL}
 	m.mu.Lock()
 	if m.latest == nil {
 		m.latest = map[string]latestEntry{}
+	}
+	if err != nil {
+		// a failed read (network, registry down) keeps the version known: the
+		// badge and an update's target stay; it is tried again soon
+		e.version, e.err, e.ttl = m.latest[id].version, err.Error(), LatestRetry
 	}
 	m.latest[id] = e
 	m.mu.Unlock()
@@ -138,7 +144,11 @@ func (m *Manager) latestState(id string) (string, bool) {
 		m.latest = map[string]latestEntry{}
 	}
 	e, ok := m.latest[id]
-	stale := !ok || m.clock().Sub(e.at) >= LatestTTL
+	ttl := e.ttl
+	if ttl <= 0 {
+		ttl = LatestTTL
+	}
+	stale := !ok || m.clock().Sub(e.at) >= ttl
 	if stale && !e.busy && !m.noFetch {
 		e.busy = true
 		m.latest[id] = e
