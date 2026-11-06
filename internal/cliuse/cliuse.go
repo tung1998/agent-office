@@ -16,7 +16,12 @@ var bins = map[string]string{"claude": "claude", "codex": "codex", "gemini": "ge
 // Tool is the tool id of the CLI at bin ("" = not one office updates).
 func Tool(bin string) string { return bins[filepath.Base(bin)] }
 
-type hold struct{ done chan struct{} }
+// hold is one CLI's: n updates hold it (an update ending while the next
+// starts now overlap); runs go once the last lets go.
+type hold struct {
+	done chan struct{}
+	n    int
+}
 
 var (
 	mu    sync.Mutex
@@ -87,7 +92,8 @@ func TryHold(tool string) (release func(), ok bool) {
 }
 
 // Hold holds new runs of tool back until release, whatever runs now (an
-// update now, a rollback). A hold already on is kept: release ends this one.
+// update now, a rollback). A hold already on is shared: runs go once every
+// holder released.
 func Hold(tool string) (release func()) {
 	mu.Lock()
 	defer mu.Unlock()
@@ -100,11 +106,12 @@ func hold1(tool string) func() {
 		h = &hold{done: make(chan struct{})}
 		holds[tool] = h
 	}
+	h.n++
 	var once sync.Once
 	return func() {
 		once.Do(func() {
 			mu.Lock()
-			if holds[tool] == h {
+			if h.n--; h.n == 0 && holds[tool] == h {
 				delete(holds, tool)
 				close(h.done)
 			}

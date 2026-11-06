@@ -121,3 +121,19 @@ func TestExemptPassesTheHold(t *testing.T) {
 		t.Fatal("a run went through the hold")
 	}
 }
+
+// Two holds of one CLI (an update ending while another starts now): the
+// first let go leaves the second on; runs go only once both are released.
+func TestHoldsOverlap(t *testing.T) {
+	first := Hold("gemini")
+	second := Hold("gemini")
+	first()
+	first() // a release twice counts once
+	if !Held("gemini") {
+		t.Fatal("the first release dropped the second update's hold")
+	}
+	second()
+	if Held("gemini") {
+		t.Fatal("still held after both released")
+	}
+}

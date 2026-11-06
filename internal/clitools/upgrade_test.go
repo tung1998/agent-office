@@ -505,3 +505,22 @@ func TestCancelBeforeItStarts(t *testing.T) {
 		t.Fatal("a cancelled update ran")
 	}
 }
+
+// An update has let the CLI go before it says it ended: while the end is
+// told (a bot send of up to 20s), the next "update now" never shares its
+// hold, so that one keeps runs back until its own files are in.
+func TestHoldGoneWhenUpdateEnds(t *testing.T) {
+	m, dir := testManager(t)
+	npmTool(t, dir, "dsh", "@deepseek-ai/dsh", "1.0.0")
+	writeBin(t, dir, "npm", "#!/bin/sh\necho ok\n")
+	var heldAtEnd atomic.Bool
+	m.SetOnUpgradeEnd(func(u UpgradeView) { heldAtEnd.Store(cliuse.Held("dsh")) })
+	if _, err := m.UpdateNow("dsh", "an"); err != nil {
+		t.Fatal(err)
+	}
+	waitUpgrade(t, m, "dsh", "done")
+	time.Sleep(50 * time.Millisecond)
+	if heldAtEnd.Load() {
+		t.Fatal("the CLI was still held while its end was told")
+	}
+}

@@ -186,7 +186,12 @@ func (m *Manager) runUpgrade(ctx context.Context, t Tool, meth Method, u *upgrad
 	if maxWait <= 0 {
 		maxWait = UpgradeMaxWait
 	}
+	// release lets the CLI's runs go; it is called before the update says
+	// it ended, so a next update (now) never shares a hold that is about to
+	// go while this one's end is told
+	release := func() {}
 	end := func(state, note string) {
+		release()
 		now := m.clock().UTC()
 		m.set(u, func(v *UpgradeView) { v.State, v.Note, v.Ended = state, note, &now })
 		m.forgetLatest(t.ID)
@@ -197,7 +202,6 @@ func (m *Manager) runUpgrade(ctx context.Context, t Tool, meth Method, u *upgrad
 			m.onUpgradeEnd(v)
 		}
 	}
-	var release func()
 	if u.view.When == "idle" {
 		// the CLI is taken only when no run has it running, in one step:
 		// a run never starts between the count and the hold
@@ -238,7 +242,7 @@ func (m *Manager) runUpgrade(ctx context.Context, t Tool, meth Method, u *upgrad
 	}
 	// the hold stays on until the update ends (rollback included): the
 	// connections' check runs the CLI exempt from it, every other run waits
-	defer release()
+	defer func() { release() }()
 	m.set(u, func(v *UpgradeView) { v.State, v.Waiting = "updating", 0 })
 	from := m.version(t)
 	target := m.latestKnown(t.ID)
