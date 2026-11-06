@@ -50,6 +50,9 @@ type Job struct {
 	// Resumes: how many times office put it back to run after restarting
 	// under it (ADR-257).
 	Resumes int
+	// GoalRounds: how many rounds of its automation's goal it started; put
+	// back after a restart, it goes on from there (ADR-258).
+	GoalRounds int
 }
 
 // SendsAs is who a run speaks for when it sends into another chat: the person
@@ -200,6 +203,8 @@ type JobRepo interface {
 	CostSince(ctx context.Context, origin, originID string, since time.Time) (float64, error)
 	// SetOutput stores what a script printed and how it exited.
 	SetOutput(ctx context.Context, id, output string, exitCode int) error
+	// SetGoalRounds stores how many rounds of its goal a run started (ADR-258).
+	SetGoalRounds(ctx context.Context, id string, n int) error
 	// SetMessageID links a job to the chat message its answer became; touches
 	// only that column (unlike Update, it can't race a status change made in
 	// between its caller's Get and its write).

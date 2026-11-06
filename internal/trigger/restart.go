@@ -52,3 +52,21 @@ func resumeIn(a storage.Automation, j storage.Job) string {
 
 // resumedPrompt is what a run going on in its chat is sent.
 func resumedPrompt() string { return prompts.Render("trigger/resumed", nil) }
+
+// CutLeft are the bot runs among cut (what was running when office went
+// down) that RequeueCut did not put back: the person who asked in the bot
+// chat is told, not left waiting for an answer that never comes (ADR-258).
+// A step of a run is left out: its run carries the message.
+func CutLeft(cut, back []storage.Job) []storage.Job {
+	put := map[string]bool{}
+	for _, j := range back {
+		put[j.ID] = true
+	}
+	var out []storage.Job
+	for _, j := range cut {
+		if j.Origin == "automation" && j.ParentJobID == "" && IsChannel(j.Trigger) && !put[j.ID] {
+			out = append(out, j)
+		}
+	}
+	return out
+}

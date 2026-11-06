@@ -356,7 +356,7 @@ func (t *Toolbox) Tools() []Tool {
 				}),
 				"ends_at":    str("schedule/event: time to stop on its own (RFC3339, e.g. 2026-10-12T00:00:00+07:00); empty = runs until turned off"),
 				"stop_when":  str("Turns off when a run's answer contains this text, e.g. RESEARCH DONE (tell the agent in the prompt to write it when done); \"-\" clears it"),
-				"on_restart": map[string]any{"type": "string", "enum": []string{"resume", "stop"}, "description": "A run cut off by office restarting: resume (runs again; an agent goes on in its chat) or stop; empty = keep (default: resume for chat, stop for script/workflow)"},
+				"on_restart": map[string]any{"type": "string", "enum": []string{"resume", "stop", "default"}, "description": "A run cut off by office restarting: resume (runs again; an agent goes on in its chat), stop, or default (back to the action's own: resume for chat, stop for script/workflow); empty = keep"},
 				"tags":       map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "description": "chat: tags put on each run's chat (max 10; empty = keep the current tags)"},
 				"only_if": obj(map[string]any{
 					"collection": str("Data table (collection key) of the project to look at"),

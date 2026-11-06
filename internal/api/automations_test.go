@@ -455,3 +455,44 @@ func TestLibrarySkillPages(t *testing.T) {
 		t.Fatalf("areas = %v", areas)
 	}
 }
+
+// on_restart is read back as saved, an edit can put it back to the action's
+// own, a job says how often it was put back, and a bot command bearing a
+// name the bot keeps for its own is flagged (ADR-257, ADR-258).
+func TestAutomationOnRestartAPI(t *testing.T) {
+	e := setup(t)
+	admin := e.client(t)
+	login(t, e, admin, "admin@x.io", "admin-password")
+	_, body := do(t, admin, "POST", e.srv.URL+"/api/projects", map[string]any{"path": t.TempDir(), "name": "shop"}, nil)
+	pid := body["project"].(map[string]any)["id"].(string)
+	resp, body := do(t, admin, "POST", e.srv.URL+"/api/projects/"+pid+"/automations", map[string]any{
+		"name": "đồng bộ", "source": "schedule", "action": "script", "config": map[string]any{"every_minutes": 60, "on_restart": "resume"},
+		"script": map[string]any{"lang": "bash", "body": "echo hi"},
+	}, nil)
+	a, _ := body["automation"].(map[string]any)
+	if cfg, _ := a["config"].(map[string]any); resp.StatusCode != 201 || cfg["on_restart"] != "resume" {
+		t.Fatalf("create = %d %v", resp.StatusCode, body)
+	}
+	aid := a["id"].(string)
+	cfg := a["config"].(map[string]any)
+	cfg["on_restart"] = "maybe" // not known: back to the action's own
+	if resp, body := do(t, admin, "PATCH", e.srv.URL+"/api/automations/"+aid, map[string]any{
+		"name": "đồng bộ", "source": "schedule", "action": "script", "config": cfg, "script": map[string]any{"lang": "bash", "body": "echo hi"},
+	}, nil); resp.StatusCode != 200 {
+		t.Fatalf("edit = %d %v", resp.StatusCode, body)
+	}
+	if got, _ := e.st.Automations().Get(context.Background(), aid); got.Config.OnRestart != "" || got.ResumesOnRestart() {
+		t.Fatalf("on_restart = %q", got.Config.OnRestart)
+	}
+	ctx := context.Background()
+	j, _ := e.st.Jobs().Create(ctx, storage.Job{ProjectID: pid, Kind: "script", Origin: "automation", OriginID: aid, Status: "failed", ErrorCode: "restart", Resumes: 2})
+	if _, body := do(t, admin, "GET", e.srv.URL+"/api/jobs/"+j.ID, nil, nil); body["job"].(map[string]any)["resumes"] != float64(2) {
+		t.Fatalf("job = %v", body)
+	}
+	ch, _ := e.st.Channels().Create(ctx, storage.Channel{ProjectID: pid, Kind: "telegram", Name: "Bot"})
+	old, _ := e.st.Automations().Create(ctx, storage.Automation{ProjectID: pid, Name: "cũ", Source: "telegram", Action: "script", Enabled: true,
+		Config: storage.AutomationConfig{ChannelID: ch.ID, Command: "update"}, Script: storage.AutomationScript{Lang: "bash", Body: "echo"}})
+	if _, body := do(t, admin, "GET", e.srv.URL+"/api/automations/"+old.ID, nil, nil); body["automation"].(map[string]any)["command_taken"] != "update" {
+		t.Fatalf("shadowed command not flagged: %v", body["automation"])
+	}
+}

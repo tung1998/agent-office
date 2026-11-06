@@ -266,3 +266,54 @@ func TestClaudeEnv(t *testing.T) {
 		t.Fatalf("the person's own settings must win: %v", env)
 	}
 }
+
+// The CLI's stderr is read while it still writes to it (a result with
+// is_error): run with -race, a plain bytes.Buffer is a data race (ADR-258).
+func TestClaudeStderrNoRace(t *testing.T) {
+	dir := t.TempDir()
+	bin := filepath.Join(dir, "claude")
+	script := `#!/bin/sh
+if [ "$1" = auth ]; then echo '{"loggedIn":true}'; exit 0; fi
+cat >/dev/null
+( i=0; while [ $i -lt 400 ]; do echo "warn $i" >&2; i=$((i+1)); done ) &
+echo '{"type":"result","subtype":"error_during_execution","is_error":true,"result":"boom","usage":{"input_tokens":1}}'
+wait
+`
+	fakebin.Write(bin, []byte(script))
+	for range 5 {
+		_, err := claudeRunner{}.Run(context.Background(), RunRequest{Bin: bin, WorkDir: dir, Prompt: "hi"}, func(Event) {})
+		if err == nil || !strings.Contains(err.Error(), "boom") {
+			t.Fatalf("err = %v", err)
+		}
+	}
+}
+
+// A CLI that exits 1 with no result and nothing on stderr: what it printed on
+// stdout is the reason, not a bare "exit status 1" (ADR-258).
+func TestClaudeExitKeepsStdoutTail(t *testing.T) {
+	dir := t.TempDir()
+	bin := filepath.Join(dir, "claude")
+	script := `#!/bin/sh
+if [ "$1" = auth ]; then echo '{"loggedIn":true}'; exit 0; fi
+cat >/dev/null
+echo '{"type":"system","subtype":"init","session_id":"s1"}'
+echo 'Error: the plugin marketplace could not be read'
+exit 1
+`
+	fakebin.Write(bin, []byte(script))
+	_, err := claudeRunner{}.Run(context.Background(), RunRequest{Bin: bin, WorkDir: dir, Prompt: "hi"}, func(Event) {})
+	if err == nil || !strings.Contains(err.Error(), "plugin marketplace could not be read") || !strings.Contains(err.Error(), "exit status 1") {
+		t.Fatalf("err = %v", err)
+	}
+}
+
+func TestLineTailKeepsTheLast(t *testing.T) {
+	var tl lineTail
+	for i := range 30 {
+		tl.add(strings.Repeat("x", i%2) + " line " + string(rune('a'+i%26)))
+	}
+	tl.add("   ")
+	if len(tl.lines) != tailLines || !strings.HasSuffix(tl.String(), "line d") {
+		t.Fatalf("tail = %q", tl.String())
+	}
+}

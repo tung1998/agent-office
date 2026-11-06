@@ -27,6 +27,8 @@ export default {
   'auto.runNowHelp': 'Chạy thử ngay một lần, không đợi lịch hay webhook',
   'auto.ran': 'Đã xếp hàng chạy',
   'auto.disabledBy': 'Đã tự tắt: {reason}',
+  'auto.commandTaken': 'Lệnh /{name} trùng lệnh có sẵn',
+  'auto.commandTakenHint': 'Bot đã dùng tên này cho lệnh riêng nên lệnh của tự động hóa không chạy. Sửa tự động hóa và đặt tên lệnh khác.',
   'auto.detail': 'Xem chi tiết',
   'auto.edit': 'Sửa',
   'auto.delete': 'Xóa',

@@ -7,6 +7,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/tung1998/agent-office/internal/storage"
 	"github.com/tung1998/agent-office/internal/trigger"
@@ -77,5 +78,47 @@ func TestGoalCheckThenPasses(t *testing.T) {
 	j := mainJob(t, st, a)
 	if j.Status != "done" || !strings.HasPrefix(j.Output, "Mục tiêu: đạt sau 2 vòng") || j.ExitCode == nil || *j.ExitCode != 0 {
 		t.Fatalf("job = %s %q exit %v", j.Status, j.Output, j.ExitCode)
+	}
+}
+
+// A goal's run cut off by a restart and put back goes on with the round it
+// was cut in: its rounds are counted once, not again from 1 (ADR-258).
+func TestResumedGoalKeepsRounds(t *testing.T) {
+	ctx := context.Background()
+	st, p := openStore(t)
+	ex := &goalExec{dir: p.Path}
+	r := trigger.New(st, ex)
+	a := goalAutomation(t, st, p, storage.AutomationGoal{Check: "test -f done", MaxRounds: 3})
+	now := time.Now().UTC()
+	// it was in its round 3 of 3 when office went down
+	j, err := st.Jobs().Create(ctx, storage.Job{ProjectID: p.ID, Kind: "chat_turn", Origin: "automation", OriginID: a.ID, Trigger: "schedule",
+		Status: "running", StartedAt: &now, ConversationID: "cnv_goal", GoalRounds: 3})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, _ = st.Jobs().FailRunning(ctx, "restart", "office khởi động lại", now)
+	if back := trigger.RequeueCut(ctx, st, []storage.Job{j}, now); len(back) != 1 {
+		t.Fatalf("put back: %+v", back)
+	}
+	r.StartReady(ctx, now)
+	r.Wait()
+	if len(ex.prompts) != 1 {
+		t.Fatalf("a run in its last round runs that round only: %d turns %q", len(ex.prompts), ex.prompts)
+	}
+	got, _ := st.Jobs().Get(ctx, j.ID)
+	if got.Status != "failed" || got.ErrorCode != "goal_not_met" || !strings.Contains(got.Output, "sau 3 vòng") {
+		t.Fatalf("job = %s %s %q", got.Status, got.ErrorCode, got.Output)
+	}
+}
+
+// Each round a goal starts is kept on its job: a restart goes on from it.
+func TestGoalRoundsKept(t *testing.T) {
+	st, p := openStore(t)
+	ex := &goalExec{dir: p.Path, doneAt: 3}
+	r := trigger.New(st, ex)
+	a := goalAutomation(t, st, p, storage.AutomationGoal{Check: "test -f done"})
+	runOnce(t, r, st, a, "")
+	if j := mainJob(t, st, a); j.GoalRounds != 3 || j.Status != "done" {
+		t.Fatalf("job: %s rounds %d", j.Status, j.GoalRounds)
 	}
 }

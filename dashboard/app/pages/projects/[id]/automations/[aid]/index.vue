@@ -71,6 +71,7 @@ async function remove() {
         <span>{{ a.action === 'script' ? t('auto.actionScript') : a.action === 'workflow' ? t('auto.toWorkflow', { key: a.config.workflow ?? '' }) : t('auto.actionChat') }}</span>
         <UBadge :label="a.enabled ? t('auto.on') : t('auto.off')" :color="a.enabled ? 'success' : 'neutral'" variant="subtle" size="sm" />
       </div>
+      <UAlert v-if="a.command_taken" color="warning" variant="subtle" icon="i-lucide-terminal" :title="t('auto.commandTaken', { name: a.command_taken })" :description="t('auto.commandTakenHint')" />
       <UAlert
         v-if="a.disabled_code" color="error" variant="subtle" icon="i-lucide-circle-alert" :title="t('auto.disabledBy', { reason: a.disabled_reason })"
         :actions="isAdmin ? [{ label: t('auto.enable'), color: 'error', variant: 'outline', loading: busy, disabled: busy, onClick: enable }] : []"

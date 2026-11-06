@@ -142,9 +142,11 @@ func serveCmd() *cobra.Command {
 			}
 			interrupted = chat.WithoutRunCallers(ctx, a.store, interrupted, resumable) // their chats wait for the run, not a new answer
 			cutRuns = chat.WithoutRunCallers(ctx, a.store, cutRuns, resumable)         // they wait for the run itself (ADR-256)
-			if back := trigger.RequeueCut(ctx, a.store, cutRuns, time.Now().UTC()); len(back) > 0 {
+			back := trigger.RequeueCut(ctx, a.store, cutRuns, time.Now().UTC())
+			if len(back) > 0 {
 				fmt.Fprintf(cmd.ErrOrStderr(), "office: %d lượt tự động hóa bị cắt được chạy tiếp (khởi động lại)\n", len(back))
 			}
+			cutLeft := trigger.CutLeft(cutRuns, back) // bot chats told their answer does not go on (ADR-258)
 			chatEngine.SetAttachments(attach.Store{Dir: filepath.Join(h.Dir, "attachments")})
 			// agents edit and check in their own git worktrees (ADR-037)
 			trees := worktree.New(filepath.Join(h.Dir, "worktrees"))
@@ -341,6 +343,7 @@ func serveCmd() *cobra.Command {
 					}
 				}
 			}()
+			bots.TellCut(cutLeft) // sent as each bot connects (ADR-258)
 			bots.Start(ctx)
 			// data management: measuring, cleaning by hand and on its own (ADR-095)
 			cleaner := cleanup.New(a.store, chatEngine, trees, filepath.Join(h.Dir, "attachments"), h.DB())

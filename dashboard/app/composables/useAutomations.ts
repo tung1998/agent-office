@@ -92,6 +92,8 @@ export interface Automation {
   failures: number
   disabled_code: string
   disabled_reason: string
+  // its bot command bears a name the bot keeps for its own: it never runs (ADR-258)
+  command_taken?: string
   last_run_at: string | null
   next_run_at: string | null
   webhook_url?: string
@@ -186,7 +188,7 @@ export const jobStatusMeta: Record<JobStatus, { color: 'info' | 'neutral' | 'suc
 export const isChannelSource = (s: string) => s === 'telegram' || s === 'discord'
 
 // ---- the draft the builder page edits (ADR-042) ----
-export type AutomationDraft = Omit<Automation, 'id' | 'project_id' | 'failures' | 'disabled_code' | 'disabled_reason' | 'last_run_at' | 'next_run_at' | 'last_job' | 'created_at' | 'webhook_url' | 'bot' | 'bot_status'> & { bot: BotDraft }
+export type AutomationDraft = Omit<Automation, 'id' | 'project_id' | 'failures' | 'disabled_code' | 'disabled_reason' | 'command_taken' | 'last_run_at' | 'next_run_at' | 'last_job' | 'created_at' | 'webhook_url' | 'bot' | 'bot_status'> & { bot: BotDraft }
 
 // AutomationTemplate is the starter library shown when a person creates an
 // automation. Templates deliberately produce a draft, rather than an API

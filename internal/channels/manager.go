@@ -64,9 +64,10 @@ type Manager struct {
 	threadLocks map[string]*sync.Mutex
 	// ProgressAfter: a run longer than this shows its steps in a status message
 	ProgressAfter time.Duration
-	decider       Decider // decides proposals from the chat (nil = only on the dashboard)
-	updater       Updater // office's self-update, /update (nil = none, ADR-255)
-	tap           Tap     // a feature pack taking messages before the rules (nil = none)
+	decider       Decider              // decides proposals from the chat (nil = only on the dashboard)
+	updater       Updater              // office's self-update, /update (nil = none, ADR-255)
+	tap           Tap                  // a feature pack taking messages before the rules (nil = none)
+	cut           map[string][]cutNote // by channel id: chats told their answer was cut (ADR-258)
 }
 
 // Tap lets a feature pack take a bot's messages before its rules (support,
@@ -253,6 +254,7 @@ func (m *Manager) run(ch storage.Channel) {
 			m.mu.Unlock()
 			_ = m.store.Channels().SetStatus(context.Background(), ch.ID, name, "", nil)
 			go ad.SetCommands(ctx, m.commands(ctx, ch)) // its own and its automations' commands
+			go m.sendCutNotes(ctx, ch.ID, ad)           // answers office's restart cut off (ADR-258)
 		}, func(in Incoming) { go m.handle(ctx, ch.ID, ad, in) })
 		if err != nil && ctx.Err() == nil {
 			_ = m.store.Channels().SetStatus(context.Background(), ch.ID, bot, err.Error(), nil)
@@ -773,6 +775,12 @@ func (m *Manager) commands(ctx context.Context, ch storage.Channel) []Command {
 	list, _ := m.store.Automations().List(ctx, ch.ProjectID)
 	for _, a := range list {
 		if a.Enabled && a.Source == ch.Kind && a.Config.ChannelID == ch.ID && a.Config.Command != "" {
+			// a name the bot keeps for its own (made before it was), or taken
+			// twice: a menu with a name twice is refused whole (ADR-258)
+			if slices.Contains(Reserved, a.Config.Command) || slices.ContainsFunc(out, func(c Command) bool { return c.Name == a.Config.Command }) {
+				slog.Warn("channels: custom command shadowed", "channel", ch.ID, "automation", a.ID, "command", a.Config.Command)
+				continue
+			}
 			out = append(out, Command{Name: a.Config.Command, Description: firstNonEmpty(a.Config.CommandDescription, a.Name), Arg: a.Config.CommandArg})
 		}
 	}

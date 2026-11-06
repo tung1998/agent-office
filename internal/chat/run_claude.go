@@ -13,6 +13,7 @@ import (
 	"os/exec"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 	"unicode/utf8"
 
@@ -247,7 +248,9 @@ func (r claudeRunner) run(ctx context.Context, req RunRequest, emit func(Event),
 	cmd.Dir = req.WorkDir
 	cmd.Env = claudeEnv(req)
 	cmd.Stdin = strings.NewReader(strings.ToValidUTF8(prompt, "�")) // a stray cut byte must not make the CLI refuse the whole turn
-	var stderr bytes.Buffer
+	// exec copies stderr in a goroutine of its own while the scan below reads
+	// it: a plain bytes.Buffer is a data race (ADR-258)
+	var stderr syncBuffer
 	cmd.Stderr = &stderr
 	out, err := cmd.StdoutPipe()
 	if err != nil {
@@ -261,6 +264,7 @@ func (r claudeRunner) run(ctx context.Context, req RunRequest, emit func(Event),
 		res      RunResult
 		resErr   error
 		gotFinal bool
+		plain    lineTail // what the CLI printed that is not an event: its reason when it exits with no result
 	)
 	pending := map[string]int{}      // tool_use id → index in res.Tools
 	subagents := map[string]string{} // a Task call's id → the subagent's label, for the steps it takes
@@ -320,6 +324,7 @@ func (r claudeRunner) run(ctx context.Context, req RunRequest, emit func(Event),
 			} `json:"usage"`
 		}
 		if json.Unmarshal(sc.Bytes(), &ev) != nil {
+			plain.add(sc.Text())
 			continue
 		}
 		if ev.SessionID != "" {
@@ -435,14 +440,58 @@ func (r claudeRunner) run(ctx context.Context, req RunRequest, emit func(Event),
 	case ctx.Err() != nil:
 		return res, ctx.Err()
 	case werr != nil && !gotFinal:
-		msg := strings.TrimSpace(stderr.String())
-		if msg == "" {
-			msg = werr.Error()
-		}
-		return res, fmt.Errorf("claude: %s", truncate(msg, 500))
+		return res, fmt.Errorf("claude: %s", exitReason(stderr.String(), plain.String(), werr))
 	}
 	return res, nil
 }
+
+// exitReason says why the CLI ended with no result: what it wrote on stderr,
+// else what it printed on stdout that was not an event, with the exit code;
+// a bare "exit status 1" tells the person nothing (ADR-258).
+func exitReason(stderr, stdout string, werr error) string {
+	var why []string
+	for _, m := range []string{stderr, stdout} {
+		if m = strings.TrimSpace(m); m != "" && !slices.Contains(why, m) {
+			why = append(why, truncate(m, 500))
+		}
+	}
+	return strings.Join(append(why, werr.Error()), " · ")
+}
+
+// syncBuffer is a bytes.Buffer safe to read while a process writes to it.
+type syncBuffer struct {
+	mu sync.Mutex
+	b  bytes.Buffer
+}
+
+func (s *syncBuffer) Write(p []byte) (int, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.b.Write(p)
+}
+
+func (s *syncBuffer) String() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.b.String()
+}
+
+// lineTail keeps the last lines given it, each cut short.
+type lineTail struct{ lines []string }
+
+const tailLines = 20
+
+func (t *lineTail) add(line string) {
+	if line = strings.TrimSpace(line); line == "" {
+		return
+	}
+	t.lines = append(t.lines, truncate(line, 300))
+	if len(t.lines) > tailLines {
+		t.lines = t.lines[len(t.lines)-tailLines:]
+	}
+}
+
+func (t *lineTail) String() string { return strings.Join(t.lines, "\n") }
 
 // claudeAuthFailed: the service turned the CLI's account down ("Failed to
 // authenticate. API Error: 401 …").

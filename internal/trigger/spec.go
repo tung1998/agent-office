@@ -38,7 +38,8 @@ type Spec struct {
 	StopWhen string `json:"stop_when,omitempty"`
 	// OnlyIf: a schedule runs only when its data says there is work (ADR-194)
 	OnlyIf *storage.AutomationCondition `json:"only_if,omitempty"`
-	// OnRestart: a run cut off by office restarting: resume | stop (none = the one it has, ADR-257)
+	// OnRestart: a run cut off by office restarting: resume | stop | default
+	// (back to its action's own, ADR-258); none = the one it has (ADR-257)
 	OnRestart string `json:"on_restart,omitempty"`
 	// Limits: its guards (none = the ones it has)
 	Limits *storage.AutomationLimits `json:"limits,omitempty"`
@@ -114,6 +115,9 @@ func (s *Spec) Check() error {
 	return nil
 }
 
+// OnRestartDefault in a Spec puts OnRestart back to its action's own (ADR-258).
+const OnRestartDefault = "default"
+
 func (s Spec) config() storage.AutomationConfig {
 	c := storage.AutomationConfig{EveryMinutes: s.EveryMinutes, Cron: strings.TrimSpace(s.Cron), Timezone: strings.TrimSpace(s.Timezone)}
 	if c.Cron != "" {
@@ -152,7 +156,9 @@ func (s Spec) Apply(a *storage.Automation, now time.Time) {
 		cfg.EndsAt = &end
 	}
 	cfg.OnRestart = a.Config.OnRestart
-	if v := storage.CleanOnRestart(s.OnRestart); v != "" {
+	if w := strings.TrimSpace(s.OnRestart); w == OnRestartDefault || w == "-" { // back to the action's own (ADR-258)
+		cfg.OnRestart = ""
+	} else if v := storage.CleanOnRestart(w); v != "" {
 		cfg.OnRestart = v
 	}
 	cfg.StopWhen = a.Config.StopWhen

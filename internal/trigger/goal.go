@@ -101,9 +101,11 @@ type feedback struct {
 // that ends the run (a turn that failed, a check that could not run).
 func (r *Runner) pursue(ctx, actx context.Context, a storage.Automation, j storage.Job, conv, reply string, started time.Time, loc *time.Location) (string, string, goalRun, error) {
 	g := a.Config.Goal
-	max := goalRounds(g)
+	most := goalRounds(g)
 	run := goalRun{Exit: -1}
-	for round := 1; ; round++ {
+	// a run put back after a restart goes on with the round it was cut in:
+	// its rounds are counted once, not again from 1 (ADR-258)
+	for round := max(1, j.GoalRounds); ; round++ {
 		run.Rounds = round
 		if !r.goalRunning(ctx, j.ID) {
 			run.Stopped = "job đã dừng"
@@ -121,14 +123,17 @@ func (r *Runner) pursue(ctx, actx context.Context, a storage.Automation, j stora
 			run.Stopped = "job đã dừng"
 			return conv, reply, run, nil
 		}
-		if round >= max {
+		if round >= most {
 			return conv, reply, run, nil
 		}
 		if why := r.goalLimit(ctx, a, started, loc); why != "" {
 			run.Stopped = why
 			return conv, reply, run, nil
 		}
-		text := prompts.Render("trigger/goal-again", map[string]any{"Round": round + 1, "Max": max, "Goal": goalText(g),
+		if err := r.store.Jobs().SetGoalRounds(ctx, j.ID, round+1); err != nil {
+			return conv, reply, run, err
+		}
+		text := prompts.Render("trigger/goal-again", map[string]any{"Round": round + 1, "Max": most, "Goal": goalText(g),
 			"Check": g.Check, "Exit": fb.exit, "Output": fb.output, "Judge": fb.judge})
 		got, answer, err := r.exec.RunChat(actx, a.ProjectID, a.AgentID, conv, text, a.EditMode)
 		if got != "" {

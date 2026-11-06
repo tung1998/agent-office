@@ -79,6 +79,9 @@ type automationDTO struct {
 	OverrideAdminBy    string   `json:"override_admin_by"`
 	OverrideExtraDirs  []string `json:"override_extra_dirs"`
 	Version            string   `json:"version"` // what an edit is made from (ADR-072)
+	// CommandTaken: its custom command bears a name the bot keeps for one of
+	// its own (made before that one was added): it never runs (ADR-258)
+	CommandTaken string `json:"command_taken,omitempty"`
 }
 
 func (s *server) toAutomationDTO(r *http.Request, a storage.Automation) automationDTO {
@@ -115,6 +118,9 @@ func (s *server) toAutomationDTO(r *http.Request, a storage.Automation) automati
 	}
 	if trigger.IsChannel(a.Source) {
 		d.Bot, d.BotStatus = s.botOf(r, a)
+		if c.Command != "" && slices.Contains(channels.Reserved, c.Command) {
+			d.CommandTaken = c.Command
+		}
 	}
 	// a "skipped/busy" trace (ADR-082: a tick dropped for hitting Parallel())
 	// must not hide a run still going: look a little further back for the

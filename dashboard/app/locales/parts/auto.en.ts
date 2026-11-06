@@ -28,6 +28,8 @@ const en: Record<keyof typeof vi, string> = {
   'auto.runNowHelp': 'Run it once now, without waiting for the schedule or the webhook',
   'auto.ran': 'Queued to run',
   'auto.disabledBy': 'Turned off: {reason}',
+  'auto.commandTaken': 'Command /{name} is a built-in one',
+  'auto.commandTakenHint': 'The bot uses this name for a command of its own, so this automation\'s command never runs. Edit it and pick another name.',
   'auto.detail': 'Details',
   'auto.edit': 'Edit',
   'auto.delete': 'Delete',

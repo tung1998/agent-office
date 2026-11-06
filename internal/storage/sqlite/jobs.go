@@ -16,7 +16,7 @@ type jobRepo struct{ db dbtx }
 
 const jobCols = `id, project_id, kind, origin, origin_id, trigger, created_by, conversation_id, message_id, task_id, status, error, error_code,
 	agent_id, title, cost_usd, input_tokens, output_tokens, duration_ms, dedupe_key, debounce_key, debounce_until, payload, reply,
-	next_attempt_at, created_at, started_at, finished_at, output, exit_code, parent_job_id, full_access, full_access_by, extra_dirs, resumes`
+	next_attempt_at, created_at, started_at, finished_at, output, exit_code, parent_job_id, full_access, full_access_by, extra_dirs, resumes, goal_rounds`
 
 func scanJob(row scanner) (storage.Job, error) {
 	var (
@@ -29,7 +29,7 @@ func scanJob(row scanner) (storage.Job, error) {
 	)
 	if err := row.Scan(&j.ID, &j.ProjectID, &j.Kind, &j.Origin, &j.OriginID, &j.Trigger, &j.CreatedBy, &conv, &msg, &task, &j.Status, &j.Error,
 		&j.ErrorCode, &j.AgentID, &j.Title, &j.CostUSD, &j.InputTokens, &j.OutputTokens, &j.DurationMS, &j.DedupeKey, &j.DebounceKey,
-		&debounce, &j.Payload, &reply, &next, &created, &started, &finished, &j.Output, &exit, &j.ParentJobID, &j.FullAccess, &j.FullAccessBy, &extraDirs, &j.Resumes); err != nil {
+		&debounce, &j.Payload, &reply, &next, &created, &started, &finished, &j.Output, &exit, &j.ParentJobID, &j.FullAccess, &j.FullAccessBy, &extraDirs, &j.Resumes, &j.GoalRounds); err != nil {
 		return j, notFound(err)
 	}
 	if exit.Valid {
@@ -86,11 +86,11 @@ func (r jobRepo) Create(ctx context.Context, j storage.Job) (storage.Job, error)
 	if j.Trigger == "" {
 		j.Trigger = "ui"
 	}
-	_, err := r.db.ExecContext(ctx, `INSERT INTO jobs (`+jobCols+`) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+	_, err := r.db.ExecContext(ctx, `INSERT INTO jobs (`+jobCols+`) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 		j.ID, j.ProjectID, j.Kind, j.Origin, j.OriginID, j.Trigger, j.CreatedBy, nullStr(j.ConversationID), nullStr(j.MessageID), nullStr(j.TaskID),
 		j.Status, j.Error, j.ErrorCode, j.AgentID, j.Title, j.CostUSD, j.InputTokens, j.OutputTokens, j.DurationMS, j.DedupeKey, j.DebounceKey,
 		optTime(j.DebounceUntil), j.Payload, replyJSON(j.Reply), optTime(j.NextAttemptAt), fmtTime(j.CreatedAt), optTime(j.StartedAt), optTime(j.FinishedAt),
-		j.Output, exitArg(j.ExitCode), j.ParentJobID, j.FullAccess, j.FullAccessBy, extraDirsJSON(j.ExtraDirs), j.Resumes)
+		j.Output, exitArg(j.ExitCode), j.ParentJobID, j.FullAccess, j.FullAccessBy, extraDirsJSON(j.ExtraDirs), j.Resumes, j.GoalRounds)
 	if isUnique(err) {
 		return j, storage.ErrConflict
 	}
@@ -515,6 +515,11 @@ func (r jobRepo) Requeue(ctx context.Context, id, errCode string, limit int, at 
 		return storage.Job{}, storage.ErrConflict
 	}
 	return r.Get(ctx, id)
+}
+
+func (r jobRepo) SetGoalRounds(ctx context.Context, id string, n int) error {
+	_, err := r.db.ExecContext(ctx, `UPDATE jobs SET goal_rounds=? WHERE id=?`, n, id)
+	return err
 }
 
 func (r jobRepo) FailRunning(ctx context.Context, errCode, errMsg string, at time.Time) (int64, error) {

@@ -392,3 +392,24 @@ func TestSpecWorkflowNeedsKey(t *testing.T) {
 		t.Fatalf("applied %+v", a)
 	}
 }
+
+// A spec keeps on_restart when it says none, sets it, and puts it back to the
+// action's own with "default" (ADR-258).
+func TestSpecOnRestart(t *testing.T) {
+	a := storage.Automation{Config: storage.AutomationConfig{OnRestart: storage.OnRestartStop}}
+	s := trigger.Spec{Name: "x", Source: "schedule", Action: "chat", EveryMinutes: 60}
+	s.Apply(&a, time.Now())
+	if a.Config.OnRestart != storage.OnRestartStop {
+		t.Fatalf("kept: %q", a.Config.OnRestart)
+	}
+	s.OnRestart = "resume"
+	s.Apply(&a, time.Now())
+	if a.Config.OnRestart != storage.OnRestartResume {
+		t.Fatalf("set: %q", a.Config.OnRestart)
+	}
+	s.OnRestart = trigger.OnRestartDefault
+	s.Apply(&a, time.Now())
+	if a.Config.OnRestart != "" {
+		t.Fatalf("default: %q", a.Config.OnRestart)
+	}
+}
