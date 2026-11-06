@@ -386,18 +386,23 @@ func (s *Service) record(ctx context.Context, b storage.BurnSession, from string
 			return fmt.Sprintf("Đã có việc này: %s (%s).", it.ID, it.Status), nil
 		}
 	}
-	if n, why := failedBefore(items, title); n >= maxTries && from != "" { // a scan recording it again (ADR-143)
+	n, why := failedBefore(items, title)
+	if n >= maxTries && from != "" { // a scan recording it again (ADR-143)
 		return "", fmt.Errorf("việc này đã thất bại %d lần (lần cuối: %s): không ghi lại. Nếu nguyên nhân nằm ở quy trình hay môi trường, ghi một việc sửa nguyên nhân đó", n, oneLine(why, 200))
 	}
 	if from != "" {
 		s.mu.Lock()
-		n := s.found[from]
+		cnt := s.found[from]
 		s.mu.Unlock()
-		if n >= scanBatch {
+		if cnt >= scanBatch {
 			return "", fmt.Errorf("lượt quét này đã ghi đủ %d việc: cập nhật coverage rồi kết thúc bằng burn_scan_done, lượt sau làm tiếp", scanBatch)
 		}
 	}
-	it, err := s.store.Burn().AddItem(ctx, storage.BurnItem{SessionID: b.ID, Title: oneLine(title, 160), Kind: kind, Detail: strings.TrimSpace(in.Detail),
+	detail := strings.TrimSpace(in.Detail)
+	if n > 0 && why != "" { // its own earlier fail, not the run's general lessons (Reflexion, arXiv:2303.11366)
+		detail = fmt.Sprintf("Việc này đã fail trước vì: %s\n\n%s", oneLine(why, 300), detail)
+	}
+	it, err := s.store.Burn().AddItem(ctx, storage.BurnItem{SessionID: b.ID, Title: oneLine(title, 160), Kind: kind, Detail: detail,
 		Priority: priorities[strings.TrimSpace(in.Priority)], RunBranch: b.RunBranch})
 	if err != nil {
 		return "", err
