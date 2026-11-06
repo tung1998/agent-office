@@ -2,16 +2,18 @@
 // The office-wide daily AI limit and the model prices costs are counted
 // with (each project's own budget is set on the project).
 interface Price { input: number, output: number, cache_read?: number, cache_write?: number }
-interface Settings { daily_limit_usd: number, project_limits?: Record<string, number>, prices?: Record<string, Price>, warn_ratio?: number }
+interface Settings { daily_limit_usd: number, project_limits?: Record<string, number>, prices?: Record<string, Price>, warn_ratio?: number, no_transient_retry?: boolean, transient_retries?: number }
 const { t } = useLang()
 const toast = useToast()
 const open = ref(false)
 const { data: sum, refresh } = useLiveFetch<{ today: number, daily_limit: number, settings: Settings, default_prices: Record<string, Price> }>('/api/usage/summary', { query: { days: 1 }, lazy: true })
-const form = reactive({ daily: 0, prices: [] as { model: string, input: number, output: number }[] })
+const form = reactive({ daily: 0, prices: [] as { model: string, input: number, output: number }[], retry: true, retries: 3 })
 function edit() {
   const s = sum.value?.settings
   if (!s) return
   form.daily = s.daily_limit_usd || 0
+  form.retry = !s.no_transient_retry
+  form.retries = s.transient_retries || 3
   form.prices = Object.entries(s.prices ?? {}).map(([model, p]) => ({ model, input: p.input, output: p.output }))
   open.value = true
 }
@@ -24,7 +26,11 @@ async function save() {
       if (p.model.trim()) prices[p.model.trim()] = { input: Number(p.input) || 0, output: Number(p.output) || 0 }
     }
     // the projects' own budgets stay as they are
-    await $fetch('/api/usage/settings', { method: 'PUT', body: { daily_limit_usd: Number(form.daily) || 0, project_limits: s.project_limits ?? {}, prices } })
+    await $fetch('/api/usage/settings', { method: 'PUT', body: {
+      daily_limit_usd: Number(form.daily) || 0, project_limits: s.project_limits ?? {}, prices, warn_ratio: s.warn_ratio,
+      // a turn cut by a passing API failure goes on by itself (ADR-260)
+      no_transient_retry: !form.retry, transient_retries: Math.min(Math.max(Number(form.retries) || 3, 1), 5)
+    } })
     open.value = false
     await refresh()
     toast.add({ title: t('costs.saved'), color: 'success' })
@@ -55,6 +61,14 @@ const usd = (v: number) => v >= 1 ? `$${v.toFixed(2)}` : `$${v.toFixed(3)}`
           <UInputNumber v-model="form.daily" :min="0" :step="0.5" :format-options="{ minimumFractionDigits: 0, maximumFractionDigits: 2 }" />
         </UFormField>
         <p class="text-xs text-(--ui-text-muted)">{{ t('budget.perProjectHint') }}</p>
+        <UFormField>
+          <template #label><InfoLabel :label="t('budget.transientRetry')" :info="t('budget.transientRetryHelp')" /></template>
+          <div class="flex flex-wrap items-center gap-3">
+            <USwitch v-model="form.retry" />
+            <UInputNumber v-if="form.retry" v-model="form.retries" :min="1" :max="5" size="sm" class="w-24" />
+            <span v-if="form.retry" class="text-xs text-(--ui-text-muted)">{{ t('budget.transientRetryTimes') }}</span>
+          </div>
+        </UFormField>
         <div>
           <p class="text-sm font-medium">{{ t('costs.modelPrices') }}</p>
           <p class="text-xs text-(--ui-text-muted)">{{ t('costs.modelPricesDesc') }}</p>

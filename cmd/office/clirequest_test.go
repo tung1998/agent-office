@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -140,4 +141,66 @@ func waitFor(t *testing.T, ok func() bool) {
 		time.Sleep(10 * time.Millisecond)
 	}
 	t.Fatal("timed out")
+}
+
+// The office that took the request goes down mid-update: the command is not
+// left waiting 14h for it, it says so; the next office ends the request it
+// left, failed, so nothing waits on it (ADR-260).
+func TestToolsUpdateOfficeDiedAfterClaim(t *testing.T) {
+	oldEvery, oldLost := cliBeatEvery, cliBeatLost
+	cliBeatEvery, cliBeatLost = 20*time.Millisecond, time.Second
+	t.Cleanup(func() { cliBeatEvery, cliBeatLost = oldEvery, oldLost })
+	st := requestStore(t)
+	dir := t.TempDir()
+	fakeCodex(t, dir, "0.166.0", "0.167.0")
+	m := clitools.NewManagerWithPath(dir + ":/usr/bin:/bin")
+	officeCtx, officeDown := context.WithCancel(context.Background())
+	go serveCLIRequests(officeCtx, st, m, 10*time.Millisecond)
+	end, _ := cliuse.Begin(context.Background(), "codex") // the update waits for this run
+	defer end()
+
+	ctx := context.Background()
+	type out struct {
+		res []cliResult
+		err error
+	}
+	done := make(chan out, 1)
+	start := time.Now()
+	go func() {
+		res, _, err := requestCLIUpdate(ctx, st, []string{"codex"}, "script", false, 2*time.Second, 10*time.Millisecond, nil)
+		done <- out{res, err}
+	}()
+	waitFor(t, func() bool { u, ok := m.Upgrade("codex"); return ok && u.State == "waiting" })
+	time.Sleep(100 * time.Millisecond) // beats while alive: not dropped
+	select {
+	case o := <-done:
+		t.Fatalf("ended while the office was alive: %+v %v", o, o.err)
+	default:
+	}
+	officeDown()
+	var o out
+	select {
+	case o = <-done:
+	case <-time.After(10 * time.Second):
+		t.Fatal("the command still waits for an office that is gone")
+	}
+	if !errors.Is(o.err, errOfficeGone) || time.Since(start) > 5*time.Second {
+		t.Fatalf("result = %+v", o)
+	}
+
+	// a request the gone office started, nobody waiting on it: the next ends it
+	past := time.Now().UTC().Add(-time.Minute)
+	if _, err := editRequests(ctx, st, func(l []cliRequest) ([]cliRequest, bool) {
+		return append(l, cliRequest{ID: "clu_orphan", Tools: []string{"codex"}, At: past, Taken: &past, Beat: &past,
+			Res: []cliResult{{Tool: "codex", State: "waiting", Started: past}}}), true
+	}); err != nil {
+		t.Fatal(err)
+	}
+	next := &cliRequestServer{st: st, m: clitools.NewManagerWithPath(t.TempDir()), started: map[string]bool{}}
+	next.once(ctx)
+	var left []cliRequest
+	_, _ = st.Settings().Get(ctx, cliRequestKey, &left)
+	if len(left) != 1 || !left[0].Done || left[0].Res[0].State != "failed" || !strings.Contains(left[0].Res[0].Text, "office đã dừng") {
+		t.Fatalf("left: %+v", left)
+	}
 }

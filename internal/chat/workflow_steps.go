@@ -512,6 +512,31 @@ func (e *Engine) stepAgent(ctx context.Context, own storage.Conversation, projec
 	if e.wasCut(run, s.ID) { // its session keeps what it did before office went down (ADR-256)
 		prompt = prompts.Render("workflow/step-resumed", nil) + "\n\n" + prompt
 	}
+	base := prompt
+	for try := 1; ; try++ {
+		out, err := e.stepTurn(ctx, own, project, run, s, a, d, level, prompt)
+		// a passing failure of the AI service: the step goes on in its
+		// session a while later instead of failing the run (ADR-260)
+		if err == nil || ctx.Err() != nil || !Transient(err) || try > len(StepTransientWaits) || e.stopping.Load() {
+			return out, err
+		}
+		wait := StepTransientWaits[try-1]
+		e.post(own, s, prompts.Render("workflow/step-api-wait", map[string]any{"Error": truncate(err.Error(), 300), "Wait": wait.String(), "N": try, "Max": len(StepTransientWaits)}))
+		select {
+		case <-ctx.Done():
+			return "", ctx.Err()
+		case <-time.After(wait):
+		}
+		prompt = prompts.Render("workflow/step-api-resumed", nil) + "\n\n" + base
+	}
+}
+
+// StepTransientWaits are the waits before a step cut by a passing API
+// failure goes on, one per try (tests make them short).
+var StepTransientWaits = []time.Duration{time.Minute, 5 * time.Minute, 15 * time.Minute}
+
+// stepTurn runs one turn of a step's agent and waits for its answer.
+func (e *Engine) stepTurn(ctx context.Context, own storage.Conversation, project storage.Repo, run *wfRun, s workflow.Step, a storage.Agent, d workflow.Role, level, prompt string) (string, error) {
 	key := run.rec.ID + "#" + s.ID
 	ch := make(chan string, 1)
 	e.wf.mu.Lock()

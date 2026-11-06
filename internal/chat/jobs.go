@@ -40,6 +40,8 @@ func (e *Engine) endJob(jobID, messageID string, runErr, ctxErr error) (j storag
 		status, code, msg = "failed", "budget", runErr.Error()
 	case runErr != nil && OutOfTokens(runErr):
 		status, code, msg = "failed", "out_of_tokens", runErr.Error()
+	case runErr != nil && Transient(runErr):
+		status, code, msg = "failed", TransientCode, runErr.Error()
 	case runErr != nil:
 		status, code, msg = "failed", "agent_error", runErr.Error()
 	}

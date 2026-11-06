@@ -73,6 +73,7 @@ const (
 	CatNeedsLogin = "needs_login"
 	CatQuota      = "quota"
 	CatRateLimit  = "rate_limit"
+	CatTransient  = "transient" // a passing failure of the AI service: 529, 5xx, a dropped stream (ADR-260)
 	CatBudget     = "budget"
 	CatTimeout    = "timeout"
 	CatMCP        = "mcp"
@@ -87,14 +88,14 @@ const (
 )
 
 // AllCategories lists every category.
-var AllCategories = []string{CatCLIBroken, CatNeedsLogin, CatQuota, CatRateLimit, CatBudget, CatTimeout, CatMCP,
+var AllCategories = []string{CatCLIBroken, CatNeedsLogin, CatQuota, CatRateLimit, CatTransient, CatBudget, CatTimeout, CatMCP,
 	CatNetwork, CatWorktree, CatWorkflow, CatScript, CatRestart, CatCancelled, CatConfig, CatOther}
 
 // byCode: a job's error code that already says the kind.
 var byCode = map[string]string{
 	"cancelled": CatCancelled, "restart": CatRestart, "budget": CatBudget, "out_of_tokens": CatBudget,
 	"rate_limit": CatRateLimit, "busy_timeout": CatTimeout, "agent_missing": CatConfig, "disabled": CatConfig,
-	"script_error": CatScript,
+	"script_error": CatScript, "api_transient": CatTransient,
 }
 
 // byText: the words of the office's own errors (internal/llm: ErrCLIBroken,
@@ -108,7 +109,9 @@ var byText = []struct {
 	{CatCLIBroken, []string{"cli không chạy được", "không tìm thấy lệnh", "command not found", "cannot find module", " enoent", "executable file not found"}},
 	{CatNeedsLogin, []string{"chưa đăng nhập", "đăng nhập lại", "not logged in", "please log in", "please login", "unauthorized", "invalid api key", "invalid_api_key", "no api key", "authentication"}},
 	{CatQuota, []string{"usage limit", "quota", "hết lượt", "credit balance", "purchase more credits", "insufficient_quota", "billing"}},
-	{CatRateLimit, []string{"rate limit", "rate_limit", "ratelimit", "too many requests", " 429", "overloaded"}},
+	{CatRateLimit, []string{"rate limit", "rate_limit", "ratelimit", "too many requests", " 429"}},
+	// overloaded is the service, not the account: it passes by waiting (ADR-260)
+	{CatTransient, []string{"overloaded", "lỗi api cuối", "lỗi api tạm thời", "internal server error", "api error: 5", "stream disconnected"}},
 	{CatBudget, []string{"ngân sách", "budget"}},
 	{CatTimeout, []string{"timed out", "timeout", "deadline exceeded", "hết thời gian", "hết giờ", "quá thời gian"}},
 	{CatNetwork, []string{"connection refused", "econnrefused", "econnreset", "connection reset", "no such host", "network is unreachable", "tls handshake", " 502", " 503", " 504", "bad gateway", "service unavailable"}},

@@ -1,0 +1,1 @@
+[office] Your last answer was cut off by a passing error of the AI service ([[.Error]]). Go on with the unfinished work from where you stopped (check first what is already done, such as the files you changed); when done, report briefly. The request was:

@@ -7,6 +7,7 @@ import (
 	"regexp"
 	"time"
 
+	"github.com/tung1998/agent-office/internal/chat"
 	"github.com/tung1998/agent-office/internal/llm"
 	"github.com/tung1998/agent-office/internal/storage"
 )
@@ -30,10 +31,14 @@ func technical(err error) bool {
 	if err == nil {
 		return false
 	}
-	return errors.Is(err, llm.ErrNeedsLogin) || technicalErr.MatchString(err.Error())
+	// a passing failure of the AI service the CLI gave up on (a 529 retried
+	// to its end, a dropped stream: ADR-260) is not the piece's either
+	return errors.Is(err, llm.ErrNeedsLogin) || technicalErr.MatchString(err.Error()) || chat.Transient(err)
 }
 
-func technicalText(msg string) bool { return msg != "" && technicalErr.MatchString(msg) }
+func technicalText(msg string) bool {
+	return msg != "" && (technicalErr.MatchString(msg) || chat.Transient(errors.New(msg)))
+}
 
 // block puts the Burn to wait after a technical error: said once (chat and
 // bot), then tried again after blockedRetry. Draining, it stays draining

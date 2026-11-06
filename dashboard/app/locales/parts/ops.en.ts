@@ -219,6 +219,8 @@ const en: Record<keyof typeof vi, string> = {
   'bell.act.reject': 'Skip',
   'bell.act.seen': 'Mark seen',
   'bell.act.continue': 'Continue',
+  'bell.act.retryNow': 'Run now',
+  'bell.act.cancelRetry': 'Cancel',
   'bell.act.dismiss': 'Hide',
   'bell.act.open': 'Open',
   'bell.files': '{n} files: {list}…',

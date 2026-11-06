@@ -14,11 +14,12 @@ export function incidentText(x: Incident, files: (n: number, list: string) => st
 }
 
 // what can be done to an item right from a notification, besides opening it
-export type IncidentAct = 'approve' | 'reject' | 'seen' | 'continue' | 'dismiss'
+export type IncidentAct = 'approve' | 'reject' | 'seen' | 'continue' | 'retryNow' | 'cancelRetry' | 'dismiss'
 export function incidentActs(x: Incident): IncidentAct[] {
   if (isApproval(x)) return ['approve', 'reject']
   if (x.kind === 'unread') return ['seen']
   if (x.kind === 'stalled') return ['continue']
+  if (x.kind === 'retrying') return ['retryNow', 'cancelRetry'] // a passing API failure: it goes on by itself (ADR-260)
   return ['dismiss']
 }
 
@@ -53,6 +54,10 @@ export async function actOnIncident(x: Incident, what: IncidentAct) {
       return $fetch(`/api/conversations/${x.id}/seen`, { method: 'POST', body: { seen: true } })
     case 'continue': // a chat stopped for tokens: its agent goes on
       return $fetch(`/api/conversations/${x.id}/messages`, { method: 'POST', body: { text: x.prompt } })
+    case 'retryNow': // goes on now, not at its planned time
+      return $fetch(`/api/conversations/${x.id}/retry-now`, { method: 'POST' })
+    case 'cancelRetry':
+      return $fetch(`/api/conversations/${x.id}/retry`, { method: 'DELETE' })
     case 'dismiss':
       return $fetch('/api/incidents/dismiss', { method: 'POST', body: { key: x.key } })
   }

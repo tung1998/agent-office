@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"github.com/tung1998/agent-office/internal/errdigest"
 	"strings"
 	"sync"
 	"time"
@@ -547,7 +548,7 @@ func (r *Runner) execute(ctx context.Context, j storage.Job) {
 		conv = ev.ConversationID // goes on in the chat whose turn ended (ADR-243)
 	}
 	if c := resumeIn(a, j); c != "" { // cut off by a restart: it goes on where it was (ADR-257)
-		conv, prompt = c, resumedPrompt()
+		conv, prompt = c, resumedPrompt(j)
 	}
 	if fromChannel { // the files sent with the message go to the agent with it
 		actx = WithAttachments(actx, channelPayloadOf(origin).Attachments)
@@ -586,6 +587,9 @@ func (r *Runner) execute(ctx context.Context, j storage.Job) {
 	}
 	r.settle(ctx, j, err)
 	if errors.Is(err, ErrBusy) {
+		return
+	}
+	if err != nil && r.requeueTransient(ctx, a, j, got) { // a passing API failure: it goes on later (ADR-260)
 		return
 	}
 	answer(text, err, true)
@@ -634,7 +638,11 @@ func (r *Runner) settle(ctx context.Context, j storage.Job, err error) {
 		return
 	}
 	if err != nil {
-		_, _ = r.store.Jobs().Finish(ctx, j.ID, "failed", "agent_error", err.Error(), now)
+		code := "agent_error"
+		if errdigest.Category("", err.Error()) == errdigest.CatTransient {
+			code = TransientCode
+		}
+		_, _ = r.store.Jobs().Finish(ctx, j.ID, "failed", code, err.Error(), now)
 		return
 	}
 	_, _ = r.store.Jobs().Finish(ctx, j.ID, "done", "", "", r.now().UTC())

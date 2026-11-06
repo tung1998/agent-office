@@ -465,6 +465,9 @@ func serveCmd() *cobra.Command {
 			if n := chatEngine.ResumeInterrupted(ctx, interrupted); n > 0 {
 				fmt.Fprintf(cmd.ErrOrStderr(), "office: %d cuộc chat đang trả lời dở được làm tiếp (khởi động lại)\n", n)
 			}
+			if n := chatEngine.ResumeRetries(ctx); n > 0 { // turns cut by a passing API failure (ADR-260)
+				fmt.Fprintf(cmd.ErrOrStderr(), "office: %d cuộc chat hẹn tự chạy tiếp sau lỗi API tạm thời\n", n)
+			}
 			if n := chatEngine.ResumeWorkflows(ctx, downWhy, resumable); n > 0 {
 				fmt.Fprintf(cmd.ErrOrStderr(), "office: %d quy trình chạy tiếp từ chỗ đã dừng (khởi động lại)\n", n)
 			}

@@ -420,6 +420,7 @@ const en: Record<keyof typeof vi, string> = {
   'fail.cat.needs_login': 'Needs login',
   'fail.cat.quota': 'Quota used up',
   'fail.cat.rate_limit': 'Rate limited',
+  'fail.cat.transient': 'Passing API error',
   'fail.cat.budget': 'Out of budget',
   'fail.cat.timeout': 'Timed out',
   'fail.cat.mcp': 'MCP',

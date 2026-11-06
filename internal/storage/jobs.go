@@ -53,6 +53,10 @@ type Job struct {
 	// GoalRounds: how many rounds of its automation's goal it started; put
 	// back after a restart, it goes on from there (ADR-258).
 	GoalRounds int
+	// RetryAt: a turn that died on a passing API failure goes on then by
+	// itself (nil = not planned); RetryN: which try in a row (ADR-260).
+	RetryAt *time.Time
+	RetryN  int
 }
 
 // SendsAs is who a run speaks for when it sends into another chat: the person
@@ -203,6 +207,14 @@ type JobRepo interface {
 	CostSince(ctx context.Context, origin, originID string, since time.Time) (float64, error)
 	// SetOutput stores what a script printed and how it exited.
 	SetOutput(ctx context.Context, id, output string, exitCode int) error
+	// SetRetry plans a turn that died on a passing API failure to go on at
+	// at (nil: not any more), its n-th try in a row (ADR-260).
+	SetRetry(ctx context.Context, id string, at *time.Time, n int) error
+	// ClearRetry takes a job's planned retry back; false when it had none
+	// (already gone on, or called off): only one caller gets true.
+	ClearRetry(ctx context.Context, id string) (bool, error)
+	// Retries lists the failed jobs with a retry planned, soonest first.
+	Retries(ctx context.Context) ([]Job, error)
 	// SetGoalRounds stores how many rounds of its goal a run started (ADR-258).
 	SetGoalRounds(ctx context.Context, id string, n int) error
 	// SetMessageID links a job to the chat message its answer became; touches

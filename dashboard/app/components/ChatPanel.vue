@@ -54,7 +54,7 @@ const composeOpen = ref(false)
 // picker), the same square as the other buttons (the agent's name is in the placeholder)
 const iconOnPhone = { base: '@max-sm/chat:!w-7 @max-sm/chat:!px-0', leading: '@max-sm/chat:!ps-1.5', value: '@max-sm/chat:hidden', trailing: '@max-sm/chat:hidden' }
 const toast = useToast()
-const { t, when } = useLang()
+const { t, when, dateLocale } = useLang()
 const { user: me, manages, isOfficeAdmin } = useAuth()
 const NuxtLink = resolveComponent('NuxtLink')
 const isAdmin = computed(() => manages(props.projectId)) // its cards: the project's admin or manager, on any page (ADR-224)
@@ -311,9 +311,10 @@ onLiveChange(async (tables) => {
   const c = current.value
   if (!c || streaming.value || sending.value || loadingMsgs.value) return
   try {
-    const res = await $fetch<{ messages: Message[], members?: Member[], running?: RunningTurn[], conversation: Conversation, linked_pending?: LinkedPending[] }>(`/api/conversations/${c.id}?limit=${PAGE}`)
+    const res = await $fetch<{ messages: Message[], members?: Member[], running?: RunningTurn[], conversation: Conversation, linked_pending?: LinkedPending[], retry?: PlannedRetry | null }>(`/api/conversations/${c.id}?limit=${PAGE}`)
     if (current.value?.id !== c.id || streaming.value || sending.value) return
     linkedPending.value = res.linked_pending ?? [] // another chat's cards: no message of this one changes
+    retry.value = res.retry ?? null
     const known = new Set(messages.value.map(m => m.id))
     const fresh = res.messages.filter(m => !known.has(m.id))
     const changed = res.messages.some(m => { const x = messages.value.find(y => y.id === m.id); return x && JSON.stringify(x) !== JSON.stringify(m) })
@@ -372,9 +373,11 @@ async function afterTurn() {
   const id = current.value?.id
   if (!id) return
   try {
-    const res = await $fetch<{ conversation: Conversation, members?: Member[], running?: RunningTurn[], linked_pending?: LinkedPending[] }>(`/api/conversations/${id}`)
+    const res = await $fetch<{ conversation: Conversation, members?: Member[], running?: RunningTurn[], linked_pending?: LinkedPending[], retry?: PlannedRetry | null }>(`/api/conversations/${id}`)
     if (current.value?.id !== id) return
     linkedPending.value = res.linked_pending ?? []
+  retry.value = res.retry ?? null
+    retry.value = res.retry ?? null
     current.value = { ...current.value, context_tokens: res.conversation.context_tokens, context_window: res.conversation.context_window }
     applyGroup(res.members, res.running)
   } catch { /* the next open shows it */ }
@@ -387,6 +390,38 @@ const running = ref<RunningTurn[]>([])
 // a report back's text without its first line (who and where, shown above it)
 const reportBody = (text: string) => text.split('\n\n').slice(1).join('\n\n').trim() || text
 const linkedPending = ref<LinkedPending[]>([])
+// the last answer died on a passing API failure: it goes on by itself then (ADR-260)
+interface PlannedRetry { job_id: string, at: string, n: number, max: number }
+const retry = ref<PlannedRetry | null>(null)
+const retryActing = ref<'' | 'now' | 'cancel'>('')
+const retryAt = computed(() => retry.value ? new Date(retry.value.at).toLocaleTimeString(dateLocale.value, { hour: '2-digit', minute: '2-digit' }) : '')
+async function retryNow() {
+  const c = current.value
+  if (!c) return
+  retryActing.value = 'now'
+  try {
+    const res = await $fetch<{ turn_id: string }>(`/api/conversations/${c.id}/retry-now`, { method: 'POST' })
+    retry.value = null
+    if (res.turn_id) follow(res.turn_id)
+  } catch (e) {
+    toast.add({ title: apiError(e), color: 'error' })
+  } finally {
+    retryActing.value = ''
+  }
+}
+async function cancelRetry() {
+  const c = current.value
+  if (!c) return
+  retryActing.value = 'cancel'
+  try {
+    await $fetch(`/api/conversations/${c.id}/retry`, { method: 'DELETE' })
+    retry.value = null
+  } catch (e) {
+    toast.add({ title: apiError(e), color: 'error' })
+  } finally {
+    retryActing.value = ''
+  }
+}
 const background = computed(() => running.value.filter(r => r.background))
 const bgFollows = new Map<string, () => void>()
 function applyGroup(m?: Member[], r?: RunningTurn[]) {
@@ -495,7 +530,7 @@ async function open(c: Conversation, messageId?: string) {
   stopBackground()
   // the last page (a phone over a VPN); a link to one message loads it all to find it
   loadingMsgs.value = true
-  let res: { conversation: Conversation, messages: Message[], has_more?: boolean, members?: Member[], running?: RunningTurn[], linked_pending?: LinkedPending[] }
+  let res: { conversation: Conversation, messages: Message[], has_more?: boolean, members?: Member[], running?: RunningTurn[], linked_pending?: LinkedPending[], retry?: PlannedRetry | null }
   try {
     res = await $fetch(`/api/conversations/${c.id}${messageId ? '' : `?limit=${PAGE}`}`)
   } finally {
@@ -1158,6 +1193,13 @@ onBeforeUnmount(() => {
           </div>
         </template>
         <WorkflowRunCard v-for="r in runsAt.after" :key="r.id" :run="r" @updated="onRunUpdated" />
+        <!-- the last answer died on a passing API failure: it goes on by itself, or now, or not (ADR-260) -->
+        <div v-if="retry && !streaming" class="flex flex-wrap items-center gap-2 rounded-lg border border-(--ui-info)/40 bg-(--ui-info)/5 px-3 py-2 text-xs">
+          <UIcon name="i-lucide-timer" class="size-4 shrink-0 text-(--ui-info)" />
+          <span class="min-w-0 flex-1">{{ t('chat.retryPlanned', { at: retryAt, n: retry.n, max: retry.max }) }}</span>
+          <UButton size="xs" icon="i-lucide-play" :label="t('chat.retryNow')" :loading="retryActing === 'now'" :disabled="!!retryActing" @click="retryNow" />
+          <UButton size="xs" color="neutral" variant="ghost" :label="t('chat.retryCancel')" :loading="retryActing === 'cancel'" :disabled="!!retryActing" @click="cancelRetry" />
+        </div>
         <!-- a linked project's chat this one handed work to waits for a person: decided here -->
         <div v-for="lp in linkedPending" :key="lp.conversation_id" class="space-y-2 rounded-lg border border-(--ui-warning)/40 bg-(--ui-warning)/5 p-3">
           <p class="flex items-center gap-1.5 text-xs text-(--ui-text-muted)">

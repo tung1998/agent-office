@@ -329,6 +329,7 @@ type Engine struct {
 	acts         actionsProposer // the workflows' gates propose through it
 	peers        Peers           // linked projects in other offices (ADR-167; nil = none)
 	stopping     atomic.Bool     // office is going down: answers cut off now go on after it (Shutdown)
+	retries      retryTimers     // turns cut by a passing API failure, planned to go on (ADR-260)
 
 	// rechecks: provider id → when a connection marked broken was last
 	// checked again in the background (recheckBroken)
@@ -858,6 +859,7 @@ func (e *Engine) SendWithContext(ctx context.Context, conversationID, text, page
 	if conv.Cleaned != "" {
 		return nil, storage.Message{}, ErrCleaned
 	}
+	e.dropRetries(ctx, conv.ID) // what is written now comes first (ADR-260)
 	project, err := e.store.Repos().Get(ctx, conv.ProjectID)
 	if err != nil {
 		return nil, storage.Message{}, err
@@ -1191,10 +1193,14 @@ func (e *Engine) run(ctx context.Context, turn *Turn, conv storage.Conversation,
 	}
 	fail := func(err error) {
 		turn.err = err.Error()
-		if j, ok := e.endJob(turn.JobID, "", err, ctx.Err()); ok {
+		j, ended := e.endJob(turn.JobID, "", err, ctx.Err())
+		if ended {
 			e.turnEnded(j, conv, agent, "")
 		}
 		m, _ := e.store.Chat().AddMessage(context.Background(), storage.Message{ConversationID: conv.ID, Role: "error", Content: err.Error()})
+		if ended { // a passing API failure: it goes on by itself later (ADR-260)
+			e.planRetry(j, conv)
+		}
 		dto := MessageDTO{ID: m.ID, Role: "error", Content: m.Content, CreatedAt: m.CreatedAt, Tools: []storage.ToolCall{}, Attachments: []storage.Attachment{}, Patches: []PatchDTO{}}
 		turn.emit(Event{Type: "error", Text: err.Error(), Message: &dto, NextTurnID: e.nextTurn(ctx, turn, conv, project, agent, "")})
 	}

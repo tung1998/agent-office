@@ -26,7 +26,7 @@ import (
 // a bot that lost its connection, tasks and runs that failed, a card waiting.
 type incident struct {
 	Kind        string    `json:"kind"`     // monitor | process | automation | bot | jobs | approval | patch | unread | stalled | peer_request | mcp
-	Severity    string    `json:"severity"` // error | warning
+	Severity    string    `json:"severity"` // error | warning | info
 	ProjectID   string    `json:"project_id"`
 	ProjectName string    `json:"project_name"`
 	Title       string    `json:"title"`
@@ -119,7 +119,7 @@ func (s *server) incidentsFor(ctx context.Context, u storage.User) ([]incident, 
 			_, _ = s.cfg.Store.Settings().Get(ctx, dismissKey("jobs:"+p.ID), &gone)
 			fresh := failed[:0:0]
 			for _, j := range failed {
-				if j.CreatedAt.After(gone) && !(j.Kind == "chat_turn" && chat.Stalled(j.ErrorCode)) { // a chat out of tokens is its own item
+				if j.CreatedAt.After(gone) && !(j.Kind == "chat_turn" && chat.Stalled(j.ErrorCode)) && j.RetryAt == nil { // a chat out of tokens, or going on by itself, is its own item
 					fresh = append(fresh, j)
 				}
 			}
@@ -128,6 +128,7 @@ func (s *server) incidentsFor(ctx context.Context, u storage.User) ([]incident, 
 				add("jobs", "warning", fmt.Sprintf("%d job lỗi trong 24 giờ", len(fresh)), last.Title+": "+last.Error, &last.CreatedAt, "/jobs?project="+p.ID, last.ID, p.ID)
 			}
 		}
+		out = append(out, s.retryingChats(ctx, u, p)...)
 		for _, it := range s.stalledChats(ctx, u, p) {
 			var gone time.Time
 			if ok, _ := s.cfg.Store.Settings().Get(ctx, dismissKey(it.Key), &gone); ok && !it.At.After(gone) {

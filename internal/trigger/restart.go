@@ -7,6 +7,7 @@ import (
 
 	"github.com/tung1998/agent-office/internal/prompts"
 	"github.com/tung1998/agent-office/internal/storage"
+	"github.com/tung1998/agent-office/internal/usage"
 )
 
 // RequeueCut puts back the automations' runs office restarted under
@@ -50,8 +51,55 @@ func resumeIn(a storage.Automation, j storage.Job) string {
 	return j.ConversationID
 }
 
-// resumedPrompt is what a run going on in its chat is sent.
-func resumedPrompt() string { return prompts.Render("trigger/resumed", nil) }
+// resumedPrompt is what a run going on in its chat is sent: put back last for
+// a passing API failure (RetryN marks it) or for a restart.
+func resumedPrompt(j storage.Job) string {
+	if j.RetryN > 0 && j.RetryN == j.Resumes {
+		return prompts.Render("trigger/api-resumed", nil)
+	}
+	return prompts.Render("trigger/resumed", nil)
+}
+
+// TransientCode is the error code of a run that died on a passing failure of
+// the AI service (chat.TransientCode: the chat engine ends a turn so).
+const TransientCode = "api_transient"
+
+// TransientWaits are the waits before an automation's run cut by a passing
+// API failure goes on, by how often it was put back (tests make them short).
+var TransientWaits = []time.Duration{2 * time.Minute, 10 * time.Minute, 30 * time.Minute}
+
+// requeueTransient puts back an agent's run that died on a passing failure of
+// the AI service (ADR-260): pending again a while later, to go on in the chat
+// it ran in, like a run cut by a restart, at most storage.MaxJobResumes times
+// all told and as the settings allow. false: it stays failed.
+func (r *Runner) requeueTransient(ctx context.Context, a storage.Automation, j storage.Job, conv string) bool {
+	if j.ParentJobID != "" || j.Kind != "chat_turn" || a.Action != "chat" || IsChannel(j.Trigger) {
+		return false // a bot's message is answered now, its error included
+	}
+	cur, err := r.store.Jobs().Get(ctx, j.ID)
+	if err != nil || cur.Status != "failed" || cur.ErrorCode != TransientCode {
+		return false
+	}
+	st, _ := usage.New(r.store, nil).Settings(ctx)
+	limit := min(st.Retries(), storage.MaxJobResumes)
+	if cur.ConversationID == "" && conv != "" { // where it goes on
+		cur.ConversationID = conv
+		if r.store.Jobs().Update(ctx, cur) != nil {
+			return false
+		}
+	}
+	if cur.ConversationID == "" || limit == 0 {
+		return false
+	}
+	wait := TransientWaits[min(cur.Resumes, len(TransientWaits)-1)]
+	back, err := r.store.Jobs().Requeue(ctx, j.ID, TransientCode, limit, r.now().UTC().Add(wait))
+	if err != nil {
+		return false // put back too often: it fails as before
+	}
+	_ = r.store.Jobs().SetRetry(ctx, back.ID, nil, back.Resumes)
+	slog.Info("trigger: run put back after a passing API failure", "job", j.ID, "wait", wait, "resumes", back.Resumes)
+	return true
+}
 
 // CutLeft are the bot runs among cut (what was running when office went
 // down) that RequeueCut did not put back: the person who asked in the bot

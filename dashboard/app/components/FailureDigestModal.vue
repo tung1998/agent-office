@@ -45,7 +45,7 @@ const catItems = computed(() => {
 // faults a person must fix on the machine are red; limits that pass, amber
 const catColor = (c: string) => ['cli_broken', 'needs_login', 'config'].includes(c)
   ? 'error' as const
-  : ['quota', 'rate_limit', 'budget'].includes(c) ? 'warning' as const : 'neutral' as const
+  : ['quota', 'rate_limit', 'transient', 'budget'].includes(c) ? 'warning' as const : 'neutral' as const
 const expanded = ref<string | null>(null)
 const detail = ref<string | null>(null)
 </script>

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { actOnIncident } from '~/composables/useApprovals'
 // The work tab of Tổng quan: what needs a person, the last day, and every job.
 // an admin acts on every item, a manager on its own projects' (ADR-224)
 const { manages, isOfficeAdmin } = useAuth()
@@ -40,7 +41,7 @@ async function seen(x: Incident) {
   }
 }
 // skip: rejected, and its agent is not run again about it
-async function act(x: Incident, what: 'approve' | 'reject' | 'skip' | 'retry' | 'dismiss' | 'continue'): Promise<boolean> {
+async function act(x: Incident, what: 'approve' | 'reject' | 'skip' | 'retry' | 'dismiss' | 'continue' | 'retryNow' | 'cancelRetry'): Promise<boolean> {
   const key = x.key + what
   if (acting.has(key)) return false
   acting.add(key)
@@ -52,6 +53,8 @@ async function act(x: Incident, what: 'approve' | 'reject' | 'skip' | 'retry' | 
     else if (what === 'dismiss') await $fetch('/api/incidents/dismiss', { method: 'POST', body: { key: x.key } })
     // a chat stopped for tokens: the agent that stopped goes on in it
     else if (what === 'continue') await $fetch(`/api/conversations/${x.id}/messages`, { method: 'POST', body: { text: x.prompt } })
+    // a chat going on by itself after a passing API failure (ADR-260): now, or not
+    else if (what === 'retryNow' || what === 'cancelRetry') await actOnIncident(x, what)
     else if (x.kind === 'jobs') await $fetch(`/api/jobs/${x.id}/retry`, { method: 'POST' })
     else await $fetch('/api/incidents/retry', { method: 'POST', body: { kind: x.kind, id: x.id } })
     toast.add({ title: t(`home.done_${what}`), color: 'success' })
@@ -83,7 +86,7 @@ async function skipAll() {
 }
 // Bỏ qua N mục: every item that can be let go (not a card to decide, not a
 // chat to read), let go at once
-const dismissable = computed(() => incidents.value.filter(x => !['approval', 'patch', 'unread', 'stalled'].includes(x.kind) && manages(x.project_id)))
+const dismissable = computed(() => incidents.value.filter(x => !['approval', 'patch', 'unread', 'stalled', 'retrying'].includes(x.kind) && manages(x.project_id)))
 const dismissingAll = ref(false)
 async function dismissAll() {
   const keys = dismissable.value.map(x => x.key)
@@ -108,7 +111,7 @@ function investigate(x: Incident) {
 // a failure opened in place: what happened, its failed runs, its logs or checks
 const shown = ref<Incident | null>(null)
 const shownOpen = computed({ get: () => !!shown.value, set: (v: boolean) => { if (!v) shown.value = null } })
-const isDecision = (x: Incident) => x.kind === 'approval' || x.kind === 'patch' || x.kind === 'unread' || x.kind === 'stalled' // a link: where to act on it
+const isDecision = (x: Incident) => x.kind === 'approval' || x.kind === 'patch' || x.kind === 'unread' || x.kind === 'stalled' || x.kind === 'retrying' // a link: where to act on it
 const runsQuery = (x: Incident) => ({
   jobs: `project=${x.project_id}&status=failed&since=24h&limit=30`,
   automation: `origin_id=${x.id}&limit=20`,
@@ -128,7 +131,7 @@ const canRetry = (k: string) => ['monitor', 'process', 'automation', 'bot', 'job
 const incIcon: Record<string, string> = {
   monitor: 'i-lucide-activity', process: 'i-lucide-square-terminal', automation: 'i-lucide-alarm-clock-off',
   bot: 'i-lucide-bot', jobs: 'i-lucide-circle-x', approval: 'i-lucide-stamp', patch: 'i-lucide-file-diff', limit: 'i-lucide-gauge', unread: 'i-lucide-message-square-dot',
-  stalled: 'i-lucide-battery-low'
+  stalled: 'i-lucide-battery-low', retrying: 'i-lucide-timer'
 }
 
 const providers = computed(() => prov.value?.providers ?? [])
@@ -202,6 +205,12 @@ const steps = computed(() => [
           <div v-if="x.kind === 'unread'" class="flex shrink-0 items-center gap-1 max-sm:w-full max-sm:ps-7">
             <UButton size="xs" color="neutral" variant="outline" icon="i-lucide-eye" :label="t('home.view')" :to="x.link" />
             <UButton size="xs" color="neutral" variant="ghost" :label="t('chat.markSeen')" :loading="acting.has(x.key + 'seen')" @click="seen(x)" />
+          </div>
+          <!-- a chat going on by itself after a passing API failure: now, or not (ADR-260) -->
+          <div v-else-if="x.kind === 'retrying'" class="flex shrink-0 items-center gap-1 max-sm:w-full max-sm:ps-7">
+            <UButton size="xs" icon="i-lucide-play" :label="t('chat.retryNow')" :loading="acting.has(x.key + 'retryNow')" @click="act(x, 'retryNow')" />
+            <UButton size="xs" color="neutral" variant="outline" icon="i-lucide-eye" :label="t('home.view')" :to="x.link" />
+            <UButton size="xs" color="neutral" variant="ghost" :label="t('chat.retryCancel')" :loading="acting.has(x.key + 'cancelRetry')" @click="act(x, 'cancelRetry')" />
           </div>
           <!-- a chat stopped for tokens: go on, or let it be (the person who sent it, or an admin) -->
           <div v-else-if="x.kind === 'stalled'" class="flex shrink-0 items-center gap-1 max-sm:w-full max-sm:ps-7">

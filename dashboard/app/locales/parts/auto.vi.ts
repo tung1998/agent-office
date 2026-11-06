@@ -419,6 +419,7 @@ export default {
   'fail.cat.needs_login': 'Cần đăng nhập',
   'fail.cat.quota': 'Hết lượt dùng',
   'fail.cat.rate_limit': 'Bị giới hạn tốc độ',
+  'fail.cat.transient': 'Lỗi API tạm thời',
   'fail.cat.budget': 'Hết ngân sách',
   'fail.cat.timeout': 'Quá thời gian',
   'fail.cat.mcp': 'MCP',

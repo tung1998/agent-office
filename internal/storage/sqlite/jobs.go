@@ -16,20 +16,20 @@ type jobRepo struct{ db dbtx }
 
 const jobCols = `id, project_id, kind, origin, origin_id, trigger, created_by, conversation_id, message_id, task_id, status, error, error_code,
 	agent_id, title, cost_usd, input_tokens, output_tokens, duration_ms, dedupe_key, debounce_key, debounce_until, payload, reply,
-	next_attempt_at, created_at, started_at, finished_at, output, exit_code, parent_job_id, full_access, full_access_by, extra_dirs, resumes, goal_rounds`
+	next_attempt_at, created_at, started_at, finished_at, output, exit_code, parent_job_id, full_access, full_access_by, extra_dirs, resumes, goal_rounds, retry_at, retry_n`
 
 func scanJob(row scanner) (storage.Job, error) {
 	var (
-		j                                        storage.Job
-		conv, msg, task                          sql.NullString
-		debounce, next, started, finished, reply sql.NullString
-		created                                  string
-		exit                                     sql.NullInt64
-		extraDirs                                string
+		j                                               storage.Job
+		conv, msg, task                                 sql.NullString
+		debounce, next, started, finished, reply, retry sql.NullString
+		created                                         string
+		exit                                            sql.NullInt64
+		extraDirs                                       string
 	)
 	if err := row.Scan(&j.ID, &j.ProjectID, &j.Kind, &j.Origin, &j.OriginID, &j.Trigger, &j.CreatedBy, &conv, &msg, &task, &j.Status, &j.Error,
 		&j.ErrorCode, &j.AgentID, &j.Title, &j.CostUSD, &j.InputTokens, &j.OutputTokens, &j.DurationMS, &j.DedupeKey, &j.DebounceKey,
-		&debounce, &j.Payload, &reply, &next, &created, &started, &finished, &j.Output, &exit, &j.ParentJobID, &j.FullAccess, &j.FullAccessBy, &extraDirs, &j.Resumes, &j.GoalRounds); err != nil {
+		&debounce, &j.Payload, &reply, &next, &created, &started, &finished, &j.Output, &exit, &j.ParentJobID, &j.FullAccess, &j.FullAccessBy, &extraDirs, &j.Resumes, &j.GoalRounds, &retry, &j.RetryN); err != nil {
 		return j, notFound(err)
 	}
 	if exit.Valid {
@@ -50,7 +50,7 @@ func scanJob(row scanner) (storage.Job, error) {
 	for _, x := range []struct {
 		src sql.NullString
 		dst **time.Time
-	}{{debounce, &j.DebounceUntil}, {next, &j.NextAttemptAt}, {started, &j.StartedAt}, {finished, &j.FinishedAt}} {
+	}{{debounce, &j.DebounceUntil}, {next, &j.NextAttemptAt}, {started, &j.StartedAt}, {finished, &j.FinishedAt}, {retry, &j.RetryAt}} {
 		if x.src.Valid && x.src.String != "" {
 			t, err := parseTime(x.src.String)
 			if err != nil {
@@ -86,11 +86,11 @@ func (r jobRepo) Create(ctx context.Context, j storage.Job) (storage.Job, error)
 	if j.Trigger == "" {
 		j.Trigger = "ui"
 	}
-	_, err := r.db.ExecContext(ctx, `INSERT INTO jobs (`+jobCols+`) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+	_, err := r.db.ExecContext(ctx, `INSERT INTO jobs (`+jobCols+`) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 		j.ID, j.ProjectID, j.Kind, j.Origin, j.OriginID, j.Trigger, j.CreatedBy, nullStr(j.ConversationID), nullStr(j.MessageID), nullStr(j.TaskID),
 		j.Status, j.Error, j.ErrorCode, j.AgentID, j.Title, j.CostUSD, j.InputTokens, j.OutputTokens, j.DurationMS, j.DedupeKey, j.DebounceKey,
 		optTime(j.DebounceUntil), j.Payload, replyJSON(j.Reply), optTime(j.NextAttemptAt), fmtTime(j.CreatedAt), optTime(j.StartedAt), optTime(j.FinishedAt),
-		j.Output, exitArg(j.ExitCode), j.ParentJobID, j.FullAccess, j.FullAccessBy, extraDirsJSON(j.ExtraDirs), j.Resumes, j.GoalRounds)
+		j.Output, exitArg(j.ExitCode), j.ParentJobID, j.FullAccess, j.FullAccessBy, extraDirsJSON(j.ExtraDirs), j.Resumes, j.GoalRounds, optTime(j.RetryAt), j.RetryN)
 	if isUnique(err) {
 		return j, storage.ErrConflict
 	}
@@ -515,6 +515,37 @@ func (r jobRepo) Requeue(ctx context.Context, id, errCode string, limit int, at 
 		return storage.Job{}, storage.ErrConflict
 	}
 	return r.Get(ctx, id)
+}
+
+func (r jobRepo) SetRetry(ctx context.Context, id string, at *time.Time, n int) error {
+	_, err := r.db.ExecContext(ctx, `UPDATE jobs SET retry_at=?, retry_n=? WHERE id=?`, optTime(at), n, id)
+	return err
+}
+
+func (r jobRepo) ClearRetry(ctx context.Context, id string) (bool, error) {
+	res, err := r.db.ExecContext(ctx, `UPDATE jobs SET retry_at=NULL WHERE id=? AND retry_at IS NOT NULL`, id)
+	if err != nil {
+		return false, err
+	}
+	n, _ := res.RowsAffected()
+	return n > 0, nil
+}
+
+func (r jobRepo) Retries(ctx context.Context) ([]storage.Job, error) {
+	rows, err := r.db.QueryContext(ctx, `SELECT `+jobCols+` FROM jobs WHERE retry_at IS NOT NULL AND status='failed' ORDER BY retry_at`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []storage.Job{}
+	for rows.Next() {
+		j, err := scanJob(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, j)
+	}
+	return out, rows.Err()
 }
 
 func (r jobRepo) SetGoalRounds(ctx context.Context, id string, n int) error {

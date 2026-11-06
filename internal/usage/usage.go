@@ -24,6 +24,27 @@ type Settings struct {
 	ProjectLimits map[string]float64 `json:"project_limits,omitempty"` // project id → daily USD
 	Prices        map[string]Price   `json:"prices,omitempty"`         // overrides and extra models
 	WarnRatio     float64            `json:"warn_ratio,omitempty"`     // 0: 0.8
+	// A turn that died on a passing API failure (529, 5xx, a dropped
+	// stream) goes on by itself (ADR-260): NoTransientRetry turns it off,
+	// TransientRetries is how many times in a row (0: 3, at most 5).
+	NoTransientRetry bool `json:"no_transient_retry,omitempty"`
+	TransientRetries int  `json:"transient_retries,omitempty"`
+}
+
+// DefaultTransientRetries is how many times in a row a turn cut by a passing
+// API failure goes on by itself when the settings do not say (ADR-260).
+const DefaultTransientRetries = 3
+
+// Retries is how many times in a row a turn cut by a passing API failure
+// goes on by itself: 0 when turned off.
+func (s Settings) Retries() int {
+	switch {
+	case s.NoTransientRetry:
+		return 0
+	case s.TransientRetries <= 0:
+		return DefaultTransientRetries
+	}
+	return min(s.TransientRetries, 5)
 }
 
 // BudgetError is returned when a call would go over a daily limit.
@@ -79,6 +100,9 @@ func (s *Service) loadSettings(ctx context.Context) (Settings, error) {
 func (s *Service) saveSettings(ctx context.Context, st Settings) error {
 	if st.DailyLimitUSD < 0 {
 		return fmt.Errorf("ngân sách không được âm")
+	}
+	if st.TransientRetries < 0 || st.TransientRetries > 5 {
+		return fmt.Errorf("số lần tự chạy tiếp phải từ 1 đến 5")
 	}
 	for k, v := range st.ProjectLimits {
 		if v <= 0 {

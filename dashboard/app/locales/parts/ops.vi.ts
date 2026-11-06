@@ -218,6 +218,8 @@ export default {
   'bell.act.reject': 'Bỏ qua',
   'bell.act.seen': 'Đã xem',
   'bell.act.continue': 'Tiếp tục',
+  'bell.act.retryNow': 'Chạy ngay',
+  'bell.act.cancelRetry': 'Thôi',
   'bell.act.dismiss': 'Ẩn',
   'bell.act.open': 'Mở',
   'bell.files': '{n} file: {list}…',

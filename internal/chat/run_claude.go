@@ -22,6 +22,7 @@ import (
 	"github.com/tung1998/agent-office/internal/mcpserver"
 	"github.com/tung1998/agent-office/internal/officetools"
 	"github.com/tung1998/agent-office/internal/proctrack"
+	"github.com/tung1998/agent-office/internal/prompts"
 	"github.com/tung1998/agent-office/internal/storage"
 )
 
@@ -203,7 +204,35 @@ func (r claudeRunner) Run(ctx context.Context, req RunRequest, emit func(Event))
 		req.SessionID = ""
 		return r.run(ctx, req, emit, false)
 	}
+	if err != nil && res.SessionID != "" && res.Text == "" && Transient(err) {
+		return r.goOn(ctx, req, emit, res, err)
+	}
 	return res, err
+}
+
+// goOn runs once more, in its session, a turn the CLI gave up on a passing API
+// failure (a 529, a 5xx, a dropped stream), a while later: what it did stays
+// in the session and it is told to go on from there (ADR-260). Still failing,
+// the first error stands for the turn, to be put back later as a whole.
+func (r claudeRunner) goOn(ctx context.Context, req RunRequest, emit func(Event), first RunResult, firstErr error) (RunResult, error) {
+	select {
+	case <-ctx.Done():
+		return first, firstErr
+	case <-time.After(TransientRetryDelay):
+	}
+	again := req
+	again.SessionID = first.SessionID
+	again.Prompt = prompts.Render("chat/api-resumed", map[string]any{"Error": truncate(firstErr.Error(), 300)}) + "\n\n" + req.Prompt
+	res, err := r.run(ctx, again, emit, true)
+	res.Tools = append(slices.Clip(first.Tools), res.Tools...)
+	if err != nil {
+		if res.SessionID == "" {
+			res.SessionID = first.SessionID
+		}
+		return res, err
+	}
+	res.Notice = cmp.Or(res.Notice, "⚠ Lỗi API tạm thời giữa chừng ("+truncate(firstErr.Error(), 120)+"), đã tự chạy tiếp")
+	return res, nil
 }
 
 func (r claudeRunner) run(ctx context.Context, req RunRequest, emit func(Event), resume bool) (RunResult, error) {
@@ -469,6 +498,9 @@ func (r claudeRunner) run(ctx context.Context, req RunRequest, emit func(Event),
 				why += " · bước cuối: " + truncate(lastStep, 200)
 			}
 			why += " · sau " + time.Since(start).Round(time.Second).String()
+		}
+		if lastRetry != "" { // it gave up on the API, not on the run (ADR-260)
+			return res, transientError{"claude: " + why}
 		}
 		return res, fmt.Errorf("claude: %s", why)
 	}

@@ -22,6 +22,30 @@ import (
 // run and know nothing of the versions put back. Nobody taking the request
 // means no office runs: the command then updates on its own, as before.
 
+// cliBeatEvery is how often the office following a request says it is alive;
+// cliBeatLost, how long without that before the request counts as dropped
+// (tests make them short).
+var cliBeatEvery, cliBeatLost = 30 * time.Second, 2 * time.Minute
+
+// errOfficeGone: the office that took the request went down before it ended.
+var errOfficeGone = errors.New("office đã dừng giữa lúc cập nhật CLI; mở lại office rồi xem trang Kết nối AI, hoặc chạy lại lệnh")
+
+// lastBeat is when the office following r was last known alive.
+func (r cliRequest) lastBeat() time.Time {
+	if r.Beat != nil {
+		return *r.Beat
+	}
+	if r.Taken != nil {
+		return *r.Taken
+	}
+	return r.At
+}
+
+// dropped: an office took r and has not said it is alive for cliBeatLost.
+func (r cliRequest) dropped(now time.Time) bool {
+	return r.Taken != nil && !r.Done && now.Sub(r.lastBeat()) > cliBeatLost
+}
+
 // cliRequestKey holds the requests not ended yet.
 const cliRequestKey = "system.cli_update_requests"
 
@@ -31,9 +55,12 @@ type cliRequest struct {
 	By    string   `json:"by"`
 	Now   bool     `json:"now,omitempty"` // update now, not when idle
 	At    time.Time
-	Taken *time.Time  `json:"taken,omitempty"` // office took it
-	Done  bool        `json:"done,omitempty"`  // every update ended
-	Res   []cliResult `json:"results,omitempty"`
+	Taken *time.Time `json:"taken,omitempty"` // office took it
+	// Beat: the office following it was alive then (ADR-260); none for
+	// cliBeatLost: it went down mid-update and nobody will end it
+	Beat *time.Time  `json:"beat,omitempty"`
+	Done bool        `json:"done,omitempty"` // every update ended
+	Res  []cliResult `json:"results,omitempty"`
 }
 
 // cliResult is how one CLI's update goes: State as clitools.UpgradeView's,
@@ -117,6 +144,12 @@ func requestCLIUpdate(ctx context.Context, st storage.Store, tools []string, by 
 			})
 			return r.Res, true, nil
 		}
+		if r.dropped(time.Now().UTC()) { // the office went down under it: not waited on for 14h (ADR-260)
+			_, _ = editRequests(ctx, st, func(l []cliRequest) ([]cliRequest, bool) {
+				return slices.DeleteFunc(l, func(x cliRequest) bool { return x.ID == id }), true
+			})
+			return r.Res, true, errOfficeGone
+		}
 		if r.Taken == nil && time.Since(at) >= takeWait {
 			// no office took it: taken back, unless it was taken meanwhile
 			taken := false
@@ -184,12 +217,24 @@ func (s *cliRequestServer) once(ctx context.Context) {
 		})
 		for i := range l {
 			r := &l[i]
+			if !r.Done && !s.started[r.ID] && r.Res != nil && r.dropped(now) {
+				// started by an office that went down: nobody follows it
+				// any more, so it ends here, failed, not kept for 14h (ADR-260)
+				for j := range r.Res {
+					if x := &r.Res[j]; !x.Done {
+						x.State, x.Text, x.Done = "failed", x.Tool+": office đã dừng giữa lúc cập nhật, chưa rõ kết quả", true
+					}
+				}
+				r.Done, changed = true, true
+				continue
+			}
 			if r.Done || s.started[r.ID] || r.Taken != nil && r.Res != nil {
 				continue
 			}
 			if r.Taken == nil {
 				r.Taken, changed = &now, true
 			}
+			r.Beat, changed = &now, true
 			take = append(take, *r)
 		}
 		return l, changed
@@ -212,6 +257,9 @@ func (s *cliRequestServer) once(ctx context.Context) {
 			}
 			if r.Done || r.Taken == nil || r.Res == nil || !s.started[r.ID] {
 				continue
+			}
+			if r.Beat == nil || now.Sub(*r.Beat) >= cliBeatEvery { // still followed (ADR-260)
+				r.Beat, changed = &now, true
 			}
 			done := true
 			for j := range r.Res {

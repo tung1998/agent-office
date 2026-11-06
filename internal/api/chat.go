@@ -264,7 +264,8 @@ func (s *server) getConversation(w http.ResponseWriter, r *http.Request) {
 		msgs, more = msgs[start:end], start > 0
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"conversation": s.toConvDTO(c), "messages": msgs, "has_more": more, "members": s.chatMembers(r, c.ID),
-		"running": s.cfg.Chat.Running(c.ID), "linked_pending": s.cfg.Chat.LinkedPending(r.Context(), c.ID)})
+		"running": s.cfg.Chat.Running(c.ID), "linked_pending": s.cfg.Chat.LinkedPending(r.Context(), c.ID),
+		"retry": s.cfg.Chat.PlannedRetry(r.Context(), c.ID)})
 }
 
 // chatMembers: the agents in a chat (ADR-044), with their rights and context.

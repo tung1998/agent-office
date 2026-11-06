@@ -22,6 +22,7 @@ var ErrStopping = errors.New("office đang khởi động lại, gửi lại sau
 // steps running (ResumeWorkflows).
 func (e *Engine) Shutdown(wait time.Duration) {
 	e.stopping.Store(true)
+	e.retries.stopAll() // planned retries stay on their jobs: the next office arms them (ADR-260)
 	e.mu.Lock()
 	turns := make([]*Turn, 0, len(e.active)+len(e.bg))
 	for _, t := range e.active {
