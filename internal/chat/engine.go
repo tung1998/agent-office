@@ -859,7 +859,9 @@ func (e *Engine) SendWithContext(ctx context.Context, conversationID, text, page
 	if conv.Cleaned != "" {
 		return nil, storage.Message{}, ErrCleaned
 	}
-	e.dropRetries(ctx, conv.ID) // what is written now comes first (ADR-260)
+	if !strings.Contains(pageContext, `"`+relayKey+`"`) { // what the person writes now comes first (ADR-260); a message relayed from another chat does not call it off (ADR-261)
+		e.dropRetries(ctx, conv.ID)
+	}
 	project, err := e.store.Repos().Get(ctx, conv.ProjectID)
 	if err != nil {
 		return nil, storage.Message{}, err

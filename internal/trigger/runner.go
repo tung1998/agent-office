@@ -1,16 +1,18 @@
 package trigger
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
-	"github.com/tung1998/agent-office/internal/errdigest"
+	"fmt"
 	"strings"
 	"sync"
 	"time"
 	"unicode/utf8"
 
 	"github.com/tung1998/agent-office/internal/actor"
+	"github.com/tung1998/agent-office/internal/errdigest"
 	"github.com/tung1998/agent-office/internal/perm"
 	"github.com/tung1998/agent-office/internal/proctrack"
 	"github.com/tung1998/agent-office/internal/prompts"
@@ -550,6 +552,9 @@ func (r *Runner) execute(ctx context.Context, j storage.Job) {
 	if c := resumeIn(a, j); c != "" { // cut off by a restart: it goes on where it was (ADR-257)
 		conv, prompt = c, resumedPrompt(j)
 	}
+	if j.RetryAt != nil { // the mark of a put back for a passing failure goes once it runs (ADR-261)
+		_ = r.store.Jobs().SetRetry(ctx, j.ID, nil, j.RetryN)
+	}
 	if fromChannel { // the files sent with the message go to the agent with it
 		actx = WithAttachments(actx, channelPayloadOf(origin).Attachments)
 		actx = WithSender(actx, channelPayloadOf(origin).Sender)
@@ -574,6 +579,9 @@ func (r *Runner) execute(ctx context.Context, j storage.Job) {
 	}
 	var got string
 	got, text, err = r.exec.RunChat(actx, a.ProjectID, agentID, conv, prompt, a.EditMode)
+	if fromChannel && j.ParentJobID == "" { // a bot's message: tried once more now, while its person waits (ADR-261)
+		got, text, err = r.channelGoOn(ctx, actx, a, origin, agentID, cmp.Or(got, conv), got, text, err)
+	}
 	if err == nil && a.Config.Goal.On() && j.ParentJobID == "" { // until its goal is reached (ADR-132)
 		var g goalRun
 		got, text, g, err = r.pursue(ctx, WithSender(actx, nil), a, j, got, text, now, loc) // its prompts are office's, not the person's
@@ -646,6 +654,38 @@ func (r *Runner) settle(ctx context.Context, j storage.Job, err error) {
 		return
 	}
 	_, _ = r.store.Jobs().Finish(ctx, j.ID, "done", "", "", r.now().UTC())
+}
+
+// ChannelTransientWait is how long a bot's run cut by a passing API failure
+// waits before it goes on once in its chat (tests make it short).
+var ChannelTransientWait = 30 * time.Second
+
+// channelGoOn: a bot's run that died on a passing failure of the AI service
+// (a 5xx, a dropped stream) is not put back for minutes, as other runs are:
+// its person is waiting in the bot chat. They are told, and it goes on once
+// in its chat a little later (ADR-261); still failing, its error is the
+// answer as before, saying it was tried again.
+func (r *Runner) channelGoOn(ctx, actx context.Context, a storage.Automation, origin storage.Job, agentID, conv, got, text string, err error) (string, string, error) {
+	if err == nil || conv == "" || actx.Err() != nil || !errdigest.TransientText(err.Error()) {
+		return got, text, err
+	}
+	if st, _ := usage.New(r.store, nil).Settings(ctx); st.Retries() == 0 {
+		return got, text, err
+	}
+	if r.onReply != nil { // not final: the answer still follows
+		r.onReply(context.WithoutCancel(ctx), origin, prompts.Render("trigger/bot-api-wait", map[string]any{
+			"Error": truncateBytes(err.Error(), 200), "Seconds": int(ChannelTransientWait.Round(time.Second) / time.Second)}), nil, false)
+	}
+	select {
+	case <-actx.Done():
+		return got, text, err
+	case <-time.After(ChannelTransientWait):
+	}
+	got2, text2, err2 := r.exec.RunChat(actx, a.ProjectID, agentID, conv, prompts.Render("trigger/api-resumed", nil), a.EditMode)
+	if err2 != nil {
+		return cmp.Or(got2, got), text2, fmt.Errorf("%w (đã tự thử lại một lần)", err2)
+	}
+	return cmp.Or(got2, got), text2, nil
 }
 
 const defaultPrompt = "Automation {{automation}} ({{source}})."

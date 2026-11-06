@@ -143,6 +143,11 @@ func geminiPrompt(prompt string, files []attach.File) (string, []string) {
 
 func (r geminiRunner) Run(ctx context.Context, req RunRequest, emit func(Event)) (RunResult, error) {
 	res, err := r.run(ctx, req, emit)
+	// a passing API failure (a 5xx, a reset connection) after its session
+	// began: it goes on in it once, a while later, not afresh (ADR-261)
+	if why := passingCut(ctx, res, err); why != nil {
+		return goOnInSession(ctx, req, emit, res, err, why, func(q RunRequest, em func(Event)) (RunResult, error) { return r.run(ctx, q, em) })
+	}
 	// a session Gemini no longer has: start over with the transcript
 	if err != nil && req.SessionID != "" && res.Text == "" {
 		req.SessionID = ""

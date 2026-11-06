@@ -222,3 +222,72 @@ func TestTransientGivesUpAfterMax(t *testing.T) {
 		t.Fatalf("planned while off: %+v", p)
 	}
 }
+
+// A message another chat relayed in (send_to_chat) called the planned retry
+// off as if the person wrote it, and the turn it started made the plan look
+// gone on: the cut work never went on. It stays planned (ADR-261).
+func TestRelayKeepsPlannedRetry(t *testing.T) {
+	shortRetries(t, time.Hour)
+	f, _ := flakyFixture(t, 2)
+	ctx := actor.With(context.Background(), "human:a@b.c")
+	conv, _ := f.engine.StartConversation(ctx, f.project.ID, "")
+	first, _, _ := f.engine.Send(ctx, conv.ID, "sửa lỗi", nil)
+	collect(t, first)
+	planned := f.engine.PlannedRetry(ctx, conv.ID)
+	if planned == nil {
+		t.Fatal("not planned")
+	}
+	from, _ := f.engine.StartConversation(ctx, f.project.ID, "")
+	now := time.Now().UTC()
+	job, _ := f.st.Jobs().Create(ctx, storage.Job{ProjectID: f.project.ID, Kind: "chat_turn", Origin: "user", CreatedBy: "human:a@b.c", ConversationID: from.ID, Status: "running", StartedAt: &now})
+	a := storage.Action{ProjectID: f.project.ID, ConversationID: from.ID, JobID: job.ID, Kind: "send_message", TargetID: conv.ID, ProposedBy: "Trợ lý",
+		Args: storage.ActionArgs{Message: "Báo thêm: lỗi giỏ hàng"}}
+	if _, _, err := f.engine.Relay(ctx, a); err != nil {
+		t.Fatal(err)
+	}
+	waitJobs(t, f, conv.ID, 2)
+	if p := f.engine.PlannedRetry(ctx, conv.ID); p == nil || p.JobID != planned.JobID {
+		t.Fatalf("plan after a relayed message: %+v", p)
+	}
+	if _, err := f.engine.RetryNow(ctx, planned.JobID); err != nil {
+		t.Fatalf("retry after a relayed turn: %v", err)
+	}
+	if j := waitJobs(t, f, conv.ID, 3); j.Status != "done" {
+		t.Fatalf("went on: %+v", j)
+	}
+}
+
+// A planned retry that comes due starts its turn where an open chat sees it:
+// the chat's row is pushed with the answer running (ADR-261).
+func TestTimedRetryEmitsLiveTurn(t *testing.T) {
+	shortRetries(t, 200*time.Millisecond)
+	f, _ := flakyFixture(t, 2)
+	ctx := actor.With(context.Background(), "human:a@b.c")
+	conv, _ := f.engine.StartConversation(ctx, f.project.ID, "")
+	seen := make(chan int, 64)
+	f.engine.SetOnRunning(func(id string) {
+		if id == conv.ID {
+			seen <- len(f.engine.Running(conv.ID))
+		}
+	})
+	first, _, _ := f.engine.Send(ctx, conv.ID, "sửa lỗi", nil)
+	collect(t, first)
+	if f.engine.PlannedRetry(ctx, conv.ID) == nil {
+		t.Fatal("not planned")
+	}
+	for len(seen) > 0 {
+		<-seen
+	}
+	deadline := time.After(5 * time.Second)
+	for {
+		select {
+		case n := <-seen:
+			if n > 0 {
+				waitJobs(t, f, conv.ID, 2)
+				return
+			}
+		case <-deadline:
+			t.Fatal("no live push with the turn running when the plan came due")
+		}
+	}
+}

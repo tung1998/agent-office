@@ -47,11 +47,17 @@ func TestRetryingChat(t *testing.T) {
 	if r, _ := conv["retry"].(map[string]any); r == nil || r["job_id"] != j.ID || r["n"] != float64(2) || r["max"] != float64(3) {
 		t.Fatalf("retry = %v", conv["retry"])
 	}
+	if _, b := do(t, admin, "GET", e.srv.URL+"/api/conversations/"+c.ID+"/retry", nil, nil); b["retry"] == nil {
+		t.Fatalf("GET retry = %v", b)
+	}
 	if res, _ := do(t, admin, "DELETE", e.srv.URL+"/api/conversations/"+c.ID+"/retry", nil, nil); res.StatusCode != http.StatusOK {
 		t.Fatalf("cancel: %d", res.StatusCode)
 	}
 	if _, ok := kinds()["retrying"]; ok {
 		t.Fatal("still retrying after Thôi")
+	}
+	if res, b := do(t, admin, "GET", e.srv.URL+"/api/conversations/"+c.ID+"/retry", nil, nil); res.StatusCode != http.StatusOK || b["retry"] != nil {
+		t.Fatalf("GET retry after Thôi: %d %v", res.StatusCode, b)
 	}
 	if res, _ := do(t, admin, "POST", e.srv.URL+"/api/conversations/"+c.ID+"/retry-now", nil, nil); res.StatusCode != http.StatusNotFound {
 		t.Fatalf("retry-now with nothing planned: %d", res.StatusCode)

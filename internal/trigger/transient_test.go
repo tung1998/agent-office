@@ -136,3 +136,126 @@ func TestAutomationTransientSameAsChat(t *testing.T) {
 		}
 	}
 }
+
+// A run cut by a restart, then by a passing API failure, waited as if on its
+// second passing failure (10m, not 2m), and its restarts used up its tries;
+// put back for a restart after that, it was told it failed on the API. Each
+// has its own count and its own prompt (ADR-261).
+func TestAutomationTransientCountSeparateFromRestart(t *testing.T) {
+	old := trigger.TransientWaits
+	trigger.TransientWaits = []time.Duration{time.Minute, time.Hour}
+	t.Cleanup(func() { trigger.TransientWaits = old })
+	ctx := context.Background()
+	st, p := openStore(t)
+	ex := &flakyExec{fails: 100}
+	r := trigger.New(st, ex)
+	past := time.Now().UTC().Add(-time.Minute)
+	a, _ := st.Automations().Create(ctx, storage.Automation{ProjectID: p.ID, Name: "cắt", Source: "schedule", Action: "chat", Enabled: true,
+		Prompt: "x", Config: storage.AutomationConfig{EveryMinutes: 60 * 24}, NextRunAt: &past})
+	now := time.Now().UTC()
+	// office went down twice under it
+	conv := "cnv_t"
+	j, _ := st.Jobs().Create(ctx, storage.Job{ProjectID: p.ID, Kind: "chat_turn", Origin: "automation", OriginID: a.ID, Trigger: "schedule", ConversationID: conv, Status: "running", StartedAt: &now})
+	for range 2 {
+		_, _ = st.Jobs().Finish(ctx, j.ID, "failed", "restart", "office khởi động lại", now)
+		if back := trigger.RequeueCut(ctx, st, []storage.Job{j}, now); len(back) != 1 {
+			t.Fatal("not put back after a restart")
+		}
+		j, _ = st.Jobs().Get(ctx, j.ID)
+		j.Status = "running"
+		_ = st.Jobs().Update(ctx, j)
+	}
+	j.Status = "pending"
+	_ = st.Jobs().Update(ctx, j)
+	r.StartReady(ctx, now)
+	r.Wait()
+	got, _ := st.Jobs().Get(ctx, j.ID)
+	if got.Status != "pending" || got.RetryN != 1 || got.NextAttemptAt == nil || got.NextAttemptAt.After(now.Add(5*time.Minute)) {
+		t.Fatalf("first passing failure after 2 restarts: %s retry_n=%d next=%v", got.Status, got.RetryN, got.NextAttemptAt)
+	}
+	if !strings.Contains(ex.prompts[0], "Office restarted") {
+		t.Fatalf("after a restart it was told of an API failure: %q", ex.prompts[0])
+	}
+	// it goes on, told of the API failure, and fails again: second wait
+	r.StartReady(ctx, now.Add(2*time.Minute))
+	r.Wait()
+	if !strings.Contains(ex.prompts[1], "passing error") {
+		t.Fatalf("prompt after a passing failure: %q", ex.prompts[1])
+	}
+	got, _ = st.Jobs().Get(ctx, j.ID)
+	if got.Status != "pending" || got.RetryN != 2 || got.RetryAt == nil {
+		t.Fatalf("second: %+v", got)
+	}
+	// office goes down while it runs: a restart, with its own count left
+	got.Status = "running"
+	_ = st.Jobs().Update(ctx, got)
+	_, _ = st.Jobs().Finish(ctx, j.ID, "failed", "restart", "office khởi động lại", now)
+	got, _ = st.Jobs().Get(ctx, j.ID)
+	if back := trigger.RequeueCut(ctx, st, []storage.Job{got}, now); len(back) != 1 || back[0].RetryAt != nil {
+		t.Fatalf("third restart after 2 passing failures: %+v", back)
+	}
+	r.StartReady(ctx, now.Add(3*time.Hour))
+	r.Wait()
+	if strings.Contains(ex.prompts[2], "passing error") {
+		t.Fatalf("a restart told as an API failure: %q", ex.prompts[2])
+	}
+}
+
+func shortChannelWait(t *testing.T) {
+	old := trigger.ChannelTransientWait
+	trigger.ChannelTransientWait = 20 * time.Millisecond
+	t.Cleanup(func() { trigger.ChannelTransientWait = old })
+}
+
+// A bot's message whose run the AI service failed under (a 503) was
+// answered with the error at once: its person waits in the bot chat, so it
+// is told, and the run goes on once in its chat a little later (ADR-261).
+func TestChannelTransientRetriedOnce(t *testing.T) {
+	shortChannelWait(t)
+	st, p := openStore(t)
+	ex := &flakyExec{fails: 1, msg: "codex: unexpected status 503 Service Unavailable"}
+	r := trigger.New(st, ex)
+	rs := &replies{}
+	r.SetOnReply(rs.hook)
+	a, _ := st.Automations().Create(context.Background(), storage.Automation{ProjectID: p.ID, Name: "Trả lời", Source: "telegram", Action: "chat", Enabled: true,
+		Config: storage.AutomationConfig{ChannelID: "chn_1"}})
+	runChannel(t, r, st, a, channelPayload("cnv_thread"))
+	if len(ex.prompts) != 2 || ex.convs[1] != "cnv_t" || !strings.Contains(ex.prompts[1], "passing error") {
+		t.Fatalf("convs = %q prompts = %q", ex.convs, ex.prompts)
+	}
+	if len(rs.got) != 2 || rs.got[0].final || !strings.Contains(rs.got[0].text, "thử lại") || rs.got[1] != (reply{"42", "xong", nil, true}) {
+		t.Fatalf("replies = %+v", rs.got)
+	}
+	if jobs, _ := st.Jobs().List(context.Background(), storage.JobFilter{OriginID: a.ID}); len(jobs) != 1 || jobs[0].Status != "done" {
+		t.Fatalf("jobs = %+v", jobs)
+	}
+}
+
+// Still failing, the error is the answer, saying it was tried again; an
+// error the person must act on (quota) is answered at once, not retried.
+func TestChannelTransientTellsWhenGivingUp(t *testing.T) {
+	shortChannelWait(t)
+	st, p := openStore(t)
+	for _, c := range []struct {
+		msg  string
+		runs int
+	}{
+		{"codex: unexpected status 503 Service Unavailable", 2},
+		{"codex: You've hit your usage limit", 1},
+	} {
+		ex := &flakyExec{fails: 100, msg: c.msg}
+		r := trigger.New(st, ex)
+		rs := &replies{}
+		r.SetOnReply(rs.hook)
+		a, _ := st.Automations().Create(context.Background(), storage.Automation{ProjectID: p.ID, Name: c.msg, Source: "telegram", Action: "chat", Enabled: true,
+			Config: storage.AutomationConfig{ChannelID: "chn_1"}})
+		runChannel(t, r, st, a, channelPayload("cnv_thread"))
+		last := rs.got[len(rs.got)-1]
+		if len(ex.prompts) != c.runs || !last.final || last.err == nil || (c.runs == 2) != strings.Contains(last.err.Error(), "thử lại") {
+			t.Fatalf("%q: runs = %d replies = %+v", c.msg, len(ex.prompts), rs.got)
+		}
+		if jobs, _ := st.Jobs().List(context.Background(), storage.JobFilter{OriginID: a.ID}); len(jobs) != 1 || jobs[0].Status != "failed" {
+			t.Fatalf("%q: jobs = %+v", c.msg, jobs)
+		}
+	}
+}

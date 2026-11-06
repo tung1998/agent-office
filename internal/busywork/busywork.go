@@ -175,7 +175,7 @@ func (c Counter) Count(ctx context.Context) Report {
 // goesOn: an automation's run office would put back after a restart
 // (ADR-257, as trigger.RequeueCut decides).
 func (c Counter) goesOn(ctx context.Context, j storage.Job) bool {
-	if j.Origin != "automation" || j.ParentJobID != "" || j.Resumes >= storage.MaxJobResumes || (j.Kind != "chat_turn" && j.Kind != "script") {
+	if j.Origin != "automation" || j.ParentJobID != "" || j.Resumes-j.RetryN >= storage.MaxJobResumes || (j.Kind != "chat_turn" && j.Kind != "script") {
 		return false
 	}
 	a, err := c.Store.Automations().Get(ctx, j.OriginID)

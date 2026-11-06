@@ -160,9 +160,8 @@ func (e *Engine) RetryNow(ctx context.Context, jobID string) (*Turn, error) {
 		return nil, err
 	}
 	defer e.running(j.ConversationID)
-	if last, err := e.store.Jobs().List(ctx, storage.JobFilter{ConversationID: j.ConversationID, Limit: 1}); err != nil || len(last) == 0 || last[0].ID != j.ID {
-		return nil, ErrNoRetry // gone on since
-	}
+	// the person writing in the chat since called the plan off (dropRetries);
+	// a turn another chat relayed in meanwhile does not (ADR-261)
 	conv, err := e.store.Chat().GetConversation(ctx, j.ConversationID)
 	if err != nil || !retryable(j, conv) {
 		return nil, ErrNoRetry
@@ -217,14 +216,19 @@ func (e *Engine) dropRetries(ctx context.Context, conversationID string) {
 	}
 }
 
-// PlannedRetry is the retry planned for a chat's last turn, if any.
+// PlannedRetry is the retry planned for one of a chat's latest turns, if any.
 func (e *Engine) PlannedRetry(ctx context.Context, conversationID string) *Retry {
-	last, err := e.store.Jobs().List(ctx, storage.JobFilter{ConversationID: conversationID, Limit: 1})
-	if err != nil || len(last) == 0 || last[0].RetryAt == nil {
+	// not only the last turn: one relayed in since keeps it (ADR-261)
+	jobs, err := e.store.Jobs().List(ctx, storage.JobFilter{ConversationID: conversationID, Kind: "chat_turn", Status: "failed", Limit: 5})
+	if err != nil {
 		return nil
 	}
-	j := last[0]
-	return &Retry{JobID: j.ID, At: *j.RetryAt, N: j.RetryN, Max: max(e.maxRetries(ctx), j.RetryN)}
+	for _, j := range jobs {
+		if j.RetryAt != nil {
+			return &Retry{JobID: j.ID, At: *j.RetryAt, N: j.RetryN, Max: max(e.maxRetries(ctx), j.RetryN)}
+		}
+	}
+	return nil
 }
 
 // ResumeRetries arms again the retries planned before office went down; one

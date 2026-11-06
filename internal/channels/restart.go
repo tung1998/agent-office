@@ -33,7 +33,7 @@ func (m *Manager) TellCut(jobs []storage.Job) int {
 			continue
 		}
 		text := CutNotice
-		if j.Resumes >= storage.MaxJobResumes {
+		if j.Resumes-j.RetryN >= storage.MaxJobResumes {
 			text = CutNoticeOver
 		}
 		m.mu.Lock()

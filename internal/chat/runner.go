@@ -186,6 +186,9 @@ type RunResult struct {
 	// writing it): a person's chat shows it under the answer; a workflow
 	// role, a Burn task or a tool reads Text alone, its VERDICT line last.
 	Notice string
+	// cutBy is why the CLI stopped writing an answer it had begun (Codex's
+	// turn.failed after a message): the run returns no error, its text kept.
+	cutBy string
 }
 
 // answerContent is the stored answer: in a person's own chat (plain) the

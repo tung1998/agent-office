@@ -280,6 +280,7 @@ onLiveEvent<{ conversation: Conversation }>('conversation', ({ conversation: c }
   if (current.value?.id === c.id) {
     current.value = { ...current.value, ...c }
     if (c.active_turn && !streaming.value) follow(c.active_turn) // an answer started elsewhere (a bot's message here)
+    else if (!c.active_turn && !streaming.value && !sending.value) refreshRetry(c.id) // planned, run or called off elsewhere (ADR-261)
   }
   const list = convData.value?.conversations
   if (!list || single.value) return
@@ -376,7 +377,6 @@ async function afterTurn() {
     const res = await $fetch<{ conversation: Conversation, members?: Member[], running?: RunningTurn[], linked_pending?: LinkedPending[], retry?: PlannedRetry | null }>(`/api/conversations/${id}`)
     if (current.value?.id !== id) return
     linkedPending.value = res.linked_pending ?? []
-  retry.value = res.retry ?? null
     retry.value = res.retry ?? null
     current.value = { ...current.value, context_tokens: res.conversation.context_tokens, context_window: res.conversation.context_window }
     applyGroup(res.members, res.running)
@@ -395,6 +395,14 @@ interface PlannedRetry { job_id: string, at: string, n: number, max: number }
 const retry = ref<PlannedRetry | null>(null)
 const retryActing = ref<'' | 'now' | 'cancel'>('')
 const retryAt = computed(() => retry.value ? new Date(retry.value.at).toLocaleTimeString(dateLocale.value, { hour: '2-digit', minute: '2-digit' }) : '')
+// the plan as the server has it now: the row changes when it is planned, run
+// or called off from the overview or the bell, which this chat did not do
+async function refreshRetry(id: string) {
+  try {
+    const res = await $fetch<{ retry: PlannedRetry | null }>(`/api/conversations/${id}/retry`)
+    if (current.value?.id === id) retry.value = res.retry ?? null
+  } catch { /* gone, or offline: the next change tries again */ }
+}
 async function retryNow() {
   const c = current.value
   if (!c) return

@@ -30,10 +30,16 @@ func RequeueCut(ctx context.Context, st storage.Store, jobs []storage.Job, now t
 		if err != nil || !a.ResumesOnRestart() {
 			continue
 		}
-		back, err := st.Jobs().Requeue(ctx, j.ID, "restart", storage.MaxJobResumes, now)
+		// its restarts alone count against the cap: the times a passing API
+		// failure put it back (RetryN) have a count of their own (ADR-261)
+		back, err := st.Jobs().Requeue(ctx, j.ID, "restart", storage.MaxJobResumes+j.RetryN, now)
 		if err != nil { // put back too often (it keeps bringing office down), or not cut
 			slog.Info("trigger: cut run not put back", "job", j.ID, "resumes", j.Resumes, "err", err)
 			continue
+		}
+		if back.RetryAt != nil { // put back last for a restart, not a passing failure
+			_ = st.Jobs().SetRetry(ctx, back.ID, nil, back.RetryN)
+			back.RetryAt = nil
 		}
 		out = append(out, back)
 	}
@@ -52,9 +58,9 @@ func resumeIn(a storage.Automation, j storage.Job) string {
 }
 
 // resumedPrompt is what a run going on in its chat is sent: put back last for
-// a passing API failure (RetryN marks it) or for a restart.
+// a passing API failure (RetryAt marks it while it waits) or for a restart.
 func resumedPrompt(j storage.Job) string {
-	if j.RetryN > 0 && j.RetryN == j.Resumes {
+	if j.RetryAt != nil {
 		return prompts.Render("trigger/api-resumed", nil)
 	}
 	return prompts.Render("trigger/resumed", nil)
@@ -81,6 +87,8 @@ func (r *Runner) requeueTransient(ctx context.Context, a storage.Automation, j s
 		return false
 	}
 	st, _ := usage.New(r.store, nil).Settings(ctx)
+	// its own count (RetryN), not its restarts': a run cut by a restart once
+	// still has all its tries, starting from the shortest wait (ADR-261)
 	limit := min(st.Retries(), storage.MaxJobResumes)
 	if cur.ConversationID == "" && conv != "" { // where it goes on
 		cur.ConversationID = conv
@@ -88,16 +96,19 @@ func (r *Runner) requeueTransient(ctx context.Context, a storage.Automation, j s
 			return false
 		}
 	}
-	if cur.ConversationID == "" || limit == 0 {
-		return false
-	}
-	wait := TransientWaits[min(cur.Resumes, len(TransientWaits)-1)]
-	back, err := r.store.Jobs().Requeue(ctx, j.ID, TransientCode, limit, r.now().UTC().Add(wait))
-	if err != nil {
+	if cur.ConversationID == "" || limit == 0 || cur.RetryN >= limit {
 		return false // put back too often: it fails as before
 	}
-	_ = r.store.Jobs().SetRetry(ctx, back.ID, nil, back.Resumes)
-	slog.Info("trigger: run put back after a passing API failure", "job", j.ID, "wait", wait, "resumes", back.Resumes)
+	wait := TransientWaits[min(cur.RetryN, len(TransientWaits)-1)]
+	at := r.now().UTC().Add(wait)
+	back, err := r.store.Jobs().Requeue(ctx, j.ID, TransientCode, cur.Resumes+1, at)
+	if err != nil {
+		return false
+	}
+	// retry_at marks it put back for a passing failure until it runs
+	// (resumedPrompt); retry_n counts these puts alone
+	_ = r.store.Jobs().SetRetry(ctx, back.ID, &at, cur.RetryN+1)
+	slog.Info("trigger: run put back after a passing API failure", "job", j.ID, "wait", wait, "tries", cur.RetryN+1)
 	return true
 }
 

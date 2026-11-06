@@ -130,6 +130,13 @@ func (s *server) retryNow(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// plannedRetry is a chat's planned go-on, or null: an open chat reads it
+// again when its row changes (called off or run from the overview or the
+// bell, planned for a turn it was not following; ADR-261).
+func (s *server) plannedRetry(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, http.StatusOK, map[string]any{"retry": s.cfg.Chat.PlannedRetry(r.Context(), r.PathValue("id"))})
+}
+
 // cancelRetry calls a chat's planned go-on off.
 func (s *server) cancelRetry(w http.ResponseWriter, r *http.Request) {
 	p := s.cfg.Chat.PlannedRetry(r.Context(), r.PathValue("id"))

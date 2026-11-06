@@ -79,6 +79,11 @@ func (r codexRunner) Run(ctx context.Context, req RunRequest, emit func(Event)) 
 		req.SessionID = ""
 		return r.run(ctx, req, emit)
 	}
+	// a passing API failure (a 503, a dropped stream) it died or stopped
+	// writing on: it goes on in its thread once, a while later (ADR-261)
+	if why := passingCut(ctx, res, err); why != nil {
+		return goOnInSession(ctx, req, emit, res, err, why, func(q RunRequest, em func(Event)) (RunResult, error) { return r.run(ctx, q, em) })
+	}
 	return res, err
 }
 
@@ -232,7 +237,7 @@ func (codexRunner) run(ctx context.Context, req RunRequest, emit func(Event)) (R
 		// holds the connection back until its reset. An "error" event alone
 		// is a reconnect ("Reconnecting... 1/5") Codex got over.
 		if msg := llm.CodexFailure(strings.Join(turnFailed, "\n")); msg != "" {
-			res.Notice = codexCutNote(truncate(msg, 300))
+			res.Notice, res.cutBy = codexCutNote(truncate(msg, 300)), msg
 			emit(Event{Type: "status", Text: res.Notice})
 			if l := limitsFromError(res.Limits, errors.New(msg), time.Now()); l != nil {
 				res.Limits = l
