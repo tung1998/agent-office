@@ -7,9 +7,11 @@
 //   - multica-ai/andrej-karpathy-skills (MIT, declared in README only, no
 //     LICENSE file in the repo): skills/karpathy-guidelines
 //   - anthropics/skills: only the Apache-2.0 skills (each one's own
-//     LICENSE.txt); not imported: skills/docx, skills/pdf, skills/pptx,
-//     skills/xlsx (license: Proprietary, source-available only) and
-//     skills/doc-coauthoring (no license field, no LICENSE.txt)
+//     LICENSE.txt); not imported: skills/doc-coauthoring (no license field,
+//     no LICENSE.txt). docx/pdf/pptx/xlsx were Proprietary (source-available
+//     only) at the first pin (ca45fc4); upstream moved them to Apache-2.0 on
+//     2026-11-06 (anthropics/skills#2146) and the pin was bumped to 2c5958e
+//     to pick them up.
 //   - nextlevelbuilder/ui-ux-pro-max-skill (MIT): .claude/skills/*
 //   - addyosmani/agent-skills (MIT): skills/*
 //   - Leonxlnx/taste-skill (MIT): skills/taste-skill
@@ -74,11 +76,9 @@ const SOURCES = [
     dirs: { skills: 'process' } },
   { repo: 'multica-ai/andrej-karpathy-skills', sha: '2c606141936f1eeef17fa3043a72095b4765b9c2', tag: 'karpathy-skills',
     dirs: { skills: 'development' } },
-  { repo: 'anthropics/skills', sha: 'ca45fc496a3436251f191354091d557da31c15b5', tag: 'anthropic-skills',
+  { repo: 'anthropics/skills', sha: '2c5958ecac7cee2b583967a2c4981d0f4a75c579', tag: 'anthropic-skills',
     dirs: { skills: 'development' },
     exclude: {
-      docx: 'license: Proprietary (source-available only)', pdf: 'license: Proprietary (source-available only)',
-      pptx: 'license: Proprietary (source-available only)', xlsx: 'license: Proprietary (source-available only)',
       'doc-coauthoring': 'no license field, no LICENSE.txt'
     } },
   { repo: 'nextlevelbuilder/ui-ux-pro-max-skill', sha: 'b7d5353e0130feb8c5574ef1251f8a1db1873ccb', tag: 'ui-ux-pro-max',
