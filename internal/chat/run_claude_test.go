@@ -307,6 +307,44 @@ exit 1
 	}
 }
 
+// A CLI that exits 1 with no result, nothing on stderr and only events on
+// stdout (a long run that dies after the API kept failing): the API error it
+// last retried on and the step it was at are the reason, not a bare "exit
+// status 1" (the daily upgrade of 2026-11-06 died so, 17 minutes in).
+func TestClaudeExitSaysWhatItWasDoing(t *testing.T) {
+	dir := t.TempDir()
+	bin := filepath.Join(dir, "claude")
+	script := `#!/bin/sh
+if [ "$1" = auth ]; then echo '{"loggedIn":true}'; exit 0; fi
+cat >/dev/null
+echo '{"type":"system","subtype":"init","session_id":"s1"}'
+echo '{"type":"assistant","message":{"content":[{"type":"tool_use","id":"t1","name":"Bash","input":{"command":"go test ./..."}}]}}'
+echo '{"type":"system","subtype":"api_retry","attempt":3,"max_retries":10,"retry_delay_ms":4000,"error_status":529,"error":"overloaded_error"}'
+echo '{"type":"system","subtype":"api_retry","attempt":10,"max_retries":10,"retry_delay_ms":4000,"error_status":529,"error":"overloaded_error"}'
+exit 1
+`
+	fakebin.Write(bin, []byte(script))
+	_, err := claudeRunner{}.Run(context.Background(), RunRequest{Bin: bin, WorkDir: dir, Prompt: "hi"}, func(Event) {})
+	if err == nil || !strings.Contains(err.Error(), "529") || !strings.Contains(err.Error(), "overloaded_error") ||
+		!strings.Contains(err.Error(), "10/10") || !strings.Contains(err.Error(), "go test") || !strings.Contains(err.Error(), "exit status 1") {
+		t.Fatalf("err = %v", err)
+	}
+
+	// no retry, only a step: the step is said
+	script = `#!/bin/sh
+if [ "$1" = auth ]; then echo '{"loggedIn":true}'; exit 0; fi
+cat >/dev/null
+echo '{"type":"system","subtype":"init","session_id":"s1"}'
+echo '{"type":"assistant","message":{"content":[{"type":"tool_use","id":"t1","name":"Read","input":{"file_path":"/x/main.go"}}]}}'
+exit 1
+`
+	fakebin.Write(bin, []byte(script))
+	_, err = claudeRunner{}.Run(context.Background(), RunRequest{Bin: bin, WorkDir: dir, Prompt: "hi"}, func(Event) {})
+	if err == nil || !strings.Contains(err.Error(), "main.go") || strings.Contains(err.Error(), "API") {
+		t.Fatalf("err = %v", err)
+	}
+}
+
 func TestLineTailKeepsTheLast(t *testing.T) {
 	var tl lineTail
 	for i := range 30 {

@@ -271,6 +271,9 @@ func (r claudeRunner) run(ctx context.Context, req RunRequest, emit func(Event),
 		resErr   error
 		gotFinal bool
 		plain    lineTail // what the CLI printed that is not an event: its reason when it exits with no result
+		// with nothing printed, what it was at: the API error it last
+		// retried on and its last step
+		lastRetry, lastStep string
 	)
 	pending := map[string]int{}      // tool_use id → index in res.Tools
 	subagents := map[string]string{} // a Task call's id → the subagent's label, for the steps it takes
@@ -317,11 +320,16 @@ func (r claudeRunner) run(ctx context.Context, req RunRequest, emit func(Event),
 					IsError   bool            `json:"is_error"`
 				} `json:"content"`
 			} `json:"message"`
-			Result         string   `json:"result"`
-			Errors         []string `json:"errors"`
-			APIErrorStatus string   `json:"api_error_status"`
-			IsError        bool     `json:"is_error"`
-			TotalCostUSD   float64  `json:"total_cost_usd"`
+			// system/api_retry: the API failed and the CLI tries again
+			Attempt        int             `json:"attempt"`
+			MaxRetries     int             `json:"max_retries"`
+			ErrorStatus    json.RawMessage `json:"error_status"`
+			RetryError     json.RawMessage `json:"error"`
+			Result         string          `json:"result"`
+			Errors         []string        `json:"errors"`
+			APIErrorStatus string          `json:"api_error_status"`
+			IsError        bool            `json:"is_error"`
+			TotalCostUSD   float64         `json:"total_cost_usd"`
 			Usage          struct {
 				InputTokens         int `json:"input_tokens"`
 				OutputTokens        int `json:"output_tokens"`
@@ -337,6 +345,10 @@ func (r claudeRunner) run(ctx context.Context, req RunRequest, emit func(Event),
 			res.SessionID = ev.SessionID
 		}
 		switch ev.Type {
+		case "system":
+			if ev.Subtype == "api_retry" {
+				lastRetry = apiRetryNote(ev.ErrorStatus, ev.RetryError, ev.Attempt, ev.MaxRetries)
+			}
 		case "stream_event":
 			if ev.Event.Type == "content_block_delta" && ev.Event.Delta.Type == "text_delta" && ev.Event.Delta.Text != "" {
 				emit(Event{Type: "text", Text: ev.Event.Delta.Text})
@@ -364,6 +376,7 @@ func (r claudeRunner) run(ctx context.Context, req RunRequest, emit func(Event),
 					}
 					pending[c.ID] = len(res.Tools)
 					res.Tools = append(res.Tools, tc)
+					lastStep = tc.Summary
 					emit(Event{Type: "tool", Tool: &tc})
 				}
 			}
@@ -446,7 +459,18 @@ func (r claudeRunner) run(ctx context.Context, req RunRequest, emit func(Event),
 	case ctx.Err() != nil:
 		return res, ctx.Err()
 	case werr != nil && !gotFinal:
-		return res, fmt.Errorf("claude: %s", exitReason(stderr.String(), plain.String(), werr))
+		why := exitReason(stderr.String(), plain.String(), werr)
+		if strings.TrimSpace(stderr.String()+plain.String()) == "" {
+			// only events were printed: what it was at says more than the code
+			if lastRetry != "" {
+				why += " · lỗi API cuối: " + lastRetry
+			}
+			if lastStep != "" {
+				why += " · bước cuối: " + truncate(lastStep, 200)
+			}
+			why += " · sau " + time.Since(start).Round(time.Second).String()
+		}
+		return res, fmt.Errorf("claude: %s", why)
 	}
 	return res, nil
 }
@@ -462,6 +486,26 @@ func exitReason(stderr, stdout string, werr error) string {
 		}
 	}
 	return strings.Join(append(why, werr.Error()), " · ")
+}
+
+// apiRetryNote says an api_retry event: the API's error, which try of how
+// many ("529 overloaded_error, lần 10/10").
+func apiRetryNote(status, errv json.RawMessage, attempt, max int) string {
+	var parts []string
+	for _, raw := range []json.RawMessage{status, errv} {
+		var str string
+		if json.Unmarshal(raw, &str) == nil {
+			raw = json.RawMessage(str)
+		}
+		if v := strings.TrimSpace(string(raw)); v != "" && v != "null" {
+			parts = append(parts, truncate(v, 200))
+		}
+	}
+	note := cmp.Or(strings.Join(parts, " "), "không rõ")
+	if attempt > 0 && max > 0 {
+		note += fmt.Sprintf(", lần %d/%d", attempt, max)
+	}
+	return note
 }
 
 // syncBuffer is a bytes.Buffer safe to read while a process writes to it.

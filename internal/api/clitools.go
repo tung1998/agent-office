@@ -7,6 +7,7 @@ import (
 	"slices"
 
 	"github.com/tung1998/agent-office/internal/clitools"
+	"github.com/tung1998/agent-office/internal/limitalert"
 )
 
 // cliTools reports whether the dashboard may install/sign in CLIs, and their state.
@@ -15,11 +16,15 @@ func (s *server) cliTools(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]any{"enabled": false, "tools": []any{}})
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"enabled": true, "tools": s.cfg.CLITools.List(r.Context()), "auto_update": s.cliAuto(r)})
+	// alert_chat: a chat is picked for alerts; with none, new versions and
+	// broken installs cannot be told (ADR-259) and the card says so
+	al := limitalert.Load(r.Context(), s.cfg.Store)
+	writeJSON(w, http.StatusOK, map[string]any{"enabled": true, "tools": s.cfg.CLITools.List(r.Context()), "auto_update": s.cliAuto(r),
+		"alert_chat": al.ChannelID != "" && al.ChatID != ""})
 }
 
-// cliAuto is how office keeps the CLIs up to date (ADR-259), without what it
-// already told.
+// cliAuto is how office keeps the CLIs up to date (ADR-259), with the
+// versions put back but without what it already told or reinstalled.
 func (s *server) cliAuto(r *http.Request) clitools.AutoSetting {
 	var a clitools.AutoSetting
 	_, _ = s.cfg.Store.Settings().Get(r.Context(), clitools.AutoUpdateKey, &a)
@@ -27,7 +32,7 @@ func (s *server) cliAuto(r *http.Request) clitools.AutoSetting {
 	if a.Tools == nil {
 		a.Tools = map[string]string{}
 	}
-	a.Told = nil
+	a.Told, a.Repair = nil, nil
 	return a
 }
 

@@ -40,9 +40,12 @@ func TestCLIUpdatesHooks(t *testing.T) {
 	loaded := h.Load(ctx)
 	_ = st.Settings().Set(ctx, clitools.AutoUpdateKey, clitools.AutoSetting{Mode: clitools.AutoUpdate})
 	loaded.Told = map[string]string{"codex": "0.167.0"}
+	loaded.Bad = map[string]string{"gemini": "0.67.0"}
+	loaded.Repair = map[string]bool{"claude": true}
 	h.Save(ctx, loaded)
 	got := h.Load(ctx)
-	if got.Mode != clitools.AutoUpdate || got.Told["codex"] != "0.167.0" {
+	// what was put back and what was reinstalled are kept as what was told
+	if got.Mode != clitools.AutoUpdate || got.Told["codex"] != "0.167.0" || got.Bad["gemini"] != "0.67.0" || !got.Repair["claude"] {
 		t.Fatalf("saved = %+v", got)
 	}
 

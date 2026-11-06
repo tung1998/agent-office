@@ -195,8 +195,11 @@ func (c cliUpdates) tell(ctx context.Context, text string) bool {
 	return true
 }
 
-// ended tells how an update ended (not one a person cancelled).
+// ended tells how an update ended (not one a person cancelled); a version
+// put back is saved at once, so a restart before the watch's next look does
+// not install it again.
 func (c cliUpdates) ended(u clitools.UpgradeView) {
+	c.keepBad(context.Background())
 	if u.State == "cancelled" {
 		return
 	}
@@ -205,6 +208,15 @@ func (c cliUpdates) ended(u clitools.UpgradeView) {
 		icon = "⚠️ "
 	}
 	c.tell(context.Background(), icon+u.Summary(c.name(u.Tool)))
+}
+
+// keepBad saves the versions put back (clitools.Manager.SyncBad).
+func (c cliUpdates) keepBad(ctx context.Context) {
+	var cur clitools.AutoSetting
+	_, _ = c.store.Settings().Get(ctx, clitools.AutoUpdateKey, &cur)
+	if c.m.SyncBad(&cur) {
+		_ = c.store.Settings().Set(ctx, clitools.AutoUpdateKey, cur)
+	}
 }
 
 // hooks are the watch's: the setting kept in the store; what was told is
@@ -219,7 +231,7 @@ func (c cliUpdates) hooks() clitools.WatchHooks {
 		Save: func(ctx context.Context, s clitools.AutoSetting) {
 			var cur clitools.AutoSetting
 			_, _ = c.store.Settings().Get(ctx, clitools.AutoUpdateKey, &cur)
-			cur.Told = s.Told
+			cur.Told, cur.Bad, cur.Repair = s.Told, s.Bad, s.Repair
 			_ = c.store.Settings().Set(ctx, clitools.AutoUpdateKey, cur)
 		},
 		Notify: c.tell,

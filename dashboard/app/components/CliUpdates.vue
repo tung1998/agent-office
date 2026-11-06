@@ -7,6 +7,7 @@ interface Upgrade {
   state: 'waiting' | 'updating' | 'checking' | 'rolling_back' | 'done' | 'rolled_back' | 'failed' | 'gave_up' | 'cancelled'
   when: 'idle' | 'now'
   waiting: number
+  draining?: boolean // new runs held back while those running end
   from?: string
   to?: string
   note?: string
@@ -25,7 +26,13 @@ interface Tool {
   upgrade?: Upgrade
 }
 type Mode = 'off' | 'notify' | 'auto'
-interface List { enabled: boolean, tools: Tool[], auto_update?: { mode: Mode, tools?: Record<string, Mode> } }
+interface List {
+  enabled: boolean
+  tools: Tool[]
+  // bad: per CLI, a version put back (it did not start): not updated to on its own
+  auto_update?: { mode: Mode, tools?: Record<string, Mode>, bad?: Record<string, string> }
+  alert_chat?: boolean // a chat is picked for alerts: new versions and broken installs can be told
+}
 
 const { t } = useLang()
 const toast = useToast()
@@ -36,6 +43,10 @@ let timer: ReturnType<typeof setTimeout> | undefined
 const active = (u?: Upgrade) => !!u && ['waiting', 'updating', 'checking', 'rolling_back'].includes(u.state)
 const installed = computed(() => (data.value?.tools ?? []).filter(x => x.installed))
 const outdated = computed(() => installed.value.filter(x => x.outdated).length)
+// a CLI office tells about (notify or auto) with no chat to tell it in
+const untold = computed(() => data.value?.alert_chat === false
+  && installed.value.some(x => (data.value?.auto_update?.tools?.[x.id] ?? data.value?.auto_update?.mode ?? 'notify') !== 'off'))
+const badOf = (id: string) => data.value?.auto_update?.bad?.[id]
 
 let unread = 0 // looks while the newest versions are read in the background
 async function load() {
@@ -114,7 +125,7 @@ function setToolMode(id: string, v: string) {
 
 function upgradeText(u: Upgrade) {
   switch (u.state) {
-    case 'waiting': return t('cliup.waiting', { n: u.waiting })
+    case 'waiting': return u.draining ? t('cliup.draining', { n: u.waiting }) : t('cliup.waiting', { n: u.waiting })
     case 'updating': case 'checking': return t('cliup.updating')
     case 'rolling_back': return t('cliup.rollingBack', { v: u.from ?? '' })
     case 'done': return u.from && u.to && u.from !== u.to ? t('cliup.done', { from: u.from, to: u.to }) : t('cliup.doneSame')
@@ -147,6 +158,10 @@ onBeforeUnmount(() => clearTimeout(timer))
       <UBadge v-if="outdated" color="warning" variant="subtle" size="sm" :label="t('cliup.outdatedCount', { n: outdated })" />
       <USelect v-model="mode" :items="modeItems" size="sm" class="ms-auto w-44" :aria-label="t('cliup.mode')" />
     </div>
+    <UAlert
+      v-if="untold" color="warning" variant="subtle" icon="i-lucide-bell-off"
+      :description="t('cliup.noAlertChat')" :ui="{ description: 'text-xs' }"
+    />
     <ul class="divide-y divide-(--ui-border) rounded-md border border-(--ui-border)">
       <li v-for="x in installed" :key="x.id" class="space-y-1 px-3 py-2">
         <div class="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
@@ -172,6 +187,10 @@ onBeforeUnmount(() => clearTimeout(timer))
             />
           </div>
         </div>
+        <p v-if="badOf(x.id)" class="flex items-start gap-1.5 text-xs text-(--ui-text-muted)">
+          <UIcon name="i-lucide-undo-2" class="mt-0.5 size-3.5 shrink-0" />
+          <span class="min-w-0 break-words">{{ t('cliup.bad', { v: badOf(x.id) ?? '' }) }}</span>
+        </p>
         <p v-if="x.upgrade && recent(x.upgrade)" class="flex items-start gap-1.5 text-xs" :class="upgradeColor(x.upgrade)">
           <UIcon v-if="active(x.upgrade)" name="i-lucide-loader-circle" class="mt-0.5 size-3.5 shrink-0 animate-spin" />
           <span class="min-w-0 break-words">{{ upgradeText(x.upgrade) }}</span>

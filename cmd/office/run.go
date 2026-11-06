@@ -97,6 +97,9 @@ func serveCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
+			// what office starts (a script automation running `office tools
+			// update` in another project's folder) finds this office's data
+			_ = os.Setenv(home.EnvHome, h.Dir)
 			a, err := openApp(ctx, h)
 			if err != nil {
 				return err
@@ -392,6 +395,7 @@ func serveCmd() *cobra.Command {
 				bots.SetCLIUpdater(cu)
 				office.AddProvider(officetools.CLIUpdateTools{Store: a.store, Actions: acts, Root: officeRoot()})
 				go cliTools.Watch(ctx, clitools.LatestTTL, cu.hooks())
+				go serveCLIRequests(ctx, a.store, cliTools, 3*time.Second) // `office tools update` goes through here
 			}
 			go monitors.Run(ctx)
 			log := slog.New(slog.NewJSONHandler(os.Stderr, nil))

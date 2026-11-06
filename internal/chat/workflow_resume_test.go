@@ -146,19 +146,21 @@ steps:
 	if got.Checkpoint == nil || got.Checkpoint.Resumes != 0 {
 		t.Fatalf("a wait is not cut: %+v", got.Checkpoint)
 	}
-	msgs, _ := g.f.st.Chat().ListMessages(g.context, g.conv.ID)
-	var told, output bool
-	for _, m := range msgs {
-		told = told || strings.Contains(m.Content, "chạy tiếp từ bước cho") && strings.Contains(m.Content, "cập nhật lên bản mới")
-		output = output || m.Role == "assistant" && m.Content == "mot-hai"
-	}
-	if !told || !output {
-		t.Fatalf("the calling chat: %+v", msgs)
-	}
-	j, err := g.f.st.Jobs().Get(g.context, got.Checkpoint.CallerJob)
-	if err != nil || j.Status != "done" {
-		t.Fatalf("caller job = %+v, %v", j, err)
-	}
+	// the calling chat's output and its job's end come after the run is
+	// saved done (awaitResumed): waited for, not read at once
+	until(t, "the calling chat told and given the output", func() bool {
+		msgs, _ := g.f.st.Chat().ListMessages(g.context, g.conv.ID)
+		var told, output bool
+		for _, m := range msgs {
+			told = told || strings.Contains(m.Content, "chạy tiếp từ bước cho") && strings.Contains(m.Content, "cập nhật lên bản mới")
+			output = output || m.Role == "assistant" && m.Content == "mot-hai"
+		}
+		return told && output
+	})
+	until(t, "the caller's job done", func() bool {
+		j, err := g.f.st.Jobs().Get(g.context, got.Checkpoint.CallerJob)
+		return err == nil && j.Status == "done"
+	})
 	_ = next
 }
 

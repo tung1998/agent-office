@@ -2,6 +2,7 @@ package clitools
 
 import (
 	"context"
+	"maps"
 	"strings"
 	"time"
 )
@@ -23,6 +24,12 @@ type AutoSetting struct {
 	// Told: the version (or "broken") already told per CLI, so a
 	// restart does not tell it again
 	Told map[string]string `json:"told,omitempty"`
+	// Bad: per CLI, a version whose update was put back (it did not start):
+	// kept so a restart does not install it again on its own
+	Bad map[string]string `json:"bad,omitempty"`
+	// Repair: the CLIs whose broken install office already tried to
+	// reinstall on its own; tried again only once it started meanwhile
+	Repair map[string]bool `json:"repair,omitempty"`
 }
 
 // CleanMode keeps a known mode ("" otherwise).
@@ -73,6 +80,7 @@ type Notice struct {
 // A CLI told broken that starts again loses that mark (changed says so), so
 // the next break is told too.
 func (m *Manager) Check(ctx context.Context, s *AutoSetting) (out []Notice, changed bool) {
+	changed = m.SyncBad(s)
 	for _, t := range m.tools {
 		mode := s.ModeOf(t.ID)
 		if mode == AutoOff {
@@ -88,10 +96,16 @@ func (m *Manager) Check(ctx context.Context, s *AutoSetting) (out []Notice, chan
 		n := Notice{Tool: t.ID, Name: t.Name}
 		if why := m.broken(t); why != "" { // an install broken outside office (ADR-259)
 			n.Broken, n.Key = why, "broken"
-			n.UpdateWhenIdle = mode == AutoUpdate
+			// reinstalled once per break: one that did not fix it is told,
+			// not run again on every look
+			n.UpdateWhenIdle = mode == AutoUpdate && !s.Repair[t.ID]
 		} else {
 			if s.Told[t.ID] == "broken" {
 				delete(s.Told, t.ID)
+				changed = true
+			}
+			if s.Repair[t.ID] {
+				delete(s.Repair, t.ID)
 				changed = true
 			}
 			n.Version = m.version(t)
@@ -115,6 +129,31 @@ func (m *Manager) Check(ctx context.Context, s *AutoSetting) (out []Notice, chan
 		out = append(out, n)
 	}
 	return out, changed
+}
+
+// SyncBad keeps the versions put back in s across restarts: the first call
+// takes those s kept, then s follows what the manager knows (a version put
+// back added, one updated to by hand that starts dropped). It says whether
+// s changed.
+func (m *Manager) SyncBad(s *AutoSetting) bool {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if !m.badLoaded {
+		m.badLoaded = true
+		for id, v := range s.Bad {
+			if m.bad == nil {
+				m.bad = map[string]string{}
+			}
+			if _, ok := m.bad[id]; !ok {
+				m.bad[id] = v
+			}
+		}
+	}
+	if maps.Equal(s.Bad, m.bad) {
+		return false
+	}
+	s.Bad = maps.Clone(m.bad)
+	return true
 }
 
 // Text is how a notice is told.
@@ -165,6 +204,12 @@ func (m *Manager) WatchOnce(ctx context.Context, h WatchHooks) {
 		if n.UpdateWhenIdle {
 			_, err := m.UpdateWhenIdle(n.Tool, AutoBy)
 			updating = err == nil
+			if updating && n.Broken != "" {
+				if s.Repair == nil {
+					s.Repair = map[string]bool{}
+				}
+				s.Repair[n.Tool] = true
+			}
 		}
 		if n.Tell && (h.Notify == nil || !h.Notify(ctx, n.Text(updating))) {
 			continue // marked told only once it went

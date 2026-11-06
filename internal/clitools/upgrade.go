@@ -21,17 +21,20 @@ type UpgradeView struct {
 	Tool string `json:"tool"`
 	// State: waiting (for its runs to end) | updating | checking |
 	// rolling_back | done | rolled_back | failed | gave_up | cancelled
-	State   string     `json:"state"`
-	When    string     `json:"when"` // idle | now
-	By      string     `json:"by,omitempty"`
-	Waiting int        `json:"waiting"`          // runs still using the CLI
-	From    string     `json:"from,omitempty"`   // the version before
-	Target  string     `json:"target,omitempty"` // the newest version known when it started
-	To      string     `json:"to,omitempty"`     // the version after
-	Note    string     `json:"note,omitempty"`
-	JobID   string     `json:"job_id,omitempty"`
-	Started time.Time  `json:"started_at"`
-	Ended   *time.Time `json:"ended_at,omitempty"`
+	State   string `json:"state"`
+	When    string `json:"when"` // idle | now
+	By      string `json:"by,omitempty"`
+	Waiting int    `json:"waiting"` // runs still using the CLI
+	// Draining: new runs are held back while those running end (a CLI
+	// never idle on its own, UpgradeDrainAfter)
+	Draining bool       `json:"draining,omitempty"`
+	From     string     `json:"from,omitempty"`   // the version before
+	Target   string     `json:"target,omitempty"` // the newest version known when it started
+	To       string     `json:"to,omitempty"`     // the version after
+	Note     string     `json:"note,omitempty"`
+	JobID    string     `json:"job_id,omitempty"`
+	Started  time.Time  `json:"started_at"`
+	Ended    *time.Time `json:"ended_at,omitempty"`
 }
 
 // Active says whether the update has not ended yet.
@@ -47,6 +50,9 @@ func (u UpgradeView) Active() bool {
 func (u UpgradeView) Summary(name string) string {
 	switch u.State {
 	case "waiting":
+		if u.Draining {
+			return fmt.Sprintf("%s: lượt mới tạm chờ, đợi %d lượt đang chạy xong rồi cập nhật", name, u.Waiting)
+		}
 		return fmt.Sprintf("%s: chờ %d lượt đang dùng chạy xong rồi cập nhật", name, u.Waiting)
 	case "updating", "checking", "rolling_back":
 		return name + ": đang cập nhật"
@@ -82,6 +88,15 @@ type upgrade struct {
 
 // UpgradeMaxWait is how long an update when idle waits for its runs.
 const UpgradeMaxWait = 12 * time.Hour
+
+// A CLI whose runs follow each other is never idle: an update when idle that
+// waited UpgradeDrainAfter holds new runs back and waits only for those
+// running, at most UpgradeDrainMax (then the runs go again and it waits
+// UpgradeDrainAfter more before the next try).
+const (
+	UpgradeDrainAfter = 30 * time.Minute
+	UpgradeDrainMax   = 10 * time.Minute
+)
 
 // ErrUpgrading: an update of the tool is already on its way.
 var ErrUpgrading = errors.New("công cụ này đang được cập nhật")
@@ -203,9 +218,17 @@ func (m *Manager) runUpgrade(ctx context.Context, t Tool, meth Method, u *upgrad
 		}
 	}
 	if u.view.When == "idle" {
+		grace, drainMax := m.upGrace, m.upDrainMax
+		if grace <= 0 {
+			grace = UpgradeDrainAfter
+		}
+		if drainMax <= 0 {
+			drainMax = UpgradeDrainMax
+		}
 		// the CLI is taken only when no run has it running, in one step:
 		// a run never starts between the count and the hold
 		deadline := m.clock().Add(maxWait)
+		drainAt, drainUntil, draining := m.clock().Add(grace), time.Time{}, false
 		for {
 			// taking the CLI and leaving "waiting" happen under m.mu, where a
 			// cancel is decided too: one cancelled never takes it
@@ -215,18 +238,35 @@ func (m *Manager) runUpgrade(ctx context.Context, t Tool, meth Method, u *upgrad
 				end("cancelled", "")
 				return
 			}
-			r, ok := cliuse.TryHold(t.ID)
+			var ok bool
+			if draining {
+				// new runs are held already: the CLI is the update's once the
+				// runs that were going ended
+				ok = cliuse.InUse(t.ID) == 0
+			} else {
+				var r func()
+				if r, ok = cliuse.TryHold(t.ID); ok {
+					release = r
+				}
+			}
 			if ok {
-				u.view.State, u.view.Waiting = "updating", 0
+				u.view.State, u.view.Waiting, u.view.Draining = "updating", 0, false
 			}
 			m.mu.Unlock()
 			if ok {
-				release = r
 				break
 			}
+			now := m.clock()
+			switch {
+			case draining && !now.Before(drainUntil): // the runs going did not end: let new ones go again
+				release()
+				release, draining, drainAt = func() {}, false, now.Add(grace)
+			case !draining && !now.Before(drainAt) && now.Before(deadline):
+				release, draining, drainUntil = cliuse.Hold(t.ID), true, now.Add(drainMax)
+			}
 			n := cliuse.InUse(t.ID)
-			m.set(u, func(v *UpgradeView) { v.Waiting = n })
-			if !m.clock().Before(deadline) {
+			m.set(u, func(v *UpgradeView) { v.Waiting, v.Draining = n, draining })
+			if !now.Before(deadline) {
 				end("gave_up", fmt.Sprintf("vẫn còn %d lượt dùng sau %s", n, maxWait))
 				return
 			}
@@ -266,6 +306,11 @@ func (m *Manager) runUpgrade(ctx context.Context, t Tool, meth Method, u *upgrad
 	}
 	to := m.version(t)
 	m.set(u, func(v *UpgradeView) { v.To = to })
+	m.mu.Lock()
+	if to != "" && m.bad[t.ID] == to { // the version put back now starts: no longer bad
+		delete(m.bad, t.ID)
+	}
+	m.mu.Unlock()
 	if jv.State != "succeeded" { // the command failed but the CLI still starts: the old one is kept
 		end("failed", cmpOr(jv.Error, "lệnh cập nhật lỗi")+" (CLI vẫn chạy được)")
 		return
@@ -297,12 +342,17 @@ func (m *Manager) latestKnown(id string) string {
 // Homebrew and the official installer cannot pick a version, so the person
 // is told how to fix it.
 func (m *Manager) rollback(t Tool, meth Method, u *upgrade, from, why string, end func(state, note string)) {
-	m.mu.Lock()
-	if m.bad == nil {
-		m.bad = map[string]string{}
+	if from != "" && u.view.Target != "" {
+		// a broken version: Watch does not update to it again on its own.
+		// An install that did not start before (from "") was not broken by
+		// the new version: it is not marked
+		m.mu.Lock()
+		if m.bad == nil {
+			m.bad = map[string]string{}
+		}
+		m.bad[t.ID] = u.view.Target
+		m.mu.Unlock()
 	}
-	m.bad[t.ID] = u.view.Target // a broken version: Watch does not update to it again on its own
-	m.mu.Unlock()
 	p := pkgs[t.ID]
 	if meth.ID != "npm" || p.npm == "" || from == "" {
 		end("failed", fmt.Sprintf("bản mới không chạy được (%s); hãy cài lại: %s", why, cmpOr(manualFix(t), "cài lại CLI")))

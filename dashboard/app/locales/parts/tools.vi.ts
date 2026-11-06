@@ -378,5 +378,8 @@ export default {
   'cliup.gaveUp': 'Chờ quá lâu vẫn còn lượt dùng, đã bỏ cập nhật',
   'cliup.cancelled': 'Đã hủy cập nhật',
   'cliup.failed': 'Cập nhật lỗi: {note}',
+  'cliup.draining': 'Lượt mới tạm chờ, đợi {n} lượt đang chạy xong rồi cập nhật',
+  'cliup.noAlertChat': 'Chưa chọn chat nhận cảnh báo: office không báo được bản mới hay CLI không chạy được. Chọn bot và chat ở Kết nối AI → Cảnh báo hạn mức.',
+  'cliup.bad': 'Bản {v} từng không chạy được và đã quay về: office không tự cập nhật lên bản này',
   'cliup.waitingShort': 'Chờ {n} lượt dùng xong',
 } as const

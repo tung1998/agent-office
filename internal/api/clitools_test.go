@@ -8,7 +8,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/tung1998/agent-office/internal/clitools"
 	"github.com/tung1998/agent-office/internal/cliuse"
+	"github.com/tung1998/agent-office/internal/limitalert"
 )
 
 func TestCLIToolsAPI(t *testing.T) {
@@ -140,6 +142,18 @@ func TestCLIUpdateAPI(t *testing.T) {
 	_, list := do(t, admin, "GET", e.srv.URL+"/api/cli-tools", nil, nil)
 	if list["auto_update"].(map[string]any)["mode"] != "notify" {
 		t.Fatalf("default mode = %v", list["auto_update"])
+	}
+	// no alert chat picked: the card says new versions and broken installs
+	// cannot be told (ADR-259)
+	if list["alert_chat"] != false {
+		t.Fatalf("alert chat = %v", list["alert_chat"])
+	}
+	_ = e.st.Settings().Set(context.Background(), clitools.AutoUpdateKey, clitools.AutoSetting{Mode: "notify", Told: map[string]string{"dsh": "2.0.0"}, Bad: map[string]string{"dsh": "1.1.0"}, Repair: map[string]bool{"dsh": true}})
+	_ = limitalert.Save(context.Background(), e.st, limitalert.Settings{ChannelID: "chn_1", ChatID: "42"})
+	_, list = do(t, admin, "GET", e.srv.URL+"/api/cli-tools", nil, nil)
+	au := list["auto_update"].(map[string]any)
+	if list["alert_chat"] != true || au["bad"].(map[string]any)["dsh"] != "1.1.0" || au["told"] != nil || au["repair"] != nil {
+		t.Fatalf("with an alert chat = %v", list)
 	}
 	if resp, _ := do(t, admin, "PUT", e.srv.URL+"/api/cli-tools/auto-update", map[string]any{"mode": "sometimes"}, nil); resp.StatusCode != 400 {
 		t.Fatalf("bad mode = %d", resp.StatusCode)

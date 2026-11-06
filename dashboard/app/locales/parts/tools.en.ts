@@ -372,6 +372,9 @@ const en: Record<keyof typeof vi, string> = {
   'cliup.gaveUp': 'Still in use after waiting too long, update dropped',
   'cliup.cancelled': 'Update cancelled',
   'cliup.failed': 'Update failed: {note}',
+  'cliup.draining': 'New runs wait; updating once the {n} running end',
+  'cliup.noAlertChat': 'No alert chat is picked: office cannot tell new versions or a CLI that no longer starts. Pick a bot and chat in AI connections → Limit alerts.',
+  'cliup.bad': 'Version {v} did not start and was put back: office does not update to it on its own',
   'cliup.waitingShort': 'Waiting for {n} runs to end',
 }
 export default en
