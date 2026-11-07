@@ -3,6 +3,7 @@ package chat
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -65,7 +66,10 @@ func (e *Engine) capReached(ctx context.Context, rootJobID, automationID string)
 	if err != nil {
 		return nil
 	}
-	if spent, over := a.OverDailyCap(ctx, e.store.Jobs(), time.Now()); over {
+	if spent, over, capErr := a.OverDailyCap(ctx, e.store.Jobs(), time.Now()); over {
+		if capErr != nil {
+			slog.Warn("chat: could not read today's spend, blocking new turn", "automation", a.ID, "err", capErr)
+		}
 		return &usage.BudgetError{Scope: "tự động hóa " + a.Name, Limit: a.Limits.DailyCostUSD, Spent: spent}
 	}
 	return nil

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"strings"
 	"time"
@@ -203,7 +204,11 @@ func (r *Runner) goalLimit(ctx context.Context, a storage.Automation, started ti
 	if a.Limits.MaxMinutes > 0 && now.Sub(started) >= time.Duration(a.Limits.MaxMinutes)*time.Minute {
 		return "hết thời gian cho phép"
 	}
-	if spent, over := a.OverDailyCap(ctx, r.store.Jobs(), now); over { // the rounds' workflow steps counted (ADR-263)
+	if spent, over, capErr := a.OverDailyCap(ctx, r.store.Jobs(), now); over { // the rounds' workflow steps counted (ADR-263)
+		if capErr != nil {
+			slog.Warn("trigger: could not read today's spend, stopping goal round", "automation", a.ID, "err", capErr)
+			return DailyCapUnknownNote(a)
+		}
 		return DailyCapNote(a, spent)
 	}
 	return ""

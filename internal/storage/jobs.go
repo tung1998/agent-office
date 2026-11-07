@@ -461,13 +461,20 @@ func (a Automation) SpentToday(ctx context.Context, jobs JobRepo, now time.Time)
 	return spent
 }
 
-// OverDailyCap: a has a daily cost cap and its runs reached it today.
-func (a Automation) OverDailyCap(ctx context.Context, jobs JobRepo, now time.Time) (spent float64, over bool) {
+// OverDailyCap: a has a daily cost cap and its runs reached it today. When
+// today's cost cannot be read (a transient storage error), it fails closed
+// (over=true, err set) rather than treat the unknown amount as zero spent;
+// the caller should tell that apart from a real cap hit, since it is not
+// known to clear once the day turns.
+func (a Automation) OverDailyCap(ctx context.Context, jobs JobRepo, now time.Time) (spent float64, over bool, err error) {
 	if a.Limits.DailyCostUSD <= 0 {
-		return 0, false
+		return 0, false, nil
 	}
-	spent = a.SpentToday(ctx, jobs, now)
-	return spent, spent >= a.Limits.DailyCostUSD
+	spent, err = jobs.CostSince(ctx, "automation", a.ID, a.DayStart(now))
+	if err != nil {
+		return spent, true, err
+	}
+	return spent, spent >= a.Limits.DailyCostUSD, nil
 }
 
 // Parallel is how many runs of a may run at once: a kept conversation is

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 	"sync"
 	"time"
@@ -469,7 +470,12 @@ func (r *Runner) execute(ctx context.Context, j storage.Job) {
 		// the day's cap, its workflow steps and hand-offs counted: the run is
 		// skipped, the automation stays on and runs again once its day turns
 		// (it used to be turned off for good, ADR-263)
-		if spent, over := a.OverDailyCap(ctx, r.store.Jobs(), now); over {
+		if spent, over, capErr := a.OverDailyCap(ctx, r.store.Jobs(), now); over {
+			if capErr != nil {
+				slog.Warn("trigger: could not read today's spend, skipping run", "automation", a.ID, "err", capErr)
+				finish("skipped", "budget", DailyCapUnknownNote(a))
+				return
+			}
 			finish("skipped", "budget", DailyCapNote(a, spent))
 			return
 		}
