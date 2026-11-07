@@ -55,6 +55,9 @@ var (
 	ErrNoAgent   = errors.New("không tìm thấy agent để trò chuyện")
 	ErrDecided   = actions.ErrDecided // one for patches and actions: a bot tells it apart the same way
 	ErrNoFolder  = errors.New("project không gắn thư mục nên không áp được thay đổi")
+	// ErrProjectBusy: another turn or patch apply is already writing directly
+	// into this project's folder; the caller must wait and retry.
+	ErrProjectBusy = errors.New("một agent khác (trong cuộc chat này hoặc cuộc chat khác) đang sửa thẳng project này; đợi xong rồi gửi lại")
 )
 
 // OffError: the message went to paused agents only, so nobody answers. The
@@ -1330,7 +1333,7 @@ func (e *Engine) run(ctx context.Context, turn *Turn, conv storage.Conversation,
 		e.direct[project.ID] = true
 		e.mu.Unlock()
 		if busy {
-			fail(errors.New("một agent khác (trong cuộc chat này hoặc cuộc chat khác) đang sửa thẳng project này; đợi xong rồi gửi lại"))
+			fail(ErrProjectBusy)
 			return
 		}
 		defer func() {
@@ -2139,6 +2142,26 @@ func (e *Engine) DecidePatch(ctx context.Context, patchID string, approve bool) 
 		if project.Path == "" {
 			return toPatchDTO(p), ErrNoFolder
 		}
+		// a turn writing directly into project.Path (EditDirect) races with
+		// applying a patch here the same way two EditDirect turns would; use
+		// the same per-project lock run() uses (engine.go ~1322).
+		e.mu.Lock()
+		busy := e.direct[project.ID]
+		if !busy {
+			if e.direct == nil {
+				e.direct = map[string]bool{}
+			}
+			e.direct[project.ID] = true
+		}
+		e.mu.Unlock()
+		if busy {
+			return toPatchDTO(p), ErrProjectBusy
+		}
+		defer func() {
+			e.mu.Lock()
+			delete(e.direct, project.ID)
+			e.mu.Unlock()
+		}()
 		err := ApplyPatch(ctx, project.Path, p.Diff)
 		if err != nil && p.Origin == "worktree" {
 			// the project moved on since the worktree was made: refresh it onto
