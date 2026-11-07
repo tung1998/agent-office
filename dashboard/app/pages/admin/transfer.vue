@@ -89,7 +89,7 @@ const kindLabelOf = computed<Record<string, string>>(() => ({ provider: t('admin
         <div class="space-y-3">
           <UButton icon="i-lucide-download" :label="t('admin.downloadConfig')" to="/api/transfer/export" external target="_blank" />
           <p class="text-sm text-(--ui-text-muted)">{{ t('admin.exportCliHint') }}</p>
-          <pre class="rounded-md bg-(--ui-bg-muted) p-3 text-xs">office export ./office-config --commit</pre>
+          <pre class="overflow-x-auto rounded-md bg-(--ui-bg-muted) p-3 text-xs">office export ./office-config --commit</pre>
         </div>
       </UCard>
 
@@ -127,7 +127,7 @@ const kindLabelOf = computed<Record<string, string>>(() => ({ provider: t('admin
           <UAlert v-if="backupPath" color="success" variant="subtle" icon="i-lucide-circle-check" :title="t('admin.backupDone')">
             <template #description><code class="text-xs">{{ backupPath }}</code></template>
           </UAlert>
-          <pre class="rounded-md bg-(--ui-bg-muted) p-3 text-xs">office backup --out ~/office-backups/$(date +%F)</pre>
+          <pre class="overflow-x-auto rounded-md bg-(--ui-bg-muted) p-3 text-xs">office backup --out ~/office-backups/$(date +%F)</pre>
         </div>
       </UCard>
     </div>
