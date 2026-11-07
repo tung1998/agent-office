@@ -185,38 +185,54 @@ const testPrompt = ref(t('prov.defaultTestPrompt'))
 const testModel = ref('')
 const testResult = ref<{ ok: boolean, detail: string, models: string[], needs_login?: boolean, cli_tool?: 'claude' | 'codex' | 'gemini' | 'antigravity', response?: { text: string, model: string, input_tokens: number, output_tokens: number, cost_usd?: number, duration_ms: number } } | null>(null)
 
+// a per-call token: discards a result if a newer runTest() started since,
+// so two concurrent tests (e.g. row refresh + prompt dialog) never clear each other's spinner
+let testSeq = 0
+// a separate token for the prompt-test dialog: openPromptTest() bumps it, so a reply that
+// was already in flight when the dialog switched to another provider never lands in testResult
+let dialogSeq = 0
 async function runTest(p: Provider, prompt = '') {
+  const seq = ++testSeq
+  const dSeq = dialogSeq
   testing.value = p.id
   try {
     const res = await $fetch<typeof testResult.value>(`/api/providers/${p.id}/test`, {
       method: 'POST', body: { prompt, model: prompt ? testModel.value : '' }
     })
+    if (seq !== testSeq) return
     if (!prompt && res!.ok && next.value) {
       toast.add({ title: t('prov.savedGood', { name: p.name }), description: t('prov.savedGoodDesc'), color: 'success' })
       await navigateTo(next.value)
       return
     }
+    // a reply for the prompt dialog only counts if that dialog still shows this provider
+    const dialogStillOnThis = dSeq === dialogSeq && testTarget.value?.id === p.id
     if (prompt) {
-      testResult.value = res
+      if (dialogStillOnThis) testResult.value = res
     } else if (res!.needs_login) {
-      // the tool is installed, the account is signed out: sign in from here
-      testTarget.value = p
-      testModel.value = p.tier_models.balanced || ''
-      testResult.value = res
-      testOpen.value = true
+      // the tool is installed, the account is signed out: sign in from here,
+      // but never steal an already-open dialog pointed at another provider
+      if (!testOpen.value || testTarget.value?.id === p.id) {
+        testTarget.value = p
+        testModel.value = p.tier_models.balanced || ''
+        testResult.value = res
+        testOpen.value = true
+      }
     } else {
       toast.add({ title: res!.ok ? t('prov.savedGood', { name: p.name }) : t('prov.testError', { name: p.name }), description: res!.detail, color: res!.ok ? 'success' : 'error' })
     }
     await refresh()
     refreshStats()
   } catch (e) {
+    if (seq !== testSeq) return
     toast.add({ title: apiError(e), color: 'error' })
   } finally {
-    testing.value = null
+    if (seq === testSeq) testing.value = null
   }
 }
 
 function openPromptTest(p: Provider) {
+  dialogSeq++
   testTarget.value = p
   testModel.value = p.tier_models.balanced || ''
   testResult.value = null
