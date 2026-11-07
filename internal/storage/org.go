@@ -990,6 +990,11 @@ type ActionRepo interface {
 	List(ctx context.Context, conversationID, taskID, runRef string) ([]Action, error)
 	// Pending lists actions waiting for a person, newest first.
 	Pending(ctx context.Context, limit int) ([]Action, error)
+	// PendingVisible is Pending filtered to projectIDs before the limit is
+	// applied (nil projectIDs means every project, for an admin's full view).
+	// This keeps a manager/member's own waiting proposals from falling outside
+	// the window when other projects have many more pending actions (ADR-224).
+	PendingVisible(ctx context.Context, projectIDs []string, limit int) ([]Action, error)
 	// SetArgs replaces an action's arguments (a commit held for its turn's
 	// diff carried onto the diff that replaced it).
 	SetArgs(ctx context.Context, id string, args ActionArgs) error

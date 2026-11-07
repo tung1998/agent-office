@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"strings"
 	"time"
 
 	"github.com/tung1998/agent-office/internal/ids"
@@ -97,10 +98,27 @@ func (r actionRepo) List(ctx context.Context, conversationID, taskID, runRef str
 }
 
 func (r actionRepo) Pending(ctx context.Context, limit int) ([]storage.Action, error) {
+	return r.PendingVisible(ctx, nil, limit)
+}
+
+func (r actionRepo) PendingVisible(ctx context.Context, projectIDs []string, limit int) ([]storage.Action, error) {
 	if limit <= 0 || limit > 200 {
 		limit = 100
 	}
-	rows, err := r.db.QueryContext(ctx, `SELECT `+actionCols+` FROM actions WHERE status='pending' ORDER BY created_at DESC, id DESC LIMIT ?`, limit)
+	query := `SELECT ` + actionCols + ` FROM actions WHERE status='pending'`
+	args := []any{}
+	if projectIDs != nil {
+		if len(projectIDs) == 0 {
+			return []storage.Action{}, nil
+		}
+		query += ` AND project_id IN (?` + strings.Repeat(",?", len(projectIDs)-1) + `)`
+		for _, id := range projectIDs {
+			args = append(args, id)
+		}
+	}
+	query += ` ORDER BY created_at DESC, id DESC LIMIT ?`
+	args = append(args, limit)
+	rows, err := r.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}

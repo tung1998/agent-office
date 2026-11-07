@@ -9,21 +9,21 @@ import (
 // pendingActions is the approval inbox: every proposal waiting for a person
 // in the projects they see.
 func (s *server) pendingActions(w http.ResponseWriter, r *http.Request) {
-	list, err := s.cfg.Store.Actions().Pending(r.Context(), 100)
+	sc, err := s.scope(r)
 	if err != nil {
 		s.internal(w, r, err)
 		return
 	}
-	sc, err := s.scope(r)
+	// Filter by project before the limit, not after (ADR-224): otherwise a
+	// busy office with 100+ pending actions in other projects can push a
+	// caller's own older waiting proposals outside the window.
+	list, err := s.cfg.Store.Actions().PendingVisible(r.Context(), sc.list(), 100)
 	if err != nil {
 		s.internal(w, r, err)
 		return
 	}
 	out := make([]chat.ActionDTO, 0, len(list))
 	for _, a := range list {
-		if !sc.has(a.ProjectID) {
-			continue
-		}
 		out = append(out, chat.ToActionDTO(a))
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"actions": out})
