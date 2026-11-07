@@ -7,6 +7,7 @@ import type { MessageKey } from '~/locales/vi'
 
 const props = defineProps<{ projectId: string }>()
 const toast = useToast()
+const saveError = useSaveError()
 const { t, when } = useLang()
 const { isAdmin } = useAuth()
 const route = useRoute()
@@ -51,12 +52,13 @@ async function call(w: ProjectWorkflow | null, fn: () => Promise<unknown>, done?
     if (done) toast.add({ title: done, color: 'success' })
     await refresh()
   } catch (e) {
-    toast.add({ title: apiError(e), color: 'error' })
+    saveError(e, refresh)
   } finally {
     busy.value = ''
   }
 }
-const patch = (w: ProjectWorkflow, body: object) => call(w, () => $fetch(`/api/workflows/${w.id}`, { method: 'PATCH', body }))
+// version (ADR-072): CAS so a stale bindings/enabled save 409s instead of blind-overwriting a concurrent edit
+const patch = (w: ProjectWorkflow, body: object) => call(w, () => $fetch(`/api/workflows/${w.id}`, { method: 'PATCH', body: { ...body, version: w.version } }))
 function bind(w: ProjectWorkflow, role: string, agent: string) {
   const bindings = { ...w.bindings }
   if (agent === NONE) delete bindings[role]
