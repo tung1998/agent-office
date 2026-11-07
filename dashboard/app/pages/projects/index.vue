@@ -10,9 +10,9 @@ await Promise.all([_f1, _f3]) // started together: one round trip, not 2 (a phon
 const { isHidden, setOrder, arrange, menu, max } = useProjectMenu()
 const ordered = computed(() => arrange(data.value?.projects ?? []))
 const projects = ref<Project[]>([])
-watch(ordered, v => { projects.value = [...v] }, { immediate: true })
-const inMenu = computed(() => new Set(menu(data.value?.projects ?? []).map(p => p.id)))
 const dragging = ref('')
+watch(ordered, v => { if (!dragging.value) projects.value = [...v] }, { immediate: true })
+const inMenu = computed(() => new Set(menu(data.value?.projects ?? []).map(p => p.id)))
 function dragOver(target: Project) {
   const from = projects.value.findIndex(p => p.id === dragging.value)
   const to = projects.value.indexOf(target)
@@ -25,7 +25,10 @@ async function dragEnd() {
   if (!dragging.value) return
   dragging.value = ''
   const ids = projects.value.map(p => p.id)
-  if (ids.join() === ordered.value.map(p => p.id).join()) return
+  if (ids.join() === ordered.value.map(p => p.id).join()) {
+    projects.value = [...ordered.value]
+    return
+  }
   try {
     await setOrder(ids)
   } catch (e) {
