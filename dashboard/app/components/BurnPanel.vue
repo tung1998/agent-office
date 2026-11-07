@@ -27,7 +27,6 @@ interface AgentLite { id: string, name: string, tier: string, enabled?: boolean 
 const props = defineProps<{ projectId: string }>()
 const { t, when } = useLang()
 const toast = useToast()
-const copy = useCopy()
 
 const base = computed(() => `/api/projects/${props.projectId}/burn`)
 const { data, refresh, error: loadError } = useLiveFetch<{ burn: Burn, items: Item[], runs?: Record<string, string>, weekly_reset?: string }>(base)
@@ -88,6 +87,16 @@ const untilText = computed(() => {
   const p = planOf(burn.value?.plan)
   return p.end === 'hours' ? t('burn.plan.until.hours', { n: p.hours }) : p.end === 'clock' ? t('burn.plan.until.clock', { at: p.clock }) : t(`burn.plan.until.${p.end}`)
 })
+// what it does now, or what turning it on will do: the state badge's tooltip
+const stateHint = computed(() => {
+  const b = burn.value
+  if (!b) return ''
+  if (b.state === 'waiting_limit' && b.waiting_until) return t('burn.waitingUntil', { at: when(b.waiting_until) })
+  if (blocked.value) return b.waiting_until ? t('burn.blockedUntil', { at: when(b.waiting_until) }) : t('burn.blockedHint')
+  if (draining.value) return t('burn.drainingHint')
+  if (on.value) return b.ends_at ? t('burn.endsIn', { left: left(b.ends_at), at: when(b.ends_at) }) : t('burn.noEnd')
+  return `${t('burn.plan.onRuns', { until: untilText.value })} · ${b.next_start ? t('burn.plan.nextStart', { at: when(b.next_start) }) : t('burn.plan.manual')}`
+})
 const saving = ref(false)
 async function saveSettings() {
   saving.value = true
@@ -106,16 +115,11 @@ async function saveSettings() {
 // the agent picked is paused: saving and starting are refused until it is changed or turned on
 const offAgent = computed(() => agents.value.find(a => a.id === form.agent_id && a.enabled === false))
 const agentItems = computed(() => agents.value.map(a => ({ value: a.id, label: a.enabled === false ? `${a.name} (${t('burn.agentOffTag')})` : a.name })))
-// review (ADR-113): the saved profile it follows, set up on its own page
 const reviewStages = reviewStageKeys
-const { data: profData } = useLiveFetch<{ profiles: BurnReviewProfile[] }>(() => `/api/projects/${props.projectId}/burn/review-profiles`, { lazy: true })
-const profiles = computed(() => profData.value?.profiles ?? [])
 const templateItems = computed(() => templates.map(v => ({ value: v, label: t(`burn.template.${v}`) })))
 // where its summary goes when it stops (ADR-120): a bot (the project's, or
 // one borrowed), its chat
 const notifyKind = ref<string>()
-const profile = computed(() => profiles.value.find(p => p.id === form.review_profile_id))
-const reviewSummary = computed(() => profile.value ? `${profile.value.name} (${reviewStages.filter(v => profile.value!.stages[v]).map(v => t(`burn.review.${v}`)).join(', ')})` : '')
 // a piece's own chats, hidden, read here: its work (ADR-116), its reviews (ADR-114)
 type ChatTab = ReviewStage | 'work'
 const reviewingId = ref<string | null>(null)
@@ -269,7 +273,6 @@ const coverage = computed(() => {
   const lines = (burn.value?.coverage ?? '').split('\n').map(l => l.trim().replace(/^[-*+ ]+/, ''))
   return { done: lines.filter(l => /^\[[xX]\]/.test(l)).length, total: lines.filter(l => /^\[[ xX]\]/.test(l)).length }
 })
-const totalCost = computed(() => shown.value.reduce((n, i) => n + i.cost_usd, 0))
 
 // a builder Burn (ADR-139): idle before its first Start, no cue what it does;
 // started, its progress is a feature list (features.json), not the generic board
@@ -283,7 +286,7 @@ const builderDone = computed(() => builderFeatures.value.filter(f => f.passes).l
   <div class="space-y-4">
     <UAlert v-if="loadError" color="error" variant="subtle" icon="i-lucide-triangle-alert" :title="t('common.loadError')" :actions="[{ label: t('common.refresh'), onClick: () => refresh() }]" />
     <!-- Burn on top, in one bar with the run picker (ADR-210: the board below is the project's tasks) -->
-    <div class="space-y-2 rounded-xl border border-(--ui-border) bg-(--ui-bg)/40 px-3 py-2">
+    <div class="rounded-xl border border-(--ui-border) bg-(--ui-bg)/40 px-3 py-2">
       <div class="flex flex-wrap items-center gap-x-3 gap-y-2">
         <div class="flex min-w-0 flex-1 items-center gap-2">
           <span class="flex size-7 shrink-0 items-center justify-center rounded-md" :class="running ? 'bg-(--ui-warning)/15 text-(--ui-warning)' : 'bg-(--ui-bg-elevated) text-(--ui-text-muted)'">
@@ -291,16 +294,7 @@ const builderDone = computed(() => builderFeatures.value.filter(f => f.passes).l
           </span>
           <span class="font-semibold">{{ t('burn.title') }}</span>
           <USkeleton v-if="loading" class="h-5 w-16" />
-          <UBadge v-else-if="burn" :label="t(`burn.state.${burn.state}`)" :color="burn.state === 'running' ? 'warning' : burn.state === 'blocked' ? 'error' : burn.state === 'waiting_limit' || burn.state === 'draining' ? 'info' : 'neutral'" variant="subtle" size="sm" class="shrink-0" />
-          <!-- what it does now, or what turning it on will do -->
-          <p v-if="burn" class="hidden min-w-0 truncate text-xs text-(--ui-text-muted) sm:block">
-            <template v-if="burn.state === 'waiting_limit' && burn.waiting_until">{{ t('burn.waitingUntil', { at: when(burn.waiting_until) }) }}</template>
-            <template v-else-if="blocked">{{ burn.waiting_until ? t('burn.blockedUntil', { at: when(burn.waiting_until) }) : t('burn.blockedHint') }}</template>
-            <template v-else-if="draining">{{ t('burn.drainingHint') }}</template>
-            <template v-else-if="on && burn.ends_at"><span class="tabular-nums">{{ t('burn.endsIn', { left: left(burn.ends_at), at: when(burn.ends_at) }) }}</span></template>
-            <template v-else-if="on">{{ t('burn.noEnd') }}</template>
-            <template v-else>{{ t('burn.plan.onRuns', { until: untilText }) }} · {{ burn.next_start ? t('burn.plan.nextStart', { at: when(burn.next_start) }) : t('burn.plan.manual') }}</template>
-          </p>
+          <UBadge v-else-if="burn" :label="t(`burn.state.${burn.state}`)" :color="burn.state === 'running' ? 'warning' : burn.state === 'blocked' ? 'error' : burn.state === 'waiting_limit' || burn.state === 'draining' ? 'info' : 'neutral'" variant="subtle" size="sm" class="shrink-0" :title="stateHint" />
         </div>
         <div class="flex flex-wrap items-center gap-1.5">
           <USelect v-model="run" :items="runItems" size="sm" class="w-48 max-w-full" :aria-label="t('burn.run.pick')" />
@@ -319,15 +313,6 @@ const builderDone = computed(() => builderFeatures.value.filter(f => f.passes).l
           </div>
         </div>
       </div>
-      <USkeleton v-if="loading" class="h-3.5 w-2/3" />
-      <p v-else class="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-(--ui-text-dimmed)">
-        <span>{{ t('burn.summary', { tier: t(`burn.tier.${form.model_tier}`), n: form.max_parallel }) }} · {{ t(`burn.template.${form.template}`) }}<template v-if="form.template === 'general'"> · {{ t(`burn.order.${form.order}`) }}</template></span>
-        <!-- a profile named "review …" is not said twice -->
-        <template v-if="reviewSummary"><span>·</span><button type="button" class="hover:text-(--ui-text)" @click="openSettings('do')">{{ /^review\b/i.test(reviewSummary) ? reviewSummary : t('burn.review.summary', { profile: reviewSummary }) }}</button></template>
-        <template v-if="burn?.run_branch"><span>·</span><button type="button" class="font-mono hover:text-(--ui-text)" :title="burn.run_tree ? t('burn.copyRunTree') : undefined" @click="burn.run_tree && copy(`cd ${burn.run_tree}`)">{{ burn.run_branch }}</button></template>
-        <template v-if="shown.length"><span>·</span><span class="tabular-nums">{{ t('burn.cost', { usd: totalCost.toFixed(2), n: shown.filter(i => i.status === 'done').length }) }}</span></template>
-        <template v-if="form.focus"><span>·</span><span class="truncate" :title="form.focus">{{ t('burn.focus') }}: {{ form.focus }}</span></template>
-      </p>
     </div>
     <UAlert v-if="offAgent" color="warning" variant="subtle" icon="i-lucide-power-off" :title="t('burn.agentOff', { name: offAgent.name })"
       :actions="[{ label: t('burn.agentOffChange'), color: 'warning', variant: 'outline', onClick: () => openSettings('do') }, { label: t('burn.agentOffOpen'), color: 'neutral', variant: 'ghost', to: `/projects/${projectId}/agents/${offAgent.id}` }]" />
