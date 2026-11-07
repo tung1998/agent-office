@@ -351,6 +351,24 @@ func (m *Manager) ComposeAction(ctx context.Context, projectID, file, action, se
 // ActionKey is the id to stream an action's output with Since.
 func ActionKey(projectID string) string { return actionKey(projectID) }
 
+// scanComposeLogs reads lines from r, emitting each (stripped of ANSI codes)
+// until r is exhausted. If the scanner stops early on a read error or an
+// over-long line, it emits a notice and closes r with that error so a writer
+// blocked on the other end of a pipe unblocks instead of hanging forever.
+func scanComposeLogs(r *io.PipeReader, emit func(string)) error {
+	sc := bufio.NewScanner(r)
+	sc.Buffer(make([]byte, 64<<10), 1<<20)
+	for sc.Scan() {
+		emit(ansiRe.ReplaceAllString(sc.Text(), ""))
+	}
+	if err := sc.Err(); err != nil {
+		emit("lỗi đọc log: " + err.Error())
+		r.CloseWithError(err)
+		return err
+	}
+	return nil
+}
+
 // ComposeLogs follows a service's logs, calling emit per line until ctx ends.
 func (m *Manager) ComposeLogs(ctx context.Context, projectID, file, service string, emit func(string)) error {
 	dir, _, file, err := m.composeTarget(ctx, projectID, file)
@@ -379,10 +397,8 @@ func (m *Manager) ComposeLogs(ctx context.Context, projectID, file, service stri
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		sc := bufio.NewScanner(pr)
-		sc.Buffer(make([]byte, 64<<10), 1<<20)
-		for sc.Scan() {
-			emit(ansiRe.ReplaceAllString(sc.Text(), ""))
+		if scanComposeLogs(pr, emit) != nil && cmd.Process != nil {
+			_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
 		}
 	}()
 	err = cmd.Wait()
