@@ -16,3 +16,6 @@ bin/
 
 # Playwright MCP logs and screenshots
 .playwright-mcp/
+
+# Skill cài từ thư viện office (.office/library/skills), không commit
+.claude/skills/ui-ux-pro-max/
