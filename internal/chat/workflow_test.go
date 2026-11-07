@@ -446,6 +446,8 @@ func TestSubWorkflowInputsOutputs(t *testing.T) {
 // a graph of steps runs in order without a coordinator: code, a condition
 // that loops back, an HTTP request, an agent, the end (ADR-108)
 func TestWorkflowStepsRunInOrder(t *testing.T) {
+	workflow.AllowPrivateHTTPTargetsForTests = true
+	defer func() { workflow.AllowPrivateHTTPTargetsForTests = false }()
 	g := newWFGroup(t)
 	var hits int
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

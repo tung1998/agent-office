@@ -6,7 +6,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
+	"net/url"
 	"regexp"
 	"slices"
 	"strconv"
@@ -554,11 +556,67 @@ func unquote(s string) string {
 // MaxHTTPBody is how much of a response an http step keeps.
 const MaxHTTPBody = 256 << 10
 
+// AllowPrivateHTTPTargetsForTests disables the SSRF guard below. Tests that
+// point an http step at an httptest.Server (always loopback) set this; it
+// must never be set outside tests.
+var AllowPrivateHTTPTargetsForTests = false
+
+// isBlockedHTTPTarget reports whether ip is a loopback, link-local, private,
+// or unspecified address — a workflow http step must never reach one, since
+// the URL it fetches may come from a webhook-triggered run's untrusted input.
+func isBlockedHTTPTarget(ip net.IP) bool {
+	if AllowPrivateHTTPTargetsForTests {
+		return false
+	}
+	return ip.IsLoopback() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() ||
+		ip.IsPrivate() || ip.IsUnspecified()
+}
+
+// ssrfGuardedClient is an http.Client whose dialer refuses to connect to
+// loopback/link-local/private addresses, checked on the resolved IP (not
+// just the hostname) so a DNS-rebinding or literal-IP URL cannot bypass it.
+var ssrfGuardedClient = &http.Client{
+	Transport: &http.Transport{
+		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+			host, port, err := net.SplitHostPort(addr)
+			if err != nil {
+				return nil, err
+			}
+			if ip := net.ParseIP(host); ip != nil {
+				if isBlockedHTTPTarget(ip) {
+					return nil, fmt.Errorf("url nhắm tới địa chỉ nội bộ bị chặn: %s", host)
+				}
+				return (&net.Dialer{}).DialContext(ctx, network, addr)
+			}
+			ips, err := net.DefaultResolver.LookupIP(ctx, "ip", host)
+			if err != nil {
+				return nil, err
+			}
+			for _, ip := range ips {
+				if isBlockedHTTPTarget(ip) {
+					return nil, fmt.Errorf("url nhắm tới địa chỉ nội bộ bị chặn: %s", host)
+				}
+			}
+			return (&net.Dialer{}).DialContext(ctx, network, net.JoinHostPort(ips[0].String(), port))
+		},
+	},
+}
+
 // DoHTTP runs an http step (already rendered): the status code and the body.
+// s.URL has already been through Render with the run's vars, which may
+// include attacker-controlled input (a webhook-triggered run), so the final
+// target is checked here, not just the pre-render template at validate time.
 func DoHTTP(ctx context.Context, s Step) (int, string, error) {
 	method := strings.ToUpper(s.Method)
 	if method == "" {
 		method = http.MethodGet
+	}
+	u, err := url.Parse(s.URL)
+	if err != nil {
+		return 0, "", fmt.Errorf("url không hợp lệ: %w", err)
+	}
+	if u.Scheme != "http" && u.Scheme != "https" {
+		return 0, "", fmt.Errorf("url phải là http hoặc https")
 	}
 	timeout := time.Duration(s.TimeoutS) * time.Second
 	if timeout <= 0 {
@@ -580,7 +638,7 @@ func DoHTTP(ctx context.Context, s Step) (int, string, error) {
 	if s.Body != "" && req.Header.Get("Content-Type") == "" && json.Valid([]byte(s.Body)) {
 		req.Header.Set("Content-Type", "application/json")
 	}
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := ssrfGuardedClient.Do(req)
 	if err != nil {
 		return 0, "", err
 	}
