@@ -191,6 +191,10 @@ type WorkflowRunRepo interface {
 	// filter is applied in SQL before the limit, so a rarely-run workflow's
 	// history is not pushed out by other workflows' runs.
 	ListByWorkflow(ctx context.Context, projectID, conversationID, workflowID string, limit int) ([]WorkflowRun, error)
+	// ListChildren is every run with the given parent_run_id, filtered in SQL
+	// before any cap, so a parent with many children (or a busy conversation
+	// with >500 unrelated runs) does not lose some of them to a recency limit.
+	ListChildren(ctx context.Context, parentRunID string) ([]WorkflowRun, error)
 	// ListRunning is every run with status Running, regardless of how long
 	// ago it started: List's newest-started-first cap of 500 can push a
 	// long-held run (waiting on approval, blocked) out of range.

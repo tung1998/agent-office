@@ -279,6 +279,24 @@ func (r workflowRunRepo) ListByWorkflow(ctx context.Context, projectID, conversa
 	return out, rows.Err()
 }
 
+func (r workflowRunRepo) ListChildren(ctx context.Context, parentRunID string) ([]storage.WorkflowRun, error) {
+	rows, err := r.db.QueryContext(ctx, `SELECT `+workflowRunCols+` FROM workflow_runs WHERE parent_run_id=? ORDER BY started_at DESC, id DESC`,
+		parentRunID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []storage.WorkflowRun{}
+	for rows.Next() {
+		x, err := scanWorkflowRun(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, x)
+	}
+	return out, rows.Err()
+}
+
 func (r workflowRunRepo) ListRunning(ctx context.Context) ([]storage.WorkflowRun, error) {
 	rows, err := r.db.QueryContext(ctx, `SELECT `+workflowRunCols+` FROM workflow_runs WHERE status=? ORDER BY started_at DESC, id DESC`,
 		storage.RunRunning)

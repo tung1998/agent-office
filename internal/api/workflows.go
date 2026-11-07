@@ -530,11 +530,9 @@ func (s *server) getWorkflowRun(w http.ResponseWriter, r *http.Request) {
 	}
 	// the sub-workflows it called (its own chat called them)
 	children := []workflowRunDTO{}
-	if list, err := s.cfg.Store.WorkflowRuns().List(r.Context(), x.ProjectID, x.ConversationID, 100); err == nil {
+	if list, err := s.cfg.Store.WorkflowRuns().ListChildren(r.Context(), x.ID); err == nil {
 		for _, c := range list {
-			if c.ParentRunID == x.ID {
-				children = append(children, s.toWorkflowRunDTO(r.Context(), c))
-			}
+			children = append(children, s.toWorkflowRunDTO(r.Context(), c))
 		}
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"run": s.toWorkflowRunDTO(r.Context(), x), "children": children})
