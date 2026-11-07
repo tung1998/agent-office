@@ -83,6 +83,12 @@ func (s *server) gitBranchOp(w http.ResponseWriter, r *http.Request, action stri
 		writeError(w, http.StatusBadRequest, "project chưa có thư mục")
 		return
 	}
+	release, busy := gitLock(p.ID, "op")
+	if busy {
+		writeError(w, http.StatusConflict, errGitBusy.Error())
+		return
+	}
+	defer release()
 	name := strings.TrimSpace(in.Name)
 	err = op(r.Context(), p.Path, name)
 	s.auditAction(r, action, name, map[string]any{"project": p.ID, "ok": err == nil})
@@ -129,7 +135,11 @@ func (s *server) gitFetch(w http.ResponseWriter, r *http.Request) {
 	done, err := s.gitBackground(r, p, "fetch", func(ctx context.Context) (any, error) {
 		return nil, gitops.Fetch(ctx, p.Path)
 	})
-	if done && err != nil { // errGitBusy (not done): the one running tells its end
+	switch {
+	case errors.Is(err, errGitBusy): // something else (push, branch op, commit) is already running
+		writeError(w, http.StatusConflict, err.Error())
+		return
+	case done && err != nil:
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
@@ -151,27 +161,55 @@ func (s *server) gitFetch(w http.ResponseWriter, r *http.Request) {
 // connections to office for up to a minute (ADR-127).
 var gitWait = 3 * time.Second
 
-// gitRunning: a project's fetch or push in the background, one of each.
+// gitRunning: the one git operation (of any kind — fetch, push, branch
+// switch/create/delete, commit) going on for a project, keyed by projectID
+// alone, so two git processes never race on the same working directory/refs.
 var gitRunning sync.Map
 
 var errGitBusy = errors.New("git của project đang chạy việc này, chờ nó xong")
 
-// gitBackground runs fn (the project's fetch or push) apart from the request
-// and waits up to gitWait. done: it ended (with err); otherwise it goes on
-// (or one already was: errGitBusy) and a "git" event tells the caller's pages its end
-// (project, kind, repo, status, action, error).
+// gitProjectBusy reports whether a git operation is already running for this
+// project.
+func gitProjectBusy(projectID string) bool {
+	_, busy := gitRunning.Load(projectID)
+	return busy
+}
+
+// gitLock acquires the project-wide git lock for kind (recorded only for
+// diagnostics), refusing if one is already held. A single LoadOrStore keyed
+// by projectID alone keeps this atomic — no separate busy check beforehand,
+// which would leave a TOCTOU window between two concurrent callers. Call
+// release() when done.
+func gitLock(projectID, kind string) (release func(), busy bool) {
+	if _, loaded := gitRunning.LoadOrStore(projectID, kind); loaded {
+		return nil, true
+	}
+	return func() { gitRunning.Delete(projectID) }, false
+}
+
+// gitBackground runs fn (the project's fetch or push) apart from the request,
+// under the project's git lock (kind acquires it), and waits up to gitWait.
+// done: it ended (with err); otherwise it goes on (or the lock was already
+// held: errGitBusy, done=false) and a "git" event tells the caller's pages
+// its end (project, kind, repo, status, action, error).
 func (s *server) gitBackground(r *http.Request, p storage.Repo, kind string, fn func(context.Context) (any, error)) (done bool, err error) {
-	key := p.ID + ":" + kind
-	if _, busy := gitRunning.LoadOrStore(key, true); busy {
+	release, busy := gitLock(p.ID, kind)
+	if busy {
 		return false, errGitBusy
 	}
+	return s.runLocked(r, p, kind, release, fn)
+}
+
+// runLocked runs fn under a git lock already held (release frees it), apart
+// from the request, and waits up to gitWait the same way gitBackground does.
+func (s *server) runLocked(r *http.Request, p storage.Repo, kind string, release func(), fn func(context.Context) (any, error)) (done bool, err error) {
 	who := userFrom(r).ID
 	ctx := context.WithoutCancel(r.Context())
 	end := make(chan error, 1)
 	waiting := make(chan bool, 1)
 	waiting <- true
 	go func() {
-		defer gitRunning.Delete(key)
+		defer release()
 		extra, err := fn(ctx)
 		select {
 		case <-waiting: // the request still waits: it answers
@@ -246,7 +284,8 @@ func (s *server) gitPush(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "project không gắn thư mục")
 		return
 	}
-	if _, busy := gitRunning.Load(p.ID + ":push"); busy {
+	release, busy := gitLock(p.ID, "push")
+	if busy {
 		writeError(w, http.StatusConflict, errGitBusy.Error())
 		return
 	}
@@ -254,16 +293,18 @@ func (s *server) gitPush(w http.ResponseWriter, r *http.Request) {
 	sc := actions.Scope{ProjectID: p.ID, Agent: who, Level: perm.Propose}
 	a, err := s.cfg.Actions.Propose(r.Context(), sc, "git_push", "", "người dùng thao tác trên dashboard", storage.ActionArgs{})
 	if err != nil {
+		release()
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 	if a.Status != "pending" { // it ran on its own
+		release()
 		s.writeGitAction(w, r, "git_push", a)
 		return
 	}
 	audit := r.Clone(context.WithoutCancel(r.Context()))
 	var decided storage.Action // read only once it ended (done)
-	done, err := s.gitBackground(r, p, "push", func(ctx context.Context) (any, error) {
+	done, err := s.runLocked(r, p, "push", release, func(ctx context.Context) (any, error) {
 		d, err := s.cfg.Actions.Decide(ctx, a.ID, true, who)
 		if err != nil {
 			return nil, err
@@ -276,9 +317,6 @@ func (s *server) gitPush(w http.ResponseWriter, r *http.Request) {
 		return chat.ToActionDTO(d), nil
 	})
 	switch {
-	case errors.Is(err, errGitBusy): // another push started meanwhile
-		_, _ = s.cfg.Actions.Decide(r.Context(), a.ID, false, who)
-		writeError(w, http.StatusConflict, err.Error())
 	case !done: // it goes on: a "git" event tells its end
 		writeJSON(w, http.StatusAccepted, map[string]any{"action": chat.ToActionDTO(a), "running": "push"})
 	case decided.ID == "": // not decided
@@ -291,7 +329,14 @@ func (s *server) gitPush(w http.ResponseWriter, r *http.Request) {
 func (s *server) runGitAction(w http.ResponseWriter, r *http.Request, kind, taskID string, args storage.ActionArgs) {
 	who := userFrom(r).Email
 	_ = taskID // a person's commit is not merged with an agent's pending proposal for the task
-	sc := actions.Scope{ProjectID: r.PathValue("id"), Agent: who, Level: perm.Propose}
+	projectID := r.PathValue("id")
+	release, busy := gitLock(projectID, "op")
+	if busy {
+		writeError(w, http.StatusConflict, errGitBusy.Error())
+		return
+	}
+	defer release()
+	sc := actions.Scope{ProjectID: projectID, Agent: who, Level: perm.Propose}
 	a, err := s.cfg.Actions.Propose(r.Context(), sc, kind, "", "người dùng thao tác trên dashboard", args)
 	if err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
