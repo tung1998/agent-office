@@ -1,6 +1,18 @@
 @import "tailwindcss";
 @import "@nuxt/ui";
 
+/* Tailwind v4 dropped the hand cursor on buttons: give it back to every
+   clickable control that is not disabled */
+@layer base {
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]),
+  [role="switch"]:not(:disabled),
+  [role="tab"]:not(:disabled),
+  summary {
+    cursor: pointer;
+  }
+}
+
 /* chat answers: a wide table or code block scrolls inside itself, long words
    (links, paths) wrap; the page never scrolls sideways */
 .markdown {
