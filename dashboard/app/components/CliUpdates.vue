@@ -46,7 +46,7 @@ const installed = computed(() => (data.value?.tools ?? []).filter(x => x.install
 const outdated = computed(() => installed.value.filter(x => x.outdated).length)
 // a CLI office tells about (notify or auto) with no chat to tell it in
 const untold = computed(() => data.value?.alert_chat === false
-  && installed.value.some(x => (data.value?.auto_update?.tools?.[x.id] ?? data.value?.auto_update?.mode ?? 'notify') !== 'off'))
+  && installed.value.some(x => (auto.value.tools[x.id] ?? auto.value.mode) !== 'off'))
 const badOf = (id: string) => data.value?.auto_update?.bad?.[id]
 
 let unread = 0 // looks while the newest versions are read in the background
@@ -54,6 +54,10 @@ async function load() {
   clearTimeout(timer)
   try {
     data.value = await $fetch<List>('/api/cli-tools')
+    // sync() itself ignores this while an edit is queued or in flight: a read
+    // that started before that edit must not land after it and clobber it
+    // back to what the server had before the edit was even sent
+    autoQueue.sync({ mode: data.value.auto_update?.mode ?? 'notify', tools: { ...data.value.auto_update?.tools } })
     loadError.value = false
   } catch {
     loadError.value = true
@@ -103,27 +107,46 @@ const modeItems = computed(() => [
 const DEFAULT = '__default'
 const toolModeItems = computed(() => [{ value: DEFAULT, label: t('cliup.modeDefault') }, ...modeItems.value])
 
-async function saveMode(mode: Mode, tools: Record<string, Mode>) {
-  try {
-    const auto = await $fetch<List['auto_update']>('/api/cli-tools/auto-update', { method: 'PUT', body: { mode, tools } })
-    if (data.value) data.value.auto_update = auto
-    toast.add({ title: t('cliup.saved'), color: 'success' })
-  } catch (e) {
-    toast.add({ title: apiError(e), color: 'error' })
+// `auto` is the one reactive source of truth the mode selects read, so Vue
+// re-renders them right away; AutoSaveQueue only reads/writes it through
+// get/set closures (never owns it itself), so assigning `auto.value` here is
+// what actually makes the UI update. auto_update is a full-replace PUT (the
+// whole tools map, not a per-tool patch): AutoSaveQueue queues sends one at a
+// time and always builds a send's body from the state *after* every edit
+// made so far, so two mode changes fired before the first PUT's response
+// lands can no longer have the later response silently drop the other's.
+type Auto = { mode: Mode, tools: Record<string, Mode> }
+const auto = ref<Auto>({ mode: 'notify', tools: {} })
+const autoQueue = new AutoSaveQueue<Auto>(
+  { mode: 'notify', tools: {} },
+  () => auto.value,
+  v => { auto.value = v },
+  async (v) => {
+    try {
+      await $fetch('/api/cli-tools/auto-update', { method: 'PUT', body: v })
+      toast.add({ title: t('cliup.saved'), color: 'success' })
+    } catch (e) {
+      toast.add({ title: apiError(e), color: 'error' })
+      throw e
+    }
   }
-}
+)
 const mode = computed({
-  get: () => data.value?.auto_update?.mode ?? 'notify',
-  set: (v: Mode) => saveMode(v, { ...data.value?.auto_update?.tools })
+  get: () => auto.value.mode,
+  set: (v: Mode) => {
+    auto.value = { mode: v, tools: { ...auto.value.tools } }
+    autoQueue.queue()
+  }
 })
 function toolMode(id: string) {
-  return data.value?.auto_update?.tools?.[id] ?? DEFAULT
+  return auto.value.tools[id] ?? DEFAULT
 }
 function setToolMode(id: string, v: string) {
-  const tools = { ...data.value?.auto_update?.tools }
+  const tools = { ...auto.value.tools }
   if (v === DEFAULT) delete tools[id]
   else tools[id] = v as Mode
-  saveMode(mode.value, tools)
+  auto.value = { mode: auto.value.mode, tools }
+  autoQueue.queue()
 }
 
 function upgradeText(u: Upgrade) {
