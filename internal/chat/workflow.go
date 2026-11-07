@@ -1514,7 +1514,9 @@ func (e *Engine) wfCallBack(runID string, conv storage.Conversation, project sto
 			e.wf.mu.Unlock()
 			if tries < 240 {
 				time.AfterFunc(5*time.Second, func() { e.wfCallBack(runID, conv, project) })
+				return
 			}
+			e.finishRun(conv.ID, runID, storage.RunFailed, "", "chat bận liên tục, không gọi lại được điều phối viên")
 			return
 		}
 		e.note(conv, why)
