@@ -579,3 +579,36 @@ func TestLiveMarks(t *testing.T) {
 		}
 	}
 }
+
+// A gateway that stops answering heartbeats (op 11 ACK) without ever closing
+// the socket or sending bytes — a stalled TCP connection (NAT timeout, proxy,
+// laptop wake) looks exactly like this. session() must notice the missing ACK
+// and give up instead of hanging until the test's outer deadline.
+func TestDiscordZombieHeartbeat(t *testing.T) {
+	gw := wsServe(t, func(send func(string)) {
+		send(`{"op":10,"d":{"heartbeat_interval":120}}`)
+	}, func(msg string, send func(string)) {
+		var p struct {
+			Op int `json:"op"`
+		}
+		json.Unmarshal([]byte(msg), &p)
+		if p.Op == 2 { // identify: go ready, then never ACK another heartbeat
+			send(`{"op":0,"s":1,"t":"READY","d":{"user":{"id":"99","username":"shopbot"}}}`)
+			return
+		}
+		// op 1 (heartbeat) deliberately gets no op:11 reply
+	})
+	defer gw.Close()
+	d := &Discord{Token: "TOK", GatewayURL: "ws" + strings.TrimPrefix(gw.URL, "http")}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	start := time.Now()
+	_, err := d.session(ctx, func(string) {}, func(Incoming) {})
+	elapsed := time.Since(start)
+	if err == nil {
+		t.Fatalf("session() returned no error after a missing ACK (hung until outer deadline)")
+	}
+	if elapsed > 2*time.Second {
+		t.Fatalf("session() took %v to notice the missing ACK, want well under the 5s outer deadline", elapsed)
+	}
+}

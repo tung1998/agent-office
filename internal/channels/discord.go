@@ -138,6 +138,13 @@ func (d *Discord) session(ctx context.Context, onReady func(string), onMessage f
 	if h.Interval <= 0 {
 		h.Interval = 41250
 	}
+	// a stalled TCP connection (NAT/proxy drop, laptop sleep) never surfaces as a
+	// read error on its own: bound how long Read may wait for the next frame, and
+	// watch for Discord's heartbeat ACK (op 11) so a non-responding session is
+	// detected and closed instead of hanging silently until the OS gives up.
+	c.SetReadTimeout(time.Duration(h.Interval) * 2 * time.Millisecond)
+	var acked atomic.Bool
+	acked.Store(true) // no heartbeat sent yet: nothing to be missing an ACK for
 	hbCtx, stop := context.WithCancel(sctx)
 	defer stop()
 	go func() {
@@ -148,6 +155,11 @@ func (d *Discord) session(ctx context.Context, onReady func(string), onMessage f
 			case <-hbCtx.Done():
 				return
 			case <-tick.C:
+				if !acked.Swap(false) {
+					slog.Warn("discord: heartbeat ACK missing, closing session")
+					c.Close()
+					return
+				}
 				s := seq.Load()
 				beat := `{"op":1,"d":null}`
 				if s >= 0 {
@@ -174,6 +186,8 @@ func (d *Discord) session(ctx context.Context, onReady func(string), onMessage f
 			return ready, errors.New("discord: gateway asked to reconnect")
 		case 1:
 			_ = c.WriteText(fmt.Sprintf(`{"op":1,"d":%d}`, seq.Load()))
+		case 11: // heartbeat ACK
+			acked.Store(true)
 		case 0:
 			switch p.T {
 			case "READY":

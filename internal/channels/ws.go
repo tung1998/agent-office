@@ -15,6 +15,7 @@ import (
 	"net/http"
 	"net/url"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -25,6 +26,7 @@ type wsConn struct {
 	conn net.Conn
 	br   *bufio.Reader
 	wmu  sync.Mutex
+	idle atomic.Int64 // read idle timeout (ns); 0 = none
 }
 
 const wsGUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
@@ -82,10 +84,20 @@ func dialWS(ctx context.Context, rawURL string) (*wsConn, error) {
 	return &wsConn{conn: conn, br: br}, nil
 }
 
+// SetReadTimeout bounds how long Read may wait for the next frame; a stalled
+// connection that stops delivering bytes (NAT/proxy drop, laptop sleep) then
+// errors out instead of blocking forever. 0 clears the timeout.
+func (w *wsConn) SetReadTimeout(d time.Duration) {
+	w.idle.Store(int64(d))
+}
+
 // Read returns the next text message (answering pings on the way).
 func (w *wsConn) Read() (string, error) {
 	var msg []byte
 	for {
+		if d := time.Duration(w.idle.Load()); d > 0 {
+			_ = w.conn.SetReadDeadline(time.Now().Add(d))
+		}
 		hdr := make([]byte, 2)
 		if _, err := io.ReadFull(w.br, hdr); err != nil {
 			return "", err
