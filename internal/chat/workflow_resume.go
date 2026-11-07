@@ -63,7 +63,7 @@ func (e *Engine) wasCut(run *wfRun, id string) bool {
 // not change, and their sub-runs that are such too. The others end.
 func (e *Engine) ResumableRuns(ctx context.Context) map[string]bool {
 	keep := map[string]bool{}
-	runs, err := e.store.WorkflowRuns().List(ctx, "", "", 500)
+	runs, err := e.store.WorkflowRuns().ListRunning(ctx)
 	if err != nil {
 		return keep
 	}
@@ -85,7 +85,7 @@ func (e *Engine) ResumableRuns(ctx context.Context) map[string]bool {
 // chat called (a sub-run goes on when its parent's step comes to it); why
 // is why office went down. It returns how many went on.
 func (e *Engine) ResumeWorkflows(ctx context.Context, why string, keep map[string]bool) int {
-	runs, err := e.store.WorkflowRuns().List(ctx, "", "", 500)
+	runs, err := e.store.WorkflowRuns().ListRunning(ctx)
 	if err != nil {
 		return 0
 	}
@@ -362,7 +362,7 @@ func (e *Engine) WatchOrphans(ctx context.Context, every time.Duration) {
 // by the sweep before too: a run a chat called goes on when it can, the
 // others end. It returns how many it handled.
 func (e *Engine) sweepOrphans(ctx context.Context, age time.Duration) int {
-	runs, err := e.store.WorkflowRuns().List(ctx, "", "", 500)
+	runs, err := e.store.WorkflowRuns().ListRunning(ctx)
 	if err != nil {
 		return 0
 	}

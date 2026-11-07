@@ -99,7 +99,7 @@ func (c Counter) Count(ctx context.Context) Report {
 	}
 	// the workflows that only wait: neither they nor the jobs waiting for
 	// them hold a restart (ADR-256)
-	runs, runsErr := c.Store.WorkflowRuns().List(ctx, "", "", 500)
+	runs, runsErr := c.Store.WorkflowRuns().ListRunning(ctx)
 	parked, waiting := map[string]bool{}, map[string]bool{}
 	for _, w := range runs {
 		if w.Status == storage.RunRunning && workflow.Parked(ctx, c.Store, w) {

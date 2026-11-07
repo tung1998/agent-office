@@ -365,6 +365,36 @@ steps:
 	}
 }
 
+// An old Running run must not fall out of sweepOrphans' view because
+// hundreds of other runs (any status) started more recently: List's
+// newest-started-first cap of 500 used to hide it (fixed by ListRunning,
+// which filters by status in SQL with no cap).
+func TestSweepOrphansFindsOldRunningRunPastListCap(t *testing.T) {
+	g := newWFGroup(t)
+	old := time.Now().UTC().Add(-time.Hour)
+	dead, _ := g.f.st.WorkflowRuns().Create(g.context, storage.WorkflowRun{ProjectID: g.f.project.ID, ConversationID: g.conv.ID, CallerConversationID: g.conv.ID,
+		WorkflowKey: "dieu-phoi", WorkflowName: "Điều phối", CoordinatorID: g.lead, Status: storage.RunRunning, StartedAt: old})
+	for i := 0; i < 500; i++ {
+		recent, err := g.f.st.WorkflowRuns().Create(g.context, storage.WorkflowRun{ProjectID: g.f.project.ID, ConversationID: g.conv.ID, WorkflowKey: "xong", Status: storage.RunRunning})
+		if err != nil {
+			t.Fatal(err)
+		}
+		recent.Status = storage.RunDone
+		if err := g.f.st.WorkflowRuns().Update(g.context, recent); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if n := g.engine.SweepOrphans(g.context, chat.OrphanAge); n != 0 {
+		t.Fatalf("swept on the first sight %d", n)
+	}
+	if n := g.engine.SweepOrphans(g.context, chat.OrphanAge); n != 1 {
+		t.Fatalf("swept %d, the old running run past the cap went unseen", n)
+	}
+	if got, _ := g.f.st.WorkflowRuns().Get(g.context, dead.ID); got.Status != storage.RunFailed || !strings.Contains(got.Error, "không còn ai giữ") {
+		t.Fatalf("ended = %s %q", got.Status, got.Error)
+	}
+}
+
 // The dashboard's "Chạy tiếp từ bước dở": a run the restart ended that kept
 // where it was goes on; another run does not.
 func TestResumeRunByHand(t *testing.T) {
