@@ -2,6 +2,8 @@ package automation
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"os"
@@ -9,6 +11,15 @@ import (
 	"strings"
 	"sync"
 )
+
+// versionOf hashes an edit's content the same way api.versionOf does, so a
+// version read via Content() before the lock compares equal to one computed
+// again under the lock in Install().
+func versionOf(v any) string {
+	raw, _ := json.Marshal(v)
+	sum := sha256.Sum256(raw)
+	return hex.EncodeToString(sum[:8])
+}
 
 // Service is what the API uses.
 type Service struct {
@@ -162,6 +173,11 @@ func (s *Service) Install(ctx context.Context, req InstallRequest) (InstallResul
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	res := InstallResult{Findings: []Finding{}}
+	if req.Version != "" && req.Edited != nil && req.Overwrite {
+		if cur, err := s.Content(ctx, *req.Edited); err == nil && versionOf(cur.Files) != req.Version {
+			return res, ErrConflict
+		}
+	}
 	var files map[string]string
 	var mcp map[string]any
 	switch {

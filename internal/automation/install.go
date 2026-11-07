@@ -31,6 +31,10 @@ var (
 	ErrNeedsClaude  = errors.New("cần Claude Code CLI để cài MCP cho toàn máy hoặc riêng máy")
 	ErrUnsafeSkill  = errors.New("nội dung có mẫu nguy hiểm nên không được cài")
 	ErrNeedsConsent = errors.New("nội dung có cảnh báo, cần xác nhận trước khi cài")
+	// ErrConflict: the item changed since the editor read it (ADR-072),
+	// checked again under Service.mu right before the write so a second
+	// install racing the first cannot silently overwrite it.
+	ErrConflict = errors.New("đã có thay đổi mới ở nơi khác kể từ lúc bạn mở (người khác hoặc agent)")
 )
 
 // Installer writes to the machine. Home is the user's home; Trash is where

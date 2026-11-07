@@ -144,6 +144,9 @@ func (s *server) autoInstall(w http.ResponseWriter, r *http.Request) {
 	}
 	res, err := s.cfg.Automation.Install(r.Context(), req)
 	switch {
+	case errors.Is(err, automation.ErrConflict):
+		writeSaveConflict(w)
+		return
 	case errors.Is(err, automation.ErrUnsafeSkill):
 		writeJSON(w, http.StatusUnprocessableEntity, map[string]any{"error": err.Error(), "code": "unsafe", "findings": res.Findings})
 		return

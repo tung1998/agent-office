@@ -435,6 +435,44 @@ func TestInstallSkillFromFiles(t *testing.T) {
 	}
 }
 
+// Two overwrites of the same skill racing from the same stale base version
+// (ADR-072) must not both land: only the first may succeed, the second must
+// get ErrConflict rather than silently clobbering it, matching the
+// check-before-lock + check-after-lock pattern updateAutomation uses.
+func TestInstallSkillConcurrentStaleVersionConflicts(t *testing.T) {
+	ctx := context.Background()
+	home, proj := fixture(t)
+	s := svc(t, home, proj)
+	md := "---\nname: tra-don\ndescription: Tra trạng thái đơn\n---\n\nTra đơn theo mã."
+	target := Target{Scope: "project", ProjectPath: proj}
+	if _, err := s.Install(ctx, InstallRequest{Kind: "skill", Name: "tra-don", Target: target, Files: map[string]string{"SKILL.md": md}}); err != nil {
+		t.Fatal(err)
+	}
+	it := find(s.Scan(ctx), "skill", "tra-don", "project")
+	edited := refOf(it)
+	cur, err := s.Content(ctx, edited)
+	if err != nil {
+		t.Fatal(err)
+	}
+	base := versionOf(cur.Files)
+
+	req := InstallRequest{Kind: "skill", Name: "tra-don", Target: target, Overwrite: true, Edited: &edited, Version: base}
+	req.Files = map[string]string{"SKILL.md": md + "\nSửa của người A."}
+	if _, err := s.Install(ctx, req); err != nil {
+		t.Fatalf("first overwrite: %v", err)
+	}
+	// Second save still carries the same (now stale) base version, as if it
+	// had read the file before the first save landed.
+	req.Files = map[string]string{"SKILL.md": md + "\nSửa của người B."}
+	if _, err := s.Install(ctx, req); !errors.Is(err, ErrConflict) {
+		t.Fatalf("second overwrite from stale version = %v, want ErrConflict", err)
+	}
+	got, _ := os.ReadFile(filepath.Join(proj, ".claude/skills/tra-don/SKILL.md"))
+	if !strings.Contains(string(got), "người A") || strings.Contains(string(got), "người B") {
+		t.Fatalf("SKILL.md = %q, want person A's edit kept", got)
+	}
+}
+
 // An overwrite that fails (bad relative path rejected before anything is
 // touched) must leave the existing skill exactly as it was, with nothing new
 // in the trash.
