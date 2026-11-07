@@ -2,6 +2,7 @@ package burn
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -33,23 +34,31 @@ type feature struct {
 }
 
 // readFeatures reads dir's feature list: a list, or {"features": [...]};
-// none or unreadable: none.
-func readFeatures(dir string) []feature {
+// none of the file yet: none, no error. The file is there but neither shape
+// parses: an error, since that is a sign something broke (ADR-139's
+// re-check of every passing feature must not silently skip).
+func readFeatures(dir string) ([]feature, error) {
 	raw, err := os.ReadFile(filepath.Join(dir, featuresFile))
 	if err != nil {
-		return nil
+		return nil, nil
 	}
 	var list []feature
 	if json.Unmarshal(raw, &list) == nil {
-		return list
+		return list, nil
 	}
 	var wrapped struct {
 		Features []feature `json:"features"`
 	}
-	if json.Unmarshal(raw, &wrapped) == nil {
-		return wrapped.Features
+	if err := json.Unmarshal(raw, &wrapped); err == nil {
+		return wrapped.Features, nil
+	} else {
+		return nil, fmt.Errorf("%s: %w", featuresFile, err)
 	}
-	return nil
+}
+
+// shellQuote wraps s in single quotes for sh -c, escaping any inside it.
+func shellQuote(s string) string {
+	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
 }
 
 // Feature is one entry of a builder Burn's features.json, for callers
@@ -68,18 +77,25 @@ func Features(dir string) []Feature {
 		return nil
 	}
 	var out []Feature
-	for _, f := range readFeatures(dir) {
+	list, _ := readFeatures(dir) // display only: a parse problem shows as no features, the checks (acceptance) are what must not stay silent
+	for _, f := range list {
 		out = append(out, Feature{f.ID, f.Title, f.Passes})
 	}
 	return out
 }
 
 // acceptance are the acceptance commands of the features passing in dir,
-// each once, in the list's order.
-func acceptance(dir string) []string {
+// each once, in the list's order; err set when features.json is there but
+// did not parse (its re-check is the builder Burn's whole safety point, so
+// that must not be mistaken for "no features").
+func acceptance(dir string) ([]string, error) {
+	list, err := readFeatures(dir)
+	if err != nil {
+		return nil, err
+	}
 	var out []string
 	seen := map[string]bool{}
-	for _, f := range readFeatures(dir) {
+	for _, f := range list {
 		c := strings.TrimSpace(f.Acceptance)
 		if !f.Passes || c == "" || seen[c] {
 			continue
@@ -90,7 +106,7 @@ func acceptance(dir string) []string {
 			break
 		}
 	}
-	return out
+	return out, nil
 }
 
 // builderCheck is how a builder piece is done and checked (burn/work.md).

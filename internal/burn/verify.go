@@ -38,7 +38,12 @@ func verifyCommands(b storage.BurnSession, dir string) []string {
 		out = verifier.Guess(dir)
 	}
 	if templateOf(b) == "builder" { // what the features done say they pass (ADR-139)
-		out = append(out, acceptance(dir)...)
+		cmds, err := acceptance(dir)
+		if err != nil { // malformed features.json: fail the check instead of silently running none
+			out = append(out, fmt.Sprintf("echo %s >&2; exit 1", shellQuote(err.Error())))
+		} else {
+			out = append(out, cmds...)
+		}
 	}
 	return out
 }
