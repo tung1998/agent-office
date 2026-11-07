@@ -10,7 +10,9 @@ package prompts
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"embed"
+	"encoding/hex"
 	"fmt"
 	"strings"
 	"sync"
@@ -62,6 +64,25 @@ func parsed(name string) *template.Template {
 	t := template.Must(template.New(name).Delims("[[", "]]").Funcs(Funcs).Option("missingkey=error").Parse(Text(name)))
 	cache[name] = t
 	return t
+}
+
+// Version returns a short content hash of the prompt's current text, stable
+// across runs as long as the .md file is unchanged. Callers that record what
+// a job or run used (activity logs, Burn retros) can store this alongside
+// the prompt name, so a later behavior change can be traced to a prompt
+// edit instead of guessed at from commit history alone.
+func Version(name string) string {
+	sum := sha256.Sum256([]byte(Text(name)))
+	return hex.EncodeToString(sum[:])[:12]
+}
+
+// Versions maps every prompt name to its current Version.
+func Versions() map[string]string {
+	out := map[string]string{}
+	for _, n := range Names() {
+		out[n] = Version(n)
+	}
+	return out
 }
 
 // Names lists every prompt ("area/name").

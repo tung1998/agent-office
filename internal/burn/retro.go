@@ -182,9 +182,9 @@ func counts(m map[string]int) string {
 // retroPrompt is the look back at a run (burn/retro.md).
 func retroPrompt(b storage.BurnSession, items []storage.BurnItem, start time.Time) string {
 	return prompts.Render("burn/retro", struct {
-		Template, Focus, Stats, Lessons string
-		Setbacks                        []string
-	}{templateLabel[templateOf(b)], b.Focus, runStats(b, items, start), b.Lessons, setbacks(items)})
+		Template, Focus, Stats, Lessons, PromptVersion string
+		Setbacks                                       []string
+	}{templateLabel[templateOf(b)], b.Focus, runStats(b, items, start), b.Lessons, prompts.Version("burn/retro"), setbacks(items)})
 }
 
 // lessonsBlock is the ```lessons block of the look back, the whole list.

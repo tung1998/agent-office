@@ -1,4 +1,4 @@
-[Burn] This run of the Burn has ended (template: [[.Template]]). Look back at it as the one who runs the process: not to judge the pieces one by one, but to find what kept the run from moving the project forward, so the next run is set up better. You are read only now: do not change code or settings.
+[Burn] This run of the Burn has ended (template: [[.Template]], retro prompt version [[.PromptVersion]]). Look back at it as the one who runs the process: not to judge the pieces one by one, but to find what kept the run from moving the project forward, so the next run is set up better. You are read only now: do not change code or settings.
 [[- if .Focus]]
 
 The person's focus: [[.Focus]]

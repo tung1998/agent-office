@@ -5,11 +5,27 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/tung1998/agent-office/internal/prompts"
 	"github.com/tung1998/agent-office/internal/storage"
 	"github.com/tung1998/agent-office/internal/storage/sqlite"
 	"github.com/tung1998/agent-office/internal/worktree"
 )
+
+// retroPrompt must render with the burn/retro template (struct fields match
+// its [[.Field]] tokens — a mismatch would panic here, not just at runtime)
+// and must actually carry the prompt's own version, so a later behavior
+// change in a run's retro can be traced to a specific edit of retro.md.
+func TestRetroPromptCarriesOwnVersion(t *testing.T) {
+	b := storage.BurnSession{ProjectID: "p1", RunBranch: "burn/test"}
+	items := []storage.BurnItem{}
+	out := retroPrompt(b, items, time.Now())
+	want := prompts.Version("burn/retro")
+	if !strings.Contains(out, want) {
+		t.Fatalf("retroPrompt missing its own prompt version %q: %q", want, out)
+	}
+}
 
 // record puts a piece's own earlier fail reason into its Detail, so the
 // worker that picks it up next sees why it failed last time (Reflexion),
