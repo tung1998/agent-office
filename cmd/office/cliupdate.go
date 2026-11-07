@@ -210,13 +210,39 @@ func (c cliUpdates) ended(u clitools.UpgradeView) {
 	c.tell(context.Background(), icon+u.Summary(c.name(u.Tool)))
 }
 
+// editAutoSetting changes clitools.AutoUpdateKey in one write: fn gets the
+// setting freshly read on each try (another tool's keepBad/Save may write
+// between) and changes it in place; it says whether it changed anything.
+// Without this, a plain Get→merge→Set (per CLI tool, same settings row) could
+// have two tools' independent writes race and the later one silently drop
+// the earlier one's Told/Bad/Repair entries.
+func editAutoSetting(ctx context.Context, store storage.Store, fn func(*clitools.AutoSetting) bool) {
+	for range 20 {
+		raw, ok, err := store.Settings().GetRaw(ctx, clitools.AutoUpdateKey)
+		if err != nil {
+			return
+		}
+		var cur clitools.AutoSetting
+		if ok && raw != "" {
+			_, _ = store.Settings().Get(ctx, clitools.AutoUpdateKey, &cur)
+		}
+		if !fn(&cur) {
+			return
+		}
+		switch err := store.Settings().SetIf(ctx, clitools.AutoUpdateKey, raw, cur); {
+		case errors.Is(err, storage.ErrConflict):
+			continue
+		default:
+			return
+		}
+	}
+}
+
 // keepBad saves the versions put back (clitools.Manager.SyncBad).
 func (c cliUpdates) keepBad(ctx context.Context) {
-	var cur clitools.AutoSetting
-	_, _ = c.store.Settings().Get(ctx, clitools.AutoUpdateKey, &cur)
-	if c.m.SyncBad(&cur) {
-		_ = c.store.Settings().Set(ctx, clitools.AutoUpdateKey, cur)
-	}
+	editAutoSetting(ctx, c.store, func(cur *clitools.AutoSetting) bool {
+		return c.m.SyncBad(cur)
+	})
 }
 
 // hooks are the watch's: the setting kept in the store; what was told is
@@ -229,10 +255,11 @@ func (c cliUpdates) hooks() clitools.WatchHooks {
 			return s
 		},
 		Save: func(ctx context.Context, s clitools.AutoSetting) {
-			var cur clitools.AutoSetting
-			_, _ = c.store.Settings().Get(ctx, clitools.AutoUpdateKey, &cur)
-			cur.Told, cur.Bad, cur.Repair = s.Told, s.Bad, s.Repair
-			_ = c.store.Settings().Set(ctx, clitools.AutoUpdateKey, cur)
+			editAutoSetting(ctx, c.store, func(cur *clitools.AutoSetting) bool {
+				cur.Told, cur.Bad, cur.Repair = s.Told, s.Bad, s.Repair
+				c.m.SyncBad(cur)
+				return true
+			})
 		},
 		Notify: c.tell,
 	}

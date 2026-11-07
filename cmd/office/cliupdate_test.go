@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -274,5 +275,93 @@ func TestRecheckResolvesLikeTheRun(t *testing.T) {
 	}
 	if p, _ := st.Providers().Get(ctx, own.ID); p.Status != "ok" {
 		t.Fatalf("the connection on the manager's install was not checked: %s", p.Status)
+	}
+}
+
+// keepBad and hooks().Save share one settings row (AutoUpdateKey) across CLI
+// tools: a concurrent call for "codex" must not stomp what another call just
+// wrote for "gemini" (or vice versa).
+func TestCLIUpdatesAutoSettingConcurrentMerge(t *testing.T) {
+	ctx := context.Background()
+	st, err := sqlite.Open(filepath.Join(t.TempDir(), "o.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	if err := st.Migrate(ctx); err != nil {
+		t.Fatal(err)
+	}
+	var wg sync.WaitGroup
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		editAutoSetting(ctx, st, func(cur *clitools.AutoSetting) bool {
+			if cur.Told == nil {
+				cur.Told = map[string]string{}
+			}
+			cur.Told["codex"] = "1.0.0"
+			return true
+		})
+	}()
+	go func() {
+		defer wg.Done()
+		editAutoSetting(ctx, st, func(cur *clitools.AutoSetting) bool {
+			if cur.Told == nil {
+				cur.Told = map[string]string{}
+			}
+			cur.Told["gemini"] = "2.0.0"
+			return true
+		})
+	}()
+	wg.Wait()
+	var got clitools.AutoSetting
+	if _, err := st.Settings().Get(ctx, clitools.AutoUpdateKey, &got); err != nil {
+		t.Fatal(err)
+	}
+	if got.Told["codex"] != "1.0.0" || got.Told["gemini"] != "2.0.0" {
+		t.Fatalf("lost a concurrent tool's Told entry: %+v", got.Told)
+	}
+}
+
+// keepBad (an upgrade ending) and hooks().Save (the watch loop's tick) write
+// the same AutoUpdateKey row; Save must not overwrite a Bad entry keepBad
+// just wrote with the stale snapshot it loaded before the tick started.
+func TestCLIUpdatesKeepBadSurvivesHooksSave(t *testing.T) {
+	ctx := context.Background()
+	st, err := sqlite.Open(filepath.Join(t.TempDir(), "o.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	if err := st.Migrate(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.Settings().Set(ctx, clitools.AutoUpdateKey, clitools.AutoSetting{
+		Bad: map[string]string{"codex": "1.0"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	cu := cliUpdates{m: clitools.NewManagerWithPath(t.TempDir()), store: st}
+
+	// keepBad loads the manager's view of put-back versions, which seeds
+	// from the store on its first call ("codex": "1.0").
+	cu.keepBad(ctx)
+
+	// The watch tick started before keepBad ran, so its snapshot (s) knows
+	// nothing about "codex" and carries a different tool's Told/Repair.
+	cu.hooks().Save(ctx, clitools.AutoSetting{
+		Told:   map[string]string{"gemini": "2.0"},
+		Repair: map[string]bool{"gemini": true},
+	})
+
+	var got clitools.AutoSetting
+	if _, err := st.Settings().Get(ctx, clitools.AutoUpdateKey, &got); err != nil {
+		t.Fatal(err)
+	}
+	if got.Bad["codex"] != "1.0" {
+		t.Fatalf("hooks().Save dropped keepBad's entry: Bad = %+v", got.Bad)
+	}
+	if got.Told["gemini"] != "2.0" || !got.Repair["gemini"] {
+		t.Fatalf("hooks().Save lost its own Told/Repair: %+v", got)
 	}
 }
