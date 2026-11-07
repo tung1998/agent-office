@@ -37,6 +37,27 @@ type Tool struct {
 	// ReadOnly: the tool never changes state (MCP readOnlyHint). Defaults to
 	// false so a new tool must be marked read-only on purpose.
 	ReadOnly bool
+	// Risk is a declared rating ("low"/"medium"/"high") for a tool that can
+	// write or propose an irreversible change, set where the tool is
+	// registered rather than inferred later from its arguments (OpenAI,
+	// "A practical guide to building agents", Tool safeguards). It is a second,
+	// coarser layer alongside perm.Risky()/riskyArg, which still decide
+	// whether one actual call needs approval; Risk lets "which tools are
+	// high-risk" be read off the tool list without reading that regex.
+	Risk string
+}
+
+// HighRiskTools returns the names of every tool in list whose Risk is "high",
+// sorted, for a quick audit of what can act without per-call inference.
+func HighRiskTools(list []Tool) []string {
+	var out []string
+	for _, tl := range list {
+		if tl.Risk == "high" {
+			out = append(out, tl.Name)
+		}
+	}
+	slices.Sort(out)
+	return out
 }
 
 // Toolbox runs the tools for one project at a time.
@@ -280,18 +301,18 @@ func (t *Toolbox) Tools() []Tool {
 		Tool{Name: "git_log", Description: "The latest commits.", Schema: obj(map[string]any{"lines": map[string]any{"type": "integer"}}), ReadOnly: true},
 	)
 	if t.actions != nil {
-		list = append(list, Tool{Name: "run_command", Description: "Run one command in the project folder (no shell: no | ; & > $), e.g. test, lint, build. Commands on your allowed list run at once; others become a proposal awaiting the person's approval.",
+		list = append(list, Tool{Name: "run_command", Risk: "high", Description: "Run one command in the project folder (no shell: no | ; & > $), e.g. test, lint, build. Commands on your allowed list run at once; others become a proposal awaiting the person's approval.",
 			Schema: obj(map[string]any{
 				"command": map[string]any{"type": "string", "description": "Command line, e.g. go test ./internal/..."},
 				"reason":  map[string]any{"type": "string", "description": "Why it needs to run"},
 			}, "command", "reason")})
-		list = append(list, Tool{Name: "deps_install", Description: "Install a package's dependencies (pnpm/npm/yarn/bun install, uv sync, pip) after you change package.json, a lockfile, uv.lock or requirements. In your own worktree they go into folders of its own (node_modules/.venv are no longer the project's links), so build/test run on the new versions and the project is untouched: never copy the project to /tmp for this, and never run the install with run_command. It runs at once when you may run commands on your own (an install runs the packages' scripts), else (and outside a worktree) it is a proposal for the person. Once your diff is merged, office proposes the same install in the project.",
+		list = append(list, Tool{Name: "deps_install", Risk: "high", Description: "Install a package's dependencies (pnpm/npm/yarn/bun install, uv sync, pip) after you change package.json, a lockfile, uv.lock or requirements. In your own worktree they go into folders of its own (node_modules/.venv are no longer the project's links), so build/test run on the new versions and the project is untouched: never copy the project to /tmp for this, and never run the install with run_command. It runs at once when you may run commands on your own (an install runs the packages' scripts), else (and outside a worktree) it is a proposal for the person. Once your diff is merged, office proposes the same install in the project.",
 			Schema: obj(map[string]any{
 				"path":   map[string]any{"type": "string", "description": "Package folder relative to the project, e.g. dashboard; \".\" = the top. A workspace package installs from its lockfile's folder"},
 				"reason": map[string]any{"type": "string", "description": "Why, e.g. Nuxt 4.5.2 → 4.6.4 in dashboard/package.json"},
 				"files":  map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "description": "pip only: the requirements files to install, relative to path (e.g. requirements-dev.txt); empty = requirements.txt"},
 			}, "path", "reason")})
-		list = append(list, Tool{Name: "propose_action", Description: "Propose an action for the person to approve (runs on its own if your permissions allow; git_push always needs approval). Use it to re-run build/test after a fix, restart a stuck service, or commit/push when asked.",
+		list = append(list, Tool{Name: "propose_action", Risk: "high", Description: "Propose an action for the person to approve (runs on its own if your permissions allow; git_push always needs approval). Use it to re-run build/test after a fix, restart a stuck service, or commit/push when asked.",
 			Schema: obj(map[string]any{
 				"action":  map[string]any{"type": "string", "enum": []string{"run_process", "restart_process", "stop_process", "start_container", "restart_container", "stop_container", "git_commit", "git_branch", "git_merge", "git_push"}},
 				"target":  map[string]any{"type": "string", "description": "*_process: process name; *_container: docker compose service"},
@@ -300,7 +321,7 @@ func (t *Toolbox) Tools() []Tool {
 				"files":   map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "description": "git_commit: files to commit (empty = all changes)"},
 				"branch":  map[string]any{"type": "string", "description": "git_branch: new branch name; git_merge: the local branch to merge into the current one (e.g. a Burn run's burn/<when>, once reviewed)"},
 			}, "action", "reason")})
-		list = append(list, Tool{Name: "send_to_chat", Description: "Send a message into ANOTHER chat of this office as the person you chat with, for its agent to carry on, when they ask to pass work there. Find the chat with search_history or a link they pasted. To hand work to a linked project (one this project links to in its settings), give project and no chat: a new chat opens there; read its progress later with read_link on the link returned.",
+		list = append(list, Tool{Name: "send_to_chat", Risk: "medium", Description: "Send a message into ANOTHER chat of this office as the person you chat with, for its agent to carry on, when they ask to pass work there. Find the chat with search_history or a link they pasted. To hand work to a linked project (one this project links to in its settings), give project and no chat: a new chat opens there; read its progress later with read_link on the link returned.",
 			Schema: obj(map[string]any{
 				"chat":    map[string]any{"type": "string", "description": "Target chat: dashboard link (…?tab=chat&c=…) or id cnv_…; empty with project = a new chat there"},
 				"project": map[string]any{"type": "string", "description": "A linked project (id or name), for a chat of that project"},
@@ -339,14 +360,14 @@ func (t *Toolbox) Tools() []Tool {
 					"section": map[string]any{"type": "string", "description": "With name: read only the part under this heading (a long skill lists its headings)"},
 				}), ReadOnly: true})
 		}
-		list = append(list, Tool{Name: "my_skills", Description: "Keep Your skills useful: add a skill you needed and will need again in this project (one only in the office library becomes a card the person approves to install it), or remove one you never use or that no longer fits. The list is capped: when full, remove the least useful first.",
+		list = append(list, Tool{Name: "my_skills", Risk: "low", Description: "Keep Your skills useful: add a skill you needed and will need again in this project (one only in the office library becomes a card the person approves to install it), or remove one you never use or that no longer fits. The list is capped: when full, remove the least useful first.",
 			Schema: obj(map[string]any{
 				"action": map[string]any{"type": "string", "enum": []string{"add", "remove"}},
 				"name":   map[string]any{"type": "string", "description": "Skill name"},
 				"why":    map[string]any{"type": "string", "description": "add: when it helps, one line, e.g. before a website goes live"},
 			}, "action", "name")})
 		str := func(desc string) map[string]any { return map[string]any{"type": "string", "description": desc} }
-		list = append(list, Tool{Name: "propose_automation", Description: "Propose an automation (the person approves it). Prefer action=script (NO AI tokens); chat only when every run needs AI; workflow runs a project workflow. A script feeds the project's Burn: each output line '@@quest <title> :: <detail>' becomes a Burn quest (open ones with the same title are skipped). A scheduled script opens a project workflow with a line '@@workflow <key> <input>' (at most 3, no AI until the workflow reaches an agent step). chat/workflow with goal runs until a check passes. A frequent schedule takes only_if (it runs only when its data or the work board has work: no tokens otherwise) and limits. With the self.manage capability, a chat/workflow schedule at most every 30 minutes with limits.daily_cost_usd up to 5 is done at once, no approval. With automation_id it edits that one: what the edit leaves out (time zone, agent, prompt, goal, only_if, limits, where it reports) stays as it is.",
+		list = append(list, Tool{Name: "propose_automation", Risk: "high", Description: "Propose an automation (the person approves it). Prefer action=script (NO AI tokens); chat only when every run needs AI; workflow runs a project workflow. A script feeds the project's Burn: each output line '@@quest <title> :: <detail>' becomes a Burn quest (open ones with the same title are skipped). A scheduled script opens a project workflow with a line '@@workflow <key> <input>' (at most 3, no AI until the workflow reaches an agent step). chat/workflow with goal runs until a check passes. A frequent schedule takes only_if (it runs only when its data or the work board has work: no tokens otherwise) and limits. With the self.manage capability, a chat/workflow schedule at most every 30 minutes with limits.daily_cost_usd up to 5 is done at once, no approval. With automation_id it edits that one: what the edit leaves out (time zone, agent, prompt, goal, only_if, limits, where it reports) stays as it is.",
 			Schema: obj(map[string]any{
 				"automation_id":   str("Edit this automation (empty = create a new one)"),
 				"enabled":         map[string]any{"type": "boolean", "description": "Turn it on (true) or off (false); empty = a new one on, an edited one as it is"},
@@ -400,7 +421,7 @@ func (t *Toolbox) Tools() []Tool {
 			Tool{Name: "list", Description: "The settings of one type in the project (id, name, status).", Schema: obj(map[string]any{"resource": kind}, "resource"), ReadOnly: true},
 			Tool{Name: "get", Description: "One setting in full (secrets masked). policy, project and usage_settings need no id.",
 				Schema: obj(map[string]any{"resource": kind, "id": map[string]any{"type": "string"}}, "resource"), ReadOnly: true},
-			Tool{Name: "propose_change", Description: "PROPOSE changing a setting; office applies it once the person approves the card. patch holds only the fields to change (see describe/get); never include API keys: the person pastes them on the card. With the self.manage capability, a workflow (made, changed or deleted), a deleted chat/workflow schedule, or a new agent of this project (no full_access, no extra_dirs, at most 15 agents), is done at once.",
+			Tool{Name: "propose_change", Risk: "high", Description: "PROPOSE changing a setting; office applies it once the person approves the card. patch holds only the fields to change (see describe/get); never include API keys: the person pastes them on the card. With the self.manage capability, a workflow (made, changed or deleted), a deleted chat/workflow schedule, or a new agent of this project (no full_access, no extra_dirs, at most 15 agents), is done at once.",
 				Schema: obj(map[string]any{
 					"resource": kind,
 					"op":       map[string]any{"type": "string", "enum": []string{"create", "update", "delete"}},
@@ -450,12 +471,12 @@ func (t *Toolbox) Tools() []Tool {
 				"detail": map[string]any{"type": "string", "description": "The brief, clear enough to do without asking back: goal, where (file:line), constraints, how to verify"},
 				"owner":  map[string]any{"type": "string", "description": "Who follows it up (reads its result, accepts or rewrites it): an agent of the board's project, key or name; empty = you, or the project's default agent"},
 			}, "title", "detail")},
-			Tool{Name: "burn_assign", Description: "Hand quests on the work board to another agent of the project to follow up: one quest (item), or every open quest of one agent (from), when work is split between managers or handed over. The Burn still does the work.", Schema: obj(map[string]any{
+			Tool{Name: "burn_assign", Risk: "low", Description: "Hand quests on the work board to another agent of the project to follow up: one quest (item), or every open quest of one agent (from), when work is split between managers or handed over. The Burn still does the work.", Schema: obj(map[string]any{
 				"owner": map[string]any{"type": "string", "description": "The agent that follows them up from now on (key or name)"},
 				"item":  map[string]any{"type": "string", "description": "One quest's id (from burn_quests)"},
 				"from":  map[string]any{"type": "string", "description": "Or: every open quest this agent follows up (key or name)"},
 			}, "owner")},
-			Tool{Name: "burn_drop", Description: "Take an open quest off the work board, with why: a duplicate, or one a newer plan replaced. It is closed as skipped (the Burn or an agent working on it stops there); the person sees the reason.", Schema: obj(map[string]any{
+			Tool{Name: "burn_drop", Risk: "low", Description: "Take an open quest off the work board, with why: a duplicate, or one a newer plan replaced. It is closed as skipped (the Burn or an agent working on it stops there); the person sees the reason.", Schema: obj(map[string]any{
 				"item":   map[string]any{"type": "string", "description": "The quest's id (from burn_quests)"},
 				"reason": map[string]any{"type": "string", "description": "Why it is dropped, e.g. duplicate of bit_…, replaced by the new contract"},
 			}, "item", "reason")},
@@ -466,7 +487,7 @@ func (t *Toolbox) Tools() []Tool {
 		list = append(list,
 			Tool{Name: "pending_requests", Description: "The project's cards waiting for a person: operations (kind action) and diffs (kind patch), with id, who proposed it and from which chat. Administrator only.",
 				Schema: obj(map[string]any{}), ReadOnly: true},
-			Tool{Name: "decide_request", Description: "Approve or reject a waiting card (see pending_requests) as administrator: an approved one is carried out at once and its agent goes on. A push to master/main is never yours to approve.",
+			Tool{Name: "decide_request", Risk: "high", Description: "Approve or reject a waiting card (see pending_requests) as administrator: an approved one is carried out at once and its agent goes on. A push to master/main is never yours to approve.",
 				Schema: obj(map[string]any{
 					"kind":    map[string]any{"type": "string", "enum": []string{"action", "patch"}},
 					"id":      map[string]any{"type": "string"},
@@ -514,7 +535,7 @@ func (t *Toolbox) Tools() []Tool {
 			Tool{Name: "workflow_vote", Description: "Workflow: put a question to a vote among the workflow's roles (in parallel, analyze only). Office counts the votes by quorum/veto and calls you again with the result.",
 				Schema: obj(map[string]any{"question": str("What to vote on, with enough context"),
 					"agents": map[string]any{"type": "object", "description": "Assign agents to voting roles that have none: {\"role\": \"agent name\"}", "additionalProperties": map[string]any{"type": "string"}}}, "question")},
-			Tool{Name: "workflow_gate", Description: "Workflow: open a gate. approve: a card for the person (note = what to approve), then the turn ends to wait. check: runs a check command (command, if the gate has none), in role's worktree if given.",
+			Tool{Name: "workflow_gate", Risk: "medium", Description: "Workflow: open a gate. approve: a card for the person (note = what to approve), then the turn ends to wait. check: runs a check command (command, if the gate has none), in role's worktree if given.",
 				Schema: obj(map[string]any{"gate": str("Gate key"), "note": str("approve: what the person needs to approve"), "command": str("check: check command"), "role": str("check: run in this role's worktree")}, "gate")},
 			Tool{Name: "workflow_done", Description: "Workflow: finish when done (and every required gate passed). summary is the workflow's RESULT, the only answer the caller sees (Markdown, complete, readable on its own).",
 				Schema: obj(map[string]any{"summary": str("Summary of the result"),

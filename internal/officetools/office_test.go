@@ -90,6 +90,7 @@ func TestToolsReadOnly(t *testing.T) {
 	box.SetDelegate(func(context.Context, Scope, string, string, string) (string, error) { return "", nil })
 	box.SetSendFile(func(context.Context, Scope, string, string) (string, error) { return "", nil })
 	box.SetWorkflow(fakeWorkflows{})
+	box.SetDecide(func(context.Context, Scope, string, string, bool) (string, error) { return "", nil })
 
 	readOnly := map[string]bool{
 		"projects": true, "jobs_query": true, "usage_summary": true, "handoff": true,
@@ -97,11 +98,12 @@ func TestToolsReadOnly(t *testing.T) {
 		"git_status": true, "git_diff": true, "git_log": true,
 		"describe": true, "list": true, "get": true,
 		"search_history": true, "read_link": true, "burn_list": true, "burn_quests": true, "recall": true, "use_skill": true, "staff_load": true,
+		"pending_requests": true,
 	}
 	writes := []string{"run_command", "propose_action", "propose_automation", "propose_change", "remember", "my_skills",
 		"send_to_chat", "send_file", "delegate", "run_automation", "burn_add", "burn_pick", "burn_skip",
 		"burn_done", "burn_scan_done", "burn_fail", "burn_quest", "burn_assign", "burn_drop", "workflow_delegate", "workflow_send",
-		"workflow_ask", "workflow_vote", "workflow_gate", "workflow_done"}
+		"workflow_ask", "workflow_vote", "workflow_gate", "workflow_done", "decide_request", "deps_install"}
 
 	// No single scope offers every tool at once (the office assistant gets
 	// projects/handoff/run_automation but not delegate; a Burn conversation
@@ -113,6 +115,7 @@ func TestToolsReadOnly(t *testing.T) {
 	scopes := []Scope{
 		{ProjectID: office.ID, Office: true, Level: "propose", ConversationID: burnConv.ID},
 		{ProjectID: office.ID, Level: "propose", ConversationID: channelConv.ID},
+		{ProjectID: office.ID, Level: "propose", ConversationID: channelConv.ID, Admin: true},
 	}
 
 	seen := map[string]bool{}
@@ -133,6 +136,31 @@ func TestToolsReadOnly(t *testing.T) {
 	for _, name := range writes {
 		if !seen[name] {
 			t.Errorf("expected write tool %q was not offered by any scope checked", name)
+		}
+	}
+
+	// Every write/propose tool able to change project settings, run a
+	// command, or commit/push must carry a declared Risk rating, so the
+	// high-risk set can be read off the tool list without reading perm.Risky's
+	// regex (see Tool.Risk).
+	wantHighRisk := map[string]bool{
+		"run_command": true, "propose_action": true, "propose_change": true, "propose_automation": true,
+		"deps_install": true, "decide_request": true,
+	}
+	gotHighRisk := map[string]bool{}
+	for _, sc := range scopes {
+		for _, name := range HighRiskTools(box.ToolsFor(sc)) {
+			gotHighRisk[name] = true
+		}
+	}
+	for name := range wantHighRisk {
+		if !gotHighRisk[name] {
+			t.Errorf("expected tool %q to have Risk=high", name)
+		}
+	}
+	for name := range gotHighRisk {
+		if !wantHighRisk[name] {
+			t.Errorf("tool %q has an unexpected Risk=high; update wantHighRisk if deliberate", name)
 		}
 	}
 }
