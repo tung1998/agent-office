@@ -285,33 +285,29 @@ const builderDone = computed(() => builderFeatures.value.filter(f => f.passes).l
 <template>
   <div class="space-y-4">
     <UAlert v-if="loadError" color="error" variant="subtle" icon="i-lucide-triangle-alert" :title="t('common.loadError')" :actions="[{ label: t('common.refresh'), onClick: () => refresh() }]" />
-    <!-- Burn on top, in one bar with the run picker (ADR-210: the board below is the project's tasks) -->
-    <div class="rounded-xl border border-(--ui-border) bg-(--ui-bg)/40 px-3 py-2">
-      <div class="flex flex-wrap items-center gap-x-3 gap-y-2">
-        <div class="flex min-w-0 flex-1 items-center gap-2">
-          <span class="flex size-7 shrink-0 items-center justify-center rounded-md" :class="running ? 'bg-(--ui-warning)/15 text-(--ui-warning)' : 'bg-(--ui-bg-elevated) text-(--ui-text-muted)'">
-            <UIcon name="i-lucide-flame" class="size-4" />
-          </span>
-          <span class="font-semibold">{{ t('burn.title') }}</span>
-          <USkeleton v-if="loading" class="h-5 w-16" />
-          <UBadge v-else-if="burn" :label="t(`burn.state.${burn.state}`)" :color="burn.state === 'running' ? 'warning' : burn.state === 'blocked' ? 'error' : burn.state === 'waiting_limit' || burn.state === 'draining' ? 'info' : 'neutral'" variant="subtle" size="sm" class="shrink-0" :title="stateHint" />
-        </div>
-        <div class="flex flex-wrap items-center gap-1.5">
-          <USelect v-model="run" :items="runItems" size="sm" class="w-48 max-w-full" :aria-label="t('burn.run.pick')" />
-          <UButton size="sm" color="neutral" variant="outline" icon="i-lucide-plus" :label="t('burn.quest.add')" @click="questOpen = true" />
-          <UButton v-if="burn?.conversation_id" size="sm" color="neutral" variant="ghost" icon="i-lucide-messages-square" :title="t('burn.openChat')" :aria-label="t('burn.openChat')" :to="`/projects/${projectId}?tab=chat&c=${burn.conversation_id}`" />
-          <UButton size="sm" color="neutral" variant="ghost" icon="i-lucide-settings-2" :title="t('burn.settings')" :aria-label="t('burn.settings')" :disabled="loading" @click="openSettings()" />
-          <UButton v-if="blocked" size="sm" color="error" variant="outline" icon="i-lucide-rotate-cw" :label="t('burn.retryNow')" :loading="acting === 'resume'" @click="stop('resume')" />
-          <template v-if="draining">
-            <UButton size="sm" color="warning" variant="outline" icon="i-lucide-play" :label="t('burn.resume')" :loading="acting === 'resume'" @click="stop('resume')" />
-            <UButton size="sm" color="neutral" icon="i-lucide-square" :label="t('burn.stopNow')" :loading="acting === 'stop'" @click="stop('stop')" />
-          </template>
-          <!-- on is on: it runs by the saved plan, nothing more is asked -->
-          <div v-else class="flex items-center gap-1.5 ps-1">
-            <InfoTip :text="t('burn.confirmDesc')" icon-class="size-3.5 text-(--ui-text-dimmed)" />
-            <USwitch :model-value="on" color="warning" :loading="acting === 'start' || acting === 'drain'" :disabled="loading || !!offAgent || !!acting" :aria-label="t('burn.toggle')" @update:model-value="toggle" />
-          </div>
-        </div>
+    <!-- one bar, two groups: Burn itself (state, switch, its chat and settings) on the left; the board's (run picker, add a task) on the right -->
+    <div class="flex flex-wrap items-center gap-2">
+      <div class="flex items-center gap-1 rounded-xl border border-(--ui-border) bg-(--ui-bg)/40 py-1 ps-1.5 pe-1">
+        <span class="flex size-7 shrink-0 items-center justify-center rounded-lg" :class="running ? 'bg-(--ui-warning)/15 text-(--ui-warning)' : 'bg-(--ui-bg-elevated) text-(--ui-text-muted)'">
+          <UIcon name="i-lucide-flame" class="size-4" :class="burn?.state === 'running' && 'animate-pulse'" />
+        </span>
+        <span class="ps-1 text-sm font-semibold">{{ t('burn.title') }}</span>
+        <USkeleton v-if="loading" class="ms-1 h-5 w-16" />
+        <UBadge v-else-if="burn" :label="t(`burn.state.${burn.state}`)" :color="burn.state === 'running' ? 'warning' : burn.state === 'blocked' ? 'error' : burn.state === 'waiting_limit' || burn.state === 'draining' ? 'info' : 'neutral'" variant="subtle" size="sm" class="ms-1 shrink-0" :title="stateHint" />
+        <UButton v-if="blocked" size="xs" color="error" variant="soft" icon="i-lucide-rotate-cw" :label="t('burn.retryNow')" :loading="acting === 'resume'" class="ms-1" @click="stop('resume')" />
+        <template v-if="draining">
+          <UButton size="xs" color="warning" variant="soft" icon="i-lucide-play" :label="t('burn.resume')" :loading="acting === 'resume'" class="ms-1" @click="stop('resume')" />
+          <UButton size="xs" color="neutral" variant="soft" icon="i-lucide-square" :label="t('burn.stopNow')" :loading="acting === 'stop'" @click="stop('stop')" />
+        </template>
+        <!-- on is on: it runs by the saved plan, nothing more is asked -->
+        <USwitch v-else :model-value="on" color="warning" :loading="acting === 'start' || acting === 'drain'" :disabled="loading || !!offAgent || !!acting" :aria-label="t('burn.toggle')" :title="t('burn.confirmDesc')" class="mx-1.5" @update:model-value="toggle" />
+        <span class="mx-0.5 h-5 w-px bg-(--ui-border)" />
+        <UButton v-if="burn?.conversation_id" size="sm" color="neutral" variant="ghost" icon="i-lucide-messages-square" :title="t('burn.openChat')" :aria-label="t('burn.openChat')" :to="`/projects/${projectId}?tab=chat&c=${burn.conversation_id}`" />
+        <UButton size="sm" color="neutral" variant="ghost" icon="i-lucide-settings-2" :title="t('burn.settings')" :aria-label="t('burn.settings')" :disabled="loading" @click="openSettings()" />
+      </div>
+      <div class="ms-auto flex items-center gap-2">
+        <USelect v-model="run" :items="runItems" size="sm" class="w-44 max-w-full" :aria-label="t('burn.run.pick')" />
+        <UButton size="sm" color="primary" variant="soft" icon="i-lucide-plus" :label="t('burn.quest.add')" @click="questOpen = true" />
       </div>
     </div>
     <UAlert v-if="offAgent" color="warning" variant="subtle" icon="i-lucide-power-off" :title="t('burn.agentOff', { name: offAgent.name })"
