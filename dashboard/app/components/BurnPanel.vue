@@ -114,8 +114,6 @@ const templateItems = computed(() => templates.map(v => ({ value: v, label: t(`b
 // where its summary goes when it stops (ADR-120): a bot (the project's, or
 // one borrowed), its chat
 const notifyKind = ref<string>()
-const profileItems = computed(() => [{ value: '__none', label: t('burn.review.none') }, ...profiles.value.map(p => ({ value: p.id, label: p.name }))])
-const reviewProfile = computed({ get: () => form.review_profile_id || '__none', set: (v: string) => { form.review_profile_id = v === '__none' ? '' : v } })
 const profile = computed(() => profiles.value.find(p => p.id === form.review_profile_id))
 const reviewSummary = computed(() => profile.value ? `${profile.value.name} (${reviewStages.filter(v => profile.value!.stages[v]).map(v => t(`burn.review.${v}`)).join(', ')})` : '')
 // a piece's own chats, hidden, read here: its work (ADR-116), its reviews (ADR-114)
@@ -131,7 +129,13 @@ function openReviews(it: Item) {
   reviewingId.value = it.id
   reviewTab.value = chatTabs(it).at(-1) ?? 'work' // the latest
 }
-const profilesPage = computed(() => `/projects/${props.projectId}/burn/reviews`)
+// the settings in tabs, review set up in its own tab (no separate page)
+const settingsTab = ref('plan')
+const settingsTabs = computed(() => (['plan', 'work', 'who', 'review', 'check'] as const).map(v => ({ value: v, label: t(`burn.sec.${v}`) })))
+function openSettings(tab = 'plan') {
+  settingsTab.value = tab
+  settingsOpen.value = true
+}
 const tierItems = computed(() => (['strong', 'balanced', 'fast'] as const).map(v => ({ value: v, label: t(`burn.tier.${v}`) })))
 
 // turning it on asks nothing: it runs by its saved plan
@@ -275,11 +279,58 @@ const builderDone = computed(() => builderFeatures.value.filter(f => f.passes).l
 <template>
   <div class="space-y-4">
     <UAlert v-if="loadError" color="error" variant="subtle" icon="i-lucide-triangle-alert" :title="t('common.loadError')" :actions="[{ label: t('common.refresh'), onClick: () => refresh() }]" />
-    <!-- the work board first (ADR-210): the project's tasks; Burn below is how a run of them gets done on its own -->
-    <div class="flex flex-wrap items-center gap-2">
-      <USelect v-model="run" :items="runItems" size="sm" class="w-56 max-w-full" />
-      <UButton size="sm" color="neutral" variant="outline" icon="i-lucide-plus" :label="t('burn.quest.add')" class="ms-auto" @click="questOpen = true" />
+    <!-- Burn on top, in one bar with the run picker (ADR-210: the board below is the project's tasks) -->
+    <div class="space-y-2 rounded-xl border border-(--ui-border) bg-(--ui-bg)/40 px-3 py-2">
+      <div class="flex flex-wrap items-center gap-x-3 gap-y-2">
+        <div class="flex min-w-0 flex-1 items-center gap-2">
+          <span class="flex size-7 shrink-0 items-center justify-center rounded-md" :class="running ? 'bg-(--ui-warning)/15 text-(--ui-warning)' : 'bg-(--ui-bg-elevated) text-(--ui-text-muted)'">
+            <UIcon name="i-lucide-flame" class="size-4" />
+          </span>
+          <span class="font-semibold">{{ t('burn.title') }}</span>
+          <USkeleton v-if="loading" class="h-5 w-16" />
+          <UBadge v-else-if="burn" :label="t(`burn.state.${burn.state}`)" :color="burn.state === 'running' ? 'warning' : burn.state === 'blocked' ? 'error' : burn.state === 'waiting_limit' || burn.state === 'draining' ? 'info' : 'neutral'" variant="subtle" size="sm" class="shrink-0" />
+          <!-- what it does now, or what turning it on will do -->
+          <p v-if="burn" class="hidden min-w-0 truncate text-xs text-(--ui-text-muted) sm:block">
+            <template v-if="burn.state === 'waiting_limit' && burn.waiting_until">{{ t('burn.waitingUntil', { at: when(burn.waiting_until) }) }}</template>
+            <template v-else-if="blocked">{{ burn.waiting_until ? t('burn.blockedUntil', { at: when(burn.waiting_until) }) : t('burn.blockedHint') }}</template>
+            <template v-else-if="draining">{{ t('burn.drainingHint') }}</template>
+            <template v-else-if="on && burn.ends_at"><span class="tabular-nums">{{ t('burn.endsIn', { left: left(burn.ends_at), at: when(burn.ends_at) }) }}</span></template>
+            <template v-else-if="on">{{ t('burn.noEnd') }}</template>
+            <template v-else>{{ t('burn.plan.onRuns', { until: untilText }) }} · {{ burn.next_start ? t('burn.plan.nextStart', { at: when(burn.next_start) }) : t('burn.plan.manual') }}</template>
+          </p>
+        </div>
+        <div class="flex flex-wrap items-center gap-1.5">
+          <USelect v-model="run" :items="runItems" size="sm" class="w-48 max-w-full" :aria-label="t('burn.run.pick')" />
+          <UButton size="sm" color="neutral" variant="outline" icon="i-lucide-plus" :label="t('burn.quest.add')" @click="questOpen = true" />
+          <UButton v-if="burn?.conversation_id" size="sm" color="neutral" variant="ghost" icon="i-lucide-messages-square" :title="t('burn.openChat')" :aria-label="t('burn.openChat')" :to="`/projects/${projectId}?tab=chat&c=${burn.conversation_id}`" />
+          <UButton size="sm" color="neutral" variant="ghost" icon="i-lucide-settings-2" :title="t('burn.settings')" :aria-label="t('burn.settings')" :disabled="loading" @click="openSettings()" />
+          <UButton v-if="blocked" size="sm" color="error" variant="outline" icon="i-lucide-rotate-cw" :label="t('burn.retryNow')" :loading="acting === 'resume'" @click="stop('resume')" />
+          <template v-if="draining">
+            <UButton size="sm" color="warning" variant="outline" icon="i-lucide-play" :label="t('burn.resume')" :loading="acting === 'resume'" @click="stop('resume')" />
+            <UButton size="sm" color="neutral" icon="i-lucide-square" :label="t('burn.stopNow')" :loading="acting === 'stop'" @click="stop('stop')" />
+          </template>
+          <!-- on is on: it runs by the saved plan, nothing more is asked -->
+          <div v-else class="flex items-center gap-1.5 ps-1">
+            <InfoTip :text="t('burn.confirmDesc')" icon-class="size-3.5 text-(--ui-text-dimmed)" />
+            <USwitch :model-value="on" color="warning" :loading="acting === 'start' || acting === 'drain'" :disabled="loading || !!offAgent || !!acting" :aria-label="t('burn.toggle')" @update:model-value="toggle" />
+          </div>
+        </div>
+      </div>
+      <USkeleton v-if="loading" class="h-3.5 w-2/3" />
+      <p v-else class="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-(--ui-text-dimmed)">
+        <span>{{ t('burn.summary', { tier: t(`burn.tier.${form.model_tier}`), n: form.max_parallel }) }} · {{ t(`burn.template.${form.template}`) }}<template v-if="form.template === 'general'"> · {{ t(`burn.order.${form.order}`) }}</template></span>
+        <!-- a profile named "review …" is not said twice -->
+        <template v-if="reviewSummary"><span>·</span><button type="button" class="hover:text-(--ui-text)" @click="openSettings('review')">{{ /^review\b/i.test(reviewSummary) ? reviewSummary : t('burn.review.summary', { profile: reviewSummary }) }}</button></template>
+        <template v-if="burn?.run_branch"><span>·</span><button type="button" class="font-mono hover:text-(--ui-text)" :title="burn.run_tree ? t('burn.copyRunTree') : undefined" @click="burn.run_tree && copy(`cd ${burn.run_tree}`)">{{ burn.run_branch }}</button></template>
+        <template v-if="shown.length"><span>·</span><span class="tabular-nums">{{ t('burn.cost', { usd: totalCost.toFixed(2), n: shown.filter(i => i.status === 'done').length }) }}</span></template>
+        <template v-if="form.focus"><span>·</span><span class="truncate" :title="form.focus">{{ t('burn.focus') }}: {{ form.focus }}</span></template>
+      </p>
     </div>
+    <UAlert v-if="offAgent" color="warning" variant="subtle" icon="i-lucide-power-off" :title="t('burn.agentOff', { name: offAgent.name })"
+      :actions="[{ label: t('burn.agentOffChange'), color: 'warning', variant: 'outline', onClick: () => openSettings('who') }, { label: t('burn.agentOffOpen'), color: 'neutral', variant: 'ghost', to: `/projects/${projectId}/agents/${offAgent.id}` }]" />
+    <UAlert v-if="showBuilderBanner" color="primary" variant="subtle" icon="i-lucide-sparkles" :title="t('burn.builder.startBanner')"
+      :actions="[{ label: t('burn.start'), color: 'primary', onClick: start }]" />
+
     <!-- side by side on every screen: scrolled across below xl -->
     <div class="flex snap-x snap-mandatory items-start gap-3 overflow-x-auto pb-2 xl:grid xl:grid-cols-5 xl:overflow-visible xl:pb-0">
       <div v-for="col in columns" :key="col.key" class="w-[80%] min-w-0 shrink-0 snap-start space-y-2 rounded-xl border border-(--ui-border) bg-(--ui-bg)/40 p-2.5 sm:w-[45%] xl:w-auto">
@@ -323,63 +374,7 @@ const builderDone = computed(() => builderFeatures.value.filter(f => f.passes).l
       </div>
     </div>
 
-    <UCard :ui="{ body: 'space-y-3 sm:p-4' }">
-      <div class="flex flex-wrap items-center gap-x-3 gap-y-2">
-        <span class="flex size-9 shrink-0 items-center justify-center rounded-lg" :class="running ? 'bg-(--ui-warning)/15 text-(--ui-warning)' : 'bg-(--ui-bg-elevated) text-(--ui-text-muted)'">
-          <UIcon name="i-lucide-flame" class="size-5" />
-        </span>
-        <div class="min-w-0">
-          <p class="flex items-center gap-2 font-semibold">
-            {{ t('burn.title') }}
-            <USkeleton v-if="loading" class="h-5 w-16" />
-            <UBadge v-else-if="burn" :label="t(`burn.state.${burn.state}`)" :color="burn.state === 'running' ? 'warning' : burn.state === 'blocked' ? 'error' : burn.state === 'waiting_limit' || burn.state === 'draining' ? 'info' : 'neutral'" variant="subtle" size="sm" />
-          </p>
-          <!-- what it does now, or what turning it on will do -->
-          <USkeleton v-if="loading" class="mt-1 h-3.5 w-48" />
-          <p v-else-if="burn" class="flex flex-wrap items-center gap-x-1.5 text-xs text-(--ui-text-muted)">
-            <template v-if="burn.state === 'waiting_limit' && burn.waiting_until">{{ t('burn.waitingUntil', { at: when(burn.waiting_until) }) }}</template>
-            <template v-else-if="blocked">{{ burn.waiting_until ? t('burn.blockedUntil', { at: when(burn.waiting_until) }) : t('burn.blockedHint') }}</template>
-            <template v-else-if="draining">{{ t('burn.drainingHint') }}</template>
-            <template v-else-if="on && burn.ends_at"><span class="tabular-nums">{{ t('burn.endsIn', { left: left(burn.ends_at), at: when(burn.ends_at) }) }}</span></template>
-            <template v-else-if="on">{{ t('burn.noEnd') }}</template>
-            <template v-else>
-              {{ t('burn.plan.onRuns', { until: untilText }) }}
-              <span>·</span>
-              <span v-if="burn.next_start" class="flex items-center gap-1"><UIcon name="i-lucide-calendar-clock" class="size-3.5" />{{ t('burn.plan.nextStart', { at: when(burn.next_start) }) }}</span>
-              <span v-else>{{ t('burn.plan.manual') }}</span>
-            </template>
-          </p>
-        </div>
-        <div class="ms-auto flex flex-wrap items-center gap-1.5">
-          <UButton v-if="burn?.conversation_id" size="sm" color="neutral" variant="ghost" icon="i-lucide-messages-square" :label="t('burn.openChat')" :to="`/projects/${projectId}?tab=chat&c=${burn.conversation_id}`" />
-          <UButton size="sm" color="neutral" variant="outline" icon="i-lucide-settings-2" :label="t('burn.settings')" :disabled="loading" @click="settingsOpen = true" />
-          <UButton v-if="blocked" size="sm" color="error" variant="outline" icon="i-lucide-rotate-cw" :label="t('burn.retryNow')" :loading="acting === 'resume'" @click="stop('resume')" />
-          <template v-if="draining">
-            <UButton size="sm" color="warning" variant="outline" icon="i-lucide-play" :label="t('burn.resume')" :loading="acting === 'resume'" @click="stop('resume')" />
-            <UButton size="sm" color="neutral" icon="i-lucide-square" :label="t('burn.stopNow')" :loading="acting === 'stop'" @click="stop('stop')" />
-          </template>
-          <!-- on is on: it runs by the saved plan, nothing more is asked -->
-          <div v-else class="flex items-center gap-2 rounded-lg border border-(--ui-border) bg-(--ui-bg)/40 py-1.5 ps-3 pe-2">
-            <span class="text-sm font-medium" :class="on ? 'text-(--ui-warning)' : 'text-(--ui-text-muted)'">{{ on ? t('burn.switchOn') : t('burn.switchOff') }}</span>
-            <InfoTip :text="t('burn.confirmDesc')" icon-class="size-3.5 text-(--ui-text-dimmed)" />
-            <USwitch :model-value="on" color="warning" size="lg" :loading="acting === 'start' || acting === 'drain'" :disabled="loading || !!offAgent || !!acting" :aria-label="t('burn.toggle')" @update:model-value="toggle" />
-          </div>
-        </div>
-      </div>
-      <USkeleton v-if="loading" class="h-3.5 w-2/3" />
-      <p v-else class="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-(--ui-text-muted)">
-        <span>{{ t('burn.summary', { tier: t(`burn.tier.${form.model_tier}`), n: form.max_parallel }) }} · {{ t(`burn.template.${form.template}`) }}<template v-if="form.template === 'general'"> · {{ t(`burn.order.${form.order}`) }}</template></span>
-        <!-- a profile named "review …" is not said twice -->
-        <template v-if="reviewSummary"><span class="text-(--ui-text-dimmed)">·</span><span>{{ /^review\b/i.test(reviewSummary) ? reviewSummary : t('burn.review.summary', { profile: reviewSummary }) }}</span></template>
-        <template v-if="burn?.run_branch"><span class="text-(--ui-text-dimmed)">·</span><button type="button" class="font-mono hover:text-(--ui-text)" :title="burn.run_tree ? t('burn.copyRunTree') : undefined" @click="burn.run_tree && copy(`cd ${burn.run_tree}`)">{{ burn.run_branch }}</button></template>
-        <template v-if="shown.length"><span class="text-(--ui-text-dimmed)">·</span><span class="tabular-nums">{{ t('burn.cost', { usd: totalCost.toFixed(2), n: shown.filter(i => i.status === 'done').length }) }}</span></template>
-      </p>
-      <UAlert v-if="offAgent" color="warning" variant="subtle" icon="i-lucide-power-off" :title="t('burn.agentOff', { name: offAgent.name })"
-        :actions="[{ label: t('burn.agentOffChange'), color: 'warning', variant: 'outline', onClick: () => { settingsOpen = true } }, { label: t('burn.agentOffOpen'), color: 'neutral', variant: 'ghost', to: `/projects/${projectId}/agents/${offAgent.id}` }]" />
-      <UAlert v-if="showBuilderBanner" color="primary" variant="subtle" icon="i-lucide-sparkles" :title="t('burn.builder.startBanner')"
-        :actions="[{ label: t('burn.start'), color: 'primary', onClick: start }]" />
-      <p v-if="form.focus" class="text-xs"><span class="text-(--ui-text-muted)">{{ t('burn.focus') }}:</span> {{ form.focus }}</p>
-    </UCard>
+
 
     <!-- a builder Burn's feature progress (ADR-139), above the generic board -->
     <UCard v-if="isBuilder && (builderFeatures.length || running)" :ui="{ body: 'space-y-2 sm:p-4' }">
@@ -395,18 +390,16 @@ const builderDone = computed(() => builderFeatures.value.filter(f => f.passes).l
       </ul>
     </UCard>
 
-    <!-- settings: one place, in blocks; the plan first (turning it on asks nothing) -->
-    <USlideover v-model:open="settingsOpen" :title="t('burn.settingsTitle')" :ui="{ content: 'sm:max-w-xl' }">
+    <!-- settings: one place, in tabs; the plan first (turning it on asks nothing); review set up here too -->
+    <USlideover v-model:open="settingsOpen" :title="t('burn.settingsTitle')" :ui="{ content: 'sm:max-w-2xl' }">
       <template #body>
-        <div class="space-y-5">
+        <div class="space-y-4">
           <StaleNotice :show="stale" @reload="resync()" />
+          <UTabs v-model="settingsTab" :items="settingsTabs" :content="false" size="sm" variant="link" class="w-full" />
 
           <!-- when it runs -->
-          <section class="space-y-3">
-            <div>
-              <p class="flex items-center gap-2 text-sm font-semibold"><UIcon name="i-lucide-calendar-clock" class="size-4 text-(--ui-warning)" />{{ t('burn.sec.plan') }}</p>
-              <p class="text-xs text-(--ui-text-muted)">{{ t('burn.sec.planDesc') }}</p>
-            </div>
+          <section v-show="settingsTab === 'plan'" class="space-y-3">
+            <p class="text-xs text-(--ui-text-muted)">{{ t('burn.sec.planDesc') }}</p>
             <UFormField :label="t('burn.plan.endLabel')">
               <URadioGroup v-model="form.plan.end" :items="endItems" variant="card" :ui="{ fieldset: 'grid gap-2 sm:grid-cols-2' }" />
             </UFormField>
@@ -441,14 +434,9 @@ const builderDone = computed(() => builderFeatures.value.filter(f => f.passes).l
             </div>
           </section>
 
-          <USeparator />
-
           <!-- what it looks for -->
-          <section class="space-y-3">
-            <div>
-              <p class="flex items-center gap-2 text-sm font-semibold"><UIcon name="i-lucide-target" class="size-4 text-(--ui-primary)" />{{ t('burn.sec.work') }}</p>
-              <p class="text-xs text-(--ui-text-muted)">{{ t('burn.sec.workDesc') }}</p>
-            </div>
+          <section v-show="settingsTab === 'work'" class="space-y-3">
+            <p class="text-xs text-(--ui-text-muted)">{{ t('burn.sec.workDesc') }}</p>
             <UFormField>
               <template #label><InfoLabel :label="t('burn.templateLabel')" :info="t(`burn.template.${form.template}Help`)" /></template>
               <USelect v-model="form.template" :items="templateItems" class="w-full" />
@@ -466,14 +454,9 @@ const builderDone = computed(() => builderFeatures.value.filter(f => f.passes).l
             </UFormField>
           </section>
 
-          <USeparator />
-
           <!-- who does it -->
-          <section class="space-y-3">
-            <div>
-              <p class="flex items-center gap-2 text-sm font-semibold"><UIcon name="i-lucide-bot" class="size-4 text-(--ui-info)" />{{ t('burn.sec.who') }}</p>
-              <p class="text-xs text-(--ui-text-muted)">{{ t('burn.sec.whoDesc') }}</p>
-            </div>
+          <section v-show="settingsTab === 'who'" class="space-y-3">
+            <p class="text-xs text-(--ui-text-muted)">{{ t('burn.sec.whoDesc') }}</p>
             <UFormField :label="t('burn.agent')">
               <USelect v-model="form.agent_id" :items="agentItems" class="w-full" />
             </UFormField>
@@ -490,23 +473,18 @@ const builderDone = computed(() => builderFeatures.value.filter(f => f.passes).l
             </div>
           </section>
 
-          <USeparator />
+          <!-- review: the profile it follows, edited right here -->
+          <section v-if="settingsOpen" v-show="settingsTab === 'review'" class="space-y-3">
+            <p class="text-xs text-(--ui-text-muted)">{{ t('burn.sec.reviewDesc') }}</p>
+            <BurnReviewSetup v-model="form.review_profile_id" :project-id="projectId" />
+          </section>
 
-          <!-- checks, review, report -->
-          <section class="space-y-3">
-            <div>
-              <p class="flex items-center gap-2 text-sm font-semibold"><UIcon name="i-lucide-shield-check" class="size-4 text-(--ui-success)" />{{ t('burn.sec.check') }}</p>
-              <p class="text-xs text-(--ui-text-muted)">{{ t('burn.sec.checkDesc') }}</p>
-            </div>
+          <!-- checks, report
+          <section v-show="settingsTab === 'check'" class="space-y-3">
+            <p class="text-xs text-(--ui-text-muted)">{{ t('burn.sec.checkDesc') }}</p>
             <UFormField>
               <template #label><InfoLabel :label="t('burn.verify')" :info="t('burn.verifyHelp')" /></template>
               <UTextarea v-model="form.verify" :rows="3" :maxlength="2000" autoresize class="w-full font-mono text-xs" placeholder="go build ./...&#10;go test ./..." />
-            </UFormField>
-            <UFormField :label="t('burn.review.label')" :help="t('burn.review.help')">
-              <div class="flex gap-2">
-                <USelect v-model="reviewProfile" :items="profileItems" class="min-w-0 flex-1" />
-                <UButton color="neutral" variant="outline" icon="i-lucide-sliders-horizontal" :label="t('burn.review.manage')" :to="profilesPage" />
-              </div>
             </UFormField>
             <UFormField>
               <template #label><InfoLabel :label="t('burn.notify.label')" :info="t('burn.notify.help')" /></template>
@@ -518,7 +496,7 @@ const builderDone = computed(() => builderFeatures.value.filter(f => f.passes).l
           </section>
 
           <!-- rarely changed -->
-          <details class="group rounded-lg border border-(--ui-border)">
+          <details v-show="settingsTab === 'check'" class="group rounded-lg border border-(--ui-border)">
             <summary class="flex cursor-pointer items-center gap-2 p-3 text-sm font-medium">
               <UIcon name="i-lucide-chevron-right" class="size-4 transition group-open:rotate-90" />{{ t('burn.sec.advanced') }}
             </summary>

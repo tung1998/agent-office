@@ -8,7 +8,7 @@
 //   node docs/guide/capture.mjs --mobile [--lang=vi] [--out=dir]   # phone shots for a UX review
 //   node docs/guide/capture.mjs --mobile --reuse --only=13-burn,26-jobs     # some of the screens
 //   (04a-new-project-idea opens the "New project" modal with the "idea" scope card selected)
-//   node docs/guide/capture.mjs --mobile --reuse --path=/costs --path='{project}/burn/reviews'   # any route, one by one
+//   node docs/guide/capture.mjs --mobile --reuse --path=/costs --path='{project}/agents'   # any route, one by one
 //
 // Env: OFFICE_BIN, OFFICE_UI_DIR, CHROME (paths), KEEP=1 (leave it running).
 import { spawn, execFileSync } from 'node:child_process'
