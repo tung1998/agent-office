@@ -8,6 +8,7 @@ package chat
 import (
 	"cmp"
 	"github.com/tung1998/agent-office/internal/advice"
+	"github.com/tung1998/agent-office/internal/scoring"
 
 	"context"
 	"encoding/json"
@@ -88,6 +89,10 @@ type MessageDTO struct {
 	Provider    string               `json:"provider,omitempty"` // the connection that wrote it
 	Model       string               `json:"model,omitempty"`
 	Advice      []AdviceDTO          `json:"advice,omitempty"` // an advisor's answers in its run (ADR-262)
+	// Rated: the answer is scored and can be rated; Feedback the person's 👍 1 / 👎 -1 (ADR-267)
+	Rated    bool `json:"rated,omitempty"`
+	Feedback int  `json:"feedback,omitempty"`
+	Frozen   bool `json:"frozen,omitempty"`
 }
 
 // PatchDTO is a proposed change.
@@ -868,6 +873,9 @@ func (e *Engine) SendWithContext(ctx context.Context, conversationID, text, page
 	}
 	if !strings.Contains(pageContext, `"`+relayKey+`"`) { // what the person writes now comes first (ADR-260); a message relayed from another chat does not call it off (ADR-261)
 		e.dropRetries(ctx, conv.ID)
+		if scoring.Corrective(text) { // it corrects the last answer (ADR-267)
+			_ = e.scores().MarkCorrection(ctx, conv.ID)
+		}
 	}
 	project, err := e.store.Repos().Get(ctx, conv.ProjectID)
 	if err != nil {
@@ -1212,6 +1220,7 @@ func (e *Engine) run(ctx context.Context, turn *Turn, conv storage.Conversation,
 		j, ended := e.endJob(turn.JobID, "", err, ctx.Err())
 		if ended {
 			e.turnEnded(j, conv, agent, "")
+			e.scoreEnded(j, conv, turn, text, len(files))
 		}
 		m, _ := e.store.Chat().AddMessage(context.Background(), storage.Message{ConversationID: conv.ID, Role: "error", Content: err.Error()})
 		if ended { // a passing API failure: it goes on by itself later (ADR-260)
@@ -1235,7 +1244,7 @@ func (e *Engine) run(ctx context.Context, turn *Turn, conv storage.Conversation,
 		}
 	}()
 
-	cands, err := e.choices(ctx, withTier(ctx, agent))
+	cands, err := e.choices(ctx, e.chatAgent(ctx, conv, turn, agent))
 	if err != nil {
 		fail(err)
 		return
@@ -1524,7 +1533,7 @@ func (e *Engine) run(ctx context.Context, turn *Turn, conv storage.Conversation,
 			res.Usage.CostUSD = e.turnCost(ctx, p.Kind, req.SessionID, res.SessionID, res.Usage.CostUSD)
 			runID, cost = "", nil
 			if e.usage != nil {
-				if r, err := e.usage.Record(ctx, usage.Meta{Kind: "chat", ProjectID: project.ID, AgentID: agent.ID}, p, model, res.Usage, runErr); err == nil {
+				if r, err := e.usage.Record(ctx, usage.Meta{Kind: "chat", ProjectID: project.ID, AgentID: agent.ID, Effort: storage.FitEffort(p.Kind, model, req.Effort)}, p, model, res.Usage, runErr); err == nil {
 					runID, cost = r.ID, r.CostUSD
 					e.wfCost(turn, conv.ID, cost)
 				}
@@ -1734,6 +1743,7 @@ func (e *Engine) run(ctx context.Context, turn *Turn, conv storage.Conversation,
 	_ = e.store.Chat().UpsertMember(context.Background(), mem)
 	if j, ok := e.endJob(turn.JobID, msg.ID, nil, nil); ok {
 		e.turnEnded(j, conv, agent, res.Text)
+		e.scoreEnded(j, conv, turn, text, len(files))
 	}
 	if e.onAnswered != nil && conv.Purpose != consultPurpose && (len(msg.Tools) > 0 || len(res.Text) >= minReviewed) {
 		a := Answered{ProjectID: project.ID, AgentID: agent.ID, ConversationID: conv.ID, Asked: text, Answer: res.Text}
@@ -1997,7 +2007,7 @@ func (e *Engine) Invoke(ctx context.Context, project storage.Repo, agent storage
 			e.keepHealth(p, runErr)
 			out.Text, out.Tools, out.Model = res.Text, res.Tools, firstNonEmpty(res.Usage.Model, model)
 			if e.usage != nil {
-				if r, err := e.usage.Record(ctx, usage.Meta{Kind: kind, ProjectID: project.ID, AgentID: agent.ID}, p, model, res.Usage, runErr); err == nil {
+				if r, err := e.usage.Record(ctx, usage.Meta{Kind: kind, ProjectID: project.ID, AgentID: agent.ID, Effort: storage.FitEffort(p.Kind, model, req.Effort)}, p, model, res.Usage, runErr); err == nil {
 					out.RunID, out.CostUSD = r.ID, r.CostUSD
 				}
 			}
@@ -2082,8 +2092,17 @@ func (e *Engine) History(ctx context.Context, conversationID string) ([]MessageD
 	out := make([]MessageDTO, 0, len(msgs))
 	names := map[string]string{} // project names, for older relayed messages
 	advised := e.adviceOf(ctx, conversationID)
+	rated := map[string]storage.JobScore{}
+	if list, err := e.store.Scores().List(ctx, storage.ScoreFilter{ConversationID: conversationID}); err == nil {
+		for _, s := range list {
+			rated[s.MessageID] = s
+		}
+	}
 	for _, m := range msgs {
 		d := MessageDTO{ID: m.ID, Role: m.Role, Content: m.Content, Tools: m.Tools, Attachments: nonNilAtt(m.Attachments), Author: m.Author, Sender: m.Sender, CreatedAt: m.CreatedAt, Patches: byMsg[m.ID], Relay: RelayOf(m), Consult: ConsultOf(m), Provider: m.Provider, Model: m.Model, Advice: advised[m.ID]}
+		if s, ok := rated[m.ID]; ok && m.Role == "assistant" {
+			d.Rated, d.Feedback, d.Frozen = true, s.Feedback, scoring.Final(s, time.Now())
+		}
 		e.fillRelay(ctx, d.Relay, names)
 		if d.Patches == nil {
 			d.Patches = []PatchDTO{}

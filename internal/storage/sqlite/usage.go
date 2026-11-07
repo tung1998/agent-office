@@ -17,7 +17,7 @@ import (
 type runRepo struct{ db dbtx }
 
 const runCols = `id, kind, project_id, agent_id, provider_id, provider_name, model, status, input_tokens, output_tokens,
-	cost_usd, cost_source, duration_ms, error, actor, created_at, job_id`
+	cost_usd, cost_source, duration_ms, error, actor, created_at, job_id, effort`
 
 func (r runRepo) Create(ctx context.Context, x storage.Run) (storage.Run, error) {
 	if x.ID == "" {
@@ -33,9 +33,9 @@ func (r runRepo) Create(ctx context.Context, x storage.Run) (storage.Run, error)
 	if x.CostUSD != nil {
 		cost = *x.CostUSD
 	}
-	_, err := r.db.ExecContext(ctx, `INSERT INTO runs (`+runCols+`) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+	_, err := r.db.ExecContext(ctx, `INSERT INTO runs (`+runCols+`) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 		x.ID, x.Kind, nullStr(x.ProjectID), nullStr(x.AgentID), nullStr(x.ProviderID), x.ProviderName, x.Model, x.Status,
-		x.InputTokens, x.OutputTokens, cost, x.CostSource, x.DurationMS, x.Error, x.Actor, fmtTime(x.CreatedAt), x.JobID)
+		x.InputTokens, x.OutputTokens, cost, x.CostSource, x.DurationMS, x.Error, x.Actor, fmtTime(x.CreatedAt), x.JobID, x.Effort)
 	return x, err
 }
 
@@ -68,6 +68,10 @@ func (r runRepo) query(ctx context.Context, f storage.RunFilter, limit int) ([]s
 		q += ` AND COALESCE(project_id,'') <> ?`
 		args = append(args, f.ExcludeProjectID)
 	}
+	if f.JobID != "" {
+		q += ` AND job_id = ?`
+		args = append(args, f.JobID)
+	}
 	if f.AgentID != "" {
 		q += ` AND agent_id = ?`
 		args = append(args, f.AgentID)
@@ -99,7 +103,7 @@ func (r runRepo) query(ctx context.Context, f storage.RunFilter, limit int) ([]s
 			created                  string
 		)
 		if err := rows.Scan(&x.ID, &x.Kind, &project, &agent, &provider, &x.ProviderName, &x.Model, &x.Status, &x.InputTokens,
-			&x.OutputTokens, &cost, &x.CostSource, &x.DurationMS, &x.Error, &x.Actor, &created, &x.JobID); err != nil {
+			&x.OutputTokens, &cost, &x.CostSource, &x.DurationMS, &x.Error, &x.Actor, &created, &x.JobID, &x.Effort); err != nil {
 			return nil, err
 		}
 		x.ProjectID, x.AgentID, x.ProviderID = project.String, agent.String, provider.String

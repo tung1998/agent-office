@@ -222,6 +222,7 @@ type Meta struct {
 	Kind      string // provider_test | setup_propose | chat …
 	ProjectID string
 	AgentID   string
+	Effort    string // the effort the call was sent with ("" = the CLI's own)
 }
 
 // Record stores one call. The cost comes from the provider when it reports
@@ -233,7 +234,7 @@ func (s *Service) Record(ctx context.Context, m Meta, p storage.Provider, model 
 	}
 	r := storage.Run{
 		Kind: m.Kind, JobID: JobFrom(ctx), ProjectID: m.ProjectID, AgentID: m.AgentID, ProviderID: p.ID, ProviderName: p.Name,
-		Model: firstNonEmpty(res.Model, model), Status: "ok", InputTokens: res.InputTokens, OutputTokens: res.OutputTokens,
+		Model: firstNonEmpty(res.Model, model), Effort: m.Effort, Status: "ok", InputTokens: res.InputTokens, OutputTokens: res.OutputTokens,
 		DurationMS: res.DurationMS, Actor: actor.From(ctx), CostSource: "unknown", CreatedAt: s.now().UTC(),
 	}
 	var be *BudgetError

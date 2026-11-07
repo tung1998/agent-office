@@ -164,6 +164,7 @@ func (s *server) orgRoutes(mux *http.ServeMux) {
 		mux.Handle("POST /api/patches/{id}/reject", admin(s.rejectPatch))
 		mux.Handle("POST /api/patches/{id}/deps", admin(s.installPatchDeps))
 		mux.Handle("POST /api/proposals/skip-all", admin(s.skipAllProposals))
+		s.scoreRoutes(mux, auth, admin) // ADR-267
 	}
 	if s.cfg.Automation != nil {
 		s.automationRoutes(mux, auth, admin)

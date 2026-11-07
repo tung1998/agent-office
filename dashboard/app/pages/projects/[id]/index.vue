@@ -146,7 +146,10 @@ async function removeRepo() {
             </div>
             <PolicyPanel v-else-if="tab === 'perm'" :project-id="project.id" />
             <ToolsPanel v-else-if="tab === 'skill' || tab === 'mcp'" :key="tab" :kind="tab" :project-path="project.path" :project-id="project.id" />
-            <ProjectAgents v-else :project="project" @changed="refresh()" />
+            <div v-else class="space-y-4">
+              <ProjectAgents :project="project" @changed="refresh()" />
+              <ModelStats :project-id="project.id" />
+            </div>
           </template>
           <template v-else-if="project.agent_count">
             <!-- Việc is gone (ADR-057): an old link to it opens the chat -->

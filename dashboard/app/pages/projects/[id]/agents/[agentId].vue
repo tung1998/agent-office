@@ -355,6 +355,7 @@ async function restore(e: Entry) {
             </UFormField>
           </div>
           <ConnectionChain v-model:provider-id="form.provider_id" v-model:llm-model="form.llm_model" v-model:fallbacks="form.fallback_provider_ids" :providers="providers" :tier="form.model_tier" :disabled="!isAdmin" />
+          <FallbackSuggest v-if="isAdmin" :agent-id="agentId" :providers="providers" :current="form.fallback_provider_ids" @apply="(order) => { form.fallback_provider_ids = order }" />
           <UButton v-if="isAdmin" size="sm" icon="i-lucide-save" :label="t('org.form.save')" :loading="saving === 'model'" :disabled="!!saving" @click="save('model')" />
         </UCard>
 

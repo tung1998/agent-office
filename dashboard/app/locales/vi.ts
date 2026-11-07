@@ -9,6 +9,7 @@ import limits from './parts/limits.vi'
 import watchScreen from './parts/watch.vi'
 import files from './parts/files.vi'
 import chatTags from './parts/tags.vi'
+import scoring from './parts/scoring.vi'
 import dataPage from './parts/data.vi'
 import team from './parts/team.vi'
 import workflows from './parts/workflows.vi'
@@ -24,6 +25,7 @@ const vi = {
   ...watchScreen,
   ...files,
   ...chatTags,
+  ...scoring,
   ...tasks,
   ...ops,
   ...org,

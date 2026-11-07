@@ -360,6 +360,7 @@ type Run struct {
 	ProviderID   string
 	ProviderName string
 	Model        string
+	Effort       string // the effort it was sent with ("" = the CLI's own)
 	Status       string // ok | error | blocked
 	InputTokens  int
 	OutputTokens int
@@ -373,6 +374,7 @@ type Run struct {
 
 // RunFilter narrows a run listing.
 type RunFilter struct {
+	JobID     string // only this job's runs
 	ProjectID string
 	// ProjectIDs: only these projects' runs (nil = every project; empty = none)
 	ProjectIDs       []string
@@ -478,6 +480,7 @@ type ChatMember struct {
 	SessionID, Runtime                 string
 	LastMessageID                      string
 	ContextTokens, ContextWindow       int
+	LLMModel                           string // the chat's own model for this agent ("" = the agent's; ADR-267)
 	JoinedAt                           time.Time
 }
 
@@ -657,7 +660,13 @@ type ChatRepo interface {
 	UpsertMember(ctx context.Context, m ChatMember) error
 	// Members lists a chat's agents in the order they joined.
 	Members(ctx context.Context, conversationID string) ([]ChatMember, error)
+	// SetMemberModel sets a chat's own model for one of its agents ("" = the
+	// agent's); UpsertMember never changes it. ErrNotFound: not a member.
+	SetMemberModel(ctx context.Context, conversationID, agentID, model string) error
 	ListMessages(ctx context.Context, conversationID string) ([]Message, error)
+	// MessageHead is one message's id, chat, role, author agent and tools
+	// (not its text). ErrNotFound: no such message.
+	MessageHead(ctx context.Context, id string) (Message, error)
 
 	// QueueMessage keeps a message written while the chat answers (sent next).
 	QueueMessage(ctx context.Context, q QueuedMessage) (QueuedMessage, error)

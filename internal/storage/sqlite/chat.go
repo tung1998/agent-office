@@ -316,6 +316,23 @@ func senderJSON(s *storage.Sender) string {
 	return toJSON(s)
 }
 
+func (r chatRepo) MessageHead(ctx context.Context, id string) (storage.Message, error) {
+	var (
+		m     storage.Message
+		tools string
+	)
+	if err := r.db.QueryRowContext(ctx, `SELECT id, conversation_id, role, agent_id, tools FROM messages WHERE id=?`, id).
+		Scan(&m.ID, &m.ConversationID, &m.Role, &m.AgentID, &tools); err != nil {
+		return m, notFound(err)
+	}
+	if tools != "" {
+		if err := json.Unmarshal([]byte(tools), &m.Tools); err != nil {
+			return m, err
+		}
+	}
+	return m, nil
+}
+
 func (r chatRepo) ListMessages(ctx context.Context, conversationID string) ([]storage.Message, error) {
 	rows, err := r.db.QueryContext(ctx, `SELECT m.id, m.conversation_id, m.role, m.content, m.tools, m.attachments, m.run_id, m.author, m.created_at, m.context, m.agent_id, m.sender,
 		COALESCE(r.provider_name, ''), COALESCE(r.model, '')
@@ -509,16 +526,20 @@ func (r chatRepo) UpsertMember(ctx context.Context, m storage.ChatMember) error 
 	if m.JoinedAt.IsZero() {
 		m.JoinedAt = time.Now().UTC()
 	}
-	_, err := r.db.ExecContext(ctx, `INSERT INTO conversation_agents (conversation_id, agent_id, agent_name, session_id, runtime, last_message_id, context_tokens, context_window, joined_at)
-		VALUES (?,?,?,?,?,?,?,?,?)
+	_, err := r.db.ExecContext(ctx, `INSERT INTO conversation_agents (conversation_id, agent_id, agent_name, session_id, runtime, last_message_id, context_tokens, context_window, joined_at, llm_model)
+		VALUES (?,?,?,?,?,?,?,?,?,?)
 		ON CONFLICT (conversation_id, agent_id) DO UPDATE SET agent_name=excluded.agent_name, session_id=excluded.session_id, runtime=excluded.runtime,
 			last_message_id=excluded.last_message_id, context_tokens=excluded.context_tokens, context_window=excluded.context_window`,
-		m.ConversationID, m.AgentID, m.AgentName, m.SessionID, m.Runtime, m.LastMessageID, m.ContextTokens, m.ContextWindow, fmtTime(m.JoinedAt))
+		m.ConversationID, m.AgentID, m.AgentName, m.SessionID, m.Runtime, m.LastMessageID, m.ContextTokens, m.ContextWindow, fmtTime(m.JoinedAt), m.LLMModel)
 	return err
 }
 
+func (r chatRepo) SetMemberModel(ctx context.Context, conversationID, agentID, model string) error {
+	return execOne(ctx, r.db, `UPDATE conversation_agents SET llm_model=? WHERE conversation_id=? AND agent_id=?`, model, conversationID, agentID)
+}
+
 func (r chatRepo) Members(ctx context.Context, conversationID string) ([]storage.ChatMember, error) {
-	rows, err := r.db.QueryContext(ctx, `SELECT conversation_id, agent_id, agent_name, session_id, runtime, last_message_id, context_tokens, context_window, joined_at
+	rows, err := r.db.QueryContext(ctx, `SELECT conversation_id, agent_id, agent_name, session_id, runtime, last_message_id, context_tokens, context_window, joined_at, llm_model
 		FROM conversation_agents WHERE conversation_id=? ORDER BY joined_at, agent_id`, conversationID)
 	if err != nil {
 		return nil, err
@@ -530,7 +551,7 @@ func (r chatRepo) Members(ctx context.Context, conversationID string) ([]storage
 			m      storage.ChatMember
 			joined string
 		)
-		if err := rows.Scan(&m.ConversationID, &m.AgentID, &m.AgentName, &m.SessionID, &m.Runtime, &m.LastMessageID, &m.ContextTokens, &m.ContextWindow, &joined); err != nil {
+		if err := rows.Scan(&m.ConversationID, &m.AgentID, &m.AgentName, &m.SessionID, &m.Runtime, &m.LastMessageID, &m.ContextTokens, &m.ContextWindow, &joined, &m.LLMModel); err != nil {
 			return nil, err
 		}
 		if m.JoinedAt, err = parseTime(joined); err != nil {

@@ -10,6 +10,7 @@ import limits from './parts/limits.en'
 import watchScreen from './parts/watch.en'
 import files from './parts/files.en'
 import chatTags from './parts/tags.en'
+import scoring from './parts/scoring.en'
 import dataPage from './parts/data.en'
 import team from './parts/team.en'
 import workflows from './parts/workflows.en'
@@ -25,6 +26,7 @@ const en: Record<MessageKey, string> = {
   ...watchScreen,
   ...files,
   ...chatTags,
+  ...scoring,
   ...tasks,
   ...ops,
   ...org,

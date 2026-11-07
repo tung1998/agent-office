@@ -28,6 +28,10 @@ interface Message {
   consult?: { agent: string, project: string, office?: string, link?: string }
   // what an advisor told the agent stuck in this run (ADR-262)
   advice?: Advice[]
+  // scored for the model statistics; the person's 👍 1 / 👎 -1 (ADR-267)
+  rated?: boolean
+  feedback?: number
+  frozen?: boolean
 }
 interface Queued { id: string, text: string, attachments: Attachment[], created_at: string }
 interface Conversation { id: string, project_id?: string, agent_id: string, agent_name: string, title: string, updated_at: string, source?: Source, purpose?: string, external_url?: string, active_turn?: string, mode?: PermLevel, edit_mode?: 'worktree' | 'direct', effort?: string, cleaned?: string, context_tokens?: number, context_window?: number, tags?: string[], queued?: Queued[] }
@@ -179,6 +183,77 @@ const pickedEfforts = computed(() => {
 // its connection failing (signed out, its CLI stuck): said before sending, not after a turn that never ends
 const pickedBroken = computed(() => pickedProvider.value?.enabled && pickedProvider.value.status === 'error' ? pickedProvider.value : null)
 const pickedLevel = computed(() => picked.value ? agentLevel(picked.value.permissions) : 'read')
+// the chat's own model for the picked agent and office's suggestion for the
+// work at hand (ADR-267): only suggested, the person applies it to this chat
+interface Suggestion { agent_id: string, agent_name: string, model: string, effort: string, q: number, cost_usd: number, n: number, from_prior: boolean, kind: string, difficulty: string }
+interface SuggestReply { suggestion: Suggestion | null, kind: string, difficulty: string, current_model: string, agent_model?: string, models: string[], quota?: { max_util: number } }
+const memberModel = ref('')
+const suggest = ref<SuggestReply | null>(null)
+let suggestTimer: ReturnType<typeof setTimeout> | undefined
+let suggestSeq = 0
+async function loadSuggest() {
+  const id = current.value?.id
+  if (!id || !pick.value) {
+    suggest.value = null
+    memberModel.value = ''
+    return
+  }
+  const seq = ++suggestSeq
+  try {
+    const r = await $fetch<SuggestReply>(`/api/conversations/${id}/suggest`, { query: { agent: pick.value, text: draft.value.trim().slice(0, 2000) || undefined } })
+    if (seq !== suggestSeq) return
+    suggest.value = r
+    memberModel.value = r.current_model
+  } catch {
+    if (seq === suggestSeq) suggest.value = null
+  }
+}
+watch([() => current.value?.id, pick], () => { void loadSuggest() }, { immediate: true })
+watch(draft, () => {
+  clearTimeout(suggestTimer)
+  suggestTimer = setTimeout(() => { void loadSuggest() }, 800)
+})
+onBeforeUnmount(() => clearTimeout(suggestTimer))
+async function setMemberModel(model: string, agentId = pick.value): Promise<boolean> {
+  const id = current.value?.id
+  if (!id || !agentId) return false
+  const before = memberModel.value
+  memberModel.value = model
+  try {
+    await $fetch(`/api/conversations/${id}/agents/${agentId}/model`, { method: 'PUT', body: { model } })
+    return true
+  } catch (e) {
+    memberModel.value = before
+    toast.add({ title: apiError(e), color: 'error' })
+    return false
+  }
+}
+// the suggestion, unless it is what the chat runs on already
+const shownSuggestion = computed(() => {
+  const s = suggest.value?.suggestion
+  if (!s || (s.agent_id !== pick.value && !isOn(s.agent_id))) return null // only agents that can answer here
+  const model = memberModel.value || suggest.value?.agent_model || ''
+  const eff = effort.value || picked.value?.effort || ''
+  return s.agent_id === pick.value && s.model === model && s.effort === eff ? null : s
+})
+const suggestTitle = computed(() => {
+  const s = shownSuggestion.value
+  if (!s) return ''
+  const args = { q: Math.round(s.q), cost: s.cost_usd.toFixed(2), n: s.n, kind: t(`scoring.kind.${s.kind}` as 'scoring.kind.ask'), difficulty: t(`scoring.diff.${s.difficulty}` as 'scoring.diff.light') }
+  const why = s.from_prior ? t('scoring.suggestPrior', args) : t('scoring.suggestWhy', args)
+  const util = suggest.value?.quota?.max_util ?? 0
+  return util > 0 ? `${why} · ${t('scoring.suggestQuota', { pct: Math.round(util * 100) })}` : why
+})
+async function applySuggestion() {
+  const s = shownSuggestion.value
+  if (!s) return
+  const sameAgent = s.agent_id === pick.value
+  // the model is the suggested agent's own one when it is that agent's default
+  if (!await setMemberModel(sameAgent && s.model === suggest.value?.agent_model ? '' : s.model, s.agent_id)) return
+  if (!sameAgent) pick.value = s.agent_id
+  effort.value = s.effort
+  toast.add({ title: t('scoring.applied'), color: 'success' })
+}
 const prompt = ref<{ busy: boolean, focus?: () => void } | null>(null)
 
 // filled by other tabs (e.g. "Hỏi agent" in Vận hành)
@@ -1178,6 +1253,7 @@ onBeforeUnmount(() => {
               </UBadge>
               <span>{{ when(m.created_at) }}</span>
               <span v-if="m.cost_usd">· ${{ m.cost_usd.toFixed(3) }}</span>
+              <MessageFeedback v-if="current?.id && m.role === 'assistant' && (m.rated || m.cost_usd)" :conversation-id="current.id" :message-id="m.id" :value="m.feedback" :frozen="m.frozen" />
               <UDropdownMenu :items="messageMenu(m)" :content="{ align: 'start' }">
                 <button type="button" class="invisible rounded px-0.5 text-(--ui-text-dimmed) hover:text-(--ui-text) group-hover/msg:visible data-[state=open]:visible" :aria-label="t('chat.more')">
                   <UIcon name="i-lucide-ellipsis" class="size-4" />
@@ -1286,6 +1362,13 @@ onBeforeUnmount(() => {
           <UIcon name="i-lucide-plug-zap" class="size-3.5 shrink-0" />
           <span class="truncate">{{ t('chat.providerBroken', { name: pickedBroken.name, detail: pickedBroken.status_detail }) }}</span>
         </component>
+        <div v-if="shownSuggestion" class="mb-1.5 flex px-1">
+          <UButton
+            size="xs" color="primary" variant="soft" icon="i-lucide-sparkles" class="max-w-full min-w-0" :title="suggestTitle"
+            :label="shownSuggestion.agent_id === pick ? t('scoring.suggest', { model: shownSuggestion.model, effort: effortLabel(shownSuggestion.effort, t) }) : t('scoring.suggestAgent', { agent: shownSuggestion.agent_name, model: shownSuggestion.model, effort: effortLabel(shownSuggestion.effort, t) })"
+            :ui="{ label: 'truncate' }" @click="applySuggestion"
+          />
+        </div>
         <PromptInput
           ref="prompt" v-model="draft" v-model:attachments="draftFiles" :project-id="projectId"
           :placeholder="picked ? t('chat.placeholderWithAgent', { agent: picked.name }) : t('chat.placeholderNoAgent')"
@@ -1294,6 +1377,7 @@ onBeforeUnmount(() => {
         >
           <template #actions>
             <ContextMeter :tokens="current?.context_tokens" :window="current?.context_window" />
+            <ModelSelect v-if="current?.id && (suggest?.models.length ?? 0) > 1" :model-value="memberModel" :options="suggest?.models ?? []" :fallback="suggest?.agent_model" size="sm" variant="ghost" class="min-w-0 max-w-44 shrink" :ui="iconOnPhone" :title="t('scoring.model')" :aria-label="t('scoring.model')" @update:model-value="setMemberModel" />
             <EffortSelect v-if="pickedEfforts.length" v-model="effort" :options="pickedEfforts" :fallback="picked?.effort ?? ''" size="sm" variant="ghost" class="min-w-0 max-w-44 shrink" :ui="iconOnPhone" :title="t('chat.effort')" :aria-label="t('chat.effort')" />
             <EditModePicker v-if="permRank(pickedLevel) >= permRank('propose')" v-model="editMode" class="min-w-0 shrink" />
             <UButton v-if="streaming" size="sm" icon="i-lucide-square" color="neutral" variant="outline" :label="t('chat.stop')" @click="cancel" />
