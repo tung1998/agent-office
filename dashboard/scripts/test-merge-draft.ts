@@ -55,4 +55,11 @@ import { automationBody, draftFrom, emptyDraft, mergeDraft } from '../app/compos
   assert.equal(body.bot?.token, 'pasted', 'a pasted token is sent')
   assert.equal(automationBody({ ...emptyDraft(), bot: { token: 'x', allow: [], refusal: '' } }).bot, undefined, 'no bot for a schedule')
 }
+// an agent-proposed patch may set action to workflow (automation-builder flow)
+{
+  const d = emptyDraft()
+  const changed = mergeDraft(d, { action: 'workflow', config: { workflow: 'some-key' } })
+  assert.equal(d.action, 'workflow', 'workflow action accepted from a patch')
+  assert.ok(changed.includes('action'), 'action reported as changed')
+}
 console.log('mergeDraft: ok')

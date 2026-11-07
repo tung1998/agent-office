@@ -386,7 +386,7 @@ export function draftFrom(a: Automation): AutomationDraft {
 const draftObjects = ['config', 'limits', 'script', 'escalate', 'bot'] as const
 const draftScalars = ['name', 'enabled', 'source', 'action', 'agent_id', 'prompt', 'edit_mode', 'keep_context'] as const
 const allowed: Record<string, readonly string[]> = {
-  source: ['schedule', 'webhook', 'event', 'telegram', 'discord'], action: ['script', 'chat'], edit_mode: ['worktree', 'direct'], model_tier: ['', 'strong', 'balanced', 'fast'],
+  source: ['schedule', 'webhook', 'event', 'telegram', 'discord'], action: ['script', 'chat', 'workflow'], edit_mode: ['worktree', 'direct'], model_tier: ['', 'strong', 'balanced', 'fast'],
   'script.lang': ['bash', 'node', 'python'], 'escalate.when': ['never'],
   'config.auth': ['bearer', 'header', 'query']
 }
