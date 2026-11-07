@@ -256,7 +256,9 @@ func TestPeerPairing(t *testing.T) {
 		t.Fatalf("read_chat by id after hand-over: %v %s", isErr, out)
 	}
 
-	// no key, a wrong one, a used invite
+	// no key, a wrong one, a used invite (its reply already got through, so
+	// this isn't the lost-reply retry internal/peer's own tests cover; a
+	// fresh key Accept() never answered to is correctly denied)
 	if resp, _ := do(t, http.DefaultClient, "POST", b.srv.URL+"/api/peer/relay", map[string]any{"project": shop.ID, "text": "x"}, nil); resp.StatusCode != http.StatusUnauthorized {
 		t.Fatalf("relay without key = %d", resp.StatusCode)
 	}

@@ -35,8 +35,9 @@ import (
 )
 
 const (
-	peersKey   = "peers"
-	invitesKey = "peer_invites"
+	peersKey        = "peers"
+	invitesKey      = "peer_invites"
+	pendingJoinsKey = "peer_pending_joins"
 	// RefPrefix marks a linked project in another office in a project's
 	// Policy.LinkedProjects: "peer:<peer id>/<its project id>".
 	RefPrefix = "peer:"
@@ -86,13 +87,16 @@ type Peer struct {
 }
 
 type invite struct {
-	ID         string    `json:"id"`
-	SecretHash string    `json:"secret_hash"`
-	Name       string    `json:"name"` // this office's name, as the other will see it
-	URL        string    `json:"url"`  // this office, as the other reaches it
-	Shared     []string  `json:"shared"`
-	As         string    `json:"as"`
-	Expires    time.Time `json:"expires"`
+	ID              string    `json:"id"`
+	SecretHash      string    `json:"secret_hash"`
+	Name            string    `json:"name"` // this office's name, as the other will see it
+	URL             string    `json:"url"`  // this office, as the other reaches it
+	Shared          []string  `json:"shared"`
+	As              string    `json:"as"`
+	Expires         time.Time `json:"expires"`
+	AnswerEnc       string    `json:"answer_enc,omitempty"`        // the key answered with, once accepted (a retry sends the same, until Expires)
+	AcceptedURL     string    `json:"accepted_url,omitempty"`      // the URL AnswerEnc was answered to
+	AcceptedKeyHash string    `json:"accepted_key_hash,omitempty"` // hash of the Key that office sent; only that exact (URL, Key) may retry, since URL is self-reported
 }
 
 // Origin is where a message sent to another office comes from.
@@ -412,6 +416,23 @@ func (s *Service) invites(ctx context.Context) []invite {
 	return slices.DeleteFunc(list, func(i invite) bool { return now.After(i.Expires) })
 }
 
+// pendingJoin is a Join() still in flight: the key sent with it, kept so a
+// retry of the same invite (its response may have been lost) sends the same
+// key again, instead of a new one Accept() won't recognize.
+type pendingJoin struct {
+	Invite  string    `json:"invite"`
+	KeyEnc  string    `json:"key_enc"`
+	Expires time.Time `json:"expires"`
+}
+
+// pendingJoins are the open ones (the expired dropped); the caller holds mu.
+func (s *Service) pendingJoins(ctx context.Context) []pendingJoin {
+	var list []pendingJoin
+	_, _ = s.st.Settings().Get(ctx, pendingJoinsKey, &list)
+	now := s.now()
+	return slices.DeleteFunc(list, func(p pendingJoin) bool { return now.After(p.Expires) })
+}
+
 // Join pairs with the office whose invite code this is: this office is
 // selfURL to it, named name there.
 func (s *Service) Join(ctx context.Context, as, code, name, selfURL string) (Peer, error) {
@@ -432,7 +453,26 @@ func (s *Service) Join(ctx context.Context, as, code, name, selfURL string) (Pee
 	if name == "" {
 		return Peer{}, errors.New("thiếu tên office này")
 	}
-	in := NewKey() // the key it will call this office with
+	s.mu.Lock()
+	list := s.pendingJoins(ctx)
+	j := slices.IndexFunc(list, func(x pendingJoin) bool { return x.Invite == c.I })
+	var inEnc string
+	if j >= 0 {
+		inEnc = list[j].KeyEnc // a retry (the first reply may have been lost): send the same key again
+	} else {
+		if inEnc, err = s.box.Seal(NewKey()); err == nil {
+			list = append(list, pendingJoin{Invite: c.I, KeyEnc: inEnc, Expires: s.now().Add(inviteTTL)})
+			err = s.st.Settings().Set(ctx, pendingJoinsKey, list)
+		}
+	}
+	s.mu.Unlock()
+	if err != nil {
+		return Peer{}, err
+	}
+	in, err := s.box.Open(inEnc) // the key it will call this office with
+	if err != nil {
+		return Peer{}, err
+	}
 	p := Peer{ID: ids.New("peer"), Name: c.N, URL: their, SelfURL: self, InKeyHash: Hash(in), Shared: []string{}, As: as, CreatedAt: s.now().UTC()}
 	var out pairReply
 	if err := s.do(ctx, http.MethodPost, their+"/api/peer/pair", "", pairRequest{Invite: c.I, Secret: c.S, Name: name, URL: self, Key: in}, &out); err != nil {
@@ -446,8 +486,14 @@ func (s *Service) Join(ctx context.Context, as, code, name, selfURL string) (Pee
 	}
 	p.Name = oneLine(cmp.Or(out.Name, c.N, their), 80)
 	p.Remote = cleanRemote(out.Projects)
-	err = s.update(ctx, func(list []Peer) ([]Peer, error) { return upsert(list, &p), nil })
-	return p, err
+	if err = s.update(ctx, func(list []Peer) ([]Peer, error) { return upsert(list, &p), nil }); err != nil {
+		return Peer{}, err
+	}
+	s.mu.Lock() // paired: no retry will come for this invite anymore
+	list = slices.DeleteFunc(s.pendingJoins(ctx), func(x pendingJoin) bool { return x.Invite == c.I })
+	_ = s.st.Settings().Set(ctx, pendingJoinsKey, list) // best effort: it expires on its own either way
+	s.mu.Unlock()
+	return p, nil
 }
 
 // upsert adds p; pairing again with the same office replaces it, under its
@@ -498,13 +544,29 @@ func (s *Service) Accept(ctx context.Context, body []byte) ([]byte, error) {
 		s.mu.Unlock()
 		return nil, err
 	}
-	list = slices.Delete(list, i, i+1) // used once
-	err = s.st.Settings().Set(ctx, invitesKey, list)
+	if list[i].AnswerEnc != "" && (list[i].AcceptedURL != their || list[i].AcceptedKeyHash != Hash(req.Key)) {
+		// already answered, and either the URL (self-reported, unverified) or
+		// the Key (the joining office's actual secret, sent over TLS) doesn't
+		// match: never hand the first office's key to a second caller
+		s.mu.Unlock()
+		return nil, ErrDenied
+	}
+	if list[i].AnswerEnc == "" { // kept before replying: a retry (response lost in transit) gets the same key back
+		list[i].AcceptedURL = their
+		list[i].AcceptedKeyHash = Hash(req.Key)
+		if list[i].AnswerEnc, err = s.box.Seal(NewKey()); err == nil {
+			err = s.st.Settings().Set(ctx, invitesKey, list)
+		}
+	}
+	inv = list[i]
 	s.mu.Unlock()
 	if err != nil {
 		return nil, err
 	}
-	key := NewKey()
+	key, err := s.box.Open(inv.AnswerEnc)
+	if err != nil {
+		return nil, err
+	}
 	p := Peer{ID: ids.New("peer"), Name: oneLine(req.Name, 80), URL: their, SelfURL: inv.URL, InKeyHash: Hash(key), Shared: inv.Shared, Remote: []RemoteProject{}, As: inv.As, CreatedAt: s.now().UTC()}
 	if p.OutKeyEnc, err = s.box.Seal(req.Key); err != nil {
 		return nil, err

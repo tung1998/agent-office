@@ -121,8 +121,11 @@ func TestPairAndSend(t *testing.T) {
 	if pa.Name != "office-b" || len(pa.Remote) != 1 || pa.Remote[0].Name != "shop" || pa.Remote[0].Description != "the store" {
 		t.Fatalf("A sees B as %+v", pa)
 	}
+	// a join that already got its reply is done with the invite: calling
+	// Join() again (not a retry of a lost reply — see TestJoinRetrySameInvite
+	// for that) sends a fresh key Accept() never answered to, so it's denied.
 	if _, err := a.svc.Join(ctx, "human:a@x", code, "office-a", a.srv.URL); err == nil {
-		t.Fatal("an invite works only once")
+		t.Fatal("an invite works only once a reply got through")
 	}
 	// paired again (a new invite): the same office keeps its id, links hold
 	code2, _, _ := b.svc.Invite(ctx, "human:b@x", "office-b", b.srv.URL, []string{shop.ID})
@@ -214,6 +217,117 @@ func TestAcceptLoopbackGuard(t *testing.T) {
 	}
 	if _, err := b.svc.Accept(ctx, body("https://a.example")); err != nil {
 		t.Fatalf("the invite was burned by the refused try: %v", err)
+	}
+}
+
+// A joining office that never saw Accept's reply (dropped connection) must
+// be able to retry with the same invite+secret and get the same key back,
+// instead of "mã mời không hợp lệ" with no way to recover without a new
+// invite from the admin on the other side.
+func TestAcceptRetrySameInvite(t *testing.T) {
+	ctx := context.Background()
+	b := newOffice(t)
+	code, _, _ := b.svc.Invite(ctx, "human:b@x", "b", "https://b.example", nil)
+	raw, _ := base64.RawURLEncoding.DecodeString(strings.TrimPrefix(code, "ofi_"))
+	var c struct{ I, S string }
+	json.Unmarshal(raw, &c)
+	body, _ := json.Marshal(pairRequest{Invite: c.I, Secret: c.S, Name: "a", URL: "https://a.example", Key: NewKey()})
+
+	out1, err := b.svc.Accept(ctx, body)
+	if err != nil {
+		t.Fatalf("first accept: %v", err)
+	}
+	// the caller "loses" out1 here (network drop) and retries with the exact
+	// same invite+secret, as Join() does when it never gets a response.
+	out2, err := b.svc.Accept(ctx, body)
+	if err != nil {
+		t.Fatalf("retry after lost reply: %v", err)
+	}
+	if string(out1) != string(out2) {
+		t.Fatalf("retry gave a different key: %s != %s", out2, out1)
+	}
+	if l, _ := b.svc.List(ctx); len(l) != 1 {
+		t.Fatalf("retry created %d peers, want 1", len(l))
+	}
+
+	// a different office trying the same leaked invite+secret, within the
+	// retry window, must never get the first office's key.
+	body3, _ := json.Marshal(pairRequest{Invite: c.I, Secret: c.S, Name: "c", URL: "https://c.example", Key: NewKey()})
+	if _, err := b.svc.Accept(ctx, body3); err != ErrDenied {
+		t.Fatalf("a second office reused the invite: %v", err)
+	}
+	if l, _ := b.svc.List(ctx); len(l) != 1 {
+		t.Fatalf("a second office created a peer: %d, want 1", len(l))
+	}
+
+	// req.URL is self-reported and never verified; Accept() only ever sees
+	// req.Key over TLS from the real caller. So the same URL with a *different*
+	// Key (an attacker who only knows the leaked code and B's URL, or a plain
+	// bug) must also be denied — Join() always resends the exact same Key it
+	// used the first time for a given invite (see TestJoinRetrySameInvite).
+	l, _ := b.svc.List(ctx)
+	if len(l) != 1 {
+		t.Fatalf("have %d peers, want 1", len(l))
+	}
+	wantOutKey, err := b.svc.box.Open(l[0].OutKeyEnc)
+	if err != nil {
+		t.Fatalf("open OutKeyEnc: %v", err)
+	}
+	wantID := l[0].ID
+	body4, _ := json.Marshal(pairRequest{Invite: c.I, Secret: c.S, Name: "a", URL: "https://a.example", Key: NewKey()})
+	if _, err := b.svc.Accept(ctx, body4); err != ErrDenied {
+		t.Fatalf("same URL, different Key was accepted: %v", err)
+	}
+	l, _ = b.svc.List(ctx)
+	if len(l) != 1 || l[0].ID != wantID {
+		t.Fatalf("peers after the mismatched-key try: %+v, want only %s", l, wantID)
+	}
+	if gotOutKey, err := b.svc.box.Open(l[0].OutKeyEnc); err != nil || gotOutKey != wantOutKey {
+		t.Fatalf("OutKeyEnc changed by the mismatched-key try: %v %q, want %q", err, gotOutKey, wantOutKey)
+	}
+}
+
+// Join() itself must resend the same outgoing key on a retry of the same
+// invite code, so Accept()'s (URL, Key) check above doesn't itself turn a
+// legitimate retry (first reply lost) into a denial.
+func TestJoinRetrySameInvite(t *testing.T) {
+	ctx := context.Background()
+	a, b := newOffice(t), newOffice(t)
+	drop := true // the first /api/peer/pair reply is dropped, like a severed connection
+	mux := http.NewServeMux()
+	mux.HandleFunc("POST /api/peer/pair", func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		out, err := b.svc.Accept(r.Context(), body)
+		if err != nil {
+			http.Error(w, `{"error":"`+err.Error()+`"}`, http.StatusForbidden)
+			return
+		}
+		if drop {
+			drop = false
+			hj, _ := w.(http.Hijacker)
+			conn, _, _ := hj.Hijack()
+			conn.Close() // Accept() above already ran to completion; the caller gets nothing
+			return
+		}
+		w.Write(out)
+	})
+	flaky := httptest.NewServer(mux)
+	t.Cleanup(flaky.Close)
+	b.srv = flaky
+
+	code, _, _ := b.svc.Invite(ctx, "human:b@x", "b", flaky.URL, nil)
+	if _, err := a.svc.Join(ctx, "human:a@x", code, "a", a.srv.URL); err == nil {
+		t.Fatal("the first join (dropped reply) returned no error")
+	}
+	pa, err := a.svc.Join(ctx, "human:a@x", code, "a", a.srv.URL)
+	if err != nil {
+		t.Fatalf("retry after the dropped reply: %v", err)
+	}
+	if l, _ := b.svc.List(ctx); len(l) != 1 {
+		t.Fatalf("B has %d peers, want 1", len(l))
+	}
+	if l, _ := a.svc.List(ctx); len(l) != 1 || l[0].ID != pa.ID {
+		t.Fatalf("A has %+v, want only %s", l, pa.ID)
 	}
 }
 
