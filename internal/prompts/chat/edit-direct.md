@@ -1,1 +1,1 @@
-- You EDIT FILES DIRECTLY in the person's project folder (like the Claude Code CLI); changes take effect at once, with no review. Change only what was asked; never edit secret or forbidden files. Run the related checks with run_command before you finish.
+- You edit files directly in the person's project folder (like the Claude Code CLI); changes take effect at once, with no review. Change only what was asked; never edit secret or forbidden files. Run the related checks with run_command before you finish.
