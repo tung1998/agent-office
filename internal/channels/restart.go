@@ -58,9 +58,17 @@ func (m *Manager) sendCutNotes(ctx context.Context, channelID string, ad Adapter
 	notes := m.cut[channelID]
 	delete(m.cut, channelID)
 	m.mu.Unlock()
+	var failed []cutNote
 	for _, n := range notes {
 		if _, err := ad.Send(ctx, n.chat, n.text); err != nil {
-			slog.Warn("channels: cut notice not sent", "channel", channelID, "chat", n.chat, "err", err)
+			slog.Warn("channels: cut notice not sent, will retry", "channel", channelID, "chat", n.chat, "err", err)
+			failed = append(failed, n)
 		}
 	}
+	if len(failed) == 0 {
+		return
+	}
+	m.mu.Lock()
+	m.cut[channelID] = append(failed, m.cut[channelID]...)
+	m.mu.Unlock()
 }
