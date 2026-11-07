@@ -75,6 +75,7 @@ func serveCmd() *cobra.Command {
 		secureCookies  bool
 		trustedProxies []string
 		cliSetup       bool
+		uiListen       string
 	)
 	cmd := &cobra.Command{
 		Use:   "serve",
@@ -454,7 +455,7 @@ func serveCmd() *cobra.Command {
 					auth.DefaultAdminEmail, auth.DefaultAdminPassword)
 			}
 
-			srv := &http.Server{Addr: addr, Handler: handler, ReadHeaderTimeout: 10 * time.Second}
+			srv := &http.Server{Addr: addr, Handler: withEmbeddedUI(handler), ReadHeaderTimeout: 10 * time.Second}
 			go sweepSessions(ctx, st, log)
 
 			ln, err := net.Listen("tcp", addr)
@@ -463,6 +464,17 @@ func serveCmd() *cobra.Command {
 			}
 			errCh := make(chan error, 1)
 			go func() { errCh <- srv.Serve(ln) }()
+			// a second listener on the dashboard's old port (2704), so
+			// Tailscale/bookmarks pointed there before embedding keep working;
+			// supervise.go sets this when it would otherwise have spawned the
+			// separate Nuxt process on that port.
+			if uiListen != "" && uiListen != addr {
+				uiLn, err := net.Listen("tcp", uiListen)
+				if err != nil {
+					return fmt.Errorf("không nghe được %s (--ui-listen): %w", uiListen, err)
+				}
+				go func() { errCh <- srv.Serve(uiLn) }()
+			}
 			// once it listens and the gateway is set (the turns reach their tools):
 			// answers cut off by the last shutdown go on, then what waited in chats
 			if n := chatEngine.ResumeInterrupted(ctx, interrupted); n > 0 {
@@ -508,6 +520,7 @@ func serveCmd() *cobra.Command {
 	cmd.Flags().BoolVar(&secureCookies, "secure-cookies", false, "bật cờ Secure cho cookie (bắt buộc khi chạy sau HTTPS)")
 	cmd.Flags().BoolVar(&cliSetup, "cli-setup", true, "cho phép cài và đăng nhập Claude Code/Codex từ dashboard (tắt khi chạy trong container)")
 	cmd.Flags().StringSliceVar(&trustedProxies, "trusted-proxy", []string{"127.0.0.1/32", "::1/128"}, "dải IP của proxy (dashboard Nuxt) được tin header X-Forwarded-*")
+	cmd.Flags().StringVar(&uiListen, "ui-listen", "", "địa chỉ thứ hai nghe cùng handler (dashboard nhúng giữ cổng Nuxt cũ, ví dụ :2704)")
 	return cmd
 }
 

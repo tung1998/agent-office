@@ -17,6 +17,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/tung1998/agent-office/internal/selfupdate"
+	"github.com/tung1998/agent-office/internal/webui"
 )
 
 // runCmd is the supervisor: it runs the API server (`office serve`) and the
@@ -91,7 +92,7 @@ func (c *child) stop() {
 func supervise(args []string) error {
 	// supervisor flags; the rest goes to `office serve`
 	var fwd []string
-	uiPort, uiDir, noUI := "2704", "", false
+	uiPort, uiDir, noUIFlag := "2704", "", false
 	apiAddr := ""
 	for i := 0; i < len(args); i++ {
 		a := args[i]
@@ -107,7 +108,7 @@ func supervise(args []string) error {
 		}
 		switch {
 		case a == "--no-ui":
-			noUI = true
+			noUIFlag = true
 		case a == "--ui-port" || strings.HasPrefix(a, "--ui-port="):
 			uiPort = val()
 		case a == "--ui-dir" || strings.HasPrefix(a, "--ui-dir="):
@@ -143,13 +144,25 @@ func supervise(args []string) error {
 		uiDir = src.UIDir
 	}
 	uiEntry := filepath.Join(uiDir, ".output", "server", "index.mjs")
-	if !noUI && uiDir != "" {
+	// `office serve` embeds and serves the built dashboard itself (go:embed);
+	// when that build is present there is no separate Nuxt process to spawn.
+	_, embedded := webui.FS()
+	noUI := noUIFlag
+	if embedded {
+		noUI = true
+		if !noUIFlag {
+			// keep the dashboard reachable on its old port (2704): bookmarks,
+			// and a Tailscale funnel/serve pointed there before embedding, do
+			// not have to change
+			fwd = append(fwd, "--ui-listen", ":"+uiPort)
+		}
+	} else if !noUI && uiDir != "" {
 		if _, err := os.Stat(uiEntry); err != nil {
 			fmt.Fprintf(os.Stderr, "office: chưa build dashboard (%s), chỉ chạy API. Chạy `make ui-build` rồi khởi động lại.\n", uiEntry)
 			noUI = true
 		}
 	}
-	if uiDir == "" {
+	if uiDir == "" && !embedded {
 		noUI = true
 	}
 	// after an update the server binary at exe is the new build
@@ -182,7 +195,15 @@ func supervise(args []string) error {
 	}
 	startUI()
 	savePIDs(api, ui)
-	if !noUI {
+	switch {
+	case embedded && !noUIFlag:
+		// `office serve` answers both on apiAddr and on the dashboard's old
+		// port (--ui-listen), so :2704 keeps working without reconfiguring
+		// Tailscale or other bookmarks pointed at it
+		fmt.Fprintf(os.Stderr, "office: dashboard http://localhost:%s (nhúng trong server API, cũng nghe tại %s)\n", uiPort, apiAddr)
+	case embedded:
+		fmt.Fprintf(os.Stderr, "office: dashboard http://%s (nhúng trong server API)\n", loopback(apiAddr))
+	case !noUI:
 		fmt.Fprintf(os.Stderr, "office: dashboard http://localhost:%s\n", uiPort)
 	}
 

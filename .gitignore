@@ -4,6 +4,9 @@ dashboard/.output/
 # builds kept around by "Cập nhật office" (.new, .prev, .failed)
 dashboard/.output.*/
 dashboard/node_modules/
+# dashboard build copied here for go:embed by `make ui-build` (internal/webui)
+internal/webui/dist/*
+!internal/webui/dist/.gitkeep
 *.db
 .env
 

@@ -67,6 +67,9 @@ func (s Source) Binary() string { return filepath.Join(s.Root, "bin", "office") 
 // UIOutput is the built dashboard.
 func (s Source) UIOutput() string { return filepath.Join(s.UIDir, ".output") }
 
+// WebUIDist is where the dashboard build is copied for `go:embed` (internal/webui).
+func (s Source) WebUIDist() string { return filepath.Join(s.Root, "internal", "webui", "dist") }
+
 // Result is the outcome of the last update, written by whoever finished it.
 type Result struct {
 	State   string    `json:"state"` // ok | rolled_back | failed
@@ -311,6 +314,7 @@ type step struct {
 	dir  string
 	env  []string
 	argv []string
+	fn   func() error // in-process action instead of argv (no subprocess, still logged)
 	skip bool
 }
 
@@ -345,10 +349,10 @@ func (u *Updater) run(o Options) {
 	if fp, err := SourceFingerprint(context.Background(), root); err == nil {
 		build = append(build, "-ldflags", "-X "+fingerprintVar+"="+fp)
 	}
-	steps := []step{
-		{name: "Build server", dir: root, argv: append(build, "./cmd/office")},
-		{name: "Chạy test", dir: root, argv: []string{"go", "test", "./..."}, skip: !o.Test},
-	}
+	var steps []step
+	// the dashboard builds (and its build is copied into internal/webui/dist)
+	// before "Build server": the new binary embeds that dist via go:embed, so
+	// this order keeps the embedded dashboard and the running server in step.
 	if u.src.UIDir != "" {
 		if _, err := os.Stat(filepath.Join(u.src.UIDir, "node_modules")); err != nil {
 			steps = append(steps, step{name: "Cài package dashboard", dir: u.src.UIDir, argv: []string{"pnpm", "install", "--frozen-lockfile"}})
@@ -358,12 +362,27 @@ func (u *Updater) run(o Options) {
 		}
 		_ = os.RemoveAll(filepath.Join(u.src.UIDir, ".output.new"))
 		steps = append(steps, step{name: "Build dashboard", dir: u.src.UIDir, env: []string{"OFFICE_UI_OUT_DIR=.output.new"}, argv: []string{"npx", "nuxi", "build"}})
+		steps = append(steps, step{name: "Nhúng dashboard vào server", fn: func() error {
+			return copyDashboardDist(filepath.Join(u.src.UIDir, ".output.new", "public"), u.src.WebUIDist())
+		}})
 	}
+	steps = append(steps,
+		step{name: "Build server", dir: root, argv: append(build, "./cmd/office")},
+		step{name: "Chạy test", dir: root, argv: []string{"go", "test", "./..."}, skip: !o.Test},
+	)
 	for _, st := range steps {
 		if st.skip {
 			continue
 		}
 		u.set(func(s *State) { s.Step = st.name })
+		if st.fn != nil {
+			u.add("sys", "▶ "+st.name)
+			if err := st.fn(); err != nil {
+				fail(st.name, err)
+				return
+			}
+			continue
+		}
 		u.add("sys", fmt.Sprintf("▶ %s: %s", st.name, strings.Join(st.argv, " ")))
 		if err := u.exec(st.dir, st.env, st.argv); err != nil {
 			fail(st.name, err)
@@ -551,6 +570,45 @@ func (u *Updater) swap() error {
 		}
 	}
 	return nil
+}
+
+// copyDashboardDist replaces dst (internal/webui/dist) with a copy of the
+// freshly built dashboard's public assets, keeping the .gitkeep that makes
+// the `//go:embed dist` directive valid on a checkout with no build yet.
+func copyDashboardDist(src, dst string) error {
+	if _, err := os.Stat(filepath.Join(src, "index.html")); err != nil {
+		return fmt.Errorf("không thấy %s (dashboard build thiếu index.html)", filepath.Join(src, "index.html"))
+	}
+	if err := os.RemoveAll(dst); err != nil {
+		return err
+	}
+	if err := copyTree(src, dst); err != nil {
+		return err
+	}
+	return os.WriteFile(filepath.Join(dst, ".gitkeep"), nil, 0o644)
+}
+
+// copyTree copies a directory tree, following the files (not symlinks, which
+// embed.FS cannot hold) so the destination can be go:embed'd as-is.
+func copyTree(src, dst string) error {
+	return filepath.WalkDir(src, func(p string, d os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		rel, err := filepath.Rel(src, p)
+		if err != nil {
+			return err
+		}
+		target := filepath.Join(dst, rel)
+		if d.IsDir() {
+			return os.MkdirAll(target, 0o755)
+		}
+		data, err := os.ReadFile(p)
+		if err != nil {
+			return err
+		}
+		return os.WriteFile(target, data, 0o644)
+	})
 }
 
 // replace moves cur → prev and next → cur.

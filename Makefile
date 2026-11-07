@@ -13,7 +13,7 @@ test:
 	cd dashboard && node scripts/check-i18n.mjs && pnpm test:unit
 
 # office run: supervisor with API + dashboard, restarts and self-updates
-start: build ui-build
+start: ui-build build
 	./bin/office run
 
 dev-api: build
@@ -27,6 +27,10 @@ dev-ui:
 
 ui-build:
 	cd dashboard && node scripts/check-i18n.mjs && pnpm typecheck && pnpm build
+	rm -rf internal/webui/dist
+	mkdir -p internal/webui/dist
+	cp -R dashboard/.output/public/. internal/webui/dist/
+	touch internal/webui/dist/.gitkeep
 
 # dashboard port: 2704 (dev and built)
 ui-start:
