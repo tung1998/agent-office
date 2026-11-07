@@ -32,8 +32,11 @@ async function act(fn: () => Promise<unknown>, ok?: string) {
     await fn()
     if (ok) toast.add({ title: ok, color: 'success' })
     await Promise.all([refreshCh(), refreshAutos()])
+    return true
   } catch (e) {
     toast.add({ title: apiError(e), color: 'error' })
+    await Promise.all([refreshCh(), refreshAutos()])
+    return false
   }
 }
 const toggle = (enabled: boolean) => act(() => $fetch(`/api/channels/${bid.value}`, { method: 'PATCH', body: { enabled } }))
@@ -44,10 +47,10 @@ async function remove() {
   if (!confirm(t('bot.deleteConfirm', { name: name.value }))) return
   removing.value = true
   try {
-    await act(async () => {
+    const ok = await act(async () => {
       for (const a of cmds.value) await $fetch(`/api/automations/${a.id}`, { method: 'DELETE' }) // the last one takes the bot along
     })
-    await navigateTo({ path: `/projects/${projectId.value}`, query: { tab: 'automations' } })
+    if (ok) await navigateTo({ path: `/projects/${projectId.value}`, query: { tab: 'automations' } })
   } finally {
     removing.value = false
   }
