@@ -8,14 +8,14 @@ const toast = useToast()
 const { isAdmin } = useAuth()
 const base = computed(() => `/api/projects/${props.projectId}/support`)
 
-const { data: st } = useLiveFetch<SupportSettings>(() => `${base.value}/settings`, { lazy: true })
+const { data: st, refresh } = useLiveFetch<SupportSettings>(() => `${base.value}/settings`, { lazy: true })
 const form = reactive<{ sla: number, human: string, cases: (CaseType & { words: string })[] }>({ sla: 60, human: '', cases: [] })
-watch(st, (v) => {
-  if (!v) return
+// ticket/event traffic refetches `st` constantly; don't clobber an in-progress edit (ADR-072)
+const { stale, reset: resync } = useDraft(st, form, (v) => {
   form.sla = v.sla_minutes
   form.human = v.human_words.join(', ')
   form.cases = v.cases.map(c => ({ ...c, words: c.keywords.join(', ') }))
-}, { immediate: true })
+})
 const modes = computed(() => [{ label: t('sup.caseMode.source'), value: '' }, { label: t('sup.mode.approve'), value: 'approve' },
   { label: t('sup.mode.auto'), value: 'auto' }, { label: t('sup.caseMode.human'), value: 'human' }])
 const split = (s: string) => s.split(',').map(x => x.trim()).filter(Boolean)
@@ -28,6 +28,8 @@ async function save() {
       sla_minutes: Number(form.sla), human_words: split(form.human),
       cases: form.cases.map(c => ({ key: c.key, name: c.name, description: c.description, mode: c.mode, sla_minutes: Number(c.sla_minutes) || 0, keywords: split(c.words) }))
     } })
+    await refresh()
+    resync()
     toast.add({ title: t('feat.saved'), color: 'success' })
   } catch (e) {
     toast.add({ title: apiError(e), color: 'error' })
@@ -83,6 +85,7 @@ async function copy(text: string) {
   <div class="max-w-4xl space-y-4">
     <UCard :ui="{ body: 'space-y-3 sm:p-4' }">
       <p class="font-medium">{{ t('sup.casesTitle') }}</p>
+      <StaleNotice :show="stale" @reload="resync" />
       <div class="grid gap-3 sm:grid-cols-[13rem_1fr]">
         <UFormField :label="t('sup.slaDefault')" :hint="t('sup.minutes')"><UInput v-model="form.sla" type="number" min="0" class="w-full" :disabled="!isAdmin" /></UFormField>
         <UFormField :label="t('sup.humanWords')" :hint="t('coll.tagsHint')"><UInput v-model="form.human" class="w-full" :disabled="!isAdmin" /></UFormField>
