@@ -82,6 +82,65 @@ func (r chatRepo) UpdateConversation(ctx context.Context, c storage.Conversation
 	return err
 }
 
+// UpdateMode writes only Mode, so a concurrent UpdateAgent/UpdateEffort/
+// UpdateEditMode/UpdateTitleIfEmpty for the same conversation (each read
+// from its own stale snapshot) can't be clobbered back to an earlier value.
+func (r chatRepo) UpdateMode(ctx context.Context, id, mode string) error {
+	if mode == "" {
+		mode = "propose"
+	}
+	err := execOne(ctx, r.db, `UPDATE conversations SET mode=?, updated_at=? WHERE id=?`, mode, fmtTime(time.Now()), id)
+	if err == nil {
+		r.tell(storage.Change{Kind: "conversation", ConversationID: id})
+	}
+	return err
+}
+
+// UpdateEditMode writes only EditMode (see UpdateMode).
+func (r chatRepo) UpdateEditMode(ctx context.Context, id, editMode string) error {
+	if editMode == "" {
+		editMode = "worktree"
+	}
+	err := execOne(ctx, r.db, `UPDATE conversations SET edit_mode=?, updated_at=? WHERE id=?`, editMode, fmtTime(time.Now()), id)
+	if err == nil {
+		r.tell(storage.Change{Kind: "conversation", ConversationID: id})
+	}
+	return err
+}
+
+// UpdateEffort writes only Effort (see UpdateMode).
+func (r chatRepo) UpdateEffort(ctx context.Context, id, effort string) error {
+	err := execOne(ctx, r.db, `UPDATE conversations SET effort=?, updated_at=? WHERE id=?`, effort, fmtTime(time.Now()), id)
+	if err == nil {
+		r.tell(storage.Change{Kind: "conversation", ConversationID: id})
+	}
+	return err
+}
+
+// UpdateAgent writes only the agent-handoff fields (see UpdateMode).
+func (r chatRepo) UpdateAgent(ctx context.Context, id, agentID, agentName string, contextTokens, contextWindow int) error {
+	err := execOne(ctx, r.db, `UPDATE conversations SET agent_id=?, agent_name=?, context_tokens=?, context_window=?, updated_at=? WHERE id=?`,
+		nullStr(agentID), agentName, contextTokens, contextWindow, fmtTime(time.Now()), id)
+	if err == nil {
+		r.tell(storage.Change{Kind: "conversation", ConversationID: id})
+	}
+	return err
+}
+
+// UpdateTitleIfEmpty sets Title only if it is still empty (see UpdateMode),
+// so it can't revert a title another request set in the meantime. No rows
+// matching (already titled, or the conversation is gone) is not an error.
+func (r chatRepo) UpdateTitleIfEmpty(ctx context.Context, id, title string) error {
+	res, err := r.db.ExecContext(ctx, `UPDATE conversations SET title=?, updated_at=? WHERE id=? AND title=''`, title, fmtTime(time.Now()), id)
+	if err != nil {
+		return err
+	}
+	if n, _ := res.RowsAffected(); n > 0 {
+		r.tell(storage.Change{Kind: "conversation", ConversationID: id})
+	}
+	return nil
+}
+
 func (r chatRepo) GetConversation(ctx context.Context, id string) (storage.Conversation, error) {
 	c, err := scanConv(r.db.QueryRowContext(ctx, `SELECT `+convRead+` FROM conversations WHERE id=?`, id))
 	if err != nil {

@@ -764,8 +764,7 @@ func (e *Engine) SetMode(ctx context.Context, conversationID, mode string) error
 	if conv.Mode == mode {
 		return nil
 	}
-	conv.Mode = mode
-	return e.store.Chat().UpdateConversation(ctx, conv)
+	return e.store.Chat().UpdateMode(ctx, conversationID, mode)
 }
 
 // SetAgent makes another agent of the project answer this conversation from
@@ -797,7 +796,7 @@ func (e *Engine) SetAgent(ctx context.Context, conversationID, agentID string) e
 	conv.AgentID, conv.AgentName = agents[i].ID, agents[i].Name
 	m := e.member(ctx, conv, agents[i])
 	conv.ContextTokens, conv.ContextWindow = m.ContextTokens, m.ContextWindow
-	return e.store.Chat().UpdateConversation(ctx, conv)
+	return e.store.Chat().UpdateAgent(ctx, conversationID, conv.AgentID, conv.AgentName, conv.ContextTokens, conv.ContextWindow)
 }
 
 // SetEditMode sets where a conversation changes code from now on.
@@ -812,8 +811,7 @@ func (e *Engine) SetEditMode(ctx context.Context, conversationID, mode string) e
 	if conv.EditMode == mode {
 		return nil
 	}
-	conv.EditMode = mode
-	return e.store.Chat().UpdateConversation(ctx, conv)
+	return e.store.Chat().UpdateEditMode(ctx, conversationID, mode)
 }
 
 // SetEffort sets how hard the chat's agents think from the next answer on
@@ -829,8 +827,7 @@ func (e *Engine) SetEffort(ctx context.Context, conversationID, effort string) e
 	if conv.Effort == effort {
 		return nil
 	}
-	conv.Effort = effort
-	return e.store.Chat().UpdateConversation(ctx, conv)
+	return e.store.Chat().UpdateEffort(ctx, conversationID, effort)
 }
 
 // Send stores the person's message (with attached files) and starts the
@@ -1151,7 +1148,7 @@ func (e *Engine) titleFrom(ctx context.Context, conv *storage.Conversation, text
 		title = files[0].Name
 	}
 	conv.Title = truncate(strings.Join(strings.Fields(title), " "), 80)
-	_ = e.store.Chat().UpdateConversation(ctx, *conv)
+	_ = e.store.Chat().UpdateTitleIfEmpty(ctx, conv.ID, conv.Title)
 }
 
 // offReply keeps the person's message and answers with the notice of the

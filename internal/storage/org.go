@@ -613,6 +613,17 @@ type ChatRepo interface {
 	MarkAllSeen(ctx context.Context, userID, author string) (int, error)
 	CreateConversation(ctx context.Context, c Conversation) (Conversation, error)
 	UpdateConversation(ctx context.Context, c Conversation) error
+	// UpdateMode writes only Mode, so it can't clobber a concurrent
+	// UpdateAgent/UpdateEffort/UpdateEditMode/UpdateTitleIfEmpty on the same row.
+	UpdateMode(ctx context.Context, id, mode string) error
+	// UpdateEditMode writes only EditMode (see UpdateMode).
+	UpdateEditMode(ctx context.Context, id, editMode string) error
+	// UpdateEffort writes only Effort (see UpdateMode).
+	UpdateEffort(ctx context.Context, id, effort string) error
+	// UpdateAgent writes only the agent-handoff fields (see UpdateMode).
+	UpdateAgent(ctx context.Context, id, agentID, agentName string, contextTokens, contextWindow int) error
+	// UpdateTitleIfEmpty sets Title only if it is still empty (see UpdateMode).
+	UpdateTitleIfEmpty(ctx context.Context, id, title string) error
 	GetConversation(ctx context.Context, id string) (Conversation, error)
 	// ListConversations lists a project's own chats (not the talks about tasks).
 	ListConversations(ctx context.Context, projectID string, limit int) ([]Conversation, error)
