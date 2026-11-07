@@ -228,8 +228,26 @@ func (m *Manager) allowedFile(ctx context.Context, sc actions.Scope, path string
 		return "", fmt.Errorf("không có file %s", path)
 	}
 	base := strings.ToLower(filepath.Base(real))
-	if strings.HasPrefix(base, ".env") || strings.HasSuffix(base, ".pem") || strings.HasSuffix(base, ".key") || strings.Contains(real, string(filepath.Separator)+".git"+string(filepath.Separator)) {
-		return "", errors.New("không gửi file bí mật (.env, khóa) hay trong .git")
+	secretNames := map[string]bool{
+		"credentials.json": true,
+		".npmrc":           true,
+		".netrc":           true,
+	}
+	if strings.HasPrefix(base, ".env") ||
+		strings.HasSuffix(base, ".pem") ||
+		strings.HasSuffix(base, ".key") ||
+		strings.HasSuffix(base, ".p12") ||
+		strings.HasSuffix(base, ".pfx") ||
+		strings.HasSuffix(base, ".keystore") ||
+		strings.HasPrefix(base, "id_rsa") ||
+		strings.HasPrefix(base, "id_ed25519") ||
+		strings.HasPrefix(base, "id_ecdsa") ||
+		strings.HasPrefix(base, "id_dsa") ||
+		secretNames[base] ||
+		strings.Contains(real, string(filepath.Separator)+".git"+string(filepath.Separator)) ||
+		strings.Contains(real, string(filepath.Separator)+".ssh"+string(filepath.Separator)) ||
+		strings.Contains(real, string(filepath.Separator)+".aws"+string(filepath.Separator)) {
+		return "", errors.New("không gửi file bí mật (.env, khóa, credentials) hay trong .git/.ssh/.aws")
 	}
 	for _, r := range roots {
 		if rr, err := filepath.EvalSymlinks(r); err == nil {

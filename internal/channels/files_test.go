@@ -5,8 +5,13 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/tung1998/agent-office/internal/actions"
+	"github.com/tung1998/agent-office/internal/storage/sqlite"
 )
 
 // A file goes up as multipart: on Discord with its caption, on Telegram an
@@ -47,5 +52,53 @@ func TestSendFile(t *testing.T) {
 		if !strings.Contains(all, want) {
 			t.Errorf("no %q in:\n%s", want, all)
 		}
+	}
+}
+
+// allowedFile must refuse common credential filenames, not just .env/.pem/.key.
+func TestAllowedFileBlocksCredentialFiles(t *testing.T) {
+	tmp := t.TempDir()
+	st, err := sqlite.Open(filepath.Join(tmp, "o.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	m := &Manager{store: st}
+	ctx := context.Background()
+	sc := actions.Scope{Dir: tmp}
+
+	for _, name := range []string{
+		"id_rsa", "id_rsa.pub", "id_ed25519",
+		"credentials.json", ".npmrc", ".netrc",
+		"cert.p12", "cert.pfx", "keys.keystore",
+	} {
+		path := filepath.Join(tmp, name)
+		if err := os.WriteFile(path, []byte("x"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := m.allowedFile(ctx, sc, name); err == nil {
+			t.Errorf("allowedFile(%q): want error, got nil", name)
+		}
+	}
+
+	awsDir := filepath.Join(tmp, ".aws")
+	if err := os.MkdirAll(awsDir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(awsDir, "credentials"), []byte("x"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := m.allowedFile(ctx, sc, ".aws/credentials"); err == nil {
+		t.Errorf("allowedFile(.aws/credentials): want error, got nil")
+	}
+
+	sshDir := filepath.Join(tmp, ".ssh")
+	if err := os.MkdirAll(sshDir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(sshDir, "id_rsa"), []byte("x"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := m.allowedFile(ctx, sc, ".ssh/id_rsa"); err == nil {
+		t.Errorf("allowedFile(.ssh/id_rsa): want error, got nil")
 	}
 }
