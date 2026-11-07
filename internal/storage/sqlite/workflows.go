@@ -90,8 +90,16 @@ func (r workflowRepo) SetEnabled(ctx context.Context, id string, enabled bool) e
 	return execOne(ctx, r.db, `UPDATE workflows SET enabled=?, updated_at=? WHERE id=?`, boolInt(enabled), fmtTime(time.Now()), id)
 }
 
-func (r workflowRepo) SetSource(ctx context.Context, id, sourceKey, sourceHash string) error {
-	return execOne(ctx, r.db, `UPDATE workflows SET source_key=?, source_hash=?, updated_at=? WHERE id=?`, sourceKey, sourceHash, fmtTime(time.Now()), id)
+func (r workflowRepo) UpdateContentAndSourceIf(ctx context.Context, w storage.Workflow, expectSource string, expectBindings map[string]string) error {
+	err := execOne(ctx, r.db, `UPDATE workflows SET key=?, name=?, description=?, source=?, bindings=?, source_key=?, source_hash=?, updated_at=? WHERE id=? AND source=? AND bindings=?`,
+		w.Key, w.Name, w.Description, w.Source, bindingsJSON(w.Bindings), w.SourceKey, w.SourceHash, fmtTime(time.Now()), w.ID, expectSource, bindingsJSON(expectBindings))
+	if isUnique(err) {
+		return storage.ErrConflict
+	}
+	if errors.Is(err, storage.ErrNotFound) {
+		return storage.ErrConflict
+	}
+	return err
 }
 
 func (r workflowRepo) Get(ctx context.Context, id string) (storage.Workflow, error) {

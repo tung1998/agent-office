@@ -117,6 +117,60 @@ func (r *contentWriteRaceRepo) UpdateContent(ctx context.Context, w storage.Work
 	return err
 }
 
+// FromLibrary's own write (content + source_key/source_hash) must be one
+// compare-and-swap, not two separate statements with a gap between them: a
+// WorkflowEditor save landing in that gap must not leave source_hash
+// pointing at a source the row no longer has (regression for the TOCTOU
+// between FromLibrary's Get and its final write).
+func TestServiceFromLibraryContentAndSourceAreOneCompareAndSwap(t *testing.T) {
+	ctx := context.Background()
+	st, err := sqlite.Open(":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	if err := st.Migrate(ctx); err != nil {
+		t.Fatal(err)
+	}
+	p, _ := st.Repos().Create(ctx, storage.Repo{Name: "p", Path: "/p"})
+	plain := &workflow.Service{Store: st, Lib: workflow.Library{Dir: t.TempDir()}}
+	w, err := plain.Install(ctx, p.ID, "handoff", map[string]string{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	before, err := st.Workflows().Get(ctx, w.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	race := &raceRepo{WorkflowRepo: st.Workflows()}
+	svc := &workflow.Service{Store: raceStore{Store: st, wf: race}, Lib: plain.Lib}
+	race.onGet = func() {
+		// a WorkflowEditor save (CAS'd via Change.Expect) landing right
+		// after FromLibrary's own Get, before FromLibrary's final write.
+		edited := strings.Replace(before.Source, "handoff", "handoff", 1) + "\n# edited by the user\n"
+		if _, err := plain.Update(ctx, w.ID, workflow.Change{Source: &edited, Expect: &before}); err != nil {
+			t.Errorf("interleaved edit: %v", err)
+		}
+	}
+
+	_, err = svc.FromLibrary(ctx, w.ID)
+	if err != workflow.ErrConflict {
+		t.Fatalf("FromLibrary racing an interleaved edit = %v, want ErrConflict", err)
+	}
+
+	cur, err := st.Workflows().Get(ctx, w.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(cur.Source, "edited by the user") {
+		t.Fatalf("the interleaved edit was lost: %q", cur.Source)
+	}
+	if cur.SourceHash != before.SourceHash {
+		t.Fatalf("SourceHash = %q, want it untouched (%q): FromLibrary must not write a hash for a source the row no longer has", cur.SourceHash, before.SourceHash)
+	}
+}
+
 // A council's planner is the default agent: it still takes the seat named
 // as it is, and every seat goes to the agent named for it (ADR-166).
 func TestSuggestNamedSeats(t *testing.T) {

@@ -36,9 +36,12 @@ type WorkflowRepo interface {
 	UpdateContentIf(ctx context.Context, w Workflow, expectSource string, expectBindings map[string]string) error
 	// SetEnabled writes only the Enabled column.
 	SetEnabled(ctx context.Context, id string, enabled bool) error
-	// SetSource writes only source_key/source_hash (FromLibrary's final step,
-	// after UpdateContent/UpdateContentIf already wrote the content columns).
-	SetSource(ctx context.Context, id, sourceKey, sourceHash string) error
+	// UpdateContentAndSourceIf is UpdateContentIf, but also writes
+	// source_key/source_hash in the same statement (FromLibrary), so a
+	// concurrent content edit landing between the caller's Get and this
+	// write cannot leave source_hash pointing at a source the row no
+	// longer has (ErrConflict when the row's source/bindings moved).
+	UpdateContentAndSourceIf(ctx context.Context, w Workflow, expectSource string, expectBindings map[string]string) error
 	Get(ctx context.Context, id string) (Workflow, error)
 	GetByKey(ctx context.Context, projectID, key string) (Workflow, error)
 	List(ctx context.Context, projectID string) ([]Workflow, error) // "" = every project

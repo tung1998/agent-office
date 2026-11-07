@@ -259,7 +259,7 @@ type Change struct {
 	// set, the write is a compare-and-swap against the row's current
 	// source/bindings and fails with ErrConflict if someone else's write
 	// landed between the caller's Get and this Update; nil (tool/agent
-	// saves, FromLibrary) keeps the old blind-overwrite behavior.
+	// saves) keeps the old blind-overwrite behavior.
 	Expect *storage.Workflow
 }
 
@@ -330,12 +330,30 @@ func (s *Service) FromLibrary(ctx context.Context, id string) (storage.Workflow,
 	if err != nil {
 		return w, err
 	}
-	w, err = s.Update(ctx, id, Change{Source: &it.Source})
+	expectSource, expectBindings := w.Source, w.Bindings
+	src := strings.TrimSpace(it.Source) + "\n"
+	def, err := Parse(src)
 	if err != nil {
 		return w, err
 	}
+	keep := map[string]string{}
+	for role, agent := range w.Bindings {
+		if _, ok := def.Role(role); ok {
+			keep[role] = agent
+		}
+	}
+	if keep, err = s.checkBindings(ctx, w.ProjectID, def, keep); err != nil {
+		return w, err
+	}
+	w.Source, w.Key, w.Name, w.Description, w.Bindings = src, def.Key, def.Name, def.Description, keep
 	w.SourceKey, w.SourceHash = it.Def.Key, Hash(it.Source)
-	return w, s.Store.Workflows().SetSource(ctx, id, w.SourceKey, w.SourceHash)
+	if err := s.Store.Workflows().UpdateContentAndSourceIf(ctx, w, expectSource, expectBindings); err != nil {
+		if errors.Is(err, storage.ErrConflict) {
+			return w, ErrConflict
+		}
+		return w, err
+	}
+	return w, nil
 }
 
 // HasUpdate: the library workflow a project's copy came from changed since.
