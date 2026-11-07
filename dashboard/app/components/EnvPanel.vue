@@ -125,19 +125,27 @@ const saving = ref(false)
 async function save() {
   const f = file.value
   if (!f || saving.value || invalid.value) return
+  const savingPath = f.path
   saving.value = true
   const text = content.value
   try {
     // a config file may hold secrets: choosing to save it here is the confirm
     const res = await $fetch<{ sha: string }>(`${base.value}/file`, { method: 'PUT', body: { path: f.path, content: text, sha: f.sha ?? '', confirm: true } })
     const created = !f.sha
-    file.value = { ...f, sha: res.sha, content: text }
-    if (!raw.value) doc.value = parse(text)
+    if (path.value === savingPath) {
+      file.value = { ...f, sha: res.sha, content: text }
+      if (!raw.value) doc.value = parse(text)
+      if (created) loadList()
+    }
     toast.add({ title: t('envfile.saved', { path: f.path }), color: 'success' })
-    if (created) loadList()
   } catch (e) {
     if ((e as { status?: number }).status === 409) {
-      toast.add({ title: t('envfile.conflict'), description: apiError(e), color: 'warning', actions: [{ label: t('envfile.reload'), onClick: () => { openFile(f.path, true) } }] })
+      toast.add({
+        title: t('envfile.conflict'),
+        description: apiError(e),
+        color: 'warning',
+        actions: path.value === savingPath ? [{ label: t('envfile.reload'), onClick: () => { openFile(f.path, true) } }] : undefined,
+      })
     } else {
       toast.add({ title: apiError(e), color: 'error' })
     }
