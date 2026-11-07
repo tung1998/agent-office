@@ -153,6 +153,12 @@ func (g *Gateway) cutResult(c Caller, server, tool string, result json.RawMessag
 	if n == 0 {
 		return result, 0
 	}
+	// All text parts were joined into one string above and cut as a whole;
+	// short already holds the head and tail of that joined string, which
+	// covers the first and last text parts. The other text parts are
+	// dropped here on purpose, not lost: the full joined text (every part)
+	// stays in the cutEntry short's note points to, readable in full via
+	// mcp_result. Non-text parts (e.g. images) are kept unchanged.
 	kept := []map[string]json.RawMessage{}
 	for i, part := range content {
 		var typ string
