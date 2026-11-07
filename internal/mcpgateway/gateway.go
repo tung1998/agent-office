@@ -193,7 +193,38 @@ func (g *Gateway) CheckServer(ctx context.Context, m storage.MCPServer) (storage
 		return m, serr
 	}
 	g.log().Info("mcp gateway: check", "server", m.Name, "status", status, "tools", len(tools))
+	if status == "ok" {
+		g.refreshResources(context.WithoutCancel(ctx), m)
+	}
 	return m, nil
+}
+
+// refreshResources lists a server's resources (resources/list) and saves
+// them, best effort: an optional MCP capability, so its own failure does not
+// break the check that just said the server is ok.
+func (g *Gateway) refreshResources(ctx context.Context, m storage.MCPServer) {
+	var (
+		resources []storage.MCPResource
+		err       error
+	)
+	if m.Kind == "stdio" {
+		resources, err = g.checkStdioResources(ctx, m)
+	} else {
+		headers, herr := OpenMap(g.Box, m.HeadersEnc)
+		if herr != nil {
+			return
+		}
+		if tok, terr := g.bearer(ctx, &m, false); terr == nil && tok != "" {
+			headers["Authorization"] = "Bearer " + tok
+		}
+		resources, err = Resources(ctx, g.client(), m.URL, headers)
+	}
+	if err != nil {
+		return
+	}
+	if serr := g.Store.MCPServers().SetResources(ctx, m.ID, resources); serr != nil {
+		g.log().Warn("mcp gateway: save resources", "server", m.Name, "err", serr)
+	}
 }
 
 func (g *Gateway) checkHTTP(ctx context.Context, m *storage.MCPServer) ([]storage.MCPTool, error) {

@@ -479,10 +479,11 @@ func (p *proc) call(ctx context.Context, method string, params any) (json.RawMes
 	}
 	if e := out["error"]; len(e) > 0 && string(e) != "null" {
 		var re struct {
+			Code    int    `json:"code"`
 			Message string `json:"message"`
 		}
 		_ = json.Unmarshal(e, &re)
-		return nil, fmt.Errorf("MCP báo lỗi khi %s: %s", method, firstLine(p.redact(re.Message), 200))
+		return nil, &callError{method: method, code: re.Code, message: p.redact(re.Message)}
 	}
 	return out["result"], nil
 }
@@ -710,6 +711,19 @@ func (g *Gateway) checkStdio(ctx context.Context, m storage.MCPServer) ([]storag
 		return nil, fmt.Errorf("MCP không trả lời tools/list trong %d giây", int(CheckTimeout.Seconds()))
 	}
 	return tools, err
+}
+
+// checkStdioResources lists a stdio server's resources, best effort: an
+// optional MCP capability, so a process with none (or one that times out
+// answering it) is not treated as broken.
+func (g *Gateway) checkStdioResources(ctx context.Context, m storage.MCPServer) ([]storage.MCPResource, error) {
+	p, err := g.stdio(ctx, m)
+	if err != nil {
+		return nil, err
+	}
+	ctx, cancel := context.WithTimeout(ctx, CheckTimeout)
+	defer cancel()
+	return listResources(ctx, p.call)
 }
 
 // serveStdio answers a run's request from m's process: initialize from

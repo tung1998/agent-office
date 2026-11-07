@@ -16,25 +16,27 @@ type mcpServerRepo struct{ db dbtx }
 
 const mcpServerCols = `id, name, kind, url, command, args, env_enc, headers_enc, scope, origin, enabled,
 	last_check_at, last_check_status, last_check_error, last_tools, created_at, updated_at, oauth_enc,
-	agents, trusted_tools, origin_ref`
+	agents, trusted_tools, origin_ref, last_resources`
 
 func scanMCPServer(row scanner) (storage.MCPServer, error) {
 	var (
 		m                storage.MCPServer
 		args, tools      string
 		agents, trusted  string
+		resources        string
 		last             sql.NullString
 		created, updated string
 	)
 	if err := row.Scan(&m.ID, &m.Name, &m.Kind, &m.URL, &m.Command, &args, &m.EnvEnc, &m.HeadersEnc, &m.Scope, &m.Origin, &m.Enabled,
 		&last, &m.LastCheckStatus, &m.LastCheckError, &tools, &created, &updated, &m.OAuthEnc,
-		&agents, &trusted, &m.OriginRef); err != nil {
+		&agents, &trusted, &m.OriginRef, &resources); err != nil {
 		return m, notFound(err)
 	}
 	_ = json.Unmarshal([]byte(args), &m.Args)
 	_ = json.Unmarshal([]byte(tools), &m.LastTools)
 	_ = json.Unmarshal([]byte(agents), &m.Agents)
 	_ = json.Unmarshal([]byte(trusted), &m.TrustedTools)
+	_ = json.Unmarshal([]byte(resources), &m.LastResources)
 	normMCPServer(&m)
 	var err error
 	if m.LastCheckAt, err = optParse(last); err != nil {
@@ -49,6 +51,9 @@ func normMCPServer(m *storage.MCPServer) {
 	}
 	if m.LastTools == nil {
 		m.LastTools = []storage.MCPTool{}
+	}
+	if m.LastResources == nil {
+		m.LastResources = []storage.MCPResource{}
 	}
 	if m.Agents == nil {
 		m.Agents = []string{}
@@ -71,7 +76,7 @@ func (r mcpServerRepo) Create(ctx context.Context, m storage.MCPServer) (storage
 	now := time.Now().UTC()
 	m.ID, m.CreatedAt, m.UpdatedAt = ids.New("mcp"), now, now
 	normMCPServer(&m)
-	_, err := r.db.ExecContext(ctx, `INSERT INTO mcp_servers (`+mcpServerCols+`) VALUES (?,?,?,?,?,?,?,?,?,?,?,NULL,'','','[]',?,?,?,?,?,?)`,
+	_, err := r.db.ExecContext(ctx, `INSERT INTO mcp_servers (`+mcpServerCols+`) VALUES (?,?,?,?,?,?,?,?,?,?,?,NULL,'','','[]',?,?,?,?,?,?,'[]')`,
 		m.ID, m.Name, m.Kind, m.URL, m.Command, toJSON(m.Args), m.EnvEnc, m.HeadersEnc, m.Scope, m.Origin, m.Enabled, fmtTime(now), fmtTime(now), m.OAuthEnc,
 		toJSON(m.Agents), toJSON(m.TrustedTools), m.OriginRef)
 	if isUnique(err) {
@@ -140,6 +145,13 @@ func (r mcpServerRepo) SetCheck(ctx context.Context, id, status, errMsg string, 
 	}
 	return execOne(ctx, r.db, `UPDATE mcp_servers SET last_check_at=?, last_check_status=?, last_check_error=?, last_tools=? WHERE id=?`,
 		fmtTime(at), status, errMsg, toJSON(tools), id)
+}
+
+func (r mcpServerRepo) SetResources(ctx context.Context, id string, resources []storage.MCPResource) error {
+	if resources == nil {
+		resources = []storage.MCPResource{}
+	}
+	return execOne(ctx, r.db, `UPDATE mcp_servers SET last_resources=? WHERE id=?`, toJSON(resources), id)
 }
 
 func (r mcpServerRepo) SetOAuth(ctx context.Context, id, oauthEnc string) error {

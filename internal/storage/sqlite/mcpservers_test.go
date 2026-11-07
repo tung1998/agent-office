@@ -40,3 +40,40 @@ func TestMCPServerUpdateConflict(t *testing.T) {
 		t.Fatal("the conflicting update's field was applied despite ErrConflict")
 	}
 }
+
+// SetResources writes independently of Update/SetCheck, and a fresh Get
+// reads back what it saved.
+func TestMCPServerSetResources(t *testing.T) {
+	ctx := context.Background()
+	st, _ := openStore(t)
+	m, err := st.MCPServers().Create(ctx, storage.MCPServer{Name: "demo", Kind: "http", URL: "https://example.com", Enabled: true})
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	if len(m.LastResources) != 0 {
+		t.Fatalf("LastResources at creation = %+v, want empty", m.LastResources)
+	}
+
+	want := []storage.MCPResource{{URI: "file:///notes.md", Name: "notes", Description: "team notes", MimeType: "text/markdown"}}
+	if err := st.MCPServers().SetResources(ctx, m.ID, want); err != nil {
+		t.Fatalf("SetResources: %v", err)
+	}
+	got, err := st.MCPServers().Get(ctx, m.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got.LastResources) != 1 || got.LastResources[0] != want[0] {
+		t.Fatalf("LastResources = %+v, want %+v", got.LastResources, want)
+	}
+
+	if err := st.MCPServers().SetResources(ctx, m.ID, nil); err != nil {
+		t.Fatalf("SetResources(nil): %v", err)
+	}
+	got, err = st.MCPServers().Get(ctx, m.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got.LastResources) != 0 {
+		t.Fatalf("LastResources after clearing = %+v, want empty", got.LastResources)
+	}
+}

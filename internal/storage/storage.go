@@ -300,6 +300,7 @@ type MCPServer struct {
 	LastCheckStatus      string // "" (never) | ok | error | needs_login
 	LastCheckError       string
 	LastTools            []MCPTool
+	LastResources        []MCPResource
 	Agents               []string // agent ids that get it; empty = every agent (ADR-093)
 	TrustedTools         []string // tools that write yet run without approval
 	OriginRef            string   // JSON of the config it was moved from ("" = made in office)
@@ -312,6 +313,15 @@ type MCPTool struct {
 	Description string          `json:"description,omitempty"`
 	ReadOnly    *bool           `json:"read_only,omitempty"`    // its readOnlyHint, when it gave one
 	InputSchema json.RawMessage `json:"input_schema,omitempty"` // for AI called through an API
+}
+
+// MCPResource is one resource a server listed at its last check: app-picked
+// data, not a model-called tool (resources/list, resources/read).
+type MCPResource struct {
+	URI         string `json:"uri"`
+	Name        string `json:"name"`
+	Description string `json:"description,omitempty"`
+	MimeType    string `json:"mime_type,omitempty"`
 }
 
 // MCPCall is one tool call through the gateway (ADR-093).
@@ -359,6 +369,9 @@ type MCPServerRepo interface {
 	List(ctx context.Context) ([]MCPServer, error)
 	Delete(ctx context.Context, id string) error
 	SetCheck(ctx context.Context, id, status, errMsg string, tools []MCPTool, at time.Time) error
+	// SetResources saves what a check's resources/list found; independent of
+	// SetCheck (resources are an optional capability, not every check asks).
+	SetResources(ctx context.Context, id string, resources []MCPResource) error
 	// SetOAuth saves only the OAuth state (Update leaves it as it is).
 	SetOAuth(ctx context.Context, id, oauthEnc string) error
 }

@@ -239,6 +239,52 @@ func (g *Gateway) callToolResult(ctx context.Context, server, tool string, args 
 	return raw, err
 }
 
+// ReadResource reads one resource of the server named server, as office (an
+// API run, or a call a person approved). Resources are app-picked data, not
+// a model-called tool: it applies no policy, unlike CallTool (ADR-093's
+// decide() is for tool calls only).
+func (g *Gateway) ReadResource(ctx context.Context, server, uri string) (text string, blob []byte, mimeType string, err error) {
+	m, err := g.Store.MCPServers().GetByName(ctx, server)
+	if err != nil || !m.Enabled {
+		return "", nil, "", fmt.Errorf("office không có MCP %s đang bật", server)
+	}
+	ctx, cancel := context.WithTimeout(ctx, CallTimeout)
+	defer cancel()
+	if m.Kind == "stdio" {
+		p, perr := g.stdio(ctx, m)
+		if perr != nil {
+			return "", nil, "", perr
+		}
+		p.hold("")
+		raw, cerr := p.call(ctx, "resources/read", map[string]any{"uri": uri})
+		if cerr != nil {
+			return "", nil, "", cerr
+		}
+		return parseResourceContents(raw, uri)
+	}
+	headers, herr := OpenMap(g.Box, m.HeadersEnc)
+	if herr != nil {
+		return "", nil, "", errors.New("không mở được bí mật đã lưu: nhập lại header")
+	}
+	tok, berr := g.bearer(ctx, &m, false)
+	if berr != nil {
+		return "", nil, "", berr
+	}
+	if tok != "" {
+		headers["Authorization"] = "Bearer " + tok
+	}
+	text, blob, mimeType, err = ReadResource(ctx, g.client(), m.URL, headers, uri)
+	var se *StatusError
+	if errors.As(err, &se) && se.Code == 401 && tok != "" {
+		if tok, berr = g.bearer(ctx, &m, true); berr != nil {
+			return "", nil, "", berr
+		}
+		headers["Authorization"] = "Bearer " + tok
+		text, blob, mimeType, err = ReadResource(ctx, g.client(), m.URL, headers, uri)
+	}
+	return text, blob, mimeType, err
+}
+
 // resultText flattens a tools/call result into text: its text parts, and a
 // note for anything else (images, resources).
 func resultText(raw json.RawMessage) (string, bool) {
