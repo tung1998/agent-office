@@ -130,6 +130,55 @@ func TestReadOnlyHint(t *testing.T) {
 	}
 }
 
+// panicProvider is a Provider whose tool always panics, to check that a bad
+// tool handler fails only that call instead of killing the connection.
+type panicProvider struct{}
+
+func (panicProvider) Tools(sc officetools.Scope) []officetools.Tool {
+	return []officetools.Tool{{Name: "boom", Description: "panics"}}
+}
+
+func (panicProvider) Call(ctx context.Context, sc officetools.Scope, name string, raw json.RawMessage) (string, bool) {
+	var m map[string]string
+	m["x"] = "nil map write panics" // nolint:staticcheck
+	return "", false
+}
+
+func TestToolPanicRecovered(t *testing.T) {
+	st, _ := sqlite.Open(filepath.Join(t.TempDir(), "o.db"))
+	defer st.Close()
+	ctx := context.Background()
+	st.Migrate(ctx)
+	p, _ := st.Repos().Create(ctx, storage.Repo{Name: "p", Path: t.TempDir()})
+
+	tb := officetools.New(st, nil, nil)
+	tb.AddProvider(panicProvider{})
+	s := New(tb, "test")
+	srv := httptest.NewServer(s)
+	defer srv.Close()
+	tok, revoke := s.Grant(officetools.Scope{ProjectID: p.ID}, time.Minute)
+	defer revoke()
+
+	req, _ := http.NewRequest("POST", srv.URL, strings.NewReader(`{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"boom","arguments":{}}}`))
+	req.Header.Set("Authorization", "Bearer "+tok)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("connection died instead of returning an MCP error: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status: %d", resp.StatusCode)
+	}
+	var out map[string]any
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+		t.Fatalf("response body not valid JSON (connection likely reset): %v", err)
+	}
+	res, ok := out["result"].(map[string]any)
+	if !ok || res["isError"] != true {
+		t.Fatalf("want isError:true result, got %v", out)
+	}
+}
+
 // A 2026-07-28 client opens with no initialize: version in each request's
 // _meta, server/discover for what office speaks; wrong versions, mirrored
 // headers that disagree and unknown methods answer with modern errors.

@@ -11,7 +11,9 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"slices"
 	"strings"
@@ -403,10 +405,14 @@ func (s *Server) handle(r *http.Request, sc officetools.Scope, q request, other 
 			return res, http.StatusOK
 		}
 		if other {
-			text, isErr := call(r.Context(), sc, cp.Name, cp.Arguments)
-			result = map[string]any{"content": []map[string]any{{"type": "text", "text": text}}, "isError": isErr}
+			result = recoverToolCall(cp.Name, func() map[string]any {
+				text, isErr := call(r.Context(), sc, cp.Name, cp.Arguments)
+				return map[string]any{"content": []map[string]any{{"type": "text", "text": text}}, "isError": isErr}
+			})
 		} else {
-			result = s.tools.CallMCP(r.Context(), sc, cp.Name, cp.Arguments)
+			result = recoverToolCall(cp.Name, func() map[string]any {
+				return s.tools.CallMCP(r.Context(), sc, cp.Name, cp.Arguments)
+			})
 		}
 	default:
 		res.Error = &rpcError{Code: -32601, Message: "method not found: " + q.Method}
@@ -426,6 +432,22 @@ func (s *Server) handle(r *http.Request, sc officetools.Scope, q request, other 
 	}
 	res.Result = result
 	return res, http.StatusOK
+}
+
+// recoverToolCall runs fn and turns a panicking tool handler into a normal
+// MCP error result instead of letting it take down the HTTP connection
+// (a bad tool must fail that one call, not the agent's whole session).
+func recoverToolCall(name string, fn func() map[string]any) (result map[string]any) {
+	defer func() {
+		if r := recover(); r != nil {
+			slog.Error("mcpserver: tool panic", "tool", name, "panic", r)
+			result = map[string]any{
+				"content": []map[string]any{{"type": "text", "text": fmt.Sprintf("internal error in tool %q: %v", name, r)}},
+				"isError": true,
+			}
+		}
+	}()
+	return fn()
 }
 
 func (s *Server) info() map[string]any {
