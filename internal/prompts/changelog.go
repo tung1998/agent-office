@@ -46,7 +46,7 @@ var changelog = map[string][]ChangeEntry{
 	"advice/repeat":          {{Hash: "3abf90b2ffbc", Date: "2026-11-07", Note: "khởi tạo: ghi mã phiên bản ban đầu"}},
 	"assistant/instructions": {{Hash: "2edf7db4adfb", Date: "2026-11-07", Note: "khởi tạo: ghi mã phiên bản ban đầu"}},
 	"bot/scope-filter":       {{Hash: "f5a23da400b2", Date: "2026-11-07", Note: "khởi tạo: ghi mã phiên bản ban đầu"}},
-	"burn/hunt-builder":      {{Hash: "691c5d976010", Date: "2026-11-07", Note: "khởi tạo: ghi mã phiên bản ban đầu"}},
+	"burn/hunt-builder":      {{Hash: "691c5d976010", Date: "2026-11-07", Note: "khởi tạo: ghi mã phiên bản ban đầu"}, {Hash: "38a044e8be68", Date: "2026-11-07", Note: "AGENTS.md có mục ## Checks và ## Run để office tự kiểm chứng và chạy preview (ADR-266)"}},
 	"burn/hunt-ideas":        {{Hash: "d8612f45c933", Date: "2026-11-07", Note: "khởi tạo: ghi mã phiên bản ban đầu"}},
 	"burn/hunt-ux":           {{Hash: "e8137a9950b4", Date: "2026-11-07", Note: "khởi tạo: ghi mã phiên bản ban đầu"}},
 	"burn/report":            {{Hash: "12acda1f08b2", Date: "2026-11-07", Note: "khởi tạo: ghi mã phiên bản ban đầu"}},

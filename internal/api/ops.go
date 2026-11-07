@@ -68,7 +68,7 @@ func (s *server) opsError(w http.ResponseWriter, r *http.Request, err error) {
 			msg = "đã có tiến trình cùng tên trong project"
 		}
 		writeError(w, http.StatusConflict, msg)
-	case errors.Is(err, ops.ErrNoFolder), errors.Is(err, ops.ErrBadCwd):
+	case errors.Is(err, ops.ErrNoFolder), errors.Is(err, ops.ErrBadCwd), errors.Is(err, ops.ErrNoRun):
 		writeError(w, http.StatusBadRequest, err.Error())
 	default:
 		s.writeDomainError(w, r, err)

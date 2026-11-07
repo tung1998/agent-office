@@ -463,7 +463,8 @@ const mem = (b: number) => b >= 1 << 30 ? `${(b / (1 << 30)).toFixed(1)} GB` : `
           <UFormField :label="t('ops.form.command')" required :help="t('ops.form.commandHelp')">
             <UInput v-model="form.command" class="w-full font-mono" :placeholder="t('ops.form.commandPlaceholder')" />
           </UFormField>
-          <UFormField :label="t('ops.form.cwd')">
+          <UFormField>
+            <template #label><InfoLabel :label="t('ops.form.cwd')" :info="t('ops.form.cwdHelp')" /></template>
             <UInput v-model="form.cwd" class="w-full font-mono" placeholder="." />
           </UFormField>
           <UFormField :label="t('ops.env.title')">

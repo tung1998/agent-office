@@ -23,7 +23,8 @@ const maxVerify = 2000
 const unverified = "(chưa kiểm chứng tự động: Burn chưa có lệnh kiểm chứng)"
 
 // verifyCommands are the checks of b in dir: the Burn's own lines, else
-// what the project's files suggest (none known: no check).
+// those under AGENTS.md's "## Checks", else what the project's files
+// suggest (none known: no check).
 func verifyCommands(b storage.BurnSession, dir string) []string {
 	var out []string
 	for _, l := range strings.Split(b.Verify, "\n") {
@@ -33,6 +34,9 @@ func verifyCommands(b storage.BurnSession, dir string) []string {
 	}
 	if dir == "" {
 		return out
+	}
+	if len(out) == 0 { // the checks the project's AGENTS.md names, else guessed from its files
+		out = agentsCommands(dir, checksHeads...)
 	}
 	if len(out) == 0 {
 		out = verifier.Guess(dir)

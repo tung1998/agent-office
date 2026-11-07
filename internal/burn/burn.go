@@ -180,8 +180,9 @@ type Service struct {
 	find   bool                          // a free slot gets a worker finding its own piece (off: only the queued ones)
 	runMu  sync.Mutex                    // a run's worktree: made, and pieces merged into it, one at a time
 
-	notify Notify      // a run's summary to a bot's chat (ADR-120); nil: none
-	hold   func() bool // true: no new piece or scan starts (an update waits for office to be idle, ADR-255)
+	notify  Notify      // a run's summary to a bot's chat (ADR-120); nil: none
+	hold    func() bool // true: no new piece or scan starts (an update waits for office to be idle, ADR-255)
+	preview Preview     // a builder run's app started again after a piece merged; nil: none
 }
 
 // SetHold sets what holds the Burns' new work: while it holds, a Burn only

@@ -325,6 +325,9 @@ func serveCmd() *cobra.Command {
 				return burner.Tool(ctx, sc, name, burn.ToolInput{Title: in.Title, Kind: in.Kind, Detail: in.Detail, Item: in.Item, Summary: in.Summary, Reason: in.Reason, What: in.What, Scanned: in.Scanned, Map: in.Map, Priority: in.Priority, Lessons: in.Lessons, Coverage: in.Coverage, Owner: in.Owner, From: in.From})
 			})
 			burner.SetNotify(bots.Notify) // a run's summary to the bot's chat its Burn names (ADR-120)
+			// a process at "@burn" runs in the project's Burn run; a builder run restarts its preview there (ADR-266)
+			procs.SetRunDir(burner.RunDir)
+			burner.SetPreview(procs.Preview)
 			// a script's @@quest lines feed the Burn, and may start it (ADR-132)
 			runner.SetQuests(func(ctx context.Context, projectID string, qs []trigger.Quest, start bool, who string) (int, bool, error) {
 				list := make([]burn.Quest, len(qs))

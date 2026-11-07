@@ -1,10 +1,12 @@
 package burn
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/tung1998/agent-office/internal/storage"
@@ -137,4 +139,137 @@ func builderBusy(b storage.BurnSession, items []storage.BurnItem) bool {
 		}
 	}
 	return false
+}
+
+// agentsFile is the project's map for agents: a builder Burn's start piece
+// writes it, with the commands office reads from it (below).
+const agentsFile = "AGENTS.md"
+
+// Headings of AGENTS.md office reads commands from: the checks a piece must
+// pass when the Burn has none of its own, and how to run the app (the
+// builder Burn's preview).
+var (
+	checksHeads = []string{"checks", "kiểm chứng"}
+	runHeads    = []string{"run", "chạy"}
+)
+
+// maxAgentsCommands caps the commands read from one section.
+const maxAgentsCommands = 20
+
+// agentsCommands reads the commands under AGENTS.md's heading named one of
+// heads (any level, case-insensitive): the lines of the section's first
+// fenced block, else its list items written as `code`; # comments skipped.
+// None: no file, no such section, or nothing that reads as a command.
+func agentsCommands(dir string, heads ...string) []string {
+	if dir == "" {
+		return nil
+	}
+	raw, err := os.ReadFile(filepath.Join(dir, agentsFile))
+	if err != nil {
+		return nil
+	}
+	var fenced, listed []string
+	in, level, fence, fencesSeen := false, 0, false, 0
+	for line := range strings.SplitSeq(string(raw), "\n") {
+		t := strings.TrimSpace(line)
+		if !fence {
+			if n := headingLevel(t); n > 0 {
+				if in && n <= level {
+					break // the next section
+				}
+				if !in && slices.Contains(heads, strings.ToLower(strings.TrimSpace(strings.TrimLeft(t, "#")))) {
+					in, level = true, n
+				}
+				continue
+			}
+		}
+		if !in {
+			continue
+		}
+		if strings.HasPrefix(t, "```") || strings.HasPrefix(t, "~~~") {
+			fence = !fence
+			if !fence {
+				fencesSeen++
+			}
+			continue
+		}
+		switch {
+		case fence && fencesSeen == 0:
+			if t != "" && !strings.HasPrefix(t, "#") {
+				fenced = append(fenced, t)
+			}
+		case !fence:
+			if item, ok := strings.CutPrefix(t, "- "); ok {
+				if c, ok := codeSpan(item); ok {
+					listed = append(listed, c)
+				}
+			}
+		}
+	}
+	out := fenced
+	if len(out) == 0 {
+		out = listed
+	}
+	if len(out) > maxAgentsCommands {
+		out = out[:maxAgentsCommands]
+	}
+	return out
+}
+
+// headingLevel is how many # start a Markdown heading (0: not one).
+func headingLevel(t string) int {
+	n := 0
+	for n < len(t) && t[n] == '#' {
+		n++
+	}
+	if n == 0 || n > 6 || n == len(t) || t[n] != ' ' {
+		return 0
+	}
+	return n
+}
+
+// codeSpan is the command of a list item written `like this` (it may say
+// more after it: "`npm test`: unit tests").
+func codeSpan(item string) (string, bool) {
+	rest, ok := strings.CutPrefix(strings.TrimSpace(item), "`")
+	if !ok {
+		return "", false
+	}
+	c, _, ok := strings.Cut(rest, "`")
+	c = strings.TrimSpace(c)
+	return c, ok && c != ""
+}
+
+// Preview starts a project's app again on command, in its Burn run (the
+// ops manager's preview process).
+type Preview func(ctx context.Context, projectID, command string) error
+
+// SetPreview sets how a builder run's app is started again.
+func (s *Service) SetPreview(p Preview) { s.preview = p }
+
+// previewRun: a builder Burn's piece merged, its app starts again on the
+// run's latest code, with the command under AGENTS.md's "## Run" (ADR-266).
+// No command yet (the start piece has not written it) or no preview set:
+// nothing. Failing to start is said in the Burn's chat, never a piece's fault.
+func (s *Service) previewRun(ctx context.Context, b storage.BurnSession) {
+	if s.preview == nil || templateOf(b) != "builder" {
+		return
+	}
+	cmds := agentsCommands(s.RunTree(b), runHeads...)
+	if len(cmds) == 0 {
+		return
+	}
+	if err := s.preview(context.WithoutCancel(ctx), b.ProjectID, cmds[0]); err != nil {
+		s.say(ctx, b, "Chưa chạy lại được preview (`"+cmds[0]+"`): "+oneLine(err.Error(), 200))
+	}
+}
+
+// RunDir is where a project's current Burn run is ("" when it has none):
+// the folder a process at ops.RunCwd runs in.
+func (s *Service) RunDir(ctx context.Context, projectID string) string {
+	b, err := s.store.Burn().Session(ctx, projectID)
+	if err != nil {
+		return ""
+	}
+	return s.RunTree(b)
 }

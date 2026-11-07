@@ -177,6 +177,9 @@ func (s *Service) deliver(ctx context.Context, b storage.BurnSession, it *storag
 			return
 		}
 	}
+	if err == nil {
+		s.previewRun(ctx, b)
+	}
 	switch {
 	case errors.Is(err, errConflict):
 		_ = s.DropWorktree(ctx, *it)

@@ -115,6 +115,7 @@ export default {
   'ops.form.commandHelp': 'Lệnh được chạy qua shell (sh), trong thư mục đặt ở ô "Thư mục" bên dưới, ví dụ "pnpm dev" hoặc "go run ./cmd/server". Bấm Chạy để office mở tiến trình này và theo dõi log, trạng thái của nó.',
   'ops.form.commandPlaceholder': 'pnpm dev',
   'ops.form.cwd': 'Thư mục (trong project)',
+  'ops.form.cwdHelp': 'Thư mục so với gốc project. @burn: chạy trong worktree của lần chạy Burn hiện tại (xem bản đang dựng trước khi gộp); @burn/web cho thư mục con.',
   'ops.form.kindService': 'Chạy liên tục (dev server, API)',
   'ops.form.kindJob': 'Chạy xong thì dừng (build, test)',
   'ops.form.autorestart': 'Tự chạy lại khi lỗi',

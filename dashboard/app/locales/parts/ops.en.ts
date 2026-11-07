@@ -116,6 +116,7 @@ const en: Record<keyof typeof vi, string> = {
   'ops.form.commandHelp': 'The command runs through a shell (sh), in the folder set in "Folder" below, e.g. "pnpm dev" or "go run ./cmd/server". Press Start and office opens this process and tracks its logs and status.',
   'ops.form.commandPlaceholder': 'pnpm dev',
   'ops.form.cwd': 'Folder (inside project)',
+  'ops.form.cwdHelp': 'Folder relative to the project root. @burn: run in the current Burn run\'s worktree (see what it is building before merging); @burn/web for a subfolder.',
   'ops.form.kindService': 'Runs continuously (dev server, API)',
   'ops.form.kindJob': 'Runs once and stops (build, test)',
   'ops.form.autorestart': 'Auto-restart on error',

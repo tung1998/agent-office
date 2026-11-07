@@ -91,6 +91,7 @@ type Manager struct {
 	store  storage.Store
 	logDir string
 	env    []string
+	runDir func(ctx context.Context, projectID string) string // a project's current Burn run ("" when none): processes at RunCwd run there
 
 	mu    sync.Mutex
 	procs map[string]*proc
@@ -208,6 +209,9 @@ func (m *Manager) resolve(ctx context.Context, def storage.Process) (string, err
 	}
 	if project.Path == "" {
 		return "", ErrNoFolder
+	}
+	if sub, ok := inRun(def.Cwd); ok {
+		return m.runResolve(ctx, def.ProjectID, sub)
 	}
 	dir := filepath.Clean(filepath.Join(project.Path, def.Cwd))
 	if rel, err := filepath.Rel(project.Path, dir); err != nil || strings.HasPrefix(rel, "..") {
