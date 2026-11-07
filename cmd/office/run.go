@@ -402,7 +402,7 @@ func serveCmd() *cobra.Command {
 			// the MCP servers office manages, at /mcp/s/<name> with the runs' tokens (ADR-091);
 			// who calls, and tools that write (ADR-093)
 			gateway := &mcpgateway.Gateway{Store: a.store, Box: a.providers.Box(), Auth: mcp.Authorized, Log: log, Env: a.cli.Env(),
-				Identify: gatewayIdentify(a.store, mcp), Propose: gatewayProposer(acts),
+				Identify: gatewayIdentify(a.store, mcp), Propose: gatewayProposer(acts), Elicit: gatewayElicit(chatEngine),
 				Deny: mcp.Why, Alive: mcp.Live} // a refused token says why; a live run keeps its stdio servers (ADR-254)
 			defer gateway.Close() // stdio servers office runs (ADR-092)
 			// an approved mcp_call runs through it

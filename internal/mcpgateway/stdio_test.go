@@ -122,7 +122,7 @@ func TestStdio(t *testing.T) {
 	c := rpcClient{t, office.URL + "/mcp/s/local"}
 
 	checked, err := gw.CheckServer(ctx, m)
-	if err != nil || checked.LastCheckStatus != "ok" || len(checked.LastTools) != 8 {
+	if err != nil || checked.LastCheckStatus != "ok" || len(checked.LastTools) != 9 {
 		t.Fatalf("check = %+v %v", checked, err)
 	}
 	if names := gw.Names(ctx); len(names) != 1 || names[0] != "local" {
@@ -159,9 +159,13 @@ func TestStdio(t *testing.T) {
 		t.Fatalf("parallel = %v ids %v", got, ids)
 	}
 
-	// a request from the server (sampling) is refused, the call goes on
+	// a request from the server (sampling, elicitation) is refused when
+	// office has nobody to ask (gw.Elicit unset), the call goes on
 	if _, v := c.tool(8, "ask", nil); !strings.Contains(v, "chưa hỗ trợ") {
 		t.Fatalf("server request answered %q", v)
+	}
+	if _, v := c.tool(9, "elicit", nil); !strings.Contains(v, "chưa hỗ trợ") {
+		t.Fatalf("elicitation answered %q", v)
 	}
 	if code, _ := (func() (int, string) {
 		req, _ := http.NewRequest("GET", c.url, nil)
@@ -234,6 +238,110 @@ func TestStdio(t *testing.T) {
 	gw.Close()
 	if len(gw.Running()) > 0 || alive(p3) {
 		t.Fatalf("after Close: %v alive=%v", gw.Running(), alive(p3))
+	}
+}
+
+// TestStdioElicit: an MCP server's elicitation/create, with Gateway.Elicit
+// wired, is asked of whoever called the tool and answered on the server's
+// own request id with what that asker gave back (ADR-264).
+func TestStdioElicit(t *testing.T) {
+	bin := fakeStdio(t)
+	st, box := openStore(t)
+	ctx := context.Background()
+	m, err := st.MCPServers().Create(ctx, storage.MCPServer{Name: "local", Kind: "stdio", Command: bin, Enabled: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var gotCaller mcpgateway.Caller
+	var gotServer, gotMessage string
+	var gotSchema json.RawMessage
+	gw := &mcpgateway.Gateway{Store: st, Box: box, Identify: writerTokenInChat,
+		Elicit: func(_ context.Context, c mcpgateway.Caller, server, message string, schema json.RawMessage) (string, json.RawMessage, error) {
+			gotCaller, gotServer, gotMessage, gotSchema = c, server, message, schema
+			return "accept", json.RawMessage(`{"ok":true}`), nil
+		}}
+	t.Cleanup(gw.Close)
+	mux := http.NewServeMux()
+	mux.Handle("/mcp/s/{name}", gw)
+	office := httptest.NewServer(mux)
+	t.Cleanup(office.Close)
+	c := rpcClient{t, office.URL + "/mcp/s/local"}
+
+	if _, err := gw.CheckServer(ctx, m); err != nil {
+		t.Fatal(err)
+	}
+	id, v := c.tool(1, "elicit", nil)
+	if id != "1" {
+		t.Fatalf("id = %q", id)
+	}
+	var reply struct {
+		Action  string `json:"action"`
+		Content struct {
+			OK bool `json:"ok"`
+		} `json:"content"`
+	}
+	if json.Unmarshal([]byte(v), &reply) != nil || reply.Action != "accept" || !reply.Content.OK {
+		t.Fatalf("tool result = %q", v)
+	}
+	if gotServer != "local" || gotMessage != "cần xác nhận" || gotCaller.Kind != "person" || gotCaller.ConversationID != "conv-1" {
+		t.Fatalf("elicit called with server=%q message=%q caller=%+v", gotServer, gotMessage, gotCaller)
+	}
+	if !strings.Contains(string(gotSchema), `"boolean"`) {
+		t.Fatalf("schema = %s", gotSchema)
+	}
+}
+
+// writerTokenInChat: like writerToken, but with a chat to ask in — the only
+// kind of caller AskElicit's currentCaller() will pick (ADR-264).
+func writerTokenInChat(r *http.Request) (mcpgateway.Caller, bool) {
+	return mcpgateway.Caller{Kind: "person", CanWrite: true, ConversationID: "conv-1"}, r.Header.Get("Authorization") == "Bearer run-token"
+}
+
+// TestStdioElicitConcurrent: a slow answer to elicitation/create never
+// blocks another, unrelated call on the same process from getting its own
+// answer back (ADR-264 fixes a read-loop stall here).
+func TestStdioElicitConcurrent(t *testing.T) {
+	bin := fakeStdio(t)
+	st, box := openStore(t)
+	ctx := context.Background()
+	m, err := st.MCPServers().Create(ctx, storage.MCPServer{Name: "local", Kind: "stdio", Command: bin, Enabled: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	reached := make(chan struct{})
+	release := make(chan struct{})
+	gw := &mcpgateway.Gateway{Store: st, Box: box, Identify: writerTokenInChat,
+		Elicit: func(_ context.Context, _ mcpgateway.Caller, _, _ string, _ json.RawMessage) (string, json.RawMessage, error) {
+			close(reached)
+			<-release
+			return "accept", json.RawMessage(`{"ok":true}`), nil
+		}}
+	t.Cleanup(gw.Close)
+	mux := http.NewServeMux()
+	mux.Handle("/mcp/s/{name}", gw)
+	office := httptest.NewServer(mux)
+	t.Cleanup(office.Close)
+	c := rpcClient{t, office.URL + "/mcp/s/local"}
+	if _, err := gw.CheckServer(ctx, m); err != nil {
+		t.Fatal(err)
+	}
+
+	done := make(chan struct{})
+	go func() { defer close(done); c.tool(1, "elicit", nil) }()
+	select {
+	case <-reached:
+	case <-time.After(5 * time.Second):
+		t.Fatal("elicit never reached Gateway.Elicit")
+	}
+	if _, v := c.tool(2, "echo", map[string]any{"text": "back"}); v != "back" {
+		t.Fatalf("echo while elicit waits = %q", v)
+	}
+	close(release)
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("elicit tool call never finished")
 	}
 }
 

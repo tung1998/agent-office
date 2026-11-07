@@ -47,8 +47,11 @@ type Gateway struct {
 	// Propose turns a call of a tool that writes into a proposal (nil: such
 	// calls are refused for agents that may not write).
 	Propose Proposer
-	Client  *http.Client // nil: a default one
-	Log     *slog.Logger
+	// Elicit answers a stdio server's elicitation/create with whoever called
+	// it (nil: such requests still get "office chưa hỗ trợ", ADR-264).
+	Elicit ElicitFunc
+	Client *http.Client // nil: a default one
+	Log    *slog.Logger
 	// OnStatus hears of a status office found on its own (a session that
 	// expired), for open pages.
 	OnStatus func(storage.MCPServer)

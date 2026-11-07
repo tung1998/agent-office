@@ -90,6 +90,12 @@ type Proposal struct {
 // Proposer turns a call into a proposal (the actions service, ADR-093).
 type Proposer func(ctx context.Context, c Caller, server, tool string, args json.RawMessage) (Proposal, error)
 
+// ElicitFunc asks c to answer an MCP server's elicitation/create (ADR-264):
+// message is shown to them, schema is the server's requestedSchema. action
+// is "accept", "decline" or "cancel" (MCP's own vocabulary); content is the
+// answer's fields, only when action is "accept". An error counts as decline.
+type ElicitFunc func(ctx context.Context, c Caller, server, message string, schema json.RawMessage) (action string, content json.RawMessage, err error)
+
 // proposalText is the tool result the agent gets for a call that waits.
 func proposalText(m storage.MCPServer, tool string, p Proposal) (string, bool) {
 	switch p.Status {
@@ -188,7 +194,7 @@ func batchCalls(body []byte) bool {
 // CallTool calls one tool of the server named server, as office (an API
 // run, or a call a person approved). It applies no policy: callers do.
 func (g *Gateway) CallTool(ctx context.Context, server, tool string, args json.RawMessage) (string, bool, error) {
-	raw, err := g.callToolResult(ctx, server, tool, args, "")
+	raw, err := g.callToolResult(ctx, server, tool, args, Caller{})
 	if err != nil {
 		return "", true, err
 	}
@@ -198,8 +204,9 @@ func (g *Gateway) CallTool(ctx context.Context, server, tool string, args json.R
 
 // callToolResult preserves all MCP content blocks and structured output.
 // Like CallTool, it applies no policy: callers must do so first.
-// run names the run that calls ("" for office itself, ADR-254).
-func (g *Gateway) callToolResult(ctx context.Context, server, tool string, args json.RawMessage, run string) (json.RawMessage, error) {
+// c is who calls ("" run, zero Caller for office itself, ADR-254; also who
+// office asks back for an elicitation/create, ADR-264).
+func (g *Gateway) callToolResult(ctx context.Context, server, tool string, args json.RawMessage, c Caller) (json.RawMessage, error) {
 	m, err := g.Store.MCPServers().GetByName(ctx, server)
 	if err != nil || !m.Enabled {
 		return nil, fmt.Errorf("office không có MCP %s đang bật", server)
@@ -212,8 +219,8 @@ func (g *Gateway) callToolResult(ctx context.Context, server, tool string, args 
 		if perr != nil {
 			return nil, perr
 		}
-		p.hold(run)
-		raw, err = p.call(ctx, "tools/call", toolParams(tool, args))
+		p.hold(c.Run)
+		raw, err = p.call(ctx, "tools/call", toolParams(tool, args), c)
 	} else {
 		headers, herr := OpenMap(g.Box, m.HeadersEnc)
 		if herr != nil {
@@ -256,7 +263,7 @@ func (g *Gateway) ReadResource(ctx context.Context, server, uri string) (text st
 			return "", nil, "", perr
 		}
 		p.hold("")
-		raw, cerr := p.call(ctx, "resources/read", map[string]any{"uri": uri})
+		raw, cerr := p.call(ctx, "resources/read", map[string]any{"uri": uri}, Caller{})
 		if cerr != nil {
 			return "", nil, "", cerr
 		}
@@ -351,7 +358,7 @@ func (g *Gateway) invoke(ctx context.Context, c Caller, server, tool string, arg
 		return toolResult(text, isErr)
 	}
 	start := time.Now()
-	raw, err := g.callToolResult(ctx, server, tool, args, c.Run)
+	raw, err := g.callToolResult(ctx, server, tool, args, c)
 	ms := time.Since(start).Milliseconds()
 	size := callSize{in: int64(len(args))}
 	if err != nil {

@@ -97,6 +97,24 @@ type proc struct {
 	stopping bool
 	init     json.RawMessage     // the server's answer to office's initialize
 	holders  map[string]struct{} // runs that called it (Caller.Run, ADR-254)
+
+	// elicit answers the server's elicitation/create requests (nil: office
+	// has none wired and such requests still get -32601, ADR-264).
+	elicit ElicitFunc
+	// callers is who is waiting on an answer from this process right now, by
+	// roundTrip id, each with the context its own wait uses: an
+	// elicitation/create the server sends while they wait is asked of
+	// whichever of them has a chat to ask in (ConversationID set), on that
+	// call's own context (so it ends with it, or with the process dying,
+	// ADR-264). With several such calls in flight at once on a shared
+	// server, it picks any one of them — a known gap, see ADR-264.
+	callers map[int64]callerWait
+}
+
+// callerWait is one roundTrip's caller and the context it waits under.
+type callerWait struct {
+	c   Caller
+	ctx context.Context
 }
 
 // stdioKey changes when what the process runs with changes.
@@ -261,7 +279,7 @@ func (g *Gateway) startProc(ctx context.Context, m storage.MCPServer, key string
 	if g.Env == nil {
 		env = os.Environ()
 	}
-	np := &proc{name: m.Name, key: key, done: make(chan struct{}), pending: map[int64]chan json.RawMessage{}}
+	np := &proc{name: m.Name, key: key, done: make(chan struct{}), pending: map[int64]chan json.RawMessage{}, elicit: g.Elicit}
 	for k, v := range vars {
 		env = append(env, k+"="+v)
 		if len(v) >= 4 {
@@ -314,7 +332,7 @@ func (g *Gateway) startProc(ctx context.Context, m storage.MCPServer, key string
 
 	ictx, cancel := context.WithTimeout(ctx, stdioStartTimeout)
 	defer cancel()
-	res, err := np.call(ictx, "initialize", initParams())
+	res, err := np.call(ictx, "initialize", initParams(), Caller{})
 	if err != nil {
 		np.stop()
 		if errors.Is(err, context.DeadlineExceeded) {
@@ -424,7 +442,9 @@ func (p *proc) write(v any) error {
 
 // roundTrip sends one request under an id of office's own (so clients
 // sharing the process never mix their ids) and returns the answer's fields.
-func (p *proc) roundTrip(ctx context.Context, fields map[string]json.RawMessage) (map[string]json.RawMessage, error) {
+// c is who asks (Caller{} when nobody office could ask back): while it
+// waits, an elicitation/create from the server is asked of it (ADR-264).
+func (p *proc) roundTrip(ctx context.Context, fields map[string]json.RawMessage, c Caller) (map[string]json.RawMessage, error) {
 	ch := make(chan json.RawMessage, 1)
 	p.mu.Lock()
 	p.nextID++
@@ -432,10 +452,15 @@ func (p *proc) roundTrip(ctx context.Context, fields map[string]json.RawMessage)
 	p.pending[id] = ch
 	p.inflight++
 	p.lastUsed = time.Now()
+	if p.callers == nil {
+		p.callers = map[int64]callerWait{}
+	}
+	p.callers[id] = callerWait{c: c, ctx: ctx}
 	p.mu.Unlock()
 	defer func() {
 		p.mu.Lock()
 		delete(p.pending, id)
+		delete(p.callers, id)
 		p.inflight--
 		p.lastUsed = time.Now()
 		p.mu.Unlock()
@@ -468,12 +493,12 @@ func (p *proc) roundTrip(ctx context.Context, fields map[string]json.RawMessage)
 }
 
 // call is office's own request to the process.
-func (p *proc) call(ctx context.Context, method string, params any) (json.RawMessage, error) {
+func (p *proc) call(ctx context.Context, method string, params any, c Caller) (json.RawMessage, error) {
 	raw, err := json.Marshal(params)
 	if err != nil {
 		return nil, err
 	}
-	out, err := p.roundTrip(ctx, map[string]json.RawMessage{"method": json.RawMessage(strconv.Quote(method)), "params": raw})
+	out, err := p.roundTrip(ctx, map[string]json.RawMessage{"method": json.RawMessage(strconv.Quote(method)), "params": raw}, c)
 	if err != nil {
 		return nil, err
 	}
@@ -488,8 +513,10 @@ func (p *proc) call(ctx context.Context, method string, params any) (json.RawMes
 	return out["result"], nil
 }
 
-// read routes the process's messages: answers to their request, its own
-// requests get "not supported" (office has no sampling or elicitation).
+// read routes the process's messages: answers to their request; its own
+// requests get elicitation/create answered (ADR-264, asynchronously so one
+// slow answer never stalls reading this process's other replies) and
+// anything else (sampling, still unwired) "not supported".
 func (p *proc) read(r io.Reader) {
 	sc := bufio.NewScanner(r)
 	sc.Buffer(make([]byte, 64<<10), stdioMaxLine)
@@ -540,8 +567,14 @@ func (p *proc) handle(raw json.RawMessage) {
 			_ = p.write(map[string]any{"jsonrpc": "2.0", "id": msg.ID, "result": map[string]any{}})
 			return
 		}
+		if msg.Method == "elicitation/create" {
+			// own goroutine: this can wait minutes on a person, and must
+			// never block reading this process's other replies/requests.
+			go p.handleElicit(raw, msg.ID)
+			return
+		}
 		_ = p.write(map[string]any{"jsonrpc": "2.0", "id": msg.ID, "error": map[string]any{
-			"code": -32601, "message": "office chưa hỗ trợ yêu cầu " + msg.Method + " từ MCP (sampling, elicitation…)"}})
+			"code": -32601, "message": "office chưa hỗ trợ yêu cầu " + msg.Method + " từ MCP"}})
 		return
 	}
 	id, err := strconv.ParseInt(string(msg.ID), 10, 64)
@@ -557,6 +590,67 @@ func (p *proc) handle(raw json.RawMessage) {
 		default:
 		}
 	}
+}
+
+// currentCaller is whoever is waiting on this process right now with a chat
+// to ask in (ConversationID set; a bare Caller{} of office's own initialize
+// or a background CallTool never qualifies), and the context its wait uses
+// — any one of them, when several such calls are in flight at once (a known
+// gap, ADR-264).
+func (p *proc) currentCaller() (Caller, context.Context, bool) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	for _, w := range p.callers {
+		if w.c.ConversationID != "" {
+			return w.c, w.ctx, true
+		}
+	}
+	return Caller{}, nil, false
+}
+
+// elicitTimeout bounds how long office waits on an answer to the server's
+// elicitation/create before declining on the server's behalf.
+const elicitTimeout = 10 * time.Minute
+
+// handleElicit answers the server's elicitation/create request id: through
+// p.elicit when office has it wired to ask someone, "declined" if that
+// someone never answers in time (or the call waiting on this process ends,
+// or the process itself dies), else the same "not supported" error every
+// server request got before (ADR-264).
+func (p *proc) handleElicit(raw json.RawMessage, id json.RawMessage) {
+	var req struct {
+		Params struct {
+			Message         string          `json:"message"`
+			RequestedSchema json.RawMessage `json:"requestedSchema"`
+		} `json:"params"`
+	}
+	_ = json.Unmarshal(raw, &req)
+	c, parent, hasCaller := p.currentCaller()
+	if !hasCaller || p.elicit == nil {
+		_ = p.write(map[string]any{"jsonrpc": "2.0", "id": id, "error": map[string]any{
+			"code": -32601, "message": "office chưa hỗ trợ yêu cầu elicitation/create từ MCP " + p.name}})
+		return
+	}
+	ctx, cancel := context.WithTimeout(parent, elicitTimeout)
+	defer cancel()
+	stop := make(chan struct{})
+	defer close(stop)
+	go func() {
+		select {
+		case <-p.done:
+			cancel()
+		case <-stop:
+		}
+	}()
+	action, content, err := p.elicit(ctx, c, p.name, req.Params.Message, req.Params.RequestedSchema)
+	if err != nil || action == "" {
+		action, content = "decline", nil
+	}
+	result := map[string]any{"action": action}
+	if content != nil {
+		result["content"] = content
+	}
+	_ = p.write(map[string]any{"jsonrpc": "2.0", "id": id, "result": result})
 }
 
 // deadErr says the process is gone, with the end of its stderr.
@@ -706,7 +800,9 @@ func (g *Gateway) checkStdio(ctx context.Context, m storage.MCPServer) ([]storag
 	}
 	ctx, cancel := context.WithTimeout(ctx, CheckTimeout)
 	defer cancel()
-	tools, err := listTools(ctx, p.call)
+	tools, err := listTools(ctx, func(ctx context.Context, method string, params any) (json.RawMessage, error) {
+		return p.call(ctx, method, params, Caller{})
+	})
 	if errors.Is(err, context.DeadlineExceeded) {
 		return nil, fmt.Errorf("MCP không trả lời tools/list trong %d giây", int(CheckTimeout.Seconds()))
 	}
@@ -723,7 +819,9 @@ func (g *Gateway) checkStdioResources(ctx context.Context, m storage.MCPServer) 
 	}
 	ctx, cancel := context.WithTimeout(ctx, CheckTimeout)
 	defer cancel()
-	return listResources(ctx, p.call)
+	return listResources(ctx, func(ctx context.Context, method string, params any) (json.RawMessage, error) {
+		return p.call(ctx, method, params, Caller{})
+	})
 }
 
 // serveStdio answers a run's request from m's process: initialize from
@@ -800,7 +898,7 @@ func (g *Gateway) serveStdio(w http.ResponseWriter, r *http.Request, m storage.M
 			out = append(out, rpcResult(id, json.RawMessage("{}")))
 		default:
 			delete(fields, "id")
-			resp, err := p.roundTrip(ctx, fields)
+			resp, err := p.roundTrip(ctx, fields, c)
 			if err != nil {
 				if errMsg == "" {
 					errMsg = "MCP " + m.Name + ": " + err.Error()

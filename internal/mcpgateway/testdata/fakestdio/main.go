@@ -17,9 +17,10 @@ import (
 )
 
 var (
-	out     sync.Mutex
-	inits   atomic.Int64
-	waiting sync.Map // id of a request office got from us → chan of its answer
+	out        sync.Mutex
+	inits      atomic.Int64
+	waiting    sync.Map // id of a request office got from us → chan of its answer (text)
+	waitingRaw sync.Map // id of a request office got from us → chan of its raw answer line
 )
 
 func send(v any) {
@@ -66,6 +67,9 @@ func main() {
 				}
 				ch.(chan string) <- msg
 			}
+			if ch, ok := waitingRaw.Load(string(m.ID)); ok {
+				ch.(chan []byte) <- line
+			}
 			continue
 		}
 		if len(m.ID) == 0 {
@@ -82,7 +86,7 @@ func main() {
 				send(map[string]any{"jsonrpc": "2.0", "id": m.ID, "result": map[string]any{"tools": []any{
 					map[string]any{"name": "echo", "description": "Echo"},
 					map[string]any{"name": "slow"}, map[string]any{"name": "crash"},
-					map[string]any{"name": "ask"}, map[string]any{"name": "pid"}, map[string]any{"name": "inits"},
+					map[string]any{"name": "ask"}, map[string]any{"name": "elicit"}, map[string]any{"name": "pid"}, map[string]any{"name": "inits"},
 					map[string]any{"name": "env"}, map[string]any{"name": "fail"},
 				}}})
 			case "tools/call":
@@ -98,6 +102,24 @@ func main() {
 					waiting.Store(`"s1"`, ch)
 					send(map[string]any{"jsonrpc": "2.0", "id": "s1", "method": "sampling/createMessage", "params": map[string]any{}})
 					text(m.ID, <-ch)
+				case "elicit":
+					ch := make(chan []byte, 1)
+					waitingRaw.Store(`"e1"`, ch)
+					send(map[string]any{"jsonrpc": "2.0", "id": "e1", "method": "elicitation/create", "params": map[string]any{
+						"message": "cần xác nhận", "requestedSchema": map[string]any{"type": "object", "properties": map[string]any{
+							"ok": map[string]any{"type": "boolean"}}}}})
+					var reply struct {
+						Result json.RawMessage `json:"result"`
+						Error  *struct {
+							Message string `json:"message"`
+						} `json:"error"`
+					}
+					_ = json.Unmarshal(<-ch, &reply)
+					if reply.Error != nil {
+						text(m.ID, reply.Error.Message)
+					} else {
+						text(m.ID, string(reply.Result))
+					}
 				case "pid":
 					text(m.ID, strconv.Itoa(os.Getpid()))
 				case "bigline":

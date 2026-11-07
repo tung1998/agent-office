@@ -91,6 +91,18 @@ func gatewayProposer(acts *actions.Service) mcpgateway.Proposer {
 	}
 }
 
+// gatewayElicit turns an MCP server's elicitation/create into a question in
+// the calling run's own chat (ADR-264).
+func gatewayElicit(ce *chat.Engine) mcpgateway.ElicitFunc {
+	return func(ctx context.Context, c mcpgateway.Caller, server, message string, schema json.RawMessage) (string, json.RawMessage, error) {
+		sc, ok := c.Scope.(officetools.Scope)
+		if !ok {
+			return "decline", nil, nil
+		}
+		return ce.AskElicit(ctx, sc, server, message, schema)
+	}
+}
+
 // gatewayFor gives a run the servers its agent gets: names for Claude Code
 // and Codex, tools for an API run; and the names of those it does not get.
 func gatewayFor(st storage.Store, gw *mcpgateway.Gateway) chat.GatewayFor {
