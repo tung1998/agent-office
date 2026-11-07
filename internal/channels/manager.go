@@ -51,9 +51,22 @@ type Manager struct {
 	adapters map[string]Adapter // by channel id: where answers go
 	ready    map[string]bool    // by channel id: connected (false while it connects)
 	waiting  map[string]waiter  // by job id: a message waiting for its answer
-	root     context.Context
-	pending  Pending
-	reload   sync.Mutex // one Reload at a time: never two bots for one channel
+	// early: a job id whose Reply(final) already ran before handle() could
+	// register its waiter (the job finished inside Runner.Enqueue or right
+	// after it returned, before handle locked m.mu to write m.waiting).
+	// handle() checks this once it takes the lock, so the race never leaves a
+	// waiter nobody cleans up (ADR-048's "seen"/typing bookkeeping). Reply
+	// only writes to it while enqueuing > 0 (a handle() is between starting
+	// Enqueue and registering its waiter), and it is reset to empty the
+	// moment enqueuing drops back to 0: Reply also fires for jobs that never
+	// go through handle() at all (a follow-up turn, a job resumed after a
+	// restart, approvals.go's own Enqueue), and none of those ever clears its
+	// own entry, so without this bound the map would grow forever.
+	early     map[string]bool
+	enqueuing int
+	root      context.Context
+	pending   Pending
+	reload    sync.Mutex // one Reload at a time: never two bots for one channel
 	// pendingLocks: guards read-modify-write of a (channelID, chatID)'s pending-
 	// proposals list (channel_pending/...), keyed by channelID+"/"+chatID.
 	pendingLocks map[string]*sync.Mutex
@@ -162,7 +175,7 @@ func (p *Pending) Done(key string) {
 // NewManager builds a Manager; wire the runner's answers to Reply.
 func NewManager(store storage.Store, engine *chat.Engine, runner Runner, factory Factory) *Manager {
 	return &Manager{store: store, engine: engine, runner: runner, factory: factory, running: map[string]context.CancelFunc{},
-		adapters: map[string]Adapter{}, ready: map[string]bool{}, waiting: map[string]waiter{}, ProgressAfter: 10 * time.Second}
+		adapters: map[string]Adapter{}, ready: map[string]bool{}, waiting: map[string]waiter{}, early: map[string]bool{}, ProgressAfter: 10 * time.Second}
 }
 
 // Start runs the enabled channels until ctx ends.
@@ -271,6 +284,18 @@ func (m *Manager) run(ch storage.Channel) {
 
 // handle takes one message: the first rule (automation) of the channel that
 // matches gets it as a job; nothing matching gets the channel's refusal.
+// stoppedEnqueuing marks one handle() as done with its Runner.Enqueue call
+// (call under m.mu). Once none is left, m.early is reset: nothing outside
+// this window can ever clear its own entry (a follow-up turn, a job resumed
+// after a restart, approvals.go's own Enqueue), so this is what keeps it from
+// growing forever.
+func (m *Manager) stoppedEnqueuing() {
+	m.enqueuing--
+	if m.enqueuing == 0 {
+		m.early = map[string]bool{}
+	}
+}
+
 func (m *Manager) handle(ctx context.Context, channelID string, ad Adapter, in Incoming) {
 	defer func() {
 		if r := recover(); r != nil {
@@ -447,23 +472,40 @@ func (m *Manager) handle(ctx context.Context, channelID string, ad Adapter, in I
 		m.placed(ctx, ch, p.ConversationID, in.GuildID, in.ChatID, in.MessageID)
 	}
 	raw, _ := json.Marshal(p)
-	m.mu.Lock() // registered before the runner can answer
-	job, status, err := m.runner.Enqueue(actx, rule, ch.Kind, string(raw), "", "")
+	m.mu.Lock()
+	m.enqueuing++ // tells Reply a handle() is mid-Enqueue: its final reply, if it races ahead, goes to m.early instead of being dropped
+	m.mu.Unlock()
+	job, status, err := m.runner.Enqueue(actx, rule, ch.Kind, string(raw), "", "") // not under m.mu: it writes to the DB and must not block other channels
 	if err == nil && status == "queued" {
 		tctx, stop := context.WithCancel(m.root)
 		w := waiter{key: key, typing: stop, chat: in.ChatID, msg: in.MessageID, started: time.Now(),
 			verbose: rule.Action == "chat" && storage.ReplyModeOf(ch, rule.Config) == storage.ReplySteps}
-		if r, ok := ad.(Reactor); ok && in.MessageID != "" { // seen: working on it
-			go func() { _ = r.React(context.WithoutCancel(ctx), in.ChatID, in.MessageID, "👀", true) }()
-		}
 		if custom {
 			w.respond = in.Respond // the answer edits the slash command's "thinking…"
 		}
-		m.waiting[job.ID] = w
-		held = false // Reply frees it
-		go typing(tctx, ad, in.ChatID)
+		m.mu.Lock()
+		wasEarly := m.early[job.ID] // Reply(final) already ran before this (ADR-048 race): nothing to wait for
+		delete(m.early, job.ID)
+		m.stoppedEnqueuing()
+		if !wasEarly {
+			m.waiting[job.ID] = w
+		}
+		m.mu.Unlock()
+		if wasEarly {
+			stop()
+			m.settle(ctx, ad, w) // clears what Reply would have (no 👀 was ever reacted for this one)
+		} else {
+			if r, ok := ad.(Reactor); ok && in.MessageID != "" { // seen: working on it
+				go func() { _ = r.React(context.WithoutCancel(ctx), in.ChatID, in.MessageID, "👀", true) }()
+			}
+			held = false // Reply frees it
+			go typing(tctx, ad, in.ChatID)
+		}
+	} else {
+		m.mu.Lock()
+		m.stoppedEnqueuing()
+		m.mu.Unlock()
 	}
-	m.mu.Unlock()
 	if err != nil {
 		slog.Error("channels: enqueue", "channel", ch.ID, "err", err)
 		say("Xin lỗi, mình chưa nhận được tin này.")
@@ -499,6 +541,12 @@ func (m *Manager) Reply(ctx context.Context, origin storage.Job, text string, er
 	}
 	if final && waited {
 		delete(m.waiting, origin.ID)
+	} else if final && m.enqueuing > 0 { // a handle() is mid-Enqueue (ADR-048 race): tell it not to wait either.
+		// Outside that window this job never came from handle() at all (a
+		// follow-up turn, a resume after a restart, approvals.go's own
+		// Enqueue) and nothing would ever clear the entry, so it must not be
+		// written then.
+		m.early[origin.ID] = true
 	}
 	m.mu.Unlock()
 	if final && waited {
