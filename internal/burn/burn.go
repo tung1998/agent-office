@@ -407,8 +407,8 @@ func (s *Service) Resume(ctx context.Context, projectID string) error {
 		return err
 	}
 	s.mu.Lock()
-	delete(s.nones, b.RunBranch) // resumed by hand: it scans again
-	delete(s.full, b.RunBranch)
+	delete(s.nones, runKey(b)) // resumed by hand: it scans again
+	delete(s.full, runKey(b))
 	s.mu.Unlock()
 	s.say(ctx, b, "Chạy tiếp như cũ.")
 	s.spawn(projectID)

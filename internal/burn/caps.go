@@ -35,6 +35,13 @@ func unmerged(ctx context.Context, repo, branch string) int {
 	return n
 }
 
+// runKey identifies b's current run across the whole Service: RunBranch
+// alone names only the second it started, so two projects' runs starting in
+// the same second would otherwise share one entry.
+func runKey(b storage.BurnSession) string {
+	return b.ProjectID + "|" + b.RunBranch
+}
+
 // doneInRun: the pieces done in b's current run.
 func doneInRun(b storage.BurnSession, items []storage.BurnItem) int {
 	n := 0
@@ -59,8 +66,8 @@ func (s *Service) heldForReview(ctx context.Context, b storage.BurnSession) bool
 	n := unmerged(ctx, p.Path, b.RunBranch)
 	held := n >= b.ReviewCap
 	s.mu.Lock()
-	was := s.held[b.RunBranch]
-	s.held[b.RunBranch] = held
+	was := s.held[runKey(b)]
+	s.held[runKey(b)] = held
 	s.mu.Unlock()
 	switch {
 	case held && !was:
@@ -79,9 +86,9 @@ func (s *Service) stopAfterReached(b storage.BurnSession, items []storage.BurnIt
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.capped[b.RunBranch] {
+	if s.capped[runKey(b)] {
 		return false
 	}
-	s.capped[b.RunBranch] = true
+	s.capped[runKey(b)] = true
 	return true
 }

@@ -591,14 +591,14 @@ func (s *Service) endScan(ctx context.Context, b storage.BurnSession, scan strin
 	delete(s.marked, scan)
 	moved := n > 0 || checked > before
 	if moved {
-		delete(s.nones, b.RunBranch)
+		delete(s.nones, runKey(b))
 	} else {
-		s.nones[b.RunBranch]++
+		s.nones[runKey(b)]++
 	}
-	stuck := s.nones[b.RunBranch] >= maxNones
+	stuck := s.nones[runKey(b)] >= maxNones
 	done := total > 0 && checked == total && n == 0
 	if done {
-		s.full[b.RunBranch] = true
+		s.full[runKey(b)] = true
 	}
 	s.mu.Unlock()
 	cov := ""
@@ -626,7 +626,7 @@ func (s *Service) endScan(ctx context.Context, b storage.BurnSession, scan strin
 func (s *Service) scansOver(b storage.BurnSession) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return s.full[b.RunBranch] || s.nones[b.RunBranch] >= maxNones
+	return s.full[runKey(b)] || s.nones[runKey(b)] >= maxNones
 }
 
 // keepCoverage saves a scan's coverage plan, whole (ADR-141): scanDone is
