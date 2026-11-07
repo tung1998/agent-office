@@ -62,4 +62,14 @@ import { automationBody, draftFrom, emptyDraft, mergeDraft } from '../app/compos
   assert.equal(d.action, 'workflow', 'workflow action accepted from a patch')
   assert.ok(changed.includes('action'), 'action reported as changed')
 }
+// model_tier: an agent-proposed patch updates it, not just the allowed-value check
+{
+  const d = emptyDraft()
+  const changed = mergeDraft(d, { model_tier: 'fast' })
+  assert.equal(d.model_tier, 'fast', 'model_tier applied from a patch')
+  assert.ok(changed.includes('model_tier'), 'model_tier reported as changed')
+  const changed2 = mergeDraft(d, { model_tier: 'bogus' })
+  assert.equal(d.model_tier, 'fast', 'unknown model_tier value ignored')
+  assert.deepEqual(changed2, [], 'nothing changed for an unknown value')
+}
 console.log('mergeDraft: ok')
