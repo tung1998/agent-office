@@ -413,8 +413,10 @@ async function retryNow() {
   retryActing.value = 'now'
   try {
     const res = await $fetch<{ turn_id: string }>(`/api/conversations/${c.id}/retry-now`, { method: 'POST' })
-    retry.value = null
-    if (res.turn_id) follow(res.turn_id)
+    if (current.value?.id === c.id) {
+      retry.value = null
+      if (res.turn_id) follow(res.turn_id)
+    }
   } catch (e) {
     toast.add({ title: apiError(e), color: 'error' })
   } finally {
@@ -427,7 +429,7 @@ async function cancelRetry() {
   retryActing.value = 'cancel'
   try {
     await $fetch(`/api/conversations/${c.id}/retry`, { method: 'DELETE' })
-    retry.value = null
+    if (current.value?.id === c.id) retry.value = null
   } catch (e) {
     toast.add({ title: apiError(e), color: 'error' })
   } finally {
@@ -553,6 +555,7 @@ async function open(c: Conversation, messageId?: string) {
   hasOlder.value = !!res.has_more
   current.value = res.conversation
   linkedPending.value = res.linked_pending ?? []
+  retry.value = res.retry ?? null
   applyGroup(res.members, res.running)
   if (res.conversation.active_turn && !streaming.value) follow(res.conversation.active_turn)
   if (messageId) showMessage(messageId)
