@@ -131,6 +131,50 @@ func TestToolsUpdateUnknownTool(t *testing.T) {
 	}
 }
 
+// flakyGetStore wraps a Store whose Settings().Get fails the first n times
+// it is called, then behaves normally.
+type flakyGetStore struct {
+	storage.Store
+	n *int
+}
+
+func (f flakyGetStore) Settings() storage.SettingRepo {
+	return flakyGetSettings{f.Store.Settings(), f.n}
+}
+
+type flakyGetSettings struct {
+	storage.SettingRepo
+	n *int
+}
+
+func (f flakyGetSettings) Get(ctx context.Context, key string, dst any) (bool, error) {
+	if *f.n > 0 {
+		*f.n--
+		return false, errors.New("transient read error")
+	}
+	return f.SettingRepo.Get(ctx, key, dst)
+}
+
+// A transient error reading the request list during the poll loop must not
+// read as "the request was deleted": requestCLIUpdate should retry, not
+// report errOfficeGone's "đã bị xóa" message.
+func TestRequestCLIUpdateRetriesOnTransientGetError(t *testing.T) {
+	ctx, stop := context.WithCancel(context.Background())
+	defer stop()
+	base := requestStore(t)
+	dir := t.TempDir()
+	fakeCodex(t, dir, "0.166.0", "0.167.0")
+	m := clitools.NewManagerWithPath(dir + ":/usr/bin:/bin")
+	go serveCLIRequests(ctx, base, m, 10*time.Millisecond)
+
+	n := 3
+	st := flakyGetStore{base, &n}
+	res, taken, err := requestCLIUpdate(ctx, st, []string{"codex"}, "script", false, 2*time.Second, 10*time.Millisecond, nil)
+	if err != nil || !taken || len(res) != 1 || res[0].State != "done" {
+		t.Fatalf("res=%+v taken=%v err=%v", res, taken, err)
+	}
+}
+
 func waitFor(t *testing.T, ok func() bool) {
 	t.Helper()
 	deadline := time.Now().Add(10 * time.Second)

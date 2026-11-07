@@ -125,7 +125,14 @@ func requestCLIUpdate(ctx context.Context, st storage.Store, tools []string, by 
 	seen := map[string]string{}
 	for {
 		var list []cliRequest
-		_, _ = st.Settings().Get(ctx, cliRequestKey, &list)
+		if _, err := st.Settings().Get(ctx, cliRequestKey, &list); err != nil {
+			select {
+			case <-ctx.Done():
+				return nil, true, ctx.Err()
+			case <-time.After(poll):
+			}
+			continue
+		}
 		i := slices.IndexFunc(list, func(r cliRequest) bool { return r.ID == id })
 		if i < 0 {
 			return nil, false, errors.New("yêu cầu cập nhật CLI đã bị xóa")
