@@ -223,8 +223,11 @@ func (s *Service) Upsert(ctx context.Context, projectID, key, id string, data ma
 		}
 		x := storage.Record{CollectionID: c.ID, ProjectID: projectID, Data: next, Text: text(c, next), CreatedBy: by, UpdatedBy: by}
 		if found {
-			x.ID, x.CreatedBy, x.CreatedAt = old.ID, old.CreatedBy, old.CreatedAt
+			x.ID, x.CreatedBy, x.CreatedAt, x.UpdatedAt = old.ID, old.CreatedBy, old.CreatedAt, old.UpdatedAt
 			if err := repo.Save(ctx, x); err != nil {
+				if errors.Is(err, storage.ErrStale) {
+					return invalid("bản ghi %q đã bị sửa, thử lại", old.ID)
+				}
 				return conflict(err)
 			}
 			out = x

@@ -3,6 +3,7 @@ package sqlite
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"regexp"
 	"strings"
@@ -175,10 +176,13 @@ func (r collectionRepo) Insert(ctx context.Context, x storage.Record) (storage.R
 	return x, r.history(ctx, x, "create", x.CreatedBy, now)
 }
 
+// Save is CAS'd on the updated_at x was read with (x.UpdatedAt): a write
+// landing between the caller's read and Save loses with storage.ErrStale
+// instead of silently overwriting (mirrors processRepo.Update).
 func (r collectionRepo) Save(ctx context.Context, x storage.Record) error {
 	now := time.Now().UTC()
-	res, err := r.db.ExecContext(ctx, `UPDATE records SET data=?, text=?, updated_by=?, updated_at=? WHERE id=? AND collection_id=?`,
-		toJSON(x.Data), x.Text, x.UpdatedBy, fmtTime(now), x.ID, x.CollectionID)
+	res, err := r.db.ExecContext(ctx, `UPDATE records SET data=?, text=?, updated_by=?, updated_at=? WHERE id=? AND collection_id=? AND updated_at=?`,
+		toJSON(x.Data), x.Text, x.UpdatedBy, fmtTime(now), x.ID, x.CollectionID, fmtTime(x.UpdatedAt))
 	if isUnique(err) {
 		return storage.ErrConflict
 	}
@@ -186,7 +190,10 @@ func (r collectionRepo) Save(ctx context.Context, x storage.Record) error {
 		return err
 	}
 	if n, _ := res.RowsAffected(); n == 0 {
-		return storage.ErrNotFound
+		if _, getErr := r.Record(ctx, x.CollectionID, x.ID); errors.Is(getErr, storage.ErrNotFound) {
+			return storage.ErrNotFound
+		}
+		return storage.ErrStale
 	}
 	return r.history(ctx, x, "update", x.UpdatedBy, now)
 }
