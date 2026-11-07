@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/tung1998/agent-office/internal/activity"
 	"github.com/tung1998/agent-office/internal/officetools"
 	"github.com/tung1998/agent-office/internal/perm"
 	"github.com/tung1998/agent-office/internal/storage"
@@ -247,12 +248,149 @@ func TestMCPModern(t *testing.T) {
 	if code, m := call("tools/call", call1, hc); code != 400 || m["error"].(map[string]any)["code"] != float64(-32020) {
 		t.Fatalf("header mismatch: %d %v", code, m)
 	}
-	if code, m := call("resources/list", meta("2026-07-28"), h("resources/list")); code != 404 || m["error"].(map[string]any)["code"] != float64(-32601) {
+	if code, m := call("prompts/list", meta("2026-07-28"), h("prompts/list")); code != 404 || m["error"].(map[string]any)["code"] != float64(-32601) {
 		t.Fatalf("unknown method: %d %v", code, m)
+	}
+	code, rl := call("resources/list", meta("2026-07-28"), h("resources/list"))
+	res, _ = rl["result"].(map[string]any)
+	if code != 200 || res["resultType"] != "complete" || res["cacheScope"] != "private" {
+		t.Fatalf("resources/list: %d %v", code, rl)
 	}
 	// legacy initialize asking for a version office does not speak gets its newest legacy one
 	if _, i := call("initialize", `{"protocolVersion":"2026-07-28"}`, nil); i["result"].(map[string]any)["protocolVersion"] != "2025-11-25" {
 		t.Fatalf("initialize: %v", i)
+	}
+}
+
+// resourcePanicProvider stands in for project_report to check that a panic
+// reached through resources/read fails only that call, like tools/call does.
+type resourcePanicProvider struct{}
+
+func (resourcePanicProvider) Tools(sc officetools.Scope) []officetools.Tool {
+	return []officetools.Tool{{Name: "project_report", ReadOnly: true}}
+}
+
+func (resourcePanicProvider) Call(ctx context.Context, sc officetools.Scope, name string, raw json.RawMessage) (string, bool) {
+	var m map[string]string
+	m["x"] = "nil map write panics" // nolint:staticcheck
+	return "", false
+}
+
+// resourceErrProvider stands in for burn_list returning isError=true, to
+// check resources/read turns that into an rpcError instead of handing the
+// error text to the client as if it were the resource's content.
+type resourceErrProvider struct{}
+
+func (resourceErrProvider) Tools(sc officetools.Scope) []officetools.Tool {
+	return []officetools.Tool{{Name: "burn_list", ReadOnly: true}}
+}
+
+func (resourceErrProvider) Call(ctx context.Context, sc officetools.Scope, name string, raw json.RawMessage) (string, bool) {
+	return "burn chưa bật", true
+}
+
+func TestResourceReadPanicAndError(t *testing.T) {
+	st, _ := sqlite.Open(filepath.Join(t.TempDir(), "o.db"))
+	defer st.Close()
+	ctx := context.Background()
+	st.Migrate(ctx)
+	p, _ := st.Repos().Create(ctx, storage.Repo{Name: "p", Path: t.TempDir()})
+
+	tb := officetools.New(st, nil, nil)
+	tb.AddProvider(resourcePanicProvider{})
+	tb.AddProvider(resourceErrProvider{})
+	s := New(tb, "test")
+	srv := httptest.NewServer(s)
+	defer srv.Close()
+	tok, revoke := s.Grant(officetools.Scope{ProjectID: p.ID}, time.Minute)
+	defer revoke()
+
+	post := func(body string) (int, map[string]any) {
+		req, _ := http.NewRequest("POST", srv.URL, strings.NewReader(body))
+		req.Header.Set("Authorization", "Bearer "+tok)
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatalf("connection died instead of returning an MCP error: %v", err)
+		}
+		defer resp.Body.Close()
+		var out map[string]any
+		if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+			t.Fatalf("response body not valid JSON (connection likely reset): %v", err)
+		}
+		return resp.StatusCode, out
+	}
+
+	reportURI := "office://project/" + p.ID + "/report"
+	code, out := post(`{"jsonrpc":"2.0","id":1,"method":"resources/read","params":{"uri":"` + reportURI + `"}}`)
+	if code != http.StatusOK || out["error"] == nil {
+		t.Fatalf("panic in resource tool must become an rpcError: %d %v", code, out)
+	}
+
+	burnURI := "office://project/" + p.ID + "/burn"
+	code, out = post(`{"jsonrpc":"2.0","id":2,"method":"resources/read","params":{"uri":"` + burnURI + `"}}`)
+	if code != http.StatusOK || out["error"] == nil || out["result"] != nil {
+		t.Fatalf("a failed resource tool must become an rpcError, not resource content: %d %v", code, out)
+	}
+
+	// the server must still answer the next request on the same connection
+	code, out = post(`{"jsonrpc":"2.0","id":3,"method":"ping"}`)
+	if code != http.StatusOK || out["error"] != nil {
+		t.Fatalf("server did not survive the panic: %d %v", code, out)
+	}
+}
+
+// resources/list surfaces the project's report, and resources/read returns
+// its text; a token for another project must not reach it either.
+func TestResources(t *testing.T) {
+	st, _ := sqlite.Open(filepath.Join(t.TempDir(), "o.db"))
+	defer st.Close()
+	ctx := context.Background()
+	st.Migrate(ctx)
+	p, _ := st.Repos().Create(ctx, storage.Repo{Name: "p", Path: t.TempDir()})
+	tb := officetools.New(st, nil, nil)
+	tb.AddProvider(activity.NewTools(st))
+	s := New(tb, "test")
+	srv := httptest.NewServer(s)
+	defer srv.Close()
+	tok, revoke := s.Grant(officetools.Scope{ProjectID: p.ID}, time.Minute)
+	defer revoke()
+
+	call := func(tok, body string) map[string]any {
+		req, _ := http.NewRequest("POST", srv.URL, strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Authorization", "Bearer "+tok)
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer resp.Body.Close()
+		var out map[string]any
+		_ = json.NewDecoder(resp.Body).Decode(&out)
+		return out
+	}
+
+	list := call(tok, `{"jsonrpc":"2.0","id":1,"method":"resources/list"}`)
+	resources := list["result"].(map[string]any)["resources"].([]any)
+	if len(resources) == 0 {
+		t.Fatalf("resources/list: %v", list)
+	}
+	uri := resources[0].(map[string]any)["uri"].(string)
+	if uri != "office://project/"+p.ID+"/report" {
+		t.Fatalf("resource uri: %q", uri)
+	}
+
+	read := call(tok, `{"jsonrpc":"2.0","id":2,"method":"resources/read","params":{"uri":"`+uri+`"}}`)
+	contents := read["result"].(map[string]any)["contents"].([]any)
+	text := contents[0].(map[string]any)["text"].(string)
+	if text == "" {
+		t.Fatalf("resources/read: %v", read)
+	}
+
+	other, _ := st.Repos().Create(ctx, storage.Repo{Name: "q", Path: t.TempDir()})
+	otherTok, revokeOther := s.Grant(officetools.Scope{ProjectID: other.ID}, time.Minute)
+	defer revokeOther()
+	if out := call(otherTok, `{"jsonrpc":"2.0","id":3,"method":"resources/read","params":{"uri":"`+uri+`"}}`); out["error"] == nil {
+		t.Fatalf("another project's token must not read this resource: %v", out)
 	}
 }
 

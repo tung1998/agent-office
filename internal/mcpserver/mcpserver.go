@@ -361,20 +361,44 @@ func (s *Server) handle(r *http.Request, sc officetools.Scope, q request, other 
 		}
 		result = map[string]any{
 			"protocolVersion": v,
-			"capabilities":    map[string]any{"tools": map[string]any{}},
+			"capabilities":    map[string]any{"tools": map[string]any{}, "resources": map[string]any{}},
 			"serverInfo":      info,
 			"instructions":    intro,
 		}
 	case "server/discover":
 		result = map[string]any{
 			"supportedVersions": supported(),
-			"capabilities":      map[string]any{"tools": map[string]any{}},
+			"capabilities":      map[string]any{"tools": map[string]any{}, "resources": map[string]any{}},
 			"instructions":      intro,
 			"ttlMs":             3_600_000,
 			"cacheScope":        "private",
 		}
 	case "ping":
 		result = map[string]any{}
+	case "resources/list":
+		list := []map[string]any{}
+		if !other {
+			list = s.resourcesList(sc)
+		}
+		result = map[string]any{"resources": list}
+		if modern {
+			result["ttlMs"], result["cacheScope"] = 0, "private"
+		}
+	case "resources/read":
+		var rp struct {
+			URI string `json:"uri"`
+		}
+		_ = json.Unmarshal(q.Params, &rp)
+		if other {
+			res.Error = &rpcError{Code: -32602, Message: "unknown resource"}
+			return res, http.StatusOK
+		}
+		contents, rerr := s.resourceRead(r.Context(), sc, rp.URI)
+		if rerr != nil {
+			res.Error = rerr
+			return res, http.StatusOK
+		}
+		result = contents
 	case "tools/list":
 		list := []map[string]any{}
 		tools := s.tools.ToolsFor(sc)
@@ -452,6 +476,70 @@ func recoverToolCall(name string, fn func() map[string]any) (result map[string]a
 
 func (s *Server) info() map[string]any {
 	return map[string]any{"name": "agent-office", "version": s.version}
+}
+
+// resourcesList is the small, fixed set of resources a run's scope can read
+// right now (ADR follow-up): the project's report, and, in a Burn chat, its
+// open pieces. More (per-file, per-skill) can follow once this is in use.
+func (s *Server) resourcesList(sc officetools.Scope) []map[string]any {
+	var out []map[string]any
+	if sc.ProjectID != "" && s.tools.Has(sc, "project_report") {
+		out = append(out, map[string]any{
+			"uri":         "office://project/" + sc.ProjectID + "/report",
+			"name":        "project_report",
+			"description": "Báo cáo vận hành project: việc theo bảng, agent, chi phí, lỗi",
+			"mimeType":    "text/plain",
+		})
+	}
+	if sc.ProjectID != "" && s.tools.Has(sc, "burn_list") {
+		out = append(out, map[string]any{
+			"uri":         "office://project/" + sc.ProjectID + "/burn",
+			"name":        "burn_open",
+			"description": "Các việc Burn đang mở trong hội thoại này",
+			"mimeType":    "text/plain",
+		})
+	}
+	return out
+}
+
+// resourceRead dispatches a resources/read to the matching tool and wraps its
+// text as the resource's content. A tool panic or failure (isError) becomes
+// an rpcError instead of either crashing the connection or being handed to
+// the client as if it were the resource's text.
+func (s *Server) resourceRead(ctx context.Context, sc officetools.Scope, uri string) (map[string]any, *rpcError) {
+	prefix := "office://project/" + sc.ProjectID + "/"
+	var name string
+	var args json.RawMessage
+	switch {
+	case sc.ProjectID != "" && uri == prefix+"report" && s.tools.Has(sc, "project_report"):
+		name, args = "project_report", json.RawMessage(`{}`)
+	case sc.ProjectID != "" && uri == prefix+"burn" && s.tools.Has(sc, "burn_list"):
+		name, args = "burn_list", json.RawMessage(`{"what":"open"}`)
+	default:
+		return nil, &rpcError{Code: -32602, Message: "unknown resource: " + uri}
+	}
+	text, rerr := s.callResourceTool(ctx, sc, name, args)
+	if rerr != nil {
+		return nil, rerr
+	}
+	return map[string]any{"contents": []map[string]any{{"uri": uri, "mimeType": "text/plain", "text": text}}}, nil
+}
+
+// callResourceTool runs the tool behind a resource, recovering a panic (as
+// recoverToolCall does for tools/call) and turning an isError result into an
+// rpcError rather than passing the error text off as resource content.
+func (s *Server) callResourceTool(ctx context.Context, sc officetools.Scope, name string, args json.RawMessage) (text string, rerr *rpcError) {
+	defer func() {
+		if r := recover(); r != nil {
+			slog.Error("mcpserver: resource tool panic", "tool", name, "panic", r)
+			rerr = &rpcError{Code: -32603, Message: fmt.Sprintf("internal error in tool %q: %v", name, r)}
+		}
+	}()
+	out, failed := s.tools.Call(ctx, sc, name, args)
+	if failed {
+		return "", &rpcError{Code: -32603, Message: out}
+	}
+	return out, nil
 }
 
 // mismatch checks the headers a modern request mirrors from its body
