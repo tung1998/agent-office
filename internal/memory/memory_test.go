@@ -4,6 +4,7 @@ import (
 	"context"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/tung1998/agent-office/internal/memory"
@@ -150,5 +151,38 @@ func TestReviewLinks(t *testing.T) {
 	}
 	if list, _ := st.Memories().List(ctx, pid, "agt_1"); len(list) != 0 {
 		t.Fatalf("notes = %+v", list)
+	}
+}
+
+// Two concurrent CompactTopic calls on the same topic must not both run:
+// one must skip rather than re-append the other's already-compacted notes
+// on top of its own.
+func TestCompactTopicConcurrent(t *testing.T) {
+	ctx := context.Background()
+	st, pid := open(t)
+	start := make(chan struct{})
+	svc := memory.New(st, func(_ context.Context, _, _ string, items []storage.Memory) ([]string, error) {
+		<-start // let both calls begin their read before either writes
+		return []string{"gộp " + items[0].Text}, nil
+	})
+	for i := 0; i < 5; i++ {
+		svc.Add(ctx, pid, "agt_1", strings.Repeat("x", 100)+string(rune('a'+i)), "agent", "a")
+	}
+	list, _ := st.Memories().List(ctx, pid, "agt_1")
+	for _, m := range list {
+		m.Topic, m.Summary = "chu-de", "chủ đề"
+		st.Memories().Update(ctx, m)
+	}
+
+	var wg sync.WaitGroup
+	wg.Add(2)
+	go func() { defer wg.Done(); svc.CompactTopic(ctx, pid, "agt_1", "chu-de", "race 1") }()
+	go func() { defer wg.Done(); svc.CompactTopic(ctx, pid, "agt_1", "chu-de", "race 2") }()
+	close(start)
+	wg.Wait()
+
+	after, _ := st.Memories().List(ctx, pid, "agt_1")
+	if len(after) != 1 {
+		t.Fatalf("after concurrent compaction = %+v (want 1 compacted note, not duplicated)", after)
 	}
 }

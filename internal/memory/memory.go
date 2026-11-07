@@ -304,6 +304,11 @@ func (s *Service) CompactTopic(ctx context.Context, projectID, agentID, topic, r
 	if s.compact == nil {
 		return errors.New("chưa rút gọn được: không có model")
 	}
+	key := "compact/" + projectID + "/" + agentID + "/" + topic
+	if _, busy := s.busy.LoadOrStore(key, true); busy {
+		return nil // another compaction of this topic is already under way
+	}
+	defer s.busy.Delete(key)
 	list, err := s.store.Memories().List(ctx, projectID, agentID)
 	if err != nil {
 		return err
