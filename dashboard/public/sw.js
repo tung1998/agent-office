@@ -9,13 +9,17 @@ function request(act, x) {
   switch (act) {
     case 'approve':
     case 'reject':
-      return [(x.kind === 'patch' ? '/api/patches/' : '/api/actions/') + x.id + '/' + act, act === 'reject' ? { skip: true } : {}]
+      return [(x.kind === 'patch' ? '/api/patches/' : '/api/actions/') + x.id + '/' + act, 'POST', act === 'reject' ? { skip: true } : {}]
     case 'seen':
-      return ['/api/conversations/' + x.id + '/seen', { seen: true }]
+      return ['/api/conversations/' + x.id + '/seen', 'POST', { seen: true }]
     case 'continue':
-      return ['/api/conversations/' + x.id + '/messages', { text: x.prompt }]
+      return ['/api/conversations/' + x.id + '/messages', 'POST', { text: x.prompt }]
     case 'dismiss':
-      return ['/api/incidents/dismiss', { key: x.key }]
+      return ['/api/incidents/dismiss', 'POST', { key: x.key }]
+    case 'retryNow':
+      return ['/api/conversations/' + x.id + '/retry-now', 'POST', {}]
+    case 'cancelRetry':
+      return ['/api/conversations/' + x.id + '/retry', 'DELETE', null]
   }
   return null
 }
@@ -29,8 +33,11 @@ self.addEventListener('notificationclick', (event) => {
     const req = request(event.action, x)
     if (req) {
       try {
-        const res = await fetch(req[0], {
-          method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(req[1])
+        const [url, method, body] = req
+        const res = await fetch(url, {
+          method, credentials: 'same-origin',
+          headers: body === null ? undefined : { 'Content-Type': 'application/json' },
+          body: body === null ? undefined : JSON.stringify(body)
         })
         if (res.ok) return // done: the notification is gone, nothing more to show
         if (res.status === 409) { // decided first elsewhere (or by office on its own): said so, nothing to open
