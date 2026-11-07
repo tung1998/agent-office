@@ -342,6 +342,7 @@ const statusText = (s: string) => (s === 'ok' ? t('prov.statusOk') : s === 'erro
       <!-- the office-wide limit and the model prices (each project's budget is on the project) -->
       <OfficeBudget v-if="isAdmin" />
       <LimitAlert v-if="isAdmin" />
+      <IncidentAlert v-if="isAdmin" />
       <CliUpdates v-if="isAdmin" />
       <LanguageSetting v-if="isAdmin" />
       <div v-if="providers.length" class="grid grid-cols-2 overflow-hidden rounded-lg border border-(--ui-border) md:grid-cols-4">

@@ -231,6 +231,9 @@ func New(cfg Config) http.Handler {
 	if cfg.Peers != nil {
 		s.peerRoutes(mux)
 	}
+	if cfg.Store != nil && cfg.Channels != nil {
+		go s.pollIncidentAlertsLoop(context.Background()) // runs the office's whole life (ADR: incident alerts out of the dashboard)
+	}
 
 	return gzipJSON(s.securityHeaders(s.csrf(mux)))
 }

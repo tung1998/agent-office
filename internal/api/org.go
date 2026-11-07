@@ -85,6 +85,8 @@ func (s *server) orgRoutes(mux *http.ServeMux) {
 	mux.Handle("GET /api/limit-alert", admin(s.getLimitAlert))
 	mux.Handle("PUT /api/limit-alert", admin(s.setLimitAlert))
 	mux.Handle("POST /api/limit-alert/test", admin(s.testLimitAlert))
+	mux.Handle("GET /api/incident-alert", admin(s.getIncidentAlert))
+	mux.Handle("PUT /api/incident-alert", admin(s.setIncidentAlert))
 
 	mux.Handle("GET /api/agent-library", auth(s.agentLibrary))
 	mux.Handle("GET /api/agent-library/{set}/{key}", auth(s.agentLibraryItem))
