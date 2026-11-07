@@ -438,9 +438,51 @@ func (m *Manager) lookPath(bin string) string {
 	return ""
 }
 
+// Duplicates finds every other executable also on PATH under the same
+// command name as bin (lookPath stops at the first; this looks at all of
+// them), excluding bin itself. More than one install of the same CLI is the
+// common way an update of one leaves the copy office actually runs
+// untouched and still broken (an npm update reaching a different global
+// prefix than the one earlier on PATH, a stray Homebrew copy ahead of a
+// native install, …).
+func (m *Manager) Duplicates(bin string) []string {
+	name := filepath.Base(bin)
+	var out []string
+	seen := map[string]bool{filepath.Clean(bin): true}
+	for _, kv := range m.env {
+		p, ok := strings.CutPrefix(kv, "PATH=")
+		if !ok {
+			continue
+		}
+		for _, dir := range filepath.SplitList(p) {
+			f := filepath.Join(dir, name)
+			if seen[f] {
+				continue
+			}
+			if st, err := os.Stat(f); err == nil && !st.IsDir() && st.Mode()&0o111 != 0 {
+				seen[f] = true
+				out = append(out, f)
+			}
+		}
+	}
+	return out
+}
+
 func (m *Manager) find(id string) (Tool, bool) {
 	for _, t := range m.tools {
 		if t.ID == id {
+			return t, true
+		}
+	}
+	return Tool{}, false
+}
+
+// findByBin finds the tool whose command is bin (its ID when they match, as
+// for codex/claude/gemini, else its Bin — antigravity's ID is "antigravity"
+// but its command is "agy").
+func (m *Manager) findByBin(bin string) (Tool, bool) {
+	for _, t := range m.tools {
+		if t.Bin == bin {
 			return t, true
 		}
 	}

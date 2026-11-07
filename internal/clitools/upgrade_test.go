@@ -327,6 +327,30 @@ printf '#!/bin/sh\necho codex-cli 0.167.0\n' > "`+real+`"
 	}
 }
 
+// An update command that runs and exits 0 but leaves the CLI on the same
+// version it had, with another install of the same command on PATH, is not
+// "done": the one office actually runs may be the stray copy the update
+// never touched, not whatever the update command believed it updated.
+func TestUpdateFlagsVersionUnchangedWithDuplicate(t *testing.T) {
+	m, dir1 := testManager(t)
+	npmTool(t, dir1, "codex", "@openai/codex", "0.166.0")
+	writeBin(t, dir1, "npm", "#!/bin/sh\n# runs, exits 0, changes nothing\nexit 0\n")
+	dir2 := t.TempDir()
+	for i, kv := range m.env {
+		if after, ok := strings.CutPrefix(kv, "PATH="); ok {
+			m.env[i] = "PATH=" + after + string(os.PathListSeparator) + dir2
+		}
+	}
+	writeBin(t, dir2, "codex", "#!/bin/sh\necho codex-cli 0.165.0\n")
+	if _, err := m.UpdateNow("codex", "an"); err != nil {
+		t.Fatal(err)
+	}
+	v := waitUpgrade(t, m, "codex", "done", "failed", "rolled_back")
+	if v.State != "failed" || v.From != v.To || !strings.Contains(v.Note, "bản khác") {
+		t.Fatalf("update shadowed by a duplicate = %+v, want failed naming the other install", v)
+	}
+}
+
 // Homebrew cannot install an older version: a broken update says how to fix it.
 func TestBrokenBrewUpdateTellsTheFix(t *testing.T) {
 	m, dir := testManager(t)
@@ -567,5 +591,62 @@ func TestLatestKeptWhenReadFails(t *testing.T) {
 	}
 	if calls.Load() == n {
 		t.Fatal("a failed read was not tried again soon")
+	}
+}
+
+// InstallFixFor reads how the binary itself was installed (updateMethod),
+// not a static "recommended" flag: an npm-installed codex (as in the real
+// codex-darwin-arm64 ENOENT seen in failure_digest — an npm package missing
+// its platform binary) must get the npm fix, a Homebrew one the brew fix.
+// Naming the wrong method would install an unused second copy and leave the
+// real, broken one in place.
+func TestInstallFixFor(t *testing.T) {
+	m, _ := testManager(t)
+	npm := "/Users/x/.nvm/versions/node/v25.9.0/lib/node_modules/@openai/codex/node_modules/@openai/codex-darwin-arm64/vendor/aarch64-apple-darwin/codex/codex"
+	if got := m.InstallFixFor(npm); !strings.Contains(got, "npm install -g @openai/codex") {
+		t.Fatalf("npm-installed codex: got %q, want the npm command", got)
+	}
+	if strings.Contains(m.InstallFixFor(npm), "brew") {
+		t.Fatalf("npm-installed codex must not get a brew fix")
+	}
+	brew := "/opt/homebrew/Caskroom/codex/0.166.0/bin/codex"
+	if got := m.InstallFixFor(brew); !strings.Contains(got, "brew") || !strings.Contains(got, "codex") {
+		t.Fatalf("Homebrew-installed codex: got %q, want the brew cask command", got)
+	}
+	if strings.Contains(m.InstallFixFor(brew), "npm") {
+		t.Fatalf("Homebrew-installed codex must not get an npm fix")
+	}
+	// a path that says nothing about how it was installed: the Recommended
+	// method (claude's is its native installer, not npm)
+	if got := m.InstallFixFor("/x/claude"); !strings.Contains(got, "install.sh") {
+		t.Fatalf("unresolvable claude path: got %q, want the native installer fallback", got)
+	}
+	if got := m.InstallFixFor("/x/no-such-tool"); got != "" {
+		t.Fatalf("unknown tool: got %q, want \"\"", got)
+	}
+}
+
+// Duplicates names every other install of the same command on PATH, not
+// just the first lookPath returns: the common way a reinstall leaves the
+// copy office actually runs untouched and still broken.
+func TestDuplicates(t *testing.T) {
+	m, dir1 := testManager(t)
+	writeBin(t, dir1, "codex", "#!/bin/sh\necho codex-cli 0.166.0\n")
+	dir2 := t.TempDir()
+	for i, kv := range m.env {
+		if after, ok := strings.CutPrefix(kv, "PATH="); ok {
+			m.env[i] = "PATH=" + after + string(os.PathListSeparator) + dir2
+		}
+	}
+	writeBin(t, dir2, "codex", "#!/bin/sh\necho codex-cli 0.165.0\n")
+	active := filepath.Join(dir1, "codex")
+	got := m.Duplicates(active)
+	want := filepath.Join(dir2, "codex")
+	if len(got) != 1 || got[0] != want {
+		t.Fatalf("Duplicates(%q) = %v, want [%q]", active, got, want)
+	}
+	// asked about the other copy instead: it finds dir1's, excluding itself
+	if got := m.Duplicates(want); len(got) != 1 || got[0] != active {
+		t.Fatalf("Duplicates(%q) = %v, want [%q]", want, got, active)
 	}
 }

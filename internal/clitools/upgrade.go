@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -311,6 +312,19 @@ func (m *Manager) runUpgrade(ctx context.Context, t Tool, meth Method, u *upgrad
 		delete(m.bad, t.ID)
 	}
 	m.mu.Unlock()
+	// the update command ran and the CLI still starts, but on the same
+	// version as before: another install of the same command, earlier on
+	// PATH, likely shadows the one just updated (npm reaching a different
+	// global prefix than the one lookPath finds, a stray Homebrew copy
+	// ahead of a native install, …) — not "done", the broken copy may still
+	// be the one every run actually uses
+	if jv.State == "succeeded" && to != "" && to == from {
+		if dups := m.Duplicates(m.lookPath(t.Bin)); len(dups) > 0 {
+			end("failed", fmt.Sprintf("đã chạy lệnh cập nhật nhưng %s vẫn ở bản %s: có bản khác đứng trước trên PATH, có thể che bản vừa cập nhật: %s",
+				t.Bin, to, strings.Join(dups, ", ")))
+			return
+		}
+	}
 	if jv.State != "succeeded" { // the command failed but the CLI still starts: the old one is kept
 		end("failed", cmpOr(jv.Error, "lệnh cập nhật lỗi")+" (CLI vẫn chạy được)")
 		return
@@ -385,6 +399,27 @@ func manualFix(t Tool) string {
 		}
 	}
 	return ""
+}
+
+// InstallFixFor is the command that reinstalls the CLI whose command is
+// bin's last path element, the way bin itself is really installed —
+// updateMethod, read from its own path, the same check an update uses — so
+// an npm-installed binary gets the npm command and a Homebrew one gets the
+// brew command, never a guess from a static "recommended" flag; it falls
+// back to the Method marked Recommended only when bin's path does not say
+// (bin not found, or installed some other way). Wired into internal/llm
+// (SetInstallFix) so a broken CLI's error names the fix that reaches the
+// actual broken binary: naming the wrong install method installs an unused
+// second copy and leaves the real one still broken.
+func (m *Manager) InstallFixFor(bin string) string {
+	t, ok := m.findByBin(filepath.Base(bin))
+	if !ok {
+		return ""
+	}
+	if meth, ok := updateMethod(t, bin); ok {
+		return meth.Command
+	}
+	return manualFix(t)
 }
 
 // version is the x.y.z the installed tool says ("" when it does not start).

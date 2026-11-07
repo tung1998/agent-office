@@ -50,6 +50,65 @@ exit 1
 	}
 }
 
+// When SetInstallFix is wired (to clitools.Manager.InstallFixFor in
+// production), the fix it names replaces the npm-only guess with whatever
+// bin's own path says — it must still say npm for an npm install (as for
+// the real codex-darwin-arm64 ENOENT seen in failure_digest, an npm package
+// missing its platform binary) and say brew for a Homebrew one; it must
+// never swap an npm-broken binary's fix for a Homebrew command, which would
+// install an unused second copy and leave the real one still broken.
+func TestCLIBrokenErrorUsesInstallFix(t *testing.T) {
+	t.Cleanup(func() { SetInstallFix(nil) })
+	SetInstallFix(func(bin string) string {
+		switch {
+		case strings.Contains(bin, "/Caskroom/"):
+			return "brew upgrade --cask codex"
+		case strings.Contains(bin, "/node_modules/"):
+			return "npm install -g @openai/codex"
+		}
+		return ""
+	})
+	err := CLIBrokenError("/opt/homebrew/Caskroom/codex/0.166.0/bin/codex", "spawn .../codex ENOENT")
+	if !strings.Contains(err.Error(), "brew upgrade --cask codex") {
+		t.Fatalf("err = %q: want the wired fix", err)
+	}
+	if strings.Contains(err.Error(), "npm install") {
+		t.Fatalf("err = %q: must not suggest npm for a Homebrew-installed binary", err)
+	}
+	// the real ENOENT seen in production: an npm install, not Homebrew
+	err = CLIBrokenError("/Users/me/.nvm/versions/node/v25.9.0/lib/node_modules/@openai/codex/node_modules/@openai/codex-darwin-arm64/vendor/aarch64-apple-darwin/codex/codex",
+		"spawn .../codex ENOENT")
+	if !strings.Contains(err.Error(), "npm install -g @openai/codex") {
+		t.Fatalf("err = %q: want the npm fix for an npm-installed binary", err)
+	}
+	if strings.Contains(err.Error(), "brew") {
+		t.Fatalf("err = %q: must not suggest brew for an npm-installed binary", err)
+	}
+	// a name installFix does not know about: falls back to the npm guess
+	err = CLIBrokenError("/x/gemini", "spawn .../gemini ENOENT")
+	if !strings.Contains(err.Error(), "npm install -g @google/gemini-cli") {
+		t.Fatalf("err = %q: want the fallback guess", err)
+	}
+}
+
+// When SetDuplicates is wired (to clitools.Manager.Duplicates), another
+// install of the same CLI found on PATH is named in the error: reinstalling
+// without knowing about it can still leave the broken one in front on PATH.
+func TestCLIBrokenErrorNamesDuplicates(t *testing.T) {
+	t.Cleanup(func() { SetDuplicates(nil) })
+	SetDuplicates(func(bin string) []string { return []string{"/opt/homebrew/bin/codex"} })
+	err := CLIBrokenError("/Users/x/.nvm/.../node_modules/@openai/codex/.../codex", "spawn .../codex ENOENT")
+	if !strings.Contains(err.Error(), "/opt/homebrew/bin/codex") {
+		t.Fatalf("err = %q: want the other install named", err)
+	}
+	// none found: no mention of duplicates
+	SetDuplicates(func(bin string) []string { return nil })
+	err = CLIBrokenError("/x/codex", "spawn .../codex ENOENT")
+	if strings.Contains(err.Error(), "bản khác") {
+		t.Fatalf("err = %q: no duplicates found, should not mention any", err)
+	}
+}
+
 // A run's folder that is gone fails the start with ENOENT too: the run's
 // problem, not a broken CLI.
 func TestStartErrorMissingDir(t *testing.T) {

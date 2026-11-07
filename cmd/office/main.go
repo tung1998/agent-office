@@ -119,6 +119,8 @@ func openApp(ctx context.Context, h home.Home) (*app, error) {
 		cli = clitools.NewManagerWithPath(p)
 	}
 	provs.SetBinResolver(cli.LookPath)
+	llm.SetInstallFix(cli.InstallFixFor)
+	llm.SetDuplicates(cli.Duplicates)
 	provs.SetAccountsDir(filepath.Join(h.Dir, "accounts"))
 	return &app{home: h, store: st, auth: auth.NewService(st, auth.Options{}), providers: provs, team: team.NewService(st, wf), workflows: wf, usage: u, cli: cli}, nil
 }
