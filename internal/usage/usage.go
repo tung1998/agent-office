@@ -275,6 +275,7 @@ type Summary struct {
 	ByDay        []storage.UsageRow `json:"by_day"`
 	ByProject    []storage.UsageRow `json:"by_project"`
 	ByModel      []storage.UsageRow `json:"by_model"`
+	ByAgent      []storage.UsageRow `json:"by_agent"`
 	ProjectToday map[string]float64 `json:"project_today"`
 	Settings     Settings           `json:"settings"`
 	Prices       map[string]Price   `json:"default_prices"`
@@ -319,6 +320,9 @@ func (s *Service) Summarize(ctx context.Context, days int) (Summary, error) {
 	if out.ByModel, err = s.store.Runs().Aggregate(ctx, since, "model", s.loc); err != nil {
 		return out, err
 	}
+	if out.ByAgent, err = s.store.Runs().Aggregate(ctx, since, "agent", s.loc); err != nil {
+		return out, err
+	}
 	for id := range st.ProjectLimits {
 		if v, err := s.store.Runs().Spent(ctx, today, id); err == nil {
 			out.ProjectToday[id] = v
@@ -326,6 +330,17 @@ func (s *Service) Summarize(ctx context.Context, days int) (Summary, error) {
 	}
 	sort.SliceStable(out.ByProject, func(i, j int) bool { return out.ByProject[i].CostUSD > out.ByProject[j].CostUSD })
 	return out, nil
+}
+
+// Trend is the cost/latency chart data per day, broken down by "model" or
+// "agent": spotting a prompt or model change driving cost or latency up
+// before it trips a budget cap.
+func (s *Service) Trend(ctx context.Context, days int, by string) ([]storage.UsageTrendRow, error) {
+	if days <= 0 || days > 90 {
+		days = 30
+	}
+	since := s.StartOfDay().AddDate(0, 0, -days+1)
+	return s.store.Runs().Trend(ctx, since, by, s.loc)
 }
 
 func asBudget(err error, target **BudgetError) bool {

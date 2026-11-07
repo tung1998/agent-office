@@ -386,13 +386,24 @@ type RunFilter struct {
 
 // UsageRow is spend aggregated by one dimension.
 type UsageRow struct {
-	Key          string  `json:"key"` // day (YYYY-MM-DD), project id, or model
-	Label        string  `json:"label"`
-	Runs         int     `json:"runs"`
-	InputTokens  int     `json:"input_tokens"`
-	OutputTokens int     `json:"output_tokens"`
-	CostUSD      float64 `json:"cost_usd"`
-	UnknownCost  int     `json:"unknown_cost"` // runs whose cost is unknown
+	Key           string  `json:"key"` // day (YYYY-MM-DD), project id, model, or agent id
+	Label         string  `json:"label"`
+	Runs          int     `json:"runs"`
+	InputTokens   int     `json:"input_tokens"`
+	OutputTokens  int     `json:"output_tokens"`
+	CostUSD       float64 `json:"cost_usd"`
+	UnknownCost   int     `json:"unknown_cost"`    // runs whose cost is unknown
+	AvgDurationMS int64   `json:"avg_duration_ms"` // mean run duration
+}
+
+// UsageTrendRow is one (day, group) point of a cost/latency trend.
+type UsageTrendRow struct {
+	Day           string  `json:"day"`
+	Key           string  `json:"key"` // model or agent id
+	Label         string  `json:"label"`
+	Runs          int     `json:"runs"`
+	CostUSD       float64 `json:"cost_usd"`
+	AvgDurationMS int64   `json:"avg_duration_ms"`
 }
 
 // RunRepo stores model calls.
@@ -406,8 +417,11 @@ type RunRepo interface {
 	// Errors lists the failed runs of f, newest first (at most f.Limit, 2000
 	// by default, 5000 at most): what errdigest groups (ADR-253).
 	Errors(ctx context.Context, f RunFilter) ([]Run, error)
-	// Aggregate groups runs since t by "day" (in loc), "project" or "model".
+	// Aggregate groups runs since t by "day" (in loc), "project", "model" or "agent".
 	Aggregate(ctx context.Context, since time.Time, by string, loc *time.Location) ([]UsageRow, error)
+	// Trend groups runs since t by day (in loc) and by, for a cost/latency
+	// chart per "model" or "agent" over time.
+	Trend(ctx context.Context, since time.Time, by string, loc *time.Location) ([]UsageTrendRow, error)
 }
 
 // SettingRepo stores JSON settings.

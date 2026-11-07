@@ -38,9 +38,34 @@ func (s *server) usageSummary(w http.ResponseWriter, r *http.Request) {
 				sum.Today += c
 			}
 		}
-		sum.ByProject, sum.ProjectToday, sum.ByDay, sum.ByModel = rows, today, []storage.UsageRow{}, []storage.UsageRow{}
+		sum.ByProject, sum.ProjectToday, sum.ByDay, sum.ByModel, sum.ByAgent = rows, today, []storage.UsageRow{}, []storage.UsageRow{}, []storage.UsageRow{}
 	}
 	writeJSON(w, http.StatusOK, sum)
+}
+
+// usageTrend is the cost/latency-over-time chart on the Chi phí page,
+// scoped to office-wide viewers only since it isn't broken down per project.
+func (s *server) usageTrend(w http.ResponseWriter, r *http.Request) {
+	sc, err := s.scope(r)
+	if err != nil {
+		s.internal(w, r, err)
+		return
+	}
+	if !sc.all {
+		writeJSON(w, http.StatusOK, map[string]any{"rows": []storage.UsageTrendRow{}})
+		return
+	}
+	days, _ := strconv.Atoi(r.URL.Query().Get("days"))
+	by := r.URL.Query().Get("by")
+	if by != "model" && by != "agent" {
+		by = "model"
+	}
+	rows, err := s.cfg.Usage.Trend(r.Context(), days, by)
+	if err != nil {
+		s.internal(w, r, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"rows": rows})
 }
 
 type runDTO struct {

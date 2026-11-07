@@ -222,6 +222,7 @@ func (s *server) orgRoutes(mux *http.ServeMux) {
 	}
 	if s.cfg.Usage != nil {
 		mux.Handle("GET /api/usage/summary", auth(s.usageSummary))
+		mux.Handle("GET /api/usage/trend", auth(s.usageTrend))
 		mux.Handle("GET /api/usage/runs", auth(s.usageRuns))
 		mux.Handle("PUT /api/usage/settings", admin(s.usageSettings))
 		mux.Handle("GET /api/projects/{id}/budget", auth(s.projectBudget))

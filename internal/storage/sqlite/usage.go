@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -154,13 +155,16 @@ func (r runRepo) Aggregate(ctx context.Context, since time.Time, by string, loc 
 		return r.group(ctx, since, `COALESCE(r.project_id, '')`, `COALESCE(p.name, '')`, `LEFT JOIN repos p ON p.id = r.project_id`)
 	case "model":
 		return r.group(ctx, since, `r.model`, `r.provider_name`, ``)
+	case "agent":
+		return r.group(ctx, since, `COALESCE(r.agent_id, '')`, `COALESCE(a.name, '')`, `LEFT JOIN agents a ON a.id = r.agent_id`)
 	}
 	return nil, fmt.Errorf("aggregate by %q", by)
 }
 
 func (r runRepo) group(ctx context.Context, since time.Time, key, label, join string) ([]storage.UsageRow, error) {
 	rows, err := r.db.QueryContext(ctx, `SELECT `+key+`, MAX(`+label+`), COUNT(*), SUM(r.input_tokens), SUM(r.output_tokens),
-		COALESCE(SUM(r.cost_usd), 0), SUM(CASE WHEN r.cost_usd IS NULL AND r.status = 'ok' THEN 1 ELSE 0 END)
+		COALESCE(SUM(r.cost_usd), 0), SUM(CASE WHEN r.cost_usd IS NULL AND r.status = 'ok' THEN 1 ELSE 0 END),
+		COALESCE(AVG(r.duration_ms), 0)
 		FROM runs r `+join+` WHERE r.created_at >= ? GROUP BY 1 ORDER BY 6 DESC`, fmtTime(since))
 	if err != nil {
 		return nil, err
@@ -169,12 +173,92 @@ func (r runRepo) group(ctx context.Context, since time.Time, key, label, join st
 	var out []storage.UsageRow
 	for rows.Next() {
 		var u storage.UsageRow
-		if err := rows.Scan(&u.Key, &u.Label, &u.Runs, &u.InputTokens, &u.OutputTokens, &u.CostUSD, &u.UnknownCost); err != nil {
+		if err := rows.Scan(&u.Key, &u.Label, &u.Runs, &u.InputTokens, &u.OutputTokens, &u.CostUSD, &u.UnknownCost, &u.AvgDurationMS); err != nil {
 			return nil, err
 		}
 		out = append(out, u)
 	}
 	return out, rows.Err()
+}
+
+// Trend groups runs since t by day (in loc) and by ("model" or "agent"), for
+// the cost/latency chart per group over time on the Chi phí page. Days are
+// bucketed in Go so they follow the office's timezone, like
+// Aggregate("day", ...); unlike that method, the SQL only selects the few
+// columns the chart needs instead of full Run rows, and resolves the group's
+// display name (agent name, provider name) the same way Aggregate does.
+func (r runRepo) Trend(ctx context.Context, since time.Time, by string, loc *time.Location) ([]storage.UsageTrendRow, error) {
+	if loc == nil {
+		loc = time.UTC
+	}
+	var key, label, join string
+	switch by {
+	case "model":
+		key, label, join = `r.model`, `r.provider_name`, ``
+	case "agent":
+		key, label, join = `COALESCE(r.agent_id, '')`, `COALESCE(a.name, '')`, `LEFT JOIN agents a ON a.id = r.agent_id`
+	default:
+		return nil, fmt.Errorf("trend by %q", by)
+	}
+	rows, err := r.db.QueryContext(ctx, `SELECT r.created_at, `+key+`, `+label+`, r.cost_usd, r.duration_ms
+		FROM runs r `+join+` WHERE r.created_at >= ?`, fmtTime(since))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	type agg struct {
+		runs  int
+		cost  float64
+		durMS int64
+	}
+	byDayKey := map[[2]string]*agg{}
+	labels := map[string]string{}
+	for rows.Next() {
+		var created, k, lbl string
+		var cost sql.NullFloat64
+		var durMS int64
+		if err := rows.Scan(&created, &k, &lbl, &cost, &durMS); err != nil {
+			return nil, err
+		}
+		ts, err := parseTime(created)
+		if err != nil {
+			return nil, err
+		}
+		day := ts.In(loc).Format("2006-01-02")
+		if existing, ok := labels[k]; !ok || existing == "" {
+			labels[k] = lbl
+		}
+		a, ok := byDayKey[[2]string{day, k}]
+		if !ok {
+			a = &agg{}
+			byDayKey[[2]string{day, k}] = a
+		}
+		a.runs++
+		if cost.Valid {
+			a.cost += cost.Float64
+		}
+		a.durMS += durMS
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	out := make([]storage.UsageTrendRow, 0, len(byDayKey))
+	for dk, a := range byDayKey {
+		var avg int64
+		if a.runs > 0 {
+			avg = a.durMS / int64(a.runs)
+		}
+		out = append(out, storage.UsageTrendRow{Day: dk[0], Key: dk[1], Label: labels[dk[1]], Runs: a.runs, CostUSD: a.cost, AvgDurationMS: avg})
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].Day != out[j].Day {
+			return out[i].Day < out[j].Day
+		}
+		return out[i].Key < out[j].Key
+	})
+	return out, nil
 }
 
 func (r runRepo) Since(ctx context.Context, t time.Time) ([]storage.Run, error) {
