@@ -8,9 +8,11 @@ import (
 	"slices"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/tung1998/agent-office/internal/prompts"
 	"github.com/tung1998/agent-office/internal/storage"
+	"github.com/tung1998/agent-office/internal/textrank"
 )
 
 // A Burn's scan (ADR-130) is a piece not claimed (no kind): in its own chat
@@ -324,6 +326,9 @@ func scanPrompt(b storage.BurnSession, it storage.BurnItem, items []storage.Burn
 	var mine, rest []string
 	for _, g := range groupByPiece(pieces) {
 		line := fmt.Sprintf("[%s%s] %s", g.it.Status, times(g.n), oneLine(g.it.Title, 120))
+		if g.it.Status == "found" && g.it.Kind != KindQuest {
+			line = fmt.Sprintf("[found%s %s] %s", times(g.n), g.it.ID, oneLine(g.it.Title, 120))
+		}
 		if g.it.RunBranch == b.RunBranch || openPiece(g.it.Status) {
 			mine = append(mine, line)
 		} else {
@@ -381,8 +386,8 @@ func (s *Service) record(ctx context.Context, b storage.BurnSession, from string
 		kind = "upgrade"
 	}
 	items, _ := s.store.Burn().Items(ctx, b.ID)
-	for _, it := range items { // the same piece twice: once
-		if !hunting(it) && sameTitle(it.Title, title) {
+	for _, it := range items { // the same piece twice (or once folded in): once
+		if !hunting(it) && (sameTitle(it.Title, title) || strings.Contains(strings.ToLower(it.Detail), strings.ToLower(foldMark+oneLine(questKey(title), 160)+"\n"))) {
 			return fmt.Sprintf("Đã có việc này: %s (%s).", it.ID, it.Status), nil
 		}
 	}
@@ -399,6 +404,9 @@ func (s *Service) record(ctx context.Context, b storage.BurnSession, from string
 		}
 	}
 	detail := strings.TrimSpace(in.Detail)
+	if msg, ok, err := s.fold(ctx, items, strings.TrimSpace(in.Item), title, kind, detail, priorities[strings.TrimSpace(in.Priority)]); ok || err != nil {
+		return msg, err
+	}
 	if n > 0 && why != "" { // its own earlier fail, not the run's general lessons (Reflexion, arXiv:2303.11366)
 		detail = fmt.Sprintf("Việc này đã fail trước vì: %s\n\n%s", oneLine(why, 300), detail)
 	}
@@ -415,6 +423,97 @@ func (s *Service) record(ctx context.Context, b storage.BurnSession, from string
 	s.wake(b.ProjectID) // a free slot does it
 	return "Đã ghi việc " + it.ID + ".", nil
 }
+
+// maxFolded: findings one piece holds at most (its own and those folded in),
+// so a piece stays one worker's turn.
+const maxFolded = 5
+
+// foldMark starts a finding folded into a piece's brief.
+const foldMark = "\n\n---\nGộp thêm: "
+
+// fold adds a finding to a piece still waiting (status found) instead of
+// recording a new one: into names it (one kind of flaw in several places),
+// or, with none named, a waiting piece of the same kind on the same files
+// whose title says much the same (the same finding again, worded otherwise).
+// ok: folded, msg says where.
+func (s *Service) fold(ctx context.Context, items []storage.BurnItem, into, title, kind, detail string, prio int) (msg string, ok bool, err error) {
+	var target storage.BurnItem
+	if into != "" {
+		for _, it := range items {
+			if it.ID == into {
+				target = it
+			}
+		}
+		switch {
+		case target.ID == "" || hunting(target):
+			return "", false, fmt.Errorf("không có việc %q để gộp vào", into)
+		case target.Status != "found" || target.Kind == KindQuest:
+			return "", false, fmt.Errorf("việc %s đã %s, chỉ gộp được vào việc đang chờ (found): ghi việc mới, bỏ item", into, target.Status)
+		case folded(target) >= maxFolded:
+			return "", false, fmt.Errorf("việc %s đã gộp đủ %d phát hiện: ghi việc mới, bỏ item", into, maxFolded)
+		}
+	} else {
+		mine := paths(storage.BurnItem{Title: title, Detail: detail})
+		if len(mine) == 0 {
+			return "", false, nil
+		}
+		all := [][]string{mine}
+		for _, it := range items {
+			all = append(all, paths(it))
+		}
+		amb := basenameDirs(all...)
+		for _, it := range items {
+			if it.Status == "found" && it.Kind == kind && !hunting(it) && folded(it) < maxFolded && overlapStrict(mine, paths(it), amb) && alike(title, it.Title) {
+				target = it
+				break
+			}
+		}
+		if target.ID == "" {
+			return "", false, nil
+		}
+	}
+	target.Detail = strings.TrimSpace(target.Detail) + foldMark + oneLine(title, 160) + "\n" + detail
+	if r := []rune(target.Detail); len(r) > maxQuestDetail*3 {
+		return "", false, nil // too long to hold another: a piece of its own
+	}
+	target.Priority = max(target.Priority, prio)
+	if err := s.store.Burn().UpdateItemFrom(ctx, target, "found"); err != nil {
+		if errors.Is(err, storage.ErrConflict) && into == "" {
+			return "", false, nil // taken meanwhile: a piece of its own
+		}
+		return "", false, err
+	}
+	return fmt.Sprintf("Đã gộp vào việc %s (%s), cùng loại và cùng chỗ: không ghi việc mới.", target.ID, oneLine(target.Title, 80)), true, nil
+}
+
+// alike: two titles share most of their words (diacritics and case aside,
+// over the shorter one's words): the same finding, worded otherwise.
+func alike(a, b string) bool {
+	words := func(s string) map[string]bool {
+		out := map[string]bool{}
+		for _, w := range strings.FieldsFunc(textrank.Fold(s), func(r rune) bool { return !unicode.IsLetter(r) && !unicode.IsDigit(r) }) {
+			out[w] = true
+		}
+		return out
+	}
+	x, y := words(a), words(b)
+	if len(x) > len(y) {
+		x, y = y, x
+	}
+	if len(x) < 3 {
+		return false
+	}
+	n := 0
+	for w := range x {
+		if y[w] {
+			n++
+		}
+	}
+	return n*5 >= len(x)*3 // at least 60%
+}
+
+// folded: how many findings a piece holds.
+func folded(it storage.BurnItem) int { return 1 + strings.Count(it.Detail, foldMark) }
 
 // scanDone ends a scan: what it looked at and its code map are kept, the
 // scan dropped (work, once the turn ends, lets go of its worktree).

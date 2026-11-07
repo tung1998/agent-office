@@ -445,11 +445,12 @@ func (t *Toolbox) Tools() []Tool {
 	if t.burn != nil {
 		item := map[string]any{"type": "string", "description": "Piece id (bit_…)"}
 		list = append(list,
-			Tool{Name: "burn_add", Description: "Burn: record a piece of work found, for a worker to do (no duplicates; a scan records 10 at most, the next scan goes on).", Schema: obj(map[string]any{
+			Tool{Name: "burn_add", Description: "Burn: record a piece of work found, for a worker to do (no duplicates; the same kind of flaw goes into one piece; a scan records 10 at most, the next scan goes on).", Schema: obj(map[string]any{
 				"title":    map[string]any{"type": "string", "description": "Short title"},
 				"kind":     map[string]any{"type": "string", "enum": []string{"unfinished", "upgrade", "bug", "idea"}, "description": "idea: a new feature, integration or flow"},
 				"priority": map[string]any{"type": "string", "enum": []string{"high", "normal", "low"}},
 				"detail":   map[string]any{"type": "string", "description": "The worker's brief: Where (file:line), Evidence, Fix, Verify"},
+				"item":     map[string]any{"type": "string", "description": "Optional: id of a piece still waiting (found) to add this finding to, when it is the same kind of flaw (the same pattern in another place); one worker then fixes them together"},
 			}, "title", "kind", "detail")},
 			Tool{Name: "burn_pick", Description: "Burn: pick the next piece to work on.", Schema: obj(map[string]any{"item": item}, "item")},
 			Tool{Name: "burn_skip", Description: "Burn: drop a piece not worth doing for good (permanent, never picked again). A piece that is only outside the current focus or not its turn yet: do NOT skip it, leave it in the queue.", Schema: obj(map[string]any{"item": item, "reason": map[string]any{"type": "string"}}, "item", "reason")},
