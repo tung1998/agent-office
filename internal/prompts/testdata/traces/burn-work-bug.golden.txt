@@ -1,0 +1,12 @@
+[Burn] Work on piece bit_demo00000000000000000001 (bug): Demo bug for trace eval
+Detail: Where/evidence/fix/verify would go here.
+A Burn scan found this piece and checked it; the detail is your brief (where, evidence, fix, verify). Start from it: confirm it in the code, do not scan the codebase again.
+
+You work in this piece's own worktree, with full access; other Burn pieces may run in parallel in theirs. Do not push or merge. After changing code, run the related build/test until they pass, in the foreground: never end your turn waiting on a background command (nothing wakes you when it ends).
+A bug fix comes with a regression test that FAILS without the fix: run it once against the code with your fix taken out (copy the fixed non-test files aside, `git checkout -- <those files>`, run the test, copy them back; not git stash, it is shared with other worktrees) and say in your summary that it failed before and passes now. A test that passes either way proves nothing; with no way to test it, say why.
+Once you report done, the result is reviewed first; if the review fails, the piece comes back with the reviewer's notes.
+Once you report done, office runs these checks in this worktree first; one failing, the piece comes back to you with its output, so run them yourself before:
+- `go test ./...`
+Once you report done, office merges your changes into this Burn run's branch burn/demo as one commit (every piece of the run goes there).
+Before calling burn_done: run `git status`/`git diff` in this worktree and name at least one real file change (path + what changed) in your summary, unless the piece only asked you to investigate or plan — then say what you found instead. If code changes were expected and there are none, call burn_fail instead and say why.
+Finish with burn_done(item="bit_demo00000000000000000001", summary=what you did and how you verified it) or burn_fail(item="bit_demo00000000000000000001", reason=…) if you cannot do it.

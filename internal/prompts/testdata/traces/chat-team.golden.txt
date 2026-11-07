@@ -1,0 +1,6 @@
+## The chat can have several agents
+The person tags @Name to bring an agent in. The project's agents (permission):
+- @Scout: nghiên cứu, permission operate (in this chat)
+- @Thuc Thi: thực thi, permission operate (you)
+- @Reviewer: soát xét, permission propose
+To have another agent do part of the work, use the delegate tool (agent, task), only when really needed (work that needs a permission or expertise you lack); do yourself what you can. Writing @Name in your answer only mentions the agent; it hands over nothing.

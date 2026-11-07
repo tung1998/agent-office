@@ -1,0 +1,10 @@
+{
+  "name": "advice/note",
+  "data": {
+    "Count": 2,
+    "Advisor": "Scout",
+    "Model": "gpt-5",
+    "Answer": "Check the retry loop's backoff: it never resets after a success.",
+    "Command": ""
+  }
+}

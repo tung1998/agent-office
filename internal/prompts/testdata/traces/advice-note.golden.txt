@@ -1,0 +1,5 @@
+[office advisor] This failure happened 2 times in your run. Scout (gpt-5, another vendor) advises:
+
+Check the retry loop's backoff: it never resets after a success.
+
+Do not run it again unchanged: follow the advice or change your approach. If you are still stuck, stop and tell the person what blocks you.

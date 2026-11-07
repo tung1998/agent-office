@@ -1,0 +1,19 @@
+{
+  "name": "burn/work",
+  "data": {
+    "ID": "bit_demo00000000000000000001",
+    "Kind": "bug",
+    "Title": "Demo bug for trace eval",
+    "Detail": "Where/evidence/fix/verify would go here.",
+    "Focus": "",
+    "ReviewNote": "",
+    "Branch": "burn/demo",
+    "Map": "",
+    "Lessons": "",
+    "FocusChecks": [],
+    "Verify": ["go test ./..."],
+    "Again": false,
+    "Reviewed": true,
+    "Fresh": false
+  }
+}

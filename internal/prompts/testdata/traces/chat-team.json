@@ -1,0 +1,10 @@
+{
+  "name": "chat/team",
+  "data": {
+    "Agents": [
+      { "Name": "Scout", "Role": "nghiên cứu", "Permission": "operate", "You": false, "In": true },
+      { "Name": "Thuc Thi", "Role": "thực thi", "Permission": "operate", "You": true, "In": true },
+      { "Name": "Reviewer", "Role": "soát xét", "Permission": "propose", "You": false, "In": false }
+    ]
+  }
+}
