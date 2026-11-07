@@ -64,9 +64,12 @@ func (s *server) briefRole(r *http.Request, old, a storage.Agent, also ...string
 	if last, ok := briefed.Load(a.ID); ok && now.Sub(last.(time.Time)) < briefGap {
 		return
 	}
-	briefed.Store(a.ID, now)
 	ctx := context.WithoutCancel(r.Context())
-	go func() { _ = s.cfg.Chat.Brief(ctx, a, chat.RoleChange{Changes: changes}) }()
+	go func() {
+		if err := s.cfg.Chat.Brief(ctx, a, chat.RoleChange{Changes: changes}); err == nil {
+			briefed.Store(a.ID, now)
+		}
+	}()
 }
 
 func capsOf(a storage.Agent) []string {
