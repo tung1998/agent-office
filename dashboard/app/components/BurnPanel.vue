@@ -344,24 +344,25 @@ const builderDone = computed(() => builderFeatures.value.filter(f => f.passes).l
           <p class="text-xs text-(--ui-text-dimmed)">{{ t('burn.col.empty') }}</p>
         </div>
         <div v-for="it in col.items" :key="it.id" class="space-y-2 rounded-lg border border-transparent bg-(--ui-bg-elevated)/60 p-3 text-sm transition-colors hover:border-(--ui-border)">
-          <div class="flex items-start gap-2">
-            <UIcon v-if="statusIcons[it.status]" :name="statusIcons[it.status]" class="mt-0.5 size-4 shrink-0" :class="[statusColors[it.status], it.status === 'doing' && 'animate-spin']" :title="statusTitle(it.status)" />
-            <span class="min-w-0 flex-1 leading-snug font-medium">{{ it.title }}</span>
-            <UBadge v-if="it.kind" :label="t(`burn.kind.${it.kind}`)" :color="kindColor(it.kind)" variant="subtle" size="sm" class="shrink-0" />
-            <UBadge v-else :label="t('burn.kind.hunting')" color="neutral" variant="subtle" size="sm" class="shrink-0" />
+          <!-- a small meta row on top (status, kind, when), so the title has the whole width -->
+          <div class="flex items-center gap-1.5 text-xs text-(--ui-text-dimmed)">
+            <UIcon v-if="statusIcons[it.status]" :name="statusIcons[it.status]" class="size-3.5 shrink-0" :class="[statusColors[it.status], it.status === 'doing' && 'animate-spin']" :title="statusTitle(it.status)" />
+            <UBadge v-if="it.kind" :label="t(`burn.kind.${it.kind}`)" :color="kindColor(it.kind)" variant="subtle" size="sm" />
+            <UBadge v-else :label="t('burn.kind.hunting')" color="neutral" variant="subtle" size="sm" />
+            <span class="ms-auto shrink-0 tabular-nums">{{ when(it.updated_at) }}</span>
           </div>
+          <p class="line-clamp-3 text-sm leading-snug font-medium" :title="it.title">{{ it.title }}</p>
           <ClampText v-if="it.summary" :text="it.summary" :lines="4" class="text-xs text-(--ui-text-muted)" />
           <ClampText v-else-if="it.detail" :text="it.detail" :lines="3" class="text-xs text-(--ui-text-muted)" />
           <p v-if="it.review_note" class="flex gap-1 rounded-md bg-(--ui-bg)/60 p-1.5 text-xs text-(--ui-text-muted)" :title="it.review_note">
             <UIcon name="i-lucide-scan-eye" class="mt-0.5 size-3.5 shrink-0" /><span class="line-clamp-2">{{ it.review_note }}</span>
           </p>
-          <div class="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs text-(--ui-text-dimmed)">
+          <div v-if="it.owner || it.cost_usd || it.subagents || it.status === 'review' || it.reviewed?.length" class="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs text-(--ui-text-dimmed)">
             <span v-if="it.owner" class="inline-flex items-center gap-1" :title="t('burn.owner')"><UIcon name="i-lucide-user-round" class="size-3" />{{ it.owner }}</span>
             <span v-if="it.cost_usd" class="inline-flex items-center gap-1 tabular-nums"><UIcon name="i-lucide-dollar-sign" class="size-3" />{{ it.cost_usd.toFixed(2) }}</span>
             <span v-if="it.subagents" class="inline-flex items-center gap-1"><UIcon name="i-lucide-users" class="size-3" />{{ t('burn.subagents', { n: it.subagents }) }}</span>
             <span v-if="it.status === 'review'" class="inline-flex items-center gap-1 text-(--ui-info)"><UIcon name="i-lucide-scan-eye" class="size-3" />{{ t('burn.review.waiting') }}</span>
             <span v-else-if="it.reviewed?.length" class="inline-flex items-center gap-1 text-(--ui-success)"><UIcon name="i-lucide-check" class="size-3" />{{ t('burn.review.passed', { stages: it.reviewed.map(v => t(`burn.review.${v}`)).join(', ') }) }}</span>
-            <span class="ms-auto">{{ when(it.updated_at) }}</span>
           </div>
           <div v-if="hasReviews(it) || ['found', 'skipped', 'failed', 'queued', 'paused', 'review'].includes(it.status) || (it.worktree && ['done', 'failed', 'skipped'].includes(it.status))" class="flex flex-wrap items-center gap-1 border-t border-(--ui-border)/60 pt-2">
             <UButton v-if="hasReviews(it)" size="xs" color="neutral" variant="ghost" icon="i-lucide-scan-eye" :label="t('burn.review.view')" @click="openReviews(it)" />
