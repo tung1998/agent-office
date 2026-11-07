@@ -64,6 +64,7 @@ Không xuất API key, tài khoản, phiên đăng nhập. Chạy lại sẽ c�
 	}
 	cmd.Flags().StringVar(&file, "file", "", "xuất ra một file JSON thay vì thư mục")
 	cmd.Flags().BoolVar(&commit, "commit", false, "git add + commit thư mục sau khi xuất")
+	cmd.MarkFlagsMutuallyExclusive("file", "commit")
 	return cmd
 }
 
