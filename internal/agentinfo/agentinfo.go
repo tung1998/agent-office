@@ -197,8 +197,8 @@ func errorKey(msg, status string) string {
 	if msg == "" {
 		return status
 	}
-	if len(msg) > 120 {
-		msg = msg[:120] + "…"
+	if r := []rune(msg); len(r) > 120 {
+		msg = string(r[:120]) + "…"
 	}
 	return msg
 }

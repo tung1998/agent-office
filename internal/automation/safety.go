@@ -61,8 +61,8 @@ func hiddenFindings(name, content string) []Finding {
 		line := strings.Count(content[:at], "\n") + 1
 		ex := strings.TrimSpace(strings.Split(content[at:], "\n")[0])
 		ex = strconv.QuoteToGraphic(ex)
-		if len(ex) > 160 {
-			ex = ex[:160] + "…"
+		if r := []rune(ex); len(r) > 160 {
+			ex = string(r[:160]) + "…"
 		}
 		out = append(out, Finding{Rule: id, Severity: severity, Message: message + " (" + name + ")", Line: line, Excerpt: ex})
 	}
@@ -117,8 +117,8 @@ func CheckContent(files map[string]string) []Finding {
 			for _, r := range rules {
 				if r.re.MatchString(line) {
 					ex := strings.TrimSpace(line)
-					if len(ex) > 160 {
-						ex = ex[:160] + "…"
+					if rs := []rune(ex); len(rs) > 160 {
+						ex = string(rs[:160]) + "…"
 					}
 					out = append(out, Finding{Rule: r.id, Severity: r.severity, Message: r.message + " (" + name + ")", Line: i + 1, Excerpt: ex})
 				}

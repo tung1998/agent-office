@@ -51,8 +51,8 @@ func (c *Client) Embed(ctx context.Context, texts []string) ([][]float32, error)
 	}
 	if resp.StatusCode >= 300 { // the body, never the request (it holds the key)
 		msg := strings.TrimSpace(string(raw))
-		if len(msg) > 300 {
-			msg = msg[:300] + "…"
+		if r := []rune(msg); len(r) > 300 {
+			msg = string(r[:300]) + "…"
 		}
 		return nil, fmt.Errorf("embeddings: HTTP %d: %s", resp.StatusCode, msg)
 	}

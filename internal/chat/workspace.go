@@ -199,8 +199,8 @@ func (w Workspace) Search(pattern, glob string) (string, error) {
 				return nil
 			}
 			if re.MatchString(line) {
-				if len(line) > 240 {
-					line = line[:240] + "…"
+				if r := []rune(line); len(r) > 240 {
+					line = string(r[:240]) + "…"
 				}
 				fmt.Fprintf(&b, "%s:%d: %s\n", rel, ln, strings.TrimSpace(line))
 				hits++

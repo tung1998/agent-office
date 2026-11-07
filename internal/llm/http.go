@@ -65,8 +65,8 @@ func errorMessage(raw []byte) string {
 		return e.Error.Message
 	}
 	s := strings.TrimSpace(string(raw))
-	if len(s) > 300 {
-		s = s[:300] + "…"
+	if r := []rune(s); len(r) > 300 {
+		s = string(r[:300]) + "…"
 	}
 	return s
 }

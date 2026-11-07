@@ -136,8 +136,8 @@ func searchRipgrep(root, pattern, glob string) (string, bool) {
 	var b strings.Builder
 	for _, h := range hits {
 		line := h.text
-		if len(line) > 240 {
-			line = line[:240] + "…"
+		if r := []rune(line); len(r) > 240 {
+			line = string(r[:240]) + "…"
 		}
 		fmt.Fprintf(&b, "%s:%d: %s\n", h.file, h.ln, strings.TrimSpace(line))
 	}

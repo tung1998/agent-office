@@ -219,8 +219,8 @@ func (s *Sampler) read(ctx context.Context, p *process.Process, ppid int32, dept
 	out := Proc{PID: p.Pid, PPID: ppid, Depth: depth}
 	out.Name, _ = p.NameWithContext(ctx)
 	if c, err := p.CmdlineWithContext(ctx); err == nil {
-		if len(c) > 300 {
-			c = c[:300] + "…"
+		if r := []rune(c); len(r) > 300 {
+			c = string(r[:300]) + "…"
 		}
 		out.Cmd = c
 	}

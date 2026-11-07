@@ -75,8 +75,8 @@ func CLIBrokenError(bin, detail string) error {
 	if i := strings.IndexByte(detail, '\n'); i >= 0 {
 		detail = strings.TrimSpace(detail[:i])
 	}
-	if len(detail) > 200 {
-		detail = detail[:200] + "…"
+	if r := []rune(detail); len(r) > 200 {
+		detail = string(r[:200]) + "…"
 	}
 	fix := "cài lại CLI"
 	c := cliInstall[name]
