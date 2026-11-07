@@ -130,9 +130,12 @@ function openReviews(it: Item) {
   reviewTab.value = chatTabs(it).at(-1) ?? 'work' // the latest
 }
 // the settings in tabs, review set up in its own tab (no separate page)
-const settingsTab = ref('plan')
-const settingsTabs = computed(() => (['plan', 'work', 'who', 'review', 'check'] as const).map(v => ({ value: v, label: t(`burn.sec.${v}`) })))
-function openSettings(tab = 'plan') {
+const settingsTab = ref<'find' | 'do'>('find')
+const settingsTabs = computed(() => [
+  { value: 'find', label: t('burn.sec.find'), icon: 'i-lucide-search' },
+  { value: 'do', label: t('burn.sec.do'), icon: 'i-lucide-hammer' }
+])
+function openSettings(tab: 'find' | 'do' = 'find') {
   settingsTab.value = tab
   settingsOpen.value = true
 }
@@ -320,14 +323,14 @@ const builderDone = computed(() => builderFeatures.value.filter(f => f.passes).l
       <p v-else class="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-(--ui-text-dimmed)">
         <span>{{ t('burn.summary', { tier: t(`burn.tier.${form.model_tier}`), n: form.max_parallel }) }} · {{ t(`burn.template.${form.template}`) }}<template v-if="form.template === 'general'"> · {{ t(`burn.order.${form.order}`) }}</template></span>
         <!-- a profile named "review …" is not said twice -->
-        <template v-if="reviewSummary"><span>·</span><button type="button" class="hover:text-(--ui-text)" @click="openSettings('review')">{{ /^review\b/i.test(reviewSummary) ? reviewSummary : t('burn.review.summary', { profile: reviewSummary }) }}</button></template>
+        <template v-if="reviewSummary"><span>·</span><button type="button" class="hover:text-(--ui-text)" @click="openSettings('do')">{{ /^review\b/i.test(reviewSummary) ? reviewSummary : t('burn.review.summary', { profile: reviewSummary }) }}</button></template>
         <template v-if="burn?.run_branch"><span>·</span><button type="button" class="font-mono hover:text-(--ui-text)" :title="burn.run_tree ? t('burn.copyRunTree') : undefined" @click="burn.run_tree && copy(`cd ${burn.run_tree}`)">{{ burn.run_branch }}</button></template>
         <template v-if="shown.length"><span>·</span><span class="tabular-nums">{{ t('burn.cost', { usd: totalCost.toFixed(2), n: shown.filter(i => i.status === 'done').length }) }}</span></template>
         <template v-if="form.focus"><span>·</span><span class="truncate" :title="form.focus">{{ t('burn.focus') }}: {{ form.focus }}</span></template>
       </p>
     </div>
     <UAlert v-if="offAgent" color="warning" variant="subtle" icon="i-lucide-power-off" :title="t('burn.agentOff', { name: offAgent.name })"
-      :actions="[{ label: t('burn.agentOffChange'), color: 'warning', variant: 'outline', onClick: () => openSettings('who') }, { label: t('burn.agentOffOpen'), color: 'neutral', variant: 'ghost', to: `/projects/${projectId}/agents/${offAgent.id}` }]" />
+      :actions="[{ label: t('burn.agentOffChange'), color: 'warning', variant: 'outline', onClick: () => openSettings('do') }, { label: t('burn.agentOffOpen'), color: 'neutral', variant: 'ghost', to: `/projects/${projectId}/agents/${offAgent.id}` }]" />
     <UAlert v-if="showBuilderBanner" color="primary" variant="subtle" icon="i-lucide-sparkles" :title="t('burn.builder.startBanner')"
       :actions="[{ label: t('burn.start'), color: 'primary', onClick: start }]" />
 
@@ -391,53 +394,16 @@ const builderDone = computed(() => builderFeatures.value.filter(f => f.passes).l
       </ul>
     </UCard>
 
-    <!-- settings: one place, in tabs; the plan first (turning it on asks nothing); review set up here too -->
+    <!-- settings in two parts: finding tasks, and doing them (with review, set up right here) -->
     <USlideover v-model:open="settingsOpen" :title="t('burn.settingsTitle')" :ui="{ content: 'sm:max-w-2xl' }">
       <template #body>
-        <div class="space-y-4">
+        <div class="space-y-5">
           <StaleNotice :show="stale" @reload="resync()" />
-          <UTabs v-model="settingsTab" :items="settingsTabs" :content="false" size="sm" variant="link" class="w-full" />
+          <UTabs v-model="settingsTab" :items="settingsTabs" :content="false" size="sm" class="w-full" />
 
-          <!-- when it runs -->
-          <section v-show="settingsTab === 'plan'" class="space-y-3">
-            <p class="text-xs text-(--ui-text-muted)">{{ t('burn.sec.planDesc') }}</p>
-            <UFormField :label="t('burn.plan.endLabel')">
-              <URadioGroup v-model="form.plan.end" :items="endItems" variant="card" :ui="{ fieldset: 'grid gap-2 sm:grid-cols-2' }" />
-            </UFormField>
-            <div v-if="form.plan.end === 'hours'" class="flex items-center gap-2">
-              <UInputNumber v-model="form.plan.hours" :min="1" :max="168" class="w-32" />
-              <span class="text-sm text-(--ui-text-muted)">{{ t('burn.plan.hoursUnit') }}</span>
-            </div>
-            <div v-else-if="form.plan.end === 'clock'" class="flex items-center gap-2">
-              <span class="text-sm text-(--ui-text-muted)">{{ t('burn.plan.clockPrefix') }}</span>
-              <UInput v-model="form.plan.clock" type="time" class="w-32" />
-            </div>
-            <div class="space-y-3 rounded-lg border border-(--ui-border) p-3">
-              <div class="flex items-center gap-3">
-                <div class="min-w-0 flex-1">
-                  <p class="text-sm font-medium">{{ t('burn.plan.auto') }}</p>
-                  <p class="text-xs text-(--ui-text-muted)">{{ t('burn.plan.autoHelp') }}</p>
-                </div>
-                <USwitch v-model="form.plan.auto" color="warning" />
-              </div>
-              <template v-if="form.plan.auto">
-                <div class="grid max-w-sm grid-cols-7 gap-1">
-                  <UButton v-for="d in weekDays" :key="d" size="sm" :color="form.plan.days.includes(d) ? 'warning' : 'neutral'" :variant="form.plan.days.includes(d) ? 'solid' : 'outline'"
-                    :label="t(`burn.plan.day.${d}`)" class="justify-center px-0" :aria-pressed="form.plan.days.includes(d)" @click="toggleDay(d)" />
-                </div>
-                <div class="flex flex-wrap items-center gap-2">
-                  <span class="text-sm text-(--ui-text-muted)">{{ t('burn.plan.atPrefix') }}</span>
-                  <UInput v-model="form.plan.at" type="time" class="w-32" />
-                  <span class="text-xs text-(--ui-text-dimmed)">{{ form.plan.tz }}</span>
-                </div>
-                <p v-if="!form.plan.days.length" class="text-xs text-(--ui-error)">{{ t('burn.plan.noDays') }}</p>
-              </template>
-            </div>
-          </section>
-
-          <!-- what it looks for -->
-          <section v-show="settingsTab === 'work'" class="space-y-3">
-            <p class="text-xs text-(--ui-text-muted)">{{ t('burn.sec.workDesc') }}</p>
+          <!-- finding tasks: what it looks for, and what it has mapped so far -->
+          <div v-show="settingsTab === 'find'" class="space-y-5">
+            <p class="text-xs text-(--ui-text-muted)">{{ t('burn.sec.findDesc') }}</p>
             <UFormField>
               <template #label><InfoLabel :label="t('burn.templateLabel')" :info="t(`burn.template.${form.template}Help`)" /></template>
               <USelect v-model="form.template" :items="templateItems" class="w-full" />
@@ -453,71 +419,11 @@ const builderDone = computed(() => builderFeatures.value.filter(f => f.passes).l
               <template #label><InfoLabel :label="t('burn.focus')" :info="t('burn.focusHelp')" /></template>
               <UTextarea v-model="form.focus" :rows="3" :maxlength="2000" autoresize class="w-full" :placeholder="t('burn.focusPlaceholder')" />
             </UFormField>
-          </section>
-
-          <!-- who does it -->
-          <section v-show="settingsTab === 'who'" class="space-y-3">
-            <p class="text-xs text-(--ui-text-muted)">{{ t('burn.sec.whoDesc') }}</p>
-            <UFormField :label="t('burn.agent')">
-              <USelect v-model="form.agent_id" :items="agentItems" class="w-full" />
-            </UFormField>
-            <UAlert v-if="offAgent" color="warning" variant="subtle" icon="i-lucide-power-off" :title="t('burn.agentOff', { name: offAgent.name })"
-              :actions="[{ label: t('burn.agentOffOpen'), color: 'warning', variant: 'outline', to: `/projects/${projectId}/agents/${offAgent.id}` }]" />
-            <div class="grid gap-3 sm:grid-cols-2">
-              <UFormField :label="t('burn.tierLabel')" :help="t('burn.tierHelp')">
-                <USelect v-model="form.model_tier" :items="tierItems" class="w-full" />
-              </UFormField>
-              <UFormField>
-                <template #label><InfoLabel :label="t('burn.parallelLabel')" :info="t('burn.parallelHelp')" /></template>
-                <UInputNumber v-model="form.max_parallel" :min="1" :max="5" class="w-full" />
-              </UFormField>
-            </div>
-          </section>
-
-          <!-- review: the profile it follows, edited right here -->
-          <section v-if="settingsOpen" v-show="settingsTab === 'review'" class="space-y-3">
-            <p class="text-xs text-(--ui-text-muted)">{{ t('burn.sec.reviewDesc') }}</p>
-            <BurnReviewSetup v-model="form.review_profile_id" :project-id="projectId" />
-          </section>
-
-          <!-- checks, report
-          <section v-show="settingsTab === 'check'" class="space-y-3">
-            <p class="text-xs text-(--ui-text-muted)">{{ t('burn.sec.checkDesc') }}</p>
-            <UFormField>
-              <template #label><InfoLabel :label="t('burn.verify')" :info="t('burn.verifyHelp')" /></template>
-              <UTextarea v-model="form.verify" :rows="3" :maxlength="2000" autoresize class="w-full font-mono text-xs" placeholder="go build ./...&#10;go test ./..." />
-            </UFormField>
-            <UFormField>
-              <template #label><InfoLabel :label="t('burn.notify.label')" :info="t('burn.notify.help')" /></template>
-              <div class="grid gap-2 sm:grid-cols-2">
-                <NotifyBotPicker v-model="form.notify_channel_id" v-model:kind="notifyKind" :project-id="projectId" :none-label="t('burn.notify.off')" />
-                <UInput v-model="form.notify_chat_id" class="w-full font-mono text-xs" :disabled="!form.notify_channel_id" :placeholder="notifyKind === 'telegram' ? t('alert.chatTelegram') : t('alert.chatDiscord')" />
-              </div>
-            </UFormField>
-          </section>
-
-          <!-- rarely changed -->
-          <details v-show="settingsTab === 'check'" class="group rounded-lg border border-(--ui-border)">
-            <summary class="flex cursor-pointer items-center gap-2 p-3 text-sm font-medium">
-              <UIcon name="i-lucide-chevron-right" class="size-4 transition group-open:rotate-90" />{{ t('burn.sec.advanced') }}
-            </summary>
-            <div class="space-y-3 px-3 pb-3">
-              <div class="grid gap-3 sm:grid-cols-2">
-                <UFormField>
-                  <template #label><InfoLabel :label="t('burn.reviewCap')" :info="t('burn.reviewCapHelp')" /></template>
-                  <UInputNumber v-model="form.review_cap" :min="0" :max="100" class="w-full" />
-                </UFormField>
-                <UFormField>
-                  <template #label><InfoLabel :label="t('burn.stopAfter')" :info="t('burn.stopAfterHelp')" /></template>
-                  <UInputNumber v-model="form.stop_after" :min="0" :max="100" class="w-full" />
-                </UFormField>
-              </div>
-              <div v-if="burn?.code_map || burn?.lessons || burn?.coverage" class="space-y-2 text-xs">
-                <p class="font-medium">{{ t('burn.learned') }}</p>
-                <template v-if="burn?.lessons">
-                  <p class="font-medium text-(--ui-text-muted)">{{ t('burn.lessons') }}</p>
-                  <p class="whitespace-pre-line">{{ burn.lessons }}</p>
-                </template>
+            <details v-if="burn?.coverage || burn?.code_map" class="group rounded-lg border border-(--ui-border)">
+              <summary class="flex cursor-pointer items-center gap-2 p-3 text-sm font-medium">
+                <UIcon name="i-lucide-chevron-right" class="size-4 transition group-open:rotate-90" />{{ t('burn.learned') }}
+              </summary>
+              <div class="space-y-2 px-3 pb-3 text-xs">
                 <template v-if="burn?.coverage">
                   <p class="font-medium text-(--ui-text-muted)">{{ t('burn.coverage', { n: coverage.done, max: coverage.total }) }}</p>
                   <p class="max-h-64 overflow-y-auto whitespace-pre-line font-mono">{{ burn.coverage }}</p>
@@ -527,8 +433,98 @@ const builderDone = computed(() => builderFeatures.value.filter(f => f.passes).l
                   <p class="max-h-64 overflow-y-auto whitespace-pre-line font-mono">{{ burn.code_map }}</p>
                 </template>
               </div>
-            </div>
-          </details>
+            </details>
+          </div>
+
+          <!-- doing tasks: when, who, checks and review, report -->
+          <div v-show="settingsTab === 'do'" class="space-y-6">
+            <p class="text-xs text-(--ui-text-muted)">{{ t('burn.sec.doDesc') }}</p>
+            <section class="space-y-3">
+              <p class="text-xs font-semibold tracking-wide text-(--ui-text-muted) uppercase">{{ t('burn.sec.plan') }}</p>
+              <UFormField :label="t('burn.plan.endLabel')">
+                <URadioGroup v-model="form.plan.end" :items="endItems" variant="card" :ui="{ fieldset: 'grid gap-2 sm:grid-cols-2' }" />
+              </UFormField>
+              <div v-if="form.plan.end === 'hours'" class="flex items-center gap-2">
+                <UInputNumber v-model="form.plan.hours" :min="1" :max="168" class="w-32" />
+                <span class="text-sm text-(--ui-text-muted)">{{ t('burn.plan.hoursUnit') }}</span>
+              </div>
+              <div v-else-if="form.plan.end === 'clock'" class="flex items-center gap-2">
+                <span class="text-sm text-(--ui-text-muted)">{{ t('burn.plan.clockPrefix') }}</span>
+                <UInput v-model="form.plan.clock" type="time" class="w-32" />
+              </div>
+              <div class="space-y-3 rounded-lg border border-(--ui-border) p-3">
+                <div class="flex items-center gap-3">
+                  <div class="min-w-0 flex-1">
+                    <p class="text-sm font-medium">{{ t('burn.plan.auto') }}</p>
+                    <p class="text-xs text-(--ui-text-muted)">{{ t('burn.plan.autoHelp') }}</p>
+                  </div>
+                  <USwitch v-model="form.plan.auto" color="warning" />
+                </div>
+                <template v-if="form.plan.auto">
+                  <div class="grid max-w-sm grid-cols-7 gap-1">
+                    <UButton v-for="d in weekDays" :key="d" size="sm" :color="form.plan.days.includes(d) ? 'warning' : 'neutral'" :variant="form.plan.days.includes(d) ? 'solid' : 'outline'"
+                      :label="t(`burn.plan.day.${d}`)" class="justify-center px-0" :aria-pressed="form.plan.days.includes(d)" @click="toggleDay(d)" />
+                  </div>
+                  <div class="flex flex-wrap items-center gap-2">
+                    <span class="text-sm text-(--ui-text-muted)">{{ t('burn.plan.atPrefix') }}</span>
+                    <UInput v-model="form.plan.at" type="time" class="w-32" />
+                    <span class="text-xs text-(--ui-text-dimmed)">{{ form.plan.tz }}</span>
+                  </div>
+                  <p v-if="!form.plan.days.length" class="text-xs text-(--ui-error)">{{ t('burn.plan.noDays') }}</p>
+                </template>
+              </div>
+            </section>
+
+            <section class="space-y-3">
+              <p class="text-xs font-semibold tracking-wide text-(--ui-text-muted) uppercase">{{ t('burn.sec.who') }}</p>
+              <UFormField :label="t('burn.agent')">
+                <USelect v-model="form.agent_id" :items="agentItems" class="w-full" />
+              </UFormField>
+              <UAlert v-if="offAgent" color="warning" variant="subtle" icon="i-lucide-power-off" :title="t('burn.agentOff', { name: offAgent.name })"
+                :actions="[{ label: t('burn.agentOffOpen'), color: 'warning', variant: 'outline', to: `/projects/${projectId}/agents/${offAgent.id}` }]" />
+              <div class="grid gap-3 sm:grid-cols-2">
+                <UFormField :label="t('burn.tierLabel')" :help="t('burn.tierHelp')">
+                  <USelect v-model="form.model_tier" :items="tierItems" class="w-full" />
+                </UFormField>
+                <UFormField>
+                  <template #label><InfoLabel :label="t('burn.parallelLabel')" :info="t('burn.parallelHelp')" /></template>
+                  <UInputNumber v-model="form.max_parallel" :min="1" :max="5" class="w-full" />
+                </UFormField>
+              </div>
+            </section>
+
+            <section class="space-y-3">
+              <p class="text-xs font-semibold tracking-wide text-(--ui-text-muted) uppercase">{{ t('burn.sec.check') }}</p>
+              <UFormField>
+                <template #label><InfoLabel :label="t('burn.verify')" :info="t('burn.verifyHelp')" /></template>
+                <UTextarea v-model="form.verify" :rows="3" :maxlength="2000" autoresize class="w-full font-mono text-xs" placeholder="go build ./...&#10;go test ./..." />
+              </UFormField>
+              <BurnReviewSetup v-if="settingsOpen" v-model="form.review_profile_id" :project-id="projectId" />
+              <UFormField class="sm:max-w-[50%]">
+                <template #label><InfoLabel :label="t('burn.reviewCap')" :info="t('burn.reviewCapHelp')" /></template>
+                <UInputNumber v-model="form.review_cap" :min="0" :max="100" class="w-full" />
+              </UFormField>
+            </section>
+
+            <section class="space-y-3">
+              <p class="text-xs font-semibold tracking-wide text-(--ui-text-muted) uppercase">{{ t('burn.sec.report') }}</p>
+              <UFormField>
+                <template #label><InfoLabel :label="t('burn.notify.label')" :info="t('burn.notify.help')" /></template>
+                <div class="grid gap-2 sm:grid-cols-2">
+                  <NotifyBotPicker v-model="form.notify_channel_id" v-model:kind="notifyKind" :project-id="projectId" :none-label="t('burn.notify.off')" />
+                  <UInput v-model="form.notify_chat_id" class="w-full font-mono text-xs" :disabled="!form.notify_channel_id" :placeholder="notifyKind === 'telegram' ? t('alert.chatTelegram') : t('alert.chatDiscord')" />
+                </div>
+              </UFormField>
+              <UFormField class="sm:max-w-[50%]">
+                <template #label><InfoLabel :label="t('burn.stopAfter')" :info="t('burn.stopAfterHelp')" /></template>
+                <UInputNumber v-model="form.stop_after" :min="0" :max="100" class="w-full" />
+              </UFormField>
+              <div v-if="burn?.lessons" class="space-y-1 text-xs">
+                <p class="font-medium text-(--ui-text-muted)">{{ t('burn.lessons') }}</p>
+                <p class="whitespace-pre-line">{{ burn.lessons }}</p>
+              </div>
+            </section>
+          </div>
         </div>
       </template>
       <template #footer>
