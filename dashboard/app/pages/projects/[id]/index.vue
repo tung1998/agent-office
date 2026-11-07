@@ -57,8 +57,11 @@ watch(id, v => touch(v), { immediate: true })
 // ---- edit project ----
 const editOpen = ref(false)
 const form = reactive({ name: '', description: '', git_remote: '' })
+const editedFrom = ref('') // the project as the form was filled: a save over someone else's change is refused
+const saveError = useSaveError()
 function openEdit() {
   Object.assign(form, { name: project.value!.name, description: project.value!.description, git_remote: project.value!.git_remote })
+  editedFrom.value = project.value!.version
   editOpen.value = true
 }
 const saving = ref(false)
@@ -66,11 +69,12 @@ async function saveRepo() {
   if (saving.value) return
   saving.value = true
   try {
-    await $fetch(`/api/projects/${id.value}`, { method: 'PATCH', body: { ...form } })
+    await $fetch(`/api/projects/${id.value}`, { method: 'PATCH', body: { ...form, version: editedFrom.value } })
     editOpen.value = false
     await refresh()
   } catch (e) {
-    toast.add({ title: apiError(e), color: 'error' })
+    if ((e as { data?: { code?: string } })?.data?.code === 'conflict') saveError(e, async () => { await refresh(); editedFrom.value = project.value?.version ?? '' })
+    else toast.add({ title: apiError(e), color: 'error' })
   } finally {
     saving.value = false
   }

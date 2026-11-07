@@ -406,7 +406,7 @@ func (s *Service) Import(ctx context.Context, b Bundle, dryRun bool) (Result, er
 			if dryRun {
 				continue
 			}
-			if err := s.store.Repos().UpdateInfoRemote(ctx, repo.ID, ps.Name, ps.Description, ps.GitRemote); err != nil {
+			if err := s.store.Repos().UpdateInfoRemote(ctx, repo.ID, ps.Name, ps.Description, ps.GitRemote, repo.UpdatedAt); err != nil {
 				return res, err
 			}
 		}

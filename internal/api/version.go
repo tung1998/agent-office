@@ -56,6 +56,12 @@ func automationVersion(a storage.Automation) string {
 	}{a.Name, a.Source, a.Action, a.AgentID, a.Prompt, a.EditMode, a.ModelTier, a.PermissionMode, a.Enabled, a.KeepContext, a.OverrideFullAccess, c, a.Limits, a.Script, a.OverrideExtraDirs})
 }
 
+func repoVersion(x storage.Repo) string {
+	return versionOf(struct {
+		Name, Description, GitRemote string
+	}{x.Name, x.Description, x.GitRemote})
+}
+
 func agentVersion(d agentDTO) string {
 	d.Version, d.Sort, d.Enabled = "", 0, false // pausing is its own switch: an open edit form stays valid
 	return versionOf(d)

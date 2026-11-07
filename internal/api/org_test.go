@@ -10,7 +10,9 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
+	"time"
 )
 
 func TestProvidersAPI(t *testing.T) {
@@ -117,6 +119,91 @@ func TestReposAgentsAPI(t *testing.T) {
 }
 
 // Only an admin may set an agent's FullAccess/ExtraDirs (ADR-074); a member's
+// updateRepo must refuse a save made from a stale version (CAS, ADR-072):
+// two admins open "Edit project" at the same time, one saves first, the
+// second's save (still carrying the pre-change version) must be rejected
+// instead of silently overwriting the first admin's change.
+func TestUpdateRepoStaleVersionConflict(t *testing.T) {
+	e := setup(t)
+	admin := e.client(t)
+	login(t, e, admin, "admin@x.io", "admin-password")
+
+	_, body := do(t, admin, "POST", e.srv.URL+"/api/projects", map[string]any{"path": t.TempDir(), "name": "shop"}, nil)
+	project := body["project"].(map[string]any)
+	pid := project["id"].(string)
+	staleVersion := project["version"].(string)
+
+	// admin A saves a change
+	resp, body := do(t, admin, "PATCH", e.srv.URL+"/api/projects/"+pid, map[string]any{"description": "from A", "version": staleVersion}, nil)
+	if resp.StatusCode != 200 {
+		t.Fatalf("first save = %d %v", resp.StatusCode, body)
+	}
+
+	// admin B, who opened the form before A's save, submits with the stale version
+	resp, body = do(t, admin, "PATCH", e.srv.URL+"/api/projects/"+pid, map[string]any{"description": "from B", "version": staleVersion}, nil)
+	if resp.StatusCode != 409 {
+		t.Fatalf("stale save should conflict, got %d %v", resp.StatusCode, body)
+	}
+
+	_, body = do(t, admin, "GET", e.srv.URL+"/api/projects/"+pid, nil, nil)
+	if got := body["project"].(map[string]any)["description"]; got != "from A" {
+		t.Fatalf("stale save must not overwrite, description = %v", got)
+	}
+}
+
+// failRepoUpdateOnce wraps a Store so the first UpdateInfoRemote call answers
+// storage.ErrStale, simulating a write that lands between updateRepo's own
+// Get and its Update (two real concurrent PATCHes racing on the same repo
+// row); later calls go through normally.
+type failRepoUpdateOnce struct {
+	storage.Store
+	failed atomic.Bool
+}
+
+type failRepoUpdateOnceRepos struct {
+	storage.RepoRepo
+	owner *failRepoUpdateOnce
+}
+
+func (s *failRepoUpdateOnce) Repos() storage.RepoRepo {
+	return failRepoUpdateOnceRepos{s.Store.Repos(), s}
+}
+
+func (r failRepoUpdateOnceRepos) UpdateInfoRemote(ctx context.Context, id, name, description, gitRemote string, prevUpdatedAt time.Time) error {
+	if r.owner.failed.CompareAndSwap(false, true) {
+		return storage.ErrStale
+	}
+	return r.RepoRepo.UpdateInfoRemote(ctx, id, name, description, gitRemote, prevUpdatedAt)
+}
+
+// updateRepo's handler-level conflicted() check (a hash of name/description/
+// git_remote) only catches a stale client-supplied version; it can't see a
+// write that lands between its own Get and its own Update (two concurrent
+// PATCHes on the same row, both having already passed conflicted()). That
+// window is exactly what the storage-level CAS on UpdateInfoRemote closes:
+// the handler must map the resulting storage.ErrStale to 409, not a generic
+// 500 or a silent success.
+func TestUpdateRepoStorageCASConflictAnswers409(t *testing.T) {
+	e := setupWithStore(t, nil, func(st storage.Store) storage.Store { return &failRepoUpdateOnce{Store: st} })
+	admin := e.client(t)
+	login(t, e, admin, "admin@x.io", "admin-password")
+
+	_, body := do(t, admin, "POST", e.srv.URL+"/api/projects", map[string]any{"path": t.TempDir(), "name": "shop"}, nil)
+	project := body["project"].(map[string]any)
+	pid := project["id"].(string)
+	version := project["version"].(string)
+
+	resp, body := do(t, admin, "PATCH", e.srv.URL+"/api/projects/"+pid, map[string]any{"description": "late write", "version": version}, nil)
+	if resp.StatusCode != 409 {
+		t.Fatalf("storage CAS conflict should answer 409, got %d %v", resp.StatusCode, body)
+	}
+
+	_, body = do(t, admin, "GET", e.srv.URL+"/api/projects/"+pid, nil, nil)
+	if got := body["project"].(map[string]any)["description"]; got != "" {
+		t.Fatalf("rejected write must not land, description = %v", got)
+	}
+}
+
 // save keeps them as they were. ExtraDirs must be absolute, existing paths.
 func TestAgentFullAccessPermissionAPI(t *testing.T) {
 	e := setup(t)

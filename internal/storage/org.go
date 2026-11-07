@@ -773,7 +773,9 @@ type RepoRepo interface {
 	// UpdateInfo writes only name and description, leaving other fields untouched.
 	UpdateInfo(ctx context.Context, id, name, description string) error
 	// UpdateInfoRemote writes name, description and git remote, leaving other fields (notably default_agent_id) untouched.
-	UpdateInfoRemote(ctx context.Context, id, name, description, gitRemote string) error
+	// prevUpdatedAt is updated_at as last read by the caller (CAS): ErrStale if
+	// the row changed since, ErrNotFound if it was deleted meanwhile.
+	UpdateInfoRemote(ctx context.Context, id, name, description, gitRemote string, prevUpdatedAt time.Time) error
 	// SetDefaultAgent writes only the default agent, leaving other fields untouched.
 	SetDefaultAgent(ctx context.Context, id, agentID string) error
 	Get(ctx context.Context, id string) (Repo, error)

@@ -949,11 +949,12 @@ type repoDTO struct {
 	Features       []string   `json:"features"`         // features on (internal/features)
 	Agents         []agentDTO `json:"agents,omitempty"`
 	CreatedAt      time.Time  `json:"created_at"`
+	Version        string     `json:"version"` // what an edit is made from (ADR-072): send back on save
 }
 
 func (s *server) repoDTO(r *http.Request, x storage.Repo, withAgents bool) (repoDTO, error) {
 	d := repoDTO{ID: x.ID, Name: x.Name, Path: x.Path, GitRemote: repos.Remote(x.Path, x.GitRemote), Description: x.Description,
-		Scope: "machine", Exists: true, CreatedAt: x.CreatedAt}
+		Scope: "machine", Exists: true, CreatedAt: x.CreatedAt, Version: repoVersion(x)}
 	if x.Path != "" {
 		_, statErr := os.Stat(x.Path)
 		d.Scope, d.Exists = "folder", statErr == nil
@@ -1324,6 +1325,7 @@ func (s *server) updateRepo(w http.ResponseWriter, r *http.Request) {
 		Name        *string `json:"name"`
 		Description *string `json:"description"`
 		GitRemote   *string `json:"git_remote"` // kept for when the folder has no origin
+		Version     string  `json:"version"`    // what the edit was made from (ADR-072)
 	}
 	if !decode(w, r, &in) {
 		return
@@ -1331,6 +1333,9 @@ func (s *server) updateRepo(w http.ResponseWriter, r *http.Request) {
 	x, err := s.cfg.Store.Repos().Get(r.Context(), r.PathValue("id"))
 	if err != nil {
 		s.writeDomainError(w, r, err)
+		return
+	}
+	if conflicted(w, in.Version, repoVersion(x)) {
 		return
 	}
 	old := x
@@ -1347,7 +1352,11 @@ func (s *server) updateRepo(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	if err := s.cfg.Store.Repos().UpdateInfoRemote(r.Context(), x.ID, x.Name, x.Description, x.GitRemote); err != nil {
+	if err := s.cfg.Store.Repos().UpdateInfoRemote(r.Context(), x.ID, x.Name, x.Description, x.GitRemote, old.UpdatedAt); err != nil {
+		if errors.Is(err, storage.ErrStale) {
+			writeSaveConflict(w)
+			return
+		}
 		s.writeDomainError(w, r, err)
 		return
 	}

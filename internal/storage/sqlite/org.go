@@ -350,9 +350,23 @@ func (r repoRepo) UpdateInfo(ctx context.Context, id, name, description string) 
 		name, description, fmtTime(time.Now()), id)
 }
 
-func (r repoRepo) UpdateInfoRemote(ctx context.Context, id, name, description, gitRemote string) error {
-	return execOne(ctx, r.db, `UPDATE repos SET name=?, description=?, git_remote=?, updated_at=? WHERE id=?`,
-		name, description, gitRemote, fmtTime(time.Now()), id)
+func (r repoRepo) UpdateInfoRemote(ctx context.Context, id, name, description, gitRemote string, prevUpdatedAt time.Time) error {
+	res, err := r.db.ExecContext(ctx, `UPDATE repos SET name=?, description=?, git_remote=?, updated_at=? WHERE id=? AND updated_at=?`,
+		name, description, gitRemote, fmtTime(time.Now()), id, fmtTime(prevUpdatedAt))
+	if err != nil {
+		return err
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		if _, getErr := r.Get(ctx, id); errors.Is(getErr, storage.ErrNotFound) {
+			return storage.ErrNotFound
+		}
+		return storage.ErrStale
+	}
+	return nil
 }
 
 func (r repoRepo) SetDefaultAgent(ctx context.Context, id, agentID string) error {

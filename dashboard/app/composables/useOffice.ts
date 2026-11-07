@@ -202,6 +202,7 @@ export interface Project {
   features?: FeatureId[] // features on (feature packs)
   agents?: Agent[]
   created_at: string
+  version: string // what an edit is made from (ADR-072): send back on save
 }
 
 // the features of the packs (internal/features): a typo in a gate fails typecheck

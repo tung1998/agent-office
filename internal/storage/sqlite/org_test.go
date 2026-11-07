@@ -2,6 +2,7 @@ package sqlite_test
 
 import (
 	"context"
+	"errors"
 	"path/filepath"
 	"testing"
 
@@ -117,5 +118,53 @@ func TestRepoUpdateInfoAndSetDefaultAgentDontClobberEachOther(t *testing.T) {
 	got, _ = repo.Get(ctx, r.ID)
 	if got.Name != "newer-name" || got.DefaultAgentID != "agent-2" {
 		t.Fatalf("got = %+v", got)
+	}
+}
+
+// UpdateInfoRemote is CAS'd on updated_at, so two concurrent "Edit project"
+// saves that both read the same row (admin A changing git_remote, admin B
+// still on A's pre-change description) can't have the second silently
+// overwrite the first's write: the loser gets ErrStale instead of landing.
+func TestRepoUpdateInfoRemoteConflictsWithConcurrentWrite(t *testing.T) {
+	repo, ctx := openRepos(t)
+	r, err := repo.Create(ctx, storage.Repo{Name: "old-name", Path: "/tmp/x", Description: "old-desc"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// two independent reads of the same row, like admin A and admin B each
+	// opening the edit modal before either saves
+	fromA := r
+	fromB := r
+
+	if err := repo.UpdateInfoRemote(ctx, r.ID, fromA.Name, "from A", fromA.GitRemote, fromA.UpdatedAt); err != nil {
+		t.Fatalf("first update: %v", err)
+	}
+
+	if err := repo.UpdateInfoRemote(ctx, r.ID, fromB.Name, "from B", fromB.GitRemote, fromB.UpdatedAt); !errors.Is(err, storage.ErrStale) {
+		t.Fatalf("stale second update = %v, want ErrStale", err)
+	}
+
+	got, err := repo.Get(ctx, r.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Description != "from A" {
+		t.Fatalf("stale write landed despite ErrStale: %+v", got)
+	}
+}
+
+// UpdateInfoRemote answers storage.ErrNotFound (not ErrStale) when the row
+// was deleted between the caller's read and its write.
+func TestRepoUpdateInfoRemoteNotFoundWhenDeleted(t *testing.T) {
+	repo, ctx := openRepos(t)
+	r, err := repo.Create(ctx, storage.Repo{Name: "old-name", Path: "/tmp/x"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := repo.Delete(ctx, r.ID); err != nil {
+		t.Fatal(err)
+	}
+	if err := repo.UpdateInfoRemote(ctx, r.ID, "new-name", "new-desc", "", r.UpdatedAt); !errors.Is(err, storage.ErrNotFound) {
+		t.Fatalf("update after delete = %v, want ErrNotFound", err)
 	}
 }
