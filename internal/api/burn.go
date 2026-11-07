@@ -131,6 +131,9 @@ func (s *server) getBurn(w http.ResponseWriter, r *http.Request) {
 		dto.Features = burn.Features(dir)
 	}
 	out := map[string]any{"burn": dto, "items": items, "runs": runs}
+	// each run's own chat, for "Open chat" on the run picked
+	chats, _ := s.cfg.Store.Chat().ListConversationsFrom(r.Context(), pid, "burn", 200)
+	out["run_chats"] = burn.RunChats(runs, b.RunBranch, b.ConversationID, chats)
 	if reset, ok := s.cfg.Burn.WeeklyReset(r.Context(), b.AgentID); ok { // the suggested stop time
 		out["weekly_reset"] = reset
 	}

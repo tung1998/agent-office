@@ -29,7 +29,7 @@ const { t, when } = useLang()
 const toast = useToast()
 
 const base = computed(() => `/api/projects/${props.projectId}/burn`)
-const { data, refresh, error: loadError } = useLiveFetch<{ burn: Burn, items: Item[], runs?: Record<string, string>, weekly_reset?: string }>(base)
+const { data, refresh, error: loadError } = useLiveFetch<{ burn: Burn, items: Item[], runs?: Record<string, string>, run_chats?: Record<string, string>, weekly_reset?: string }>(base)
 const { data: agentsData } = useLiveFetch<{ agents: AgentLite[] }>(() => `/api/projects/${props.projectId}/chat/agents`, { lazy: true })
 const burn = computed(() => data.value?.burn)
 const loading = computed(() => !data.value && !loadError.value)
@@ -200,6 +200,8 @@ const runItems = computed(() => [
   ...(items.value.some(i => !i.run_branch && i.kind !== 'quest') ? [{ value: '__none', label: t('burn.run.none') }] : []),
   { value: 'all', label: t('burn.run.all') }
 ])
+// the chat of the run picked (each run has its own); all runs or none: the current one
+const runChat = computed(() => data.value?.run_chats?.[run.value] ?? (run.value === 'all' || run.value === '__none' ? burn.value?.conversation_id : undefined))
 const shown = computed(() => run.value === 'all'
   ? items.value
   // a task an agent did outside any run (handed, ADR-210) shows in every run
@@ -302,7 +304,7 @@ const builderDone = computed(() => builderFeatures.value.filter(f => f.passes).l
         <!-- on is on: it runs by the saved plan, nothing more is asked -->
         <USwitch v-else :model-value="on" color="warning" :loading="acting === 'start' || acting === 'drain'" :disabled="loading || !!offAgent || !!acting" :aria-label="t('burn.toggle')" :title="t('burn.confirmDesc')" class="mx-1.5" @update:model-value="toggle" />
         <span class="mx-0.5 h-5 w-px bg-(--ui-border)" />
-        <UButton v-if="burn?.conversation_id" size="sm" color="neutral" variant="ghost" icon="i-lucide-messages-square" :title="t('burn.openChat')" :aria-label="t('burn.openChat')" :to="`/projects/${projectId}?tab=chat&c=${burn.conversation_id}`" />
+        <UButton v-if="runChat" size="sm" color="neutral" variant="ghost" icon="i-lucide-messages-square" :title="runs.includes(run) ? t('burn.openRunChat', { run: runLabel(run) }) : t('burn.openChat')" :aria-label="t('burn.openChat')" :to="`/projects/${projectId}?tab=chat&c=${runChat}`" />
         <UButton size="sm" color="neutral" variant="ghost" icon="i-lucide-settings-2" :title="t('burn.settings')" :aria-label="t('burn.settings')" :disabled="loading" @click="openSettings()" />
       </div>
       <div class="ms-auto flex items-center gap-2">

@@ -446,6 +446,7 @@ const en: Record<keyof typeof vi, string> = {
   'md.copy': 'Copy',
   'md.apply': 'Apply',
   'md.diffHidden': '_(proposed change shown below)_',
+  'burn.openRunChat': 'Open the chat of {run}',
   'burn.settingsTitle': 'Burn settings',
   'burn.switchOn': 'On',
   'burn.switchOff': 'Off',

@@ -445,6 +445,7 @@ export default {
   'md.copy': 'Sao chép',
   'md.apply': 'Áp dụng',
   'md.diffHidden': '_(đề xuất thay đổi ở bên dưới)_',
+  'burn.openRunChat': 'Mở hội thoại của {run}',
   'burn.settingsTitle': 'Cài đặt Burn',
   'burn.switchOn': 'Đang bật',
   'burn.switchOff': 'Đang tắt',

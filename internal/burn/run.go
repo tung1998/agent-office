@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os/exec"
+	"slices"
 	"strings"
 	"time"
 
@@ -34,6 +35,45 @@ func newRunBranch(now time.Time) string {
 func RunStarted(branch string) (time.Time, bool) {
 	t, err := time.ParseInLocation("2006-01-02-150405", strings.TrimPrefix(branch, "burn/"), time.Local)
 	return t, err == nil
+}
+
+// RunChats pairs each run with its chat: a run starts with a chat of its own
+// (Start), saved only as the Burn's current one, so an earlier run's is the
+// latest Burn chat made between its start and the next run's. A chat made
+// mid-run (its agent was changed) is the later one, the one it went on in.
+func RunChats(runs map[string]time.Time, current, currentChat string, chats []storage.Conversation) map[string]string {
+	type run struct {
+		branch string
+		at     time.Time
+	}
+	order := make([]run, 0, len(runs))
+	for b, at := range runs {
+		order = append(order, run{b, at})
+	}
+	slices.SortFunc(order, func(a, b run) int { return a.at.Compare(b.at) })
+	out := map[string]string{}
+	for i, r := range order {
+		if r.branch == current && currentChat != "" {
+			out[r.branch] = currentChat
+			continue
+		}
+		var best storage.Conversation
+		for _, c := range chats {
+			if c.Purpose != "burn" || c.CreatedAt.Before(r.at.Add(-5*time.Second)) {
+				continue
+			}
+			if i+1 < len(order) && !c.CreatedAt.Before(order[i+1].at.Add(-5*time.Second)) {
+				continue
+			}
+			if best.ID == "" || c.CreatedAt.After(best.CreatedAt) {
+				best = c
+			}
+		}
+		if best.ID != "" {
+			out[r.branch] = best.ID
+		}
+	}
+	return out
 }
 
 // runTree is the name of the run's worktree.
