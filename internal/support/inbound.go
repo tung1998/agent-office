@@ -266,11 +266,12 @@ func (s *Service) Receive(ctx context.Context, src storage.SupportSource, in Inb
 // escalate hands a ticket to a person: no AI answer on it from now on.
 func (s *Service) escalate(ctx context.Context, t storage.SupportTicket, msg storage.SupportEvent, reason string) {
 	repo := s.store.Support()
-	if !contains(t.Tags, "human") {
-		t.Tags = append(t.Tags, "human")
-	}
-	t.Status = StatusOpen
-	_ = repo.UpdateTicket(ctx, t)
+	t, _ = patchTicket(ctx, repo, t.ID, func(x *storage.SupportTicket) {
+		if !contains(x.Tags, "human") {
+			x.Tags = append(x.Tags, "human")
+		}
+		x.Status = StatusOpen
+	})
 	_, _ = repo.AddEvent(ctx, storage.SupportEvent{TicketID: t.ID, SourceID: t.SourceID, Kind: "status", Body: "escalated", Actor: "office",
 		ReplyTo: msg.ID, State: "human", Meta: map[string]any{"reason": reason}})
 	s.fire(ctx, t, "ticket.escalated", map[string]any{"reason": reason, "message": map[string]any{"id": msg.ID, "text": msg.Body}})
@@ -293,6 +294,28 @@ func (s *Service) answerer(ctx context.Context, src storage.SupportSource) (stor
 		return storage.Automation{}, invalid("tự động hóa trả lời phải là chat hoặc quy trình")
 	}
 	return a, nil
+}
+
+// patchTicket reloads the ticket, applies mutate, and saves it — retrying
+// (storage.ErrStale means another update landed between someone else's read
+// and this one) so two concurrent paths changing different fields of the
+// same ticket (an agent's support_set, an inbound customer message, a reply
+// delivery outcome…) don't silently revert each other instead of clobbering.
+func patchTicket(ctx context.Context, repo storage.SupportRepo, id string, mutate func(*storage.SupportTicket)) (storage.SupportTicket, error) {
+	t, err := repo.Ticket(ctx, id)
+	if err != nil {
+		return t, err
+	}
+	for attempt := 0; ; attempt++ {
+		mutate(&t)
+		err = repo.UpdateTicket(ctx, t)
+		if !errors.Is(err, storage.ErrStale) || attempt >= 5 {
+			return t, err
+		}
+		if t, err = repo.Ticket(ctx, id); err != nil {
+			return t, err
+		}
+	}
 }
 
 // supersede: the drafts of a ticket still waiting are out of date.
@@ -428,8 +451,7 @@ func (s *Service) Done(ctx context.Context, j storage.Job, answer string, runErr
 	if draft, err = repo.AddEvent(ctx, draft); err != nil {
 		return
 	}
-	t.Status = StatusWaitingApproval
-	_ = repo.UpdateTicket(ctx, t)
+	t, _ = patchTicket(ctx, repo, t.ID, func(x *storage.SupportTicket) { x.Status = StatusWaitingApproval })
 	s.fire(ctx, t, "ticket.awaiting_approval", map[string]any{"draft": map[string]any{"id": draft.ID, "text": draft.Body}})
 	s.notify(t.ID)
 }
@@ -478,11 +500,12 @@ func (s *Service) send(ctx context.Context, t storage.SupportTicket, draft stora
 		}
 	}
 	now := time.Now().UTC()
-	if t.FirstResponseAt == nil {
-		t.FirstResponseAt = &now
-	}
-	t.Status = StatusWaitingCustomer
-	_ = repo.UpdateTicket(ctx, t)
+	t, _ = patchTicket(ctx, repo, t.ID, func(x *storage.SupportTicket) {
+		if x.FirstResponseAt == nil {
+			x.FirstResponseAt = &now
+		}
+		x.Status = StatusWaitingCustomer
+	})
 	s.fire(ctx, t, "ticket.replied", map[string]any{"reply": map[string]any{"id": e.ID, "text": text, "by": by}})
 	s.notify(t.ID)
 }
@@ -492,8 +515,7 @@ func (s *Service) fail(ctx context.Context, t storage.SupportTicket, msg storage
 	repo := s.store.Support()
 	_, _ = repo.AddEvent(ctx, storage.SupportEvent{TicketID: t.ID, SourceID: t.SourceID, Kind: "ai_draft", Body: why, Actor: "office",
 		JobID: msg.JobID, ReplyTo: msg.ID, State: DraftFailed})
-	t.Status = StatusOpen
-	_ = repo.UpdateTicket(ctx, t)
+	t, _ = patchTicket(ctx, repo, t.ID, func(x *storage.SupportTicket) { x.Status = StatusOpen })
 	s.fire(ctx, t, "ticket.escalated", map[string]any{"reason": "no_answer", "error": why})
 	s.notify(t.ID)
 }
@@ -530,8 +552,7 @@ func (s *Service) Reject(ctx context.Context, projectID, draftID, by string) err
 	if err := repo.UpdateEvent(ctx, d); err != nil {
 		return err
 	}
-	t.Status = StatusOpen
-	_ = repo.UpdateTicket(ctx, t)
+	t, _ = patchTicket(ctx, repo, t.ID, func(x *storage.SupportTicket) { x.Status = StatusOpen })
 	s.notify(t.ID)
 	return nil
 }
@@ -680,14 +701,16 @@ func (s *Service) SetStatus(ctx context.Context, projectID, ticketID, status str
 	if err != nil || t.ProjectID != projectID {
 		return storage.ErrNotFound
 	}
-	t.Status = status
-	if status == StatusResolved || status == StatusClosed {
-		now := time.Now().UTC()
-		t.ResolvedAt = &now
-	} else {
-		t.ResolvedAt = nil
-	}
-	if err := repo.UpdateTicket(ctx, t); err != nil {
+	t, err = patchTicket(ctx, repo, t.ID, func(x *storage.SupportTicket) {
+		x.Status = status
+		if status == StatusResolved || status == StatusClosed {
+			now := time.Now().UTC()
+			x.ResolvedAt = &now
+		} else {
+			x.ResolvedAt = nil
+		}
+	})
+	if err != nil {
 		return err
 	}
 	s.fire(ctx, t, "ticket.status_changed", map[string]any{"status": status})

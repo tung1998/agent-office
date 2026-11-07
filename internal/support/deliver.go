@@ -125,9 +125,7 @@ func (s *Service) replyDelivered(ctx context.Context, o storage.SupportOut) {
 	}
 	_ = repo.UpdateEvent(ctx, e)
 	if o.Status == "failed" {
-		if t, err := repo.Ticket(ctx, o.TicketID); err == nil {
-			t.Status = StatusOpen
-			_ = repo.UpdateTicket(ctx, t)
+		if t, err := patchTicket(ctx, repo, o.TicketID, func(x *storage.SupportTicket) { x.Status = StatusOpen }); err == nil {
 			s.fire(ctx, t, "ticket.escalated", map[string]any{"reason": "delivery_failed", "error": o.LastError})
 		}
 	}
@@ -373,8 +371,8 @@ func (s *Service) sweepSLA(ctx context.Context, now time.Time) {
 		return
 	}
 	for _, t := range list {
-		t.SLABreached = true
-		if err := s.store.Support().UpdateTicket(ctx, t); err != nil {
+		t, err := patchTicket(ctx, s.store.Support(), t.ID, func(x *storage.SupportTicket) { x.SLABreached = true })
+		if err != nil {
 			continue
 		}
 		_, _ = s.store.Support().AddEvent(ctx, storage.SupportEvent{TicketID: t.ID, SourceID: t.SourceID, Kind: "status", Body: "sla_breached", Actor: "office"})

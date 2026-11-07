@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"time"
 
 	"github.com/tung1998/agent-office/internal/ids"
@@ -129,15 +130,34 @@ func (r supportRepo) CreateTicket(ctx context.Context, t storage.SupportTicket) 
 	return t, err
 }
 
+// UpdateTicket applies t, refusing with storage.ErrStale if the row changed
+// since t was read (CAS on updated_at) so two concurrent read-modify-write
+// paths (an agent's support_set, an inbound customer message, a reply
+// delivery outcome…) can't silently clobber each other's fields, and
+// storage.ErrNotFound if it was deleted meanwhile.
 func (r supportRepo) UpdateTicket(ctx context.Context, t storage.SupportTicket) error {
 	if t.Tags == nil {
 		t.Tags = []string{}
 	}
+	prevUpdatedAt := t.UpdatedAt
 	res, err := r.db.ExecContext(ctx, `UPDATE support_tickets SET customer_id=?, subject=?, status=?, case_type=?, assignee=?, priority=?, tags=?,
-		first_response_at=?, resolved_at=?, sla_due_at=?, sla_breached=?, updated_at=? WHERE id=?`,
+		first_response_at=?, resolved_at=?, sla_due_at=?, sla_breached=?, updated_at=? WHERE id=? AND updated_at=?`,
 		t.CustomerID, t.Subject, t.Status, t.CaseType, t.Assignee, t.Priority, toJSON(t.Tags), optTime(t.FirstResponseAt), optTime(t.ResolvedAt),
-		optTime(t.SLADueAt), t.SLABreached, fmtTime(time.Now()), t.ID)
-	return affected(res, err)
+		optTime(t.SLADueAt), t.SLABreached, fmtTime(time.Now()), t.ID, fmtTime(prevUpdatedAt))
+	if err != nil {
+		return err
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		if _, getErr := r.Ticket(ctx, t.ID); errors.Is(getErr, storage.ErrNotFound) {
+			return storage.ErrNotFound
+		}
+		return storage.ErrStale
+	}
+	return nil
 }
 
 func (r supportRepo) Ticket(ctx context.Context, id string) (storage.SupportTicket, error) {

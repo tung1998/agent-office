@@ -132,14 +132,17 @@ func (s *Service) Call(ctx context.Context, sc officetools.Scope, name string, r
 			if _, ok := s.LoadSettings(ctx, t.ProjectID).caseOf(in.CaseType); !ok {
 				return fmt.Sprintf("Không có loại case %q.", in.CaseType), true
 			}
-			t.CaseType = in.CaseType
 		}
-		for _, tag := range in.Tags {
-			if tag = strings.TrimSpace(tag); tag != "" && tag != "human" && !contains(t.Tags, tag) {
-				t.Tags = append(t.Tags, tag)
+		if _, err := patchTicket(ctx, s.store.Support(), t.ID, func(x *storage.SupportTicket) {
+			if in.CaseType != "" {
+				x.CaseType = in.CaseType
 			}
-		}
-		if err := s.store.Support().UpdateTicket(ctx, t); err != nil {
+			for _, tag := range in.Tags {
+				if tag = strings.TrimSpace(tag); tag != "" && tag != "human" && !contains(x.Tags, tag) {
+					x.Tags = append(x.Tags, tag)
+				}
+			}
+		}); err != nil {
 			return err.Error(), true
 		}
 		s.notify(t.ID)
