@@ -52,8 +52,8 @@ func TestActivity(t *testing.T) {
 		t.Fatalf("report:\n%s", r)
 	}
 	tools := activity.NewTools(st)
-	if len(tools.Tools(officetools.Scope{ProjectID: hq.ID})) != 2 || len(tools.Tools(officetools.Scope{ProjectID: hq.ID, Office: true})) != 0 {
-		t.Fatal("project_report/failure_digest missing, or given to the office assistant")
+	if len(tools.Tools(officetools.Scope{ProjectID: hq.ID})) != 3 || len(tools.Tools(officetools.Scope{ProjectID: hq.ID, Office: true})) != 0 {
+		t.Fatal("project_report/failure_digest/success_rate missing, or given to the office assistant")
 	}
 	if out, isErr := tools.Call(ctx, officetools.Scope{ProjectID: hq.ID}, "project_report", nil); isErr || !strings.Contains(out, "Theme Studio") {
 		t.Fatalf("tool: %s", out)
@@ -124,5 +124,50 @@ func TestFailureDigest(t *testing.T) {
 	}
 	if out := call(`{"category":"quota"}`); !strings.Contains(out, "No failures") {
 		t.Fatalf("empty digest: %s", out)
+	}
+}
+
+// success_rate: goal completion by Burn piece owner — done without the
+// result reviewer sending it back (Attempts>1) over closed (skipped
+// excluded), not lumped together across owners.
+func TestSuccessRate(t *testing.T) {
+	ctx := context.Background()
+	st, _ := sqlite.Open(filepath.Join(t.TempDir(), "o.db"))
+	defer st.Close()
+	st.Migrate(ctx)
+	p, _ := st.Repos().Create(ctx, storage.Repo{Name: "P", Path: t.TempDir()})
+	b, _ := st.Burn().SaveSession(ctx, storage.BurnSession{ProjectID: p.ID})
+	add := func(owner, status string, attempts int) {
+		st.Burn().AddItem(ctx, storage.BurnItem{SessionID: b.ID, Title: "x", Kind: "bug", Owner: owner, Status: status, Attempts: attempts})
+	}
+	// agent A: 8 done cleanly, 2 failed -> 8/10
+	for i := 0; i < 8; i++ {
+		add("A", "done", 1)
+	}
+	for i := 0; i < 2; i++ {
+		add("A", "failed", 3)
+	}
+	// agent B: 3 done cleanly, 5 done after reviewAgain (Attempts>1, not clean) -> 3/8; 2 skipped don't count (never attempted)
+	for i := 0; i < 3; i++ {
+		add("B", "done", 1)
+	}
+	for i := 0; i < 5; i++ {
+		add("B", "done", 2)
+	}
+	for i := 0; i < 2; i++ {
+		add("B", "skipped", 1)
+	}
+
+	tools := activity.NewTools(st)
+	out, isErr := tools.Call(ctx, officetools.Scope{ProjectID: p.ID}, "success_rate", []byte(`{}`))
+	if isErr {
+		t.Fatalf("success_rate: %s", out)
+	}
+	if !strings.Contains(out, "A: 8/10 (80%)") || !strings.Contains(out, "B: 3/8 (38%)") {
+		t.Fatalf("success_rate:\n%s", out)
+	}
+	if out, isErr := tools.Call(ctx, officetools.Scope{ProjectID: p.ID}, "success_rate", []byte(`{"agent":"b"}`)); isErr ||
+		strings.Contains(out, "A:") || !strings.Contains(out, "B: 3/8") {
+		t.Fatalf("agent filter:\n%s", out)
 	}
 }

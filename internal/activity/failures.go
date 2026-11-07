@@ -2,6 +2,7 @@ package activity
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"slices"
 	"strings"
@@ -104,4 +105,68 @@ func cmpOr(a, b string) string {
 		return a
 	}
 	return b
+}
+
+// agentSuccessRate is success_rate: goal completion by agent (Agents
+// Companion, ch. Agent Success Metrics) alongside failureDigest's error log —
+// of the Burn pieces closed (done/failed; skipped does not count: no attempt
+// was made) in the last `days`, how many finished done without the result
+// reviewer sending them back (storage.BurnItem.Attempts > 1 means they did,
+// see reviewAgain in internal/burn/burn.go). agent filters to one owner
+// (name or key); "" reports every owner.
+func agentSuccessRate(ctx context.Context, st storage.Store, projectID string, days int, agent string) (string, error) {
+	if days <= 0 {
+		days = 7
+	}
+	days = min(days, 90)
+	since := time.Now().UTC().AddDate(0, 0, -days)
+	b, err := st.Burn().Session(ctx, projectID)
+	if err != nil {
+		if errors.Is(err, storage.ErrNotFound) {
+			return "No Burn has run in this project yet.", nil
+		}
+		return "", err
+	}
+	items, err := st.Burn().Items(ctx, b.ID)
+	if err != nil {
+		return "", err
+	}
+	type tally struct{ clean, total int }
+	byOwner := map[string]*tally{}
+	for _, it := range items {
+		if it.Status != "done" && it.Status != "failed" {
+			continue // skipped: never attempted; found/queued/doing/paused: not closed yet
+		}
+		if it.UpdatedAt.Before(since) {
+			continue
+		}
+		owner := cmpOr(it.Owner, "(default)")
+		if agent != "" && !strings.EqualFold(owner, agent) {
+			continue
+		}
+		t := byOwner[owner]
+		if t == nil {
+			t = &tally{}
+			byOwner[owner] = t
+		}
+		t.total++
+		if it.Status == "done" && it.Attempts <= 1 {
+			t.clean++
+		}
+	}
+	if len(byOwner) == 0 {
+		return fmt.Sprintf("No closed pieces in the last %d days.", days), nil
+	}
+	owners := make([]string, 0, len(byOwner))
+	for o := range byOwner {
+		owners = append(owners, o)
+	}
+	slices.Sort(owners)
+	var sb strings.Builder
+	fmt.Fprintf(&sb, "Goal completion in the last %d days, by owner (done without review sending it back ÷ closed):\n", days)
+	for _, o := range owners {
+		t := byOwner[o]
+		fmt.Fprintf(&sb, "- %s: %d/%d (%.0f%%)\n", o, t.clean, t.total, 100*float64(t.clean)/float64(t.total))
+	}
+	return sb.String(), nil
 }

@@ -29,10 +29,15 @@ func (t Tools) Tools(sc officetools.Scope) []officetools.Tool {
 			Schema: map[string]any{"type": "object", "properties": map[string]any{
 				"days":     map[string]any{"type": "integer", "description": "How many days back (default 7, at most 90)"},
 				"agent":    map[string]any{"type": "string", "description": "Only this agent's failures (name or id)"},
-				"category": map[string]any{"type": "string", "description": "Only this kind of cause, e.g. cli_broken, quota"}}}}}
+				"category": map[string]any{"type": "string", "description": "Only this kind of cause, e.g. cli_broken, quota"}}}},
+		{Name: "success_rate", ReadOnly: true,
+			Description: "Goal completion by Burn piece owner: of the pieces closed in the window, how many finished done without the result reviewer sending them back for another round. A number of work completed cleanly, next to failure_digest's log of what went wrong.",
+			Schema: map[string]any{"type": "object", "properties": map[string]any{
+				"days":  map[string]any{"type": "integer", "description": "How many days back (default 7, at most 90)"},
+				"agent": map[string]any{"type": "string", "description": "Only this owner's pieces (name or key)"}}}}}
 }
 
-// Call runs project_report or failure_digest.
+// Call runs project_report, failure_digest or success_rate.
 func (t Tools) Call(ctx context.Context, sc officetools.Scope, name string, raw json.RawMessage) (string, bool) {
 	if name == "failure_digest" {
 		var in struct {
@@ -41,6 +46,18 @@ func (t Tools) Call(ctx context.Context, sc officetools.Scope, name string, raw 
 		}
 		_ = json.Unmarshal(raw, &in)
 		out, err := failureDigest(ctx, t.st, sc.ProjectID, in.Days, in.Agent, in.Category)
+		if err != nil {
+			return err.Error(), true
+		}
+		return out, false
+	}
+	if name == "success_rate" {
+		var in struct {
+			Days  int
+			Agent string
+		}
+		_ = json.Unmarshal(raw, &in)
+		out, err := agentSuccessRate(ctx, t.st, sc.ProjectID, in.Days, in.Agent)
 		if err != nil {
 			return err.Error(), true
 		}
