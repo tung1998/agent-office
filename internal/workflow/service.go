@@ -438,7 +438,7 @@ const InterruptedDetail = "office khởi động lại khi quy trình đang ch�
 // runs keep names go on instead (a graph of steps that kept where it was:
 // ADR-256); a sub-run of one is run again by its step, its chat is not told.
 func (s *Service) EndInterrupted(ctx context.Context, why string, keep map[string]bool) (int, error) {
-	runs, err := s.Store.WorkflowRuns().List(ctx, "", "", 500)
+	runs, err := s.Store.WorkflowRuns().ListRunning(ctx)
 	if err != nil {
 		return 0, err
 	}

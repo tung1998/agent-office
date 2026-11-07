@@ -191,6 +191,10 @@ type WorkflowRunRepo interface {
 	// filter is applied in SQL before the limit, so a rarely-run workflow's
 	// history is not pushed out by other workflows' runs.
 	ListByWorkflow(ctx context.Context, projectID, conversationID, workflowID string, limit int) ([]WorkflowRun, error)
+	// ListRunning is every run with status Running, regardless of how long
+	// ago it started: List's newest-started-first cap of 500 can push a
+	// long-held run (waiting on approval, blocked) out of range.
+	ListRunning(ctx context.Context) ([]WorkflowRun, error)
 	// FailRunning ends the runs left running (the office restarted under them).
 	FailRunning(ctx context.Context, detail string, at time.Time) (int64, error)
 }

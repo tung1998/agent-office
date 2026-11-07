@@ -2,6 +2,7 @@ package workflow_test
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -87,5 +88,50 @@ func TestEndInterruptedKeepsResumable(t *testing.T) {
 	msgs, _ := st.Chat().ListMessages(ctx, caller.ID)
 	if len(msgs) != 1 || !strings.Contains(msgs[0].Content, "/c") || !strings.Contains(msgs[0].Content, "Chạy tiếp từ bước dở") {
 		t.Fatalf("caller = %+v", msgs)
+	}
+}
+
+// A run stuck Running for a long time (held for approval) must not be
+// dropped from EndInterrupted's view by hundreds of runs that started more
+// recently and already finished: List's newest-started-first cap of 500
+// used to hide it (fixed by ListRunning, which filters by status in SQL).
+func TestEndInterruptedFindsOldRunningRunPastListCap(t *testing.T) {
+	ctx := context.Background()
+	st, err := sqlite.Open(":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	if err := st.Migrate(ctx); err != nil {
+		t.Fatal(err)
+	}
+	p, _ := st.Repos().Create(ctx, storage.Repo{Name: "p", Path: "/p"})
+	caller, err := st.Chat().CreateConversation(ctx, storage.Conversation{ProjectID: p.ID, Title: "gọi"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	old, err := st.WorkflowRuns().Create(ctx, storage.WorkflowRun{ProjectID: p.ID, CallerConversationID: caller.ID, WorkflowKey: "held",
+		WorkflowName: "Chờ duyệt", Status: storage.RunRunning})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < 600; i++ {
+		r, err := st.WorkflowRuns().Create(ctx, storage.WorkflowRun{ProjectID: p.ID, CallerConversationID: caller.ID,
+			WorkflowKey: fmt.Sprintf("w%d", i), Status: storage.RunRunning})
+		if err != nil {
+			t.Fatal(err)
+		}
+		r.Status = storage.RunDone
+		if err := st.WorkflowRuns().Update(ctx, r); err != nil {
+			t.Fatal(err)
+		}
+	}
+	n, err := (&workflow.Service{Store: st}).EndInterrupted(ctx, "", nil)
+	if err != nil || n != 1 {
+		t.Fatalf("EndInterrupted = %d, %v", n, err)
+	}
+	got, _ := st.WorkflowRuns().Get(ctx, old.ID)
+	if got.Status != storage.RunFailed {
+		t.Fatalf("old run = %s, want Failed", got.Status)
 	}
 }
