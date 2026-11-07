@@ -61,6 +61,48 @@ func TestProposeAutomation(t *testing.T) { // ADR-041
 	}
 }
 
+func TestProposeAutomationDedupKeepsBothSpecsWhenPatchDiffers(t *testing.T) { // bit_01m6t5qr60rr7db9p4awk5ksg3
+	ctx := context.Background()
+	st, _ := sqlite.Open(filepath.Join(t.TempDir(), "o.db"))
+	defer st.Close()
+	st.Migrate(ctx)
+	proj, _ := st.Repos().Create(ctx, storage.Repo{Name: "p", Path: t.TempDir()})
+	svc := New(st, nil)
+	conv, _ := st.Chat().CreateConversation(ctx, storage.Conversation{ProjectID: proj.ID})
+	sc := Scope{ProjectID: proj.ID, ConversationID: conv.ID, RunRef: "r1", Agent: "Lead", Level: perm.Operate, Access: perm.Access{Level: perm.Operate, Caps: perm.Preset(perm.Operate)}}
+	spec := func(v map[string]any) storage.ActionArgs {
+		raw, _ := json.Marshal(v)
+		return storage.ActionArgs{Automation: raw}
+	}
+	first := map[string]any{"name": "Kiểm tra log", "source": "schedule", "cron": "0 8 * * 1-5", "timezone": "Asia/Ho_Chi_Minh", "action": "script",
+		"script": map[string]any{"lang": "bash", "body": "grep -c ERROR app.log || true"}}
+	a1, err := svc.Propose(ctx, sc, "create_automation", "Kiểm tra log", "báo lỗi mỗi sáng", spec(first))
+	if err != nil || a1.Status != "pending" {
+		t.Fatalf("propose 1 = %+v %v", a1, err)
+	}
+	second := map[string]any{"name": "Kiểm tra log", "source": "schedule", "cron": "0 9 * * 1-5", "timezone": "Asia/Ho_Chi_Minh", "action": "script",
+		"script": map[string]any{"lang": "bash", "body": "grep -c WARN app.log || true"}}
+	a2, err := svc.Propose(ctx, sc, "create_automation", "Kiểm tra log", "đổi giờ và lệnh", spec(second))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if a2.ID == a1.ID {
+		t.Fatalf("propose 2 returned the stale first action instead of a new one: %+v", a2)
+	}
+	if string(a2.Args.Automation) != string(json.RawMessage(mustJSON(t, second))) {
+		t.Fatalf("second proposal's own spec was dropped: %+v", a2.Args.Automation)
+	}
+}
+
+func mustJSON(t *testing.T, v any) []byte {
+	t.Helper()
+	b, err := json.Marshal(v)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return b
+}
+
 func TestProposeAutomationAgentsMustBelongToTheProject(t *testing.T) { // I4
 	ctx := context.Background()
 	st, _ := sqlite.Open(filepath.Join(t.TempDir(), "o.db"))

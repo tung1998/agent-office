@@ -5,6 +5,7 @@
 package actions
 
 import (
+	"bytes"
 	"cmp"
 	"context"
 	"encoding/json"
@@ -473,6 +474,12 @@ func (s *Service) Propose(ctx context.Context, sc Scope, kind, target, reason st
 					continue
 				}
 				if a.Kind == "deps_install" && x.Args.Patch != a.Args.Patch { // another merged diff's install
+					continue
+				}
+				if a.Kind == "config_change" && !samePatch(x.Args.Change, a.Args.Change) { // another patch on the same resource
+					continue
+				}
+				if (a.Kind == "create_automation" || a.Kind == "update_automation") && !bytes.Equal(x.Args.Automation, a.Args.Automation) { // another spec with the same name
 					continue
 				}
 				return x, nil
@@ -984,6 +991,16 @@ func sameFiles(a, b []string) bool {
 	slices.Sort(a)
 	slices.Sort(b)
 	return slices.Equal(a, b)
+}
+
+// samePatch reports whether two config_change proposals set the same patch
+// on the same resource/op/id: Target alone (the resource's display label)
+// can match two different payloads.
+func samePatch(a, b *storage.ConfigChange) bool {
+	if a == nil || b == nil {
+		return a == b
+	}
+	return a.Resource == b.Resource && a.Op == b.Op && a.ID == b.ID && bytes.Equal(a.Patch, b.Patch)
 }
 
 // keptThisTurn counts the notes the turn of a already kept on its own.
