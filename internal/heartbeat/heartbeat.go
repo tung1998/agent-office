@@ -35,6 +35,8 @@ type Service struct {
 	now   func() time.Time
 	// opened is called with the chat a self-check started (tests)
 	opened func(projectID, conv string)
+	// restored is called after a failed turn's state rollback is saved (tests)
+	restored func(projectID string)
 }
 
 func New(store storage.Store, chat Chatter) *Service {
@@ -104,6 +106,14 @@ func (s *Service) Check(ctx context.Context, p storage.Repo) []Signal {
 	if !ok {
 		return nil
 	}
+	// a deep copy: the sign is marked seen and the project put in cooldown
+	// right away (RunChat waits for the whole turn, often well past the 5min
+	// Every, so the next round must not open a second turn for it too), but
+	// if open() never actually reaches the person we restore this to undo it.
+	prev := state{Last: st.Last, Seen: make(map[string]time.Time, len(st.Seen))}
+	for k, v := range st.Seen {
+		prev.Seen[k] = v
+	}
 	if st.Seen == nil {
 		st.Seen = map[string]time.Time{}
 	}
@@ -120,11 +130,16 @@ func (s *Service) Check(ctx context.Context, p storage.Repo) []Signal {
 		return nil // not saved: it would raise them again each round
 	}
 	prompt := prompts.Render("heartbeat/stuck", map[string]any{"Project": p.ID, "Signals": fresh, "Admin": lead.Permissions.FullAccess})
-	go s.open(p.ID, lead, prompt)
+	go s.open(p.ID, lead, prompt, prev)
 	return fresh
 }
 
-func (s *Service) open(projectID string, lead storage.Agent, prompt string) {
+// open starts the self-check turn. If RunChat fails — the turn never
+// actually ran — it restores the state to what it was before Check marked
+// the signals seen, so the next Check tries again instead of silently
+// sitting quiet for the remember/cooldown window (mirrors
+// limitalert.Alerter.Check's notify-then-mark pattern).
+func (s *Service) open(projectID string, lead storage.Agent, prompt string, prev state) {
 	defer func() {
 		if r := recover(); r != nil {
 			slog.Error("heartbeat: panic", "project", projectID, "panic", r, "stack", string(debug.Stack()))
@@ -134,6 +149,13 @@ func (s *Service) open(projectID string, lead storage.Agent, prompt string) {
 	conv, _, err := s.chat.RunChat(ctx, projectID, lead.ID, "", prompt, "")
 	if err != nil {
 		slog.Warn("heartbeat: self-check turn", "project", projectID, "agent", lead.Name, "err", err)
+		if err := s.store.Settings().Set(ctx, stateKey(projectID), prev); err != nil {
+			slog.Warn("heartbeat: restore state", "project", projectID, "err", err)
+		}
+		if s.restored != nil {
+			s.restored(projectID)
+		}
+		return
 	}
 	if s.opened != nil {
 		s.opened(projectID, conv)

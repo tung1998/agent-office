@@ -2,6 +2,7 @@ package heartbeat
 
 import (
 	"context"
+	"errors"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -119,15 +120,30 @@ func TestDetectFailuresAndChecks(t *testing.T) {
 }
 
 type fakeChat struct {
-	mu    sync.Mutex
-	calls []string // agent id: prompt
-	done  chan struct{}
+	mu      sync.Mutex
+	calls   []string // agent id: prompt
+	done    chan struct{}
+	err     error         // when set, RunChat fails instead of succeeding
+	called  chan struct{} // if set, signalled as each RunChat call starts (before it blocks on release)
+	release chan struct{} // if set, RunChat waits for it to close before returning
 }
 
 func (f *fakeChat) RunChat(ctx context.Context, projectID, agentID, conv, prompt, edit string) (string, string, error) {
 	f.mu.Lock()
 	f.calls = append(f.calls, agentID+": "+prompt)
+	err := f.err
+	called := f.called
+	release := f.release
 	f.mu.Unlock()
+	if called != nil {
+		called <- struct{}{}
+	}
+	if release != nil {
+		<-release
+	}
+	if err != nil {
+		return "", "", err
+	}
 	return "cnv_x", "ok", nil
 }
 
@@ -191,6 +207,121 @@ func TestCheckOpensOneTurn(t *testing.T) {
 		t.Fatal("not raised again after remember")
 	}
 	<-opened
+}
+
+// When the self-check turn fails to start (RunChat errors), the signal must
+// not be marked seen: the next Check, even right away, tries again instead of
+// silently sitting quiet for the remember/cooldown window.
+func TestCheckRetriesAfterFailedTurn(t *testing.T) {
+	ctx := context.Background()
+	st, err := sqlite.Open(filepath.Join(t.TempDir(), "o.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { st.Close() })
+	if err := st.Migrate(ctx); err != nil {
+		t.Fatal(err)
+	}
+	p, _ := st.Repos().Create(ctx, storage.Repo{Name: "zalo"})
+	coder, _ := st.Agents().Create(ctx, storage.Agent{ProjectID: p.ID, Key: "coder", Name: "Coder", ModelTier: "balanced"})
+	st.Agents().Create(ctx, storage.Agent{ProjectID: p.ID, Key: "ceo", Name: "CEO", ModelTier: "balanced", Permissions: storage.Permissions{Level: "operate", FullAccess: true}})
+	c, _ := st.Chat().CreateConversation(ctx, storage.Conversation{ProjectID: p.ID, Title: "x"})
+	for range 3 {
+		if _, err := st.Actions().Create(ctx, storage.Action{ProjectID: p.ID, ConversationID: c.ID, Kind: "run_command", Target: "sh app/build.sh", Status: "pending"}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for range 3 {
+		if _, err := st.Jobs().Create(ctx, storage.Job{ProjectID: p.ID, Kind: "chat_turn", Origin: "user", ConversationID: c.ID, AgentID: coder.ID, Status: "done"}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	fc := &fakeChat{err: errors.New("provider down")}
+	s := New(st, fc)
+	restored := make(chan string, 2)
+	s.restored = func(projectID string) { restored <- projectID }
+	now := time.Now().Add(20 * time.Minute)
+	s.now = func() time.Time { return now }
+
+	sigs := s.Check(ctx, p)
+	if len(sigs) == 0 {
+		t.Fatal("no signal")
+	}
+	<-restored // the failed self-check turn ran, then its state was rolled back
+
+	var stt state
+	s.store.Settings().Get(ctx, stateKey(p.ID), &stt)
+	if !stt.Last.IsZero() || len(stt.Seen) != 0 {
+		t.Fatalf("a failed turn must not be saved as seen: %+v", stt)
+	}
+
+	if again := s.Check(ctx, p); len(again) == 0 {
+		t.Fatal("a failed turn silently suppressed the retry")
+	}
+	<-restored
+}
+
+// While a self-check turn is still running (RunChat has not returned —
+// true of the real executor, which waits for the whole turn and often takes
+// well past the 5min Every), Check must not open a second turn for the same
+// signals: the sign is marked seen as soon as the turn starts, not when it
+// finishes. If the turn then fails, the state is rolled back so the signal
+// can be tried again.
+func TestCheckBlocksWhileTurnRuns(t *testing.T) {
+	ctx := context.Background()
+	st, err := sqlite.Open(filepath.Join(t.TempDir(), "o.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { st.Close() })
+	if err := st.Migrate(ctx); err != nil {
+		t.Fatal(err)
+	}
+	p, _ := st.Repos().Create(ctx, storage.Repo{Name: "zalo"})
+	coder, _ := st.Agents().Create(ctx, storage.Agent{ProjectID: p.ID, Key: "coder", Name: "Coder", ModelTier: "balanced"})
+	st.Agents().Create(ctx, storage.Agent{ProjectID: p.ID, Key: "ceo", Name: "CEO", ModelTier: "balanced", Permissions: storage.Permissions{Level: "operate", FullAccess: true}})
+	c, _ := st.Chat().CreateConversation(ctx, storage.Conversation{ProjectID: p.ID, Title: "x"})
+	for range 3 {
+		if _, err := st.Actions().Create(ctx, storage.Action{ProjectID: p.ID, ConversationID: c.ID, Kind: "run_command", Target: "sh app/build.sh", Status: "pending"}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for range 3 {
+		if _, err := st.Jobs().Create(ctx, storage.Job{ProjectID: p.ID, Kind: "chat_turn", Origin: "user", ConversationID: c.ID, AgentID: coder.ID, Status: "done"}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	fc := &fakeChat{called: make(chan struct{}, 4), release: make(chan struct{})}
+	s := New(st, fc)
+	opened := make(chan string, 2)
+	s.opened = func(_, conv string) { opened <- conv }
+	now := time.Now().Add(20 * time.Minute)
+	s.now = func() time.Time { return now }
+
+	if sigs := s.Check(ctx, p); len(sigs) == 0 {
+		t.Fatal("no signal")
+	}
+	<-fc.called // the first turn is now running, blocked on fc.release
+
+	if again := s.Check(ctx, p); again != nil {
+		t.Fatalf("a second turn opened while the first was still running: %+v", again)
+	}
+
+	close(fc.release) // let the first turn finish
+	<-opened
+
+	fc.mu.Lock()
+	calls := len(fc.calls)
+	fc.mu.Unlock()
+	if calls != 1 {
+		t.Fatalf("RunChat called %d times, want 1", calls)
+	}
+
+	var stt state
+	s.store.Settings().Get(ctx, stateKey(p.ID), &stt)
+	if !stt.Last.Equal(now) || len(stt.Seen) == 0 {
+		t.Fatalf("state not saved after the turn finished: %+v", stt)
+	}
 }
 
 // Cards waiting alone are the person's: no turn. A project with the
