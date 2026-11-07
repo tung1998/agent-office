@@ -54,8 +54,11 @@ var changelog = map[string][]ChangeEntry{
 		{Hash: "bb965588cf6c", Date: "2026-11-07", Note: "khởi tạo: ghi mã phiên bản ban đầu"},
 		{Hash: "3deab392ad24", Date: "2026-11-07", Note: "thêm [[.PromptVersion]] vào dòng mở đầu, để retro ghi lại nó đã chạy bằng bản prompt nào"},
 	},
-	"burn/review":               {{Hash: "08995d32ccd9", Date: "2026-11-07", Note: "khởi tạo: ghi mã phiên bản ban đầu"}},
-	"burn/scan":                 {{Hash: "4cebc67f705a", Date: "2026-11-07", Note: "khởi tạo: ghi mã phiên bản ban đầu"}},
+	"burn/review": {{Hash: "08995d32ccd9", Date: "2026-11-07", Note: "khởi tạo: ghi mã phiên bản ban đầu"}},
+	"burn/scan": {
+		{Hash: "4cebc67f705a", Date: "2026-11-07", Note: "khởi tạo: ghi mã phiên bản ban đầu"},
+		{Hash: "d65a3df2ddae", Date: "2026-11-07", Note: "gộp các phát hiện cùng loại vào một piece (fold findings)"},
+	},
 	"burn/work":                 {{Hash: "a1d274d1995c", Date: "2026-11-07", Note: "khởi tạo: ghi mã phiên bản ban đầu"}},
 	"chat/admin-instructions":   {{Hash: "5564b9560dcb", Date: "2026-11-07", Note: "khởi tạo: ghi mã phiên bản ban đầu"}},
 	"chat/administrator":        {{Hash: "6a9c190b2938", Date: "2026-11-07", Note: "khởi tạo: ghi mã phiên bản ban đầu"}},
