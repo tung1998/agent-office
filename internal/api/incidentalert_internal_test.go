@@ -118,6 +118,32 @@ func TestPollIncidentAlertsDedupAndResend(t *testing.T) {
 	}
 }
 
+// min_severity:"warning" must actually widen what is sent: a disabled
+// automation (Severity "warning") is system-wide, with no signed-in user, so
+// PollIncidentAlerts must find it even though it never calls incidentsFor.
+func TestPollIncidentAlertsWarningSeverityIncludesAutomation(t *testing.T) {
+	n := &fakeNotifier{}
+	s, st, p := newIncidentTestServer(t, n)
+	ctx := context.Background()
+	if _, err := st.Automations().Create(ctx, storage.Automation{ProjectID: p.ID, Name: "Báo cáo", Source: "schedule", Action: "script", DisabledCode: "failures", DisabledReason: "script lỗi"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.Settings().Set(ctx, incidentAlertKey, IncidentAlertSettings{ChannelID: "chn_1", ChatID: "c9", MinSeverity: "error"}); err != nil {
+		t.Fatal(err)
+	}
+	s.PollIncidentAlerts(ctx)
+	if len(n.sent) != 0 {
+		t.Fatalf("min_severity error must not send a warning: %v", n.sent)
+	}
+	if err := st.Settings().Set(ctx, incidentAlertKey, IncidentAlertSettings{ChannelID: "chn_1", ChatID: "c9", MinSeverity: "warning"}); err != nil {
+		t.Fatal(err)
+	}
+	s.PollIncidentAlerts(ctx)
+	if len(n.sent) != 1 || !strings.Contains(n.sent[0], "Báo cáo") {
+		t.Fatalf("min_severity warning must send the disabled automation: %v", n.sent)
+	}
+}
+
 func mustDecode(t *testing.T, w *httptest.ResponseRecorder, out *map[string]any) {
 	t.Helper()
 	if err := json.Unmarshal(w.Body.Bytes(), out); err != nil {

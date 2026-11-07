@@ -11,7 +11,9 @@ import (
 
 	"github.com/tung1998/agent-office/internal/assistant"
 	"github.com/tung1998/agent-office/internal/audit"
+	"github.com/tung1998/agent-office/internal/chat"
 	"github.com/tung1998/agent-office/internal/features"
+	"github.com/tung1998/agent-office/internal/storage"
 )
 
 // incidentAlertKey is where IncidentAlertSettings is kept (Settings store).
@@ -138,6 +140,7 @@ func (s *server) systemIncidents(ctx context.Context) []incident {
 		return nil
 	}
 	hidden := assistant.ID(ctx, s.cfg.Store)
+	day := time.Now().UTC().Add(-24 * time.Hour)
 	var out []incident
 	for _, p := range projects {
 		if p.ID == hidden {
@@ -171,6 +174,25 @@ func (s *server) systemIncidents(ctx context.Context) []incident {
 						}
 					}
 				}
+			}
+		}
+		if as, err := s.cfg.Store.Automations().List(ctx, p.ID); err == nil {
+			for _, a := range as {
+				if a.DisabledCode != "" && a.DisabledCode != "ended" { // stopped at its stop time: as asked, no incident
+					add("automation", "warning", a.Name, a.DisabledReason, &a.UpdatedAt, base+"/automations/"+a.ID, a.ID)
+				}
+			}
+		}
+		if failed, err := s.cfg.Store.Jobs().List(ctx, storage.JobFilter{ProjectID: p.ID, Status: "failed", Since: day, Limit: 200}); err == nil && len(failed) > 0 {
+			var fresh []storage.Job
+			for _, j := range failed {
+				if !(j.Kind == "chat_turn" && chat.Stalled(j.ErrorCode)) && j.RetryAt == nil { // a chat out of tokens, or going on by itself, is its own item
+					fresh = append(fresh, j)
+				}
+			}
+			if len(fresh) > 0 {
+				last := fresh[0]
+				add("jobs", "warning", fmt.Sprintf("%d job lỗi trong 24 giờ", len(fresh)), last.Title+": "+last.Error, &last.CreatedAt, "/jobs?project="+p.ID, p.ID) // i18n-ignore
 			}
 		}
 	}
