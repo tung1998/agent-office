@@ -74,7 +74,10 @@ func (s *server) officeProjects(r *http.Request) []map[string]string {
 	if s.cfg.Peers == nil {
 		return out
 	}
-	by := s.officesOf(r.Context(), userFrom(r))
+	by, err := s.officesOf(r.Context(), userFrom(r))
+	if err != nil {
+		return out
+	}
 	list, _ := s.cfg.Peers.List(r.Context())
 	for _, p := range list {
 		for _, rp := range p.Remote {
@@ -141,7 +144,11 @@ func (s *server) putPolicy(w http.ResponseWriter, r *http.Request) {
 	}
 	in.WorktreeLinks = links
 	linked := []string{}
-	by := s.officesOf(r.Context(), userFrom(r))
+	by, err := s.officesOf(r.Context(), userFrom(r))
+	if err != nil {
+		s.internal(w, r, err)
+		return
+	}
 	for _, id := range clean(in.LinkedProjects) {
 		if id == projectID || slices.Contains(linked, id) {
 			continue
@@ -198,7 +205,6 @@ func (s *server) putPolicy(w http.ResponseWriter, r *http.Request) {
 		}
 		return out, nil
 	}
-	var err error
 	packs := []perm.Pack{}
 	for i, p := range in.Packs {
 		p.Label, p.Custom = strings.TrimSpace(p.Label), false

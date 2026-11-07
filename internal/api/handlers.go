@@ -36,7 +36,11 @@ func (s *server) withProjects(ctx context.Context, u storage.User) (userDTO, err
 	}
 	ids, err := s.cfg.Store.Users().Projects(ctx, u.ID)
 	d.Projects = ids
-	d.Offices = s.officesOf(ctx, u).acc
+	oc, ocErr := s.officesOf(ctx, u)
+	if err == nil {
+		err = ocErr
+	}
+	d.Offices = oc.acc
 	return d, err
 }
 
@@ -224,7 +228,11 @@ func (s *server) listUsers(w http.ResponseWriter, r *http.Request) {
 		s.internal(w, r, err)
 		return
 	}
-	oc := s.officesOf(r.Context(), me)
+	oc, err := s.officesOf(r.Context(), me)
+	if err != nil {
+		s.internal(w, r, err)
+		return
+	}
 	out := make([]userDTO, 0, len(users))
 	for _, u := range users {
 		if me.Role != storage.RoleAdmin && u.Role != storage.RoleMember { // a manager runs the members (ADR-239)
@@ -273,7 +281,12 @@ func (s *server) createUser(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
-	offices, err := s.cleanOffices(r.Context(), s.officesOf(r.Context(), me), in.Offices)
+	meScope, err := s.officesOf(r.Context(), me)
+	if err != nil {
+		s.internal(w, r, err)
+		return
+	}
+	offices, err := s.cleanOffices(r.Context(), meScope, in.Offices)
 	if err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
@@ -326,7 +339,11 @@ func (s *server) updateUser(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	by := s.officesOf(r.Context(), userFrom(r))
+	by, err := s.officesOf(r.Context(), userFrom(r))
+	if err != nil {
+		s.internal(w, r, err)
+		return
+	}
 	var offices officeAccess
 	if in.Offices != nil {
 		set, err := s.cleanOffices(r.Context(), by, *in.Offices)
@@ -334,7 +351,12 @@ func (s *server) updateUser(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusBadRequest, err.Error())
 			return
 		}
-		offices = mergeOffices(s.officesOf(r.Context(), target).acc, set, by)
+		targetScope, err := s.officesOf(r.Context(), target)
+		if err != nil {
+			s.internal(w, r, err)
+			return
+		}
+		offices = mergeOffices(targetScope.acc, set, by)
 	}
 	if userFrom(r).Role != storage.RoleAdmin {
 		if in.Role != nil && *in.Role != string(storage.RoleMember) {

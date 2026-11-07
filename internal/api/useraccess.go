@@ -37,13 +37,15 @@ func (o officeScope) allows(peerID, projectID string) bool {
 	return slices.Contains(list, allProjects) || slices.Contains(list, projectID)
 }
 
-func (s *server) officesOf(ctx context.Context, u storage.User) officeScope {
+func (s *server) officesOf(ctx context.Context, u storage.User) (officeScope, error) {
 	if u.Role == storage.RoleAdmin {
-		return officeScope{all: true}
+		return officeScope{all: true}, nil
 	}
 	acc := officeAccess{}
-	_, _ = s.cfg.Store.Settings().Get(ctx, officesKey(u.ID), &acc)
-	return officeScope{acc: acc}
+	if _, err := s.cfg.Store.Settings().Get(ctx, officesKey(u.ID), &acc); err != nil {
+		return officeScope{}, err
+	}
+	return officeScope{acc: acc}, nil
 }
 
 // errNotYours: a manager gives only what it has itself.
@@ -176,7 +178,10 @@ func (s *server) officeChoices(r *http.Request) []map[string]any {
 	if s.cfg.Peers == nil {
 		return out
 	}
-	by := s.officesOf(r.Context(), userFrom(r))
+	by, err := s.officesOf(r.Context(), userFrom(r))
+	if err != nil {
+		return out
+	}
 	list, _ := s.cfg.Peers.List(r.Context())
 	for _, p := range list {
 		whole := by.all || slices.Contains(by.acc[p.ID], allProjects)
