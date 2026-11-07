@@ -45,7 +45,7 @@ func Search(root, query string, n int) ([]Hit, error) {
 	}
 	docs := make([]string, len(secs))
 	for i, s := range secs {
-		docs[i] = textrank.Fold(s.path + " " + s.heading + " " + s.text)
+		docs[i] = textrank.Normalize(s.path + " " + s.heading + " " + s.text)
 	}
 	ranked, _ := textrank.Rank(docs, words)
 	var out []Hit

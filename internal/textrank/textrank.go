@@ -8,6 +8,7 @@ import (
 	"slices"
 	"strings"
 	"unicode"
+	"unicode/utf8"
 
 	"golang.org/x/text/runes"
 	"golang.org/x/text/transform"
@@ -24,10 +25,101 @@ func Fold(s string) string {
 	return out
 }
 
-// Words is the query's words, folded, each once.
+// abbrev expands common Vietnamese typing abbreviations to their full word,
+// matched whole (never inside a longer word, so terms like "vd1" or variable
+// names keep their letters) before folding, so a note written "không có" is
+// found by a query typed "ko có".
+var abbrev = map[string]string{
+	"ko":  "không",
+	"k":   "không",
+	"dc":  "được",
+	"đc":  "được",
+	"vd":  "ví dụ",
+	"vs":  "với",
+	"ng":  "người",
+	"nx":  "nữa",
+	"trc": "trước",
+	"bt":  "bình thường",
+}
+
+// isWordRune is a letter or digit: what makes up the abbreviation itself,
+// as opposed to punctuation stuck to it ("vd:", "(ko", "ko,").
+func isWordRune(r rune) bool { return unicode.IsLetter(r) || unicode.IsDigit(r) }
+
+// splitPunct splits word into leading punctuation, a letter/digit core, and
+// trailing punctuation ("(ko," -> "(", "ko", ",").
+func splitPunct(word string) (lead, core, trail string) {
+	i := strings.IndexFunc(word, isWordRune)
+	if i < 0 {
+		return word, "", ""
+	}
+	j := strings.LastIndexFunc(word, isWordRune)
+	_, size := utf8.DecodeRuneInString(word[j:])
+	j += size
+	return word[:i], word[i:j], word[j:]
+}
+
+// Expand returns the full word for a known Vietnamese abbreviation (matched
+// whole, case-insensitively, ignoring punctuation stuck to it such as
+// "vd:" or "(ko"), or word unchanged if it isn't one.
+func Expand(word string) string {
+	lead, core, trail := splitPunct(word)
+	if full, ok := abbrev[strings.ToLower(core)]; ok {
+		return lead + full + trail
+	}
+	return word
+}
+
+// reverseAbbrev maps a full phrase (lowercase, however many words) to the
+// abbreviations that expand to it, for the full->abbreviation direction
+// (searching "ví dụ" should also find a message that only says "vd").
+var reverseAbbrev = func() map[string][]string {
+	m := map[string][]string{}
+	for short, full := range abbrev {
+		full = strings.ToLower(full)
+		m[full] = append(m[full], short)
+	}
+	for _, shorts := range m {
+		slices.Sort(shorts)
+	}
+	return m
+}()
+
+// FullPhraseWords is how many words the longest known full phrase has
+// (e.g. "ví dụ" is 2), so callers know how far to look ahead.
+var FullPhraseWords = func() int {
+	n := 1
+	for full := range reverseAbbrev {
+		if c := len(strings.Fields(full)); c > n {
+			n = c
+		}
+	}
+	return n
+}()
+
+// ReverseExpand returns the known abbreviations for a full phrase (matched
+// whole, case-insensitively, any number of words), or nil if phrase isn't
+// the expansion of one.
+func ReverseExpand(phrase string) []string {
+	return reverseAbbrev[strings.ToLower(phrase)]
+}
+
+// Normalize expands each word's abbreviation (if any) then folds, so a
+// query and a doc written with different abbreviations of the same word
+// still meet in the middle. Used on both sides of Rank: the query (via
+// Words) and the docs it ranks against.
+func Normalize(s string) string {
+	words := strings.Fields(s)
+	for i, w := range words {
+		words[i] = Expand(w)
+	}
+	return Fold(strings.Join(words, " "))
+}
+
+// Words is the query's words, normalized, each once.
 func Words(query string) []string {
 	var out []string
-	for _, w := range strings.Fields(Fold(query)) {
+	for _, w := range strings.Fields(Normalize(query)) {
 		if !slices.Contains(out, w) {
 			out = append(out, w)
 		}

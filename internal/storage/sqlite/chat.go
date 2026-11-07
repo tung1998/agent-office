@@ -9,6 +9,7 @@ import (
 
 	"github.com/tung1998/agent-office/internal/ids"
 	"github.com/tung1998/agent-office/internal/storage"
+	"github.com/tung1998/agent-office/internal/textrank"
 )
 
 type chatRepo struct {
@@ -592,20 +593,73 @@ func (r chatRepo) MarkAllSeen(ctx context.Context, userID, author string) (int, 
 }
 
 // ftsQuery makes the person's words an FTS5 query: every word must be there,
-// each one quoted (nothing in it is FTS syntax), the last a prefix.
+// each one quoted (nothing in it is FTS syntax), the last a prefix. A word
+// that is a known Vietnamese abbreviation (e.g. "vd") also matches a message
+// spelled out in full (e.g. "ví dụ"), and vice versa: both forms are quoted
+// and OR'd, so neither the abbreviated nor the full form of a past message
+// goes missing depending on how the search is typed.
 func ftsQuery(q string) string {
-	var words []string
+	quote := func(w string, prefix bool) string {
+		q := `"` + strings.ReplaceAll(w, `"`, `""`) + `"`
+		if prefix {
+			q += "*"
+		}
+		return q
+	}
+	var terms []string
 	for _, w := range strings.Fields(q) {
 		w = strings.Trim(w, `"'.,;:!?()[]{}`)
-		if w != "" {
-			words = append(words, `"`+strings.ReplaceAll(w, `"`, `""`)+`"`)
+		if w == "" {
+			continue
 		}
+		terms = append(terms, w)
 	}
-	if len(words) == 0 {
+	if len(terms) == 0 {
 		return ""
 	}
-	words[len(words)-1] += "*"
-	return strings.Join(words, " ")
+	var clauses []string
+	for i := 0; i < len(terms); {
+		// Longest full phrase first (e.g. "ví dụ" before just "dụ"), so a
+		// query spelled out in full also finds a message using "vd".
+		matched := false
+		for span := textrank.FullPhraseWords; span >= 2 && !matched; span-- {
+			if i+span > len(terms) {
+				continue
+			}
+			phrase := strings.Join(terms[i:i+span], " ")
+			shorts := textrank.ReverseExpand(phrase)
+			if len(shorts) == 0 {
+				continue
+			}
+			last := i+span == len(terms)
+			alts := []string{quote(phrase, last)}
+			for _, s := range shorts {
+				alts = append(alts, quote(s, last))
+			}
+			clauses = append(clauses, "("+strings.Join(alts, " OR ")+")")
+			i += span
+			matched = true
+		}
+		if matched {
+			continue
+		}
+		w := terms[i]
+		last := i == len(terms)-1
+		switch full := textrank.Expand(w); {
+		case full != w: // w is itself a known abbreviation
+			clauses = append(clauses, "("+quote(w, last)+" OR "+quote(full, last)+")")
+		case len(textrank.ReverseExpand(w)) > 0: // w is the full word of one
+			alts := []string{quote(w, last)}
+			for _, s := range textrank.ReverseExpand(w) {
+				alts = append(alts, quote(s, last))
+			}
+			clauses = append(clauses, "("+strings.Join(alts, " OR ")+")")
+		default:
+			clauses = append(clauses, quote(w, last))
+		}
+		i++
+	}
+	return strings.Join(clauses, " ")
 }
 
 func (r chatRepo) SearchMessages(ctx context.Context, query string, f storage.SearchFilter) ([]storage.MessageHit, error) {

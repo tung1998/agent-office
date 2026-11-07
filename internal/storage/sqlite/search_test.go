@@ -45,3 +45,47 @@ func TestSearchMessages(t *testing.T) {
 		t.Fatalf("a deleted chat still found: %+v", hits)
 	}
 }
+
+// A message written with a Vietnamese abbreviation (or spelled out in full)
+// is found either way: searching "vd" must find "ví dụ" and searching
+// "ví dụ" must find "vd" (textrank.Expand).
+func TestSearchMessagesAbbreviationBothWays(t *testing.T) {
+	ctx := context.Background()
+	st, p := openStore(t)
+	chat := st.Chat()
+	abbr, _ := chat.CreateConversation(ctx, storage.Conversation{ProjectID: p.ID, Title: "abbr", CreatedBy: "human:a@x.io"})
+	chat.AddMessage(ctx, storage.Message{ConversationID: abbr.ID, Role: "user", Author: "human:a@x.io", Content: "vd thêm field mới vào form"})
+	full, _ := chat.CreateConversation(ctx, storage.Conversation{ProjectID: p.ID, Title: "full", CreatedBy: "human:a@x.io"})
+	chat.AddMessage(ctx, storage.Message{ConversationID: full.ID, Role: "user", Author: "human:a@x.io", Content: "ví dụ về cách dùng API"})
+	all := storage.SearchFilter{ProjectIDs: []string{p.ID}}
+	if hits, err := chat.SearchMessages(ctx, "vd", all); err != nil || len(hits) != 2 {
+		t.Fatalf("searching abbreviation should find both forms: %d %v", len(hits), err)
+	}
+	if hits, err := chat.SearchMessages(ctx, "ví dụ", all); err != nil || len(hits) != 2 {
+		t.Fatalf("searching full form should find both forms: %d %v", len(hits), err)
+	}
+}
+
+// A note abbreviation stuck to punctuation ("vd:", "ko,") still matches,
+// and a single abbreviated word ("ko") is found by its full form ("không").
+func TestSearchMessagesAbbreviationWithPunctuation(t *testing.T) {
+	ctx := context.Background()
+	st, p := openStore(t)
+	chat := st.Chat()
+	conv, _ := chat.CreateConversation(ctx, storage.Conversation{ProjectID: p.ID, Title: "note", CreatedBy: "human:a@x.io"})
+	chat.AddMessage(ctx, storage.Message{ConversationID: conv.ID, Role: "user", Author: "human:a@x.io", Content: "vd: thêm field mới vào form"})
+	chat.AddMessage(ctx, storage.Message{ConversationID: conv.ID, Role: "assistant", Author: "Dev", Content: "ko, chưa làm xong việc này"})
+	all := storage.SearchFilter{ProjectIDs: []string{p.ID}}
+	if hits, err := chat.SearchMessages(ctx, "vd", all); err != nil || len(hits) != 1 {
+		t.Fatalf("'vd:' not found by 'vd': %d %v", len(hits), err)
+	}
+	if hits, err := chat.SearchMessages(ctx, "ví dụ", all); err != nil || len(hits) != 1 {
+		t.Fatalf("'vd:' not found by 'ví dụ': %d %v", len(hits), err)
+	}
+	if hits, err := chat.SearchMessages(ctx, "ko", all); err != nil || len(hits) != 1 {
+		t.Fatalf("'ko,' not found by 'ko': %d %v", len(hits), err)
+	}
+	if hits, err := chat.SearchMessages(ctx, "không", all); err != nil || len(hits) != 1 {
+		t.Fatalf("'ko,' not found by full word 'không': %d %v", len(hits), err)
+	}
+}

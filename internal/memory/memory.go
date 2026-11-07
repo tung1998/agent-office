@@ -512,7 +512,7 @@ func Recall(ctx context.Context, store storage.Store, projectID, agentID, topic,
 			continue
 		}
 		pool = append(pool, m)
-		hays = append(hays, fold(m.Topic+" "+m.Summary+" "+m.Text))
+		hays = append(hays, textrank.Normalize(m.Topic+" "+m.Summary+" "+m.Text))
 	}
 	var hits []storage.Memory
 	full := 1
