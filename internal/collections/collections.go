@@ -195,7 +195,7 @@ func (s *Service) Upsert(ctx context.Context, projectID, key, id string, data ma
 			found = true
 		} else {
 			for _, f := range c.Fields {
-				if v, ok := patch[f.Name]; f.Unique && ok && v != nil {
+				if v, ok := patch[f.Name]; f.Unique && ok && v != nil && v != "" {
 					if old, err = repo.FindBy(ctx, c.ID, f.Name, sqlValue(v)); err == nil {
 						found = true
 						break
@@ -407,6 +407,12 @@ func (s *Service) normalize(ctx context.Context, c storage.Collection, data map[
 		nv, err := s.value(ctx, c, f, v, true)
 		if err != nil {
 			return nil, err
+		}
+		if f.Unique && nv == "" {
+			// A blank unique value isn't an identity: store it as absent so
+			// the DB's unique index (which allows many NULLs) doesn't treat
+			// every blank record as colliding with every other.
+			nv = nil
 		}
 		out[k] = nv
 	}

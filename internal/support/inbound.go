@@ -364,10 +364,62 @@ func (s *Service) customer(ctx context.Context, projectID string, c Contact) str
 		data["name"] = firstNonEmpty(c.Email, c.Phone, c.Ref)
 	}
 	x, _, err := s.collections.Upsert(ctx, projectID, "customers", id, data, "support")
-	if err != nil {
+	if err == nil {
+		return x.ID
+	}
+	if !collections.IsInvalid(err) {
 		return ""
 	}
-	return x.ID
+	// A unique field in data (phone, external_ref, email) is already someone
+	// else's: two office instances raced on a new contact (SetMaxOpenConns(1)
+	// only serializes writes within one process, not across instances — not
+	// reproducible with a single process, hence no direct test for this
+	// path), or this message's contact shares a phone/ref with a different,
+	// already-known customer (e.g. a family member, or two identities one
+	// source conflates).
+	if id == "" {
+		// The common case: someone else's write won the race for one of
+		// these values. Use their record instead of creating a duplicate.
+		for _, f := range []string{"email", "external_ref", "phone"} {
+			if v, ok := data[f]; ok {
+				if list, _, qerr := s.collections.Query(ctx, projectID, "customers", collections.Query{Where: []storage.Cond{{Field: f, Value: v}}, Limit: 1}); qerr == nil && len(list) == 1 {
+					return list[0].ID
+				}
+			}
+		}
+	}
+	// Either id names a known customer and one of its fields collides with a
+	// different record (id != ""), or id == "" and the lookup above didn't
+	// resolve it: drop the colliding field(s) and retry once, rather than
+	// losing the ticket's CustomerID (id != "") or the write entirely
+	// (id == "").
+	if x, _, err := s.collections.Upsert(ctx, projectID, "customers", id, s.dropConflicting(ctx, projectID, id, data), "support"); err == nil {
+		return x.ID
+	}
+	return id
+}
+
+// dropConflicting removes from data any unique field (email, phone,
+// external_ref) whose value already belongs to a customer record other than
+// id ("" when id names no one yet, i.e. a new record is being inserted), so
+// a write that lost a unique-index race on one field can still go through
+// on the rest instead of being discarded outright.
+func (s *Service) dropConflicting(ctx context.Context, projectID, id string, data map[string]any) map[string]any {
+	out := make(map[string]any, len(data))
+	for k, v := range data {
+		out[k] = v
+	}
+	for _, f := range []string{"email", "external_ref", "phone"} {
+		v, ok := out[f]
+		if !ok {
+			continue
+		}
+		list, _, err := s.collections.Query(ctx, projectID, "customers", collections.Query{Where: []storage.Cond{{Field: f, Value: v}}, Limit: 1})
+		if err == nil && len(list) == 1 && list[0].ID != id {
+			delete(out, f)
+		}
+	}
+	return out
 }
 
 // payload is what the automation reads: the ticket, who, the message, the

@@ -67,8 +67,8 @@ var Collections = []storage.Collection{
 	{Key: "customers", Name: "Khách hàng", Pack: "support", Description: "Khách của các ticket: liên hệ, nhãn, ghi chú.", Fields: []storage.Field{
 		{Name: "name", Label: "Tên", Type: storage.FieldText, Required: true},
 		{Name: "email", Label: "Email", Type: storage.FieldText, Unique: true},
-		{Name: "phone", Label: "Điện thoại", Type: storage.FieldText, Indexed: true},
-		{Name: "external_ref", Label: "Mã ở hệ thống khác", Type: storage.FieldText, Indexed: true},
+		{Name: "phone", Label: "Điện thoại", Type: storage.FieldText, Unique: true},
+		{Name: "external_ref", Label: "Mã ở hệ thống khác", Type: storage.FieldText, Unique: true},
 		{Name: "tags", Label: "Nhãn", Type: storage.FieldTags},
 		{Name: "notes", Label: "Ghi chú", Type: storage.FieldText},
 	}},
@@ -84,34 +84,115 @@ var Collections = []storage.Collection{
 }
 
 // ensure makes the pack's collections a project does not have yet, and
-// adds to the pack's own the fields a newer pack has.
+// brings the project's own (ADR-172: fields added, never removed) up to
+// date with a newer pack.
 func (s *Service) ensure(ctx context.Context, projectID string) error {
 	for _, c := range Collections {
-		if old, err := s.store.Collections().Get(ctx, projectID, c.Key); err == nil {
-			if old.Pack != "support" {
-				continue // the project's own collection of that key
-			}
-			fields, added := old.Fields, false
-			for _, f := range c.Fields {
-				if !hasField(fields, f.Name) {
-					fields, added = append(fields, f), true
-				}
-			}
-			if added {
-				old.Fields = fields
-				if _, err := s.collections.Define(ctx, projectID, old); err != nil {
-					return err
-				}
+		old, err := s.store.Collections().Get(ctx, projectID, c.Key)
+		if errors.Is(err, storage.ErrNotFound) {
+			if _, err := s.collections.Define(ctx, projectID, c); err != nil {
+				return err
 			}
 			continue
-		} else if !errors.Is(err, storage.ErrNotFound) {
+		}
+		if err != nil {
 			return err
 		}
-		if _, err := s.collections.Define(ctx, projectID, c); err != nil {
+		if old.Pack != "support" {
+			continue // the project's own collection of that key
+		}
+		if err := s.sync(ctx, projectID, old, c); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+// sync adds to a project's own collection the fields a newer pack has, and
+// turns a field Unique when the pack now requires it (e.g. phone/external_ref
+// after this fix): existing blank ("") values are cleared first so they
+// don't collide on the new index (a real DB NULL doesn't collide with
+// another NULL, unlike two empty strings). If real duplicate values still
+// block the unique index, the field is left Indexed — logged once, not
+// retried on every On() call, since that would otherwise spin forever.
+func (s *Service) sync(ctx context.Context, projectID string, old, want storage.Collection) error {
+	fields, added := old.Fields, false
+	for _, f := range want.Fields {
+		if !hasField(fields, f.Name) {
+			fields, added = append(fields, f), true
+		}
+	}
+	toUnique := map[string]bool{}
+	for _, f := range want.Fields {
+		if i := fieldIndex(fields, f.Name); f.Unique && i >= 0 && !fields[i].Unique {
+			toUnique[f.Name] = true
+		}
+	}
+	if added {
+		old.Fields = fields
+		if _, err := s.collections.Define(ctx, projectID, old); err != nil {
+			return err
+		}
+	}
+	if len(toUnique) == 0 {
+		return nil
+	}
+	if err := s.clearBlank(ctx, projectID, old.Key, toUnique); err != nil {
+		return err
+	}
+	for name := range toUnique {
+		if i := fieldIndex(fields, name); i >= 0 {
+			fields[i].Unique = true
+		}
+	}
+	old.Fields = fields
+	if _, err := s.collections.Define(ctx, projectID, old); err != nil {
+		if collections.IsInvalid(err) {
+			slog.Error("support: real duplicate values block turning field unique, kept indexed", "project", projectID, "collection", old.Key, "fields", toUnique, "err", err)
+			return nil
+		}
+		return err
+	}
+	return nil
+}
+
+// clearBlank removes a to-become-unique text field's blank ("") value from a
+// collection's existing records, in pages, so a bunch of unrelated old
+// records with no phone/ref don't make the new unique index unusable.
+func (s *Service) clearBlank(ctx context.Context, projectID, key string, fields map[string]bool) error {
+	for offset := 0; ; {
+		list, total, err := s.collections.Query(ctx, projectID, key, collections.Query{Limit: collections.MaxPageSize, Offset: offset})
+		if err != nil {
+			return err
+		}
+		for _, r := range list {
+			patch := map[string]any{}
+			for name := range fields {
+				if v, ok := r.Data[name].(string); ok && v == "" {
+					patch[name] = nil
+				}
+			}
+			if len(patch) == 0 {
+				continue
+			}
+			if _, _, err := s.collections.Upsert(ctx, projectID, key, r.ID, patch, "system"); err != nil {
+				return err
+			}
+		}
+		offset += len(list)
+		if len(list) == 0 || offset >= total {
+			return nil
+		}
+	}
+}
+
+func fieldIndex(fields []storage.Field, name string) int {
+	for i, f := range fields {
+		if f.Name == name {
+			return i
+		}
+	}
+	return -1
 }
 
 // Take is the bot Tap: a message of a bot a support source (kind bot) of a
