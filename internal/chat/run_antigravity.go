@@ -120,7 +120,11 @@ func (antigravityRunner) run(ctx context.Context, req RunRequest, emit func(Even
 		args = append(args, "--conversation", req.SessionID)
 	}
 	prompt, imageDirs := agyPrompt(req)
-	for _, d := range append(slices.Clone(req.ExtraDirs), imageDirs...) {
+	dirs := append(slices.Clone(req.ExtraDirs), imageDirs...)
+	if !req.Write && !req.FullAccess { // read only: it may read the git of the worktree it works in (ADR-270)
+		dirs = append(dirs, worktreeGitDirs(ctx, req.WorkDir)...)
+	}
+	for _, d := range dirs {
 		if d = strings.TrimSpace(d); d != "" {
 			args = append(args, "--add-dir", d)
 		}
@@ -268,4 +272,38 @@ func agyStepFailure(stepType, tool string, info json.RawMessage) string {
 		}
 	}
 	return tool + ": " + why
+}
+
+// worktreeGitDirs are the git folders of the worktree dir is in, when they
+// lie outside it (a linked worktree's .git is a file naming
+// <repo>/.git/worktrees/<name>, and git reads the repo's own .git too):
+// agy reads only its workspace and the folders added, so without them a
+// read-only agent is refused its "git status" and the HEAD it reads, and
+// ends its turn with no answer (ADR-270). None for the main checkout, or
+// when dir is not in git. Never for an agent that may write: .git holds the
+// hooks git runs.
+func worktreeGitDirs(ctx context.Context, dir string) []string {
+	if dir == "" {
+		return nil
+	}
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	out, err := exec.CommandContext(ctx, "git", "-C", dir, "rev-parse", "--path-format=absolute", "--show-toplevel", "--git-dir", "--git-common-dir").Output()
+	if err != nil {
+		return nil
+	}
+	l := strings.Split(strings.TrimSpace(string(out)), "\n")
+	if len(l) != 3 {
+		return nil
+	}
+	top := filepath.Clean(l[0])
+	var dirs []string
+	for _, d := range l[1:] {
+		d = filepath.Clean(d)
+		if d == top || strings.HasPrefix(d, top+string(filepath.Separator)) || slices.Contains(dirs, d) {
+			continue // in the workspace already
+		}
+		dirs = append(dirs, d)
+	}
+	return dirs
 }

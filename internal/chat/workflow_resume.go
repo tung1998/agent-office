@@ -174,7 +174,9 @@ func (e *Engine) resumeRun(ctx context.Context, rec storage.WorkflowRun, parent 
 		run.parent, run.until = parent, parent.deadline
 		e.wf.mu.Unlock()
 	}
-	run.deadline = rec.StartedAt.Add(def.Timeout())
+	// the time its steps waited for quota does not count (ADR-270)
+	run.paused = cp.Paused
+	run.deadline = rec.StartedAt.Add(def.Timeout() + cp.Paused)
 	if !run.until.IsZero() && run.until.Before(run.deadline) {
 		run.deadline = run.until
 	}

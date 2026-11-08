@@ -53,6 +53,34 @@ async function resume() {
   }
 }
 
+// a step waiting for its agent's quota (ADR-270): how long is left, and
+// Chạy ngay to try the AI at once; the run's time stands still meanwhile
+const now = ref(Date.now())
+let tick: ReturnType<typeof setInterval> | undefined
+onMounted(() => { tick = setInterval(() => { now.value = Date.now() }, 30_000) })
+onBeforeUnmount(() => clearInterval(tick))
+function span(s: number) {
+  const d = Math.floor(s / 86400), h = Math.floor(s % 86400 / 3600), m = Math.max(1, Math.ceil(s % 3600 / 60))
+  if (d) return [t('wf.run.dur.d', { n: d }), h ? t('wf.run.dur.h', { n: h }) : ''].filter(Boolean).join(' ')
+  if (h) return [t('wf.run.dur.h', { n: h }), t('wf.run.dur.m', { n: m })].join(' ')
+  return t('wf.run.dur.m', { n: m })
+}
+const left = (d: string) => span(Math.max(0, (new Date(d).getTime() - now.value) / 1000))
+const skipping = ref(false)
+async function skipQuota() {
+  skipping.value = true
+  try {
+    await $fetch(`/api/workflow-runs/${props.run.id}/quota-skip`, { method: 'POST', body: {} })
+    toast.add({ title: t('wf.run.quotaSkipped'), color: 'success' })
+    const res = await $fetch<{ run: WorkflowRun }>(`/api/workflow-runs/${props.run.id}`)
+    emit('updated', res.run)
+  } catch (e) {
+    toast.add({ title: apiError(e), color: 'error' })
+  } finally {
+    skipping.value = false
+  }
+}
+
 const stopping = ref(false)
 async function stop() {
   stopping.value = true
@@ -85,13 +113,16 @@ async function stop() {
       {{ t('wf.run.coordinator', { name: run.coordinator_name }) }}<template v-if="run.input"> · <span class="italic">{{ run.input }}</span></template>
     </p>
 
-    <div v-if="cp && (cp.resumes || cp.parked || waits.length || (run.status === 'running' && cp.running.length))" class="flex flex-wrap items-center gap-1.5 text-xs">
+    <div v-if="cp && (cp.resumes || cp.parked || cp.paused_s || waits.length || (run.status === 'running' && cp.running.length))" class="flex flex-wrap items-center gap-1.5 text-xs">
       <UBadge v-if="cp.resumes" color="warning" variant="subtle" size="sm" icon="i-lucide-rotate-cw" :label="t('wf.run.resumed', { n: cp.resumes })" :title="t('wf.run.resumedInfo', { max: cp.max_resumes })" />
       <UBadge v-if="cp.parked" color="info" variant="subtle" size="sm" icon="i-lucide-pause" :label="t('wf.run.parked')" />
+      <UBadge v-if="cp.paused_s" color="neutral" variant="subtle" size="sm" icon="i-lucide-battery-low" :label="t('wf.run.quotaPaused', { d: span(cp.paused_s) })" :title="t('wf.run.quotaPausedInfo')" />
       <span v-if="run.status === 'running' && cp.running.length && !waits.length" class="text-(--ui-text-muted)">{{ t('wf.run.at', { steps: cp.running.map(s => s.label).join(', ') }) }}</span>
       <span v-for="s in waits" :key="s.id" class="flex items-center gap-1 text-(--ui-text-muted)">
         <template v-if="s.quota_until">
-          <UIcon name="i-lucide-battery-low" class="size-3.5" />{{ t('wf.run.quotaUntil', { step: s.label, time: clock(s.quota_until) }) }}
+          <UIcon name="i-lucide-battery-low" class="size-3.5" />
+          <span :title="t('wf.run.quotaPausedInfo')">{{ t('wf.run.quotaUntil', { step: s.label, time: clock(s.quota_until) }) }} · {{ t('wf.run.quotaLeft', { left: left(s.quota_until) }) }}</span>
+          <UButton v-if="isAdmin" size="xs" color="neutral" variant="outline" icon="i-lucide-play" :label="t('wf.run.quotaSkip')" :title="t('wf.run.quotaSkipInfo')" :loading="skipping" @click="skipQuota" />
         </template>
         <template v-else>
           <UIcon name="i-lucide-hourglass" class="size-3.5" />{{ t('wf.run.waitUntil', { step: s.label, time: clock(s.wait_until) }) }}

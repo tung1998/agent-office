@@ -85,6 +85,15 @@ type wfRun struct {
 	resumed   map[string]bool
 	resumes   int
 	callerJob string // the job of the chat that called it
+	// its time stops while its steps wait for their agents' quota (ADR-270):
+	// how many wait now, since when, how long it stopped in all; expired:
+	// the chat was told it ran past its time (told once); quotaSkip: what
+	// ends a step's wait now (Chạy ngay)
+	quotaWaiting int
+	pausedAt     time.Time
+	paused       time.Duration
+	expired      bool
+	quotaSkip    map[string]chan struct{}
 }
 
 // snapshot copies the run's record and bumps its save sequence; call with
@@ -94,7 +103,7 @@ func (r *wfRun) snapshot() (storage.WorkflowRun, int) {
 	if r.cp != nil { // a fresh checkpoint each time: a write in flight never sees it change
 		c := *r.cp
 		c.Marks = maps.Clone(r.marks)
-		c.Resumes, c.CallerJob = r.resumes, r.callerJob
+		c.Resumes, c.CallerJob, c.Paused = r.resumes, r.callerJob, r.paused
 		r.rec.Checkpoint = &c
 	}
 	// the copy is written without the lock: what a role's end changes in
@@ -552,10 +561,11 @@ func (e *Engine) cancelRoleTurns(runID string) {
 func (e *Engine) wfExpire(conversationID, runID string) {
 	e.wf.mu.Lock()
 	run := e.wf.byConv[conversationID]
-	if run == nil || run.rec.ID != runID {
+	if run == nil || run.rec.ID != runID || run.quotaWaiting > 0 { // waiting for quota: its time stands still (ADR-270)
 		e.wf.mu.Unlock()
 		return
 	}
+	run.expired = true
 	run.logf("Quá thời gian dự kiến, vẫn chạy tiếp")
 	rec, seq := run.snapshot()
 	e.wf.mu.Unlock()

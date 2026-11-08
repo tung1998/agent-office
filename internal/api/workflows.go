@@ -40,6 +40,7 @@ func (s *server) workflowRoutes(mux *http.ServeMux) {
 	mux.Handle("GET /api/workflow-runs/{id}", auth(s.getWorkflowRun))
 	mux.Handle("POST /api/workflow-runs/{id}/stop", auth(s.stopWorkflowRun))
 	mux.Handle("POST /api/workflow-runs/{id}/resume", auth(s.resumeWorkflowRun))
+	mux.Handle("POST /api/workflow-runs/{id}/quota-skip", auth(s.skipWorkflowQuotaWait))
 }
 
 type workflowDTO struct {
@@ -107,6 +108,8 @@ type runCheckpointDTO struct {
 	Pending    []runStepDTO `json:"pending"`     // reached, waiting their turn
 	Resumes    int          `json:"resumes"`     // how often it went on after a restart that cut a step
 	MaxResumes int          `json:"max_resumes"` // past it, it ends
+	// PausedS: seconds its steps waited for quota, not counted as its time (ADR-270)
+	PausedS int64 `json:"paused_s,omitempty"`
 	// Parked: it only waits, a restart would not hurt it; Resumable: the
 	// restart ended it but it may go on from where it was (Chạy tiếp từ bước dở)
 	Parked    bool   `json:"parked"`
@@ -139,7 +142,8 @@ func (s *server) toCheckpointDTO(ctx context.Context, r storage.WorkflowRun, def
 		x.WaitUntil, x.ActionID, x.QuotaUntil = m.WaitUntil, m.ActionID, m.QuotaUntil
 		return x
 	}
-	d := &runCheckpointDTO{Running: []runStepDTO{}, Pending: []runStepDTO{}, Resumes: cp.Resumes, MaxResumes: workflow.MaxResumes}
+	d := &runCheckpointDTO{Running: []runStepDTO{}, Pending: []runStepDTO{}, Resumes: cp.Resumes, MaxResumes: workflow.MaxResumes,
+		PausedS: int64(cp.Paused / time.Second)}
 	for _, id := range slices.Sorted(maps.Keys(cp.Running)) {
 		d.Running = append(d.Running, step(id))
 	}
@@ -568,6 +572,32 @@ func (s *server) resumeWorkflowRun(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"run": s.toWorkflowRunDTO(r.Context(), x)})
+}
+
+// skipWorkflowQuotaWait ends now the quota waits of a run's steps (Chạy
+// ngay, ADR-270): they try their agent at once instead of waiting for the
+// reset. A project's admin, as Chạy tiếp.
+func (s *server) skipWorkflowQuotaWait(w http.ResponseWriter, r *http.Request) {
+	x, err := s.cfg.Store.WorkflowRuns().Get(r.Context(), r.PathValue("id"))
+	if err != nil {
+		s.workflowError(w, r, err)
+		return
+	}
+	if s.cfg.Chat == nil {
+		writeError(w, http.StatusServiceUnavailable, "office chưa chạy chat")
+		return
+	}
+	n, err := s.cfg.Chat.SkipQuotaWait(x.ID)
+	if errors.Is(err, chat.ErrNoQuotaWait) {
+		writeError(w, http.StatusConflict, err.Error())
+		return
+	}
+	if err != nil {
+		s.internal(w, r, err)
+		return
+	}
+	s.audit(r, audit.Change{Action: "workflow_run.quota_skip", Resource: "workflow_run", ResourceID: x.ID, ProjectID: x.ProjectID})
+	writeJSON(w, http.StatusOK, map[string]any{"skipped": n})
 }
 
 // stopWorkflowRun stops a run and every answer of its chat (as the chat's Dừng).

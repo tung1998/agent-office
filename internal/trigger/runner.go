@@ -100,14 +100,28 @@ func BotQuotaNote(agent string, until time.Time) string {
 // runs (the AI service's clock is not office's).
 var QuotaRetrySlack = 2 * time.Minute
 
+// BotQuotaDefers is how many times a bot's message waits for its agent's
+// quota, and BotQuotaMaxWait for how long in all, before it runs whatever
+// the report says (the service then says why it cannot answer, ADR-270).
+var (
+	BotQuotaDefers  = 3
+	BotQuotaMaxWait = 8 * 24 * time.Hour
+)
+
 // deferForQuota queues j's message again, to run once the quota resets
-// (until): once, marked so it is not put off a second time.
+// (until), marked with how often and since when it waited.
 func (r *Runner) deferForQuota(ctx context.Context, j storage.Job, until time.Time) bool {
 	var p map[string]any
 	if json.Unmarshal([]byte(j.Payload), &p) != nil || p == nil {
 		return false
 	}
-	p["quota_waited"] = true
+	cp := channelPayloadOf(j)
+	since := r.now().UTC()
+	if cp.QuotaSince != nil {
+		since = *cp.QuotaSince
+	}
+	at := until.UTC()
+	p["quota_waited"], p["quota_waits"], p["quota_until"], p["quota_since"] = true, cp.waits()+1, at, since
 	raw, err := json.Marshal(p)
 	if err != nil {
 		return false
@@ -121,6 +135,22 @@ func (r *Runner) deferForQuota(ctx context.Context, j storage.Job, until time.Ti
 		return false
 	}
 	return true
+}
+
+// quotaWaitAgain: a bot's message already put off for quota (p), whose
+// agent the report still says is out until until, waits again, its person
+// not told twice (ADR-270): only when the reset moved past the one it
+// waited for (a report that did not change is stale: it runs), and within
+// BotQuotaDefers and BotQuotaMaxWait.
+func (r *Runner) quotaWaitAgain(p ChannelPayload, until time.Time) bool {
+	if p.waits() >= BotQuotaDefers || p.QuotaUntil == nil || !until.After(*p.QuotaUntil) {
+		return false
+	}
+	since := r.now()
+	if p.QuotaSince != nil {
+		since = *p.QuotaSince
+	}
+	return until.Sub(since) <= BotQuotaMaxWait
 }
 
 // SetHold sets what holds the unattended jobs (schedules, webhooks,
@@ -554,14 +584,22 @@ func (r *Runner) execute(ctx context.Context, j storage.Job) {
 				return
 			}
 		}
-	} else if a.Action == "chat" && j.ParentJobID == "" && r.quotaStop != nil && !channelPayloadOf(j).QuotaWaited {
+	} else if a.Action == "chat" && j.ParentJobID == "" && r.quotaStop != nil {
 		// a bot's message while every connection of its agent is out of
 		// quota: its person is told now when it will be answered, and the
-		// message waits for the reset instead of failing (ADR-269)
+		// message waits for the reset instead of failing (ADR-269). Put off
+		// already, it is checked again when it runs: a reset that moved on
+		// (a weekly limit read after a daily one) puts it off again, without
+		// telling its person twice (ADR-270)
 		if ag, ok := r.answerer(ctx, a, j.Trigger, j.Payload); ok && !ag.Disabled {
-			if until, out := r.quotaStop(ctx, ag); out && r.deferForQuota(ctx, j, until) {
+			p := channelPayloadOf(j)
+			if until, out := r.quotaStop(ctx, ag); out && (p.waits() == 0 || r.quotaWaitAgain(p, until)) && r.deferForQuota(ctx, j, until) {
 				finish("skipped", QuotaCode, BotQuotaNote(ag.Name, until))
-				answer(prompts.Render("trigger/bot-quota-wait", map[string]any{"Agent": ag.Name, "Until": until.Local().Format("02/01 15:04")}), nil, true)
+				if p.waits() == 0 {
+					answer(prompts.Render("trigger/bot-quota-wait", map[string]any{"Agent": ag.Name, "Until": until.Local().Format("02/01 15:04")}), nil, true)
+				} else {
+					spoke = true // told when it was first put off: nothing more to say yet
+				}
 				return
 			}
 		}
@@ -781,7 +819,19 @@ type ChannelPayload struct {
 	Attachments    []string        `json:"attachments,omitempty"`     // files sent with it (attachment ids)
 	Admin          bool            `json:"admin,omitempty"`           // the sender is in the bot's Admin list: the agent's own rights, at its highest (ADR-081)
 	Sender         *storage.Sender `json:"sender,omitempty"`          // who wrote it, shown on its message in the chat
-	QuotaWaited    bool            `json:"quota_waited,omitempty"`    // put off once until the agent's quota reset (ADR-269)
+	QuotaWaited    bool            `json:"quota_waited,omitempty"`    // put off until the agent's quota reset (ADR-269)
+	QuotaWaits     int             `json:"quota_waits,omitempty"`     // how often (ADR-270)
+	QuotaUntil     *time.Time      `json:"quota_until,omitempty"`     // the reset it last waited for
+	QuotaSince     *time.Time      `json:"quota_since,omitempty"`     // since when it waits
+}
+
+// waits is how often the message was put off for quota (one for a message
+// an office before ADR-270 put off).
+func (p ChannelPayload) waits() int {
+	if p.QuotaWaits == 0 && p.QuotaWaited {
+		return 1
+	}
+	return p.QuotaWaits
 }
 
 // IsChannel says whether a job's trigger is a chat channel.

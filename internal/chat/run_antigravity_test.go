@@ -3,6 +3,7 @@ package chat
 import (
 	"context"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -128,5 +129,60 @@ python3 -c 'print("{\"event\":\"step_update\",\"step_update\":{\"conversation_id
 	}
 	if res.Text != "" {
 		t.Fatalf("result must not be read past the oversized line: res = %+v", res)
+	}
+}
+
+// A read-only agy in a linked worktree may read that worktree's git: its
+// .git names <repo>/.git/worktrees/<name>, outside the workspace, and agy
+// refused the read ("permission check failed for read_file
+// .git/worktrees/burn-…/HEAD"), ending its turn with no answer. An agent
+// that may write is not given .git (its hooks run code) (ADR-270).
+func TestAgyAddsGitCommonDir(t *testing.T) {
+	tmp := t.TempDir()
+	repo, wt := filepath.Join(tmp, "repo"), filepath.Join(tmp, "wt")
+	git := func(dir string, args ...string) {
+		t.Helper()
+		cmd := exec.Command("git", append([]string{"-C", dir, "-c", "user.email=a@b.c", "-c", "user.name=a"}, args...)...)
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("git %v: %v %s", args, err, out)
+		}
+	}
+	os.MkdirAll(repo, 0o755)
+	git(repo, "init", "-q")
+	os.WriteFile(filepath.Join(repo, "a"), []byte("a"), 0o644)
+	git(repo, "add", "a")
+	git(repo, "commit", "-qm", "a")
+	git(repo, "worktree", "add", "-q", wt)
+
+	dirs := worktreeGitDirs(context.Background(), wt)
+	if len(dirs) != 2 || !strings.HasSuffix(dirs[0], filepath.Join(".git", "worktrees", "wt")) || !strings.HasSuffix(dirs[1], ".git") {
+		t.Fatalf("worktree dirs = %q", dirs)
+	}
+	if d := worktreeGitDirs(context.Background(), repo); len(d) != 0 {
+		t.Fatalf("the main checkout's .git is in its workspace: %q", d)
+	}
+	if d := worktreeGitDirs(context.Background(), tmp); len(d) != 0 {
+		t.Fatalf("not in git: %q", d)
+	}
+
+	bin, log := filepath.Join(tmp, "agy"), filepath.Join(tmp, "log")
+	fakebin.Write(bin, []byte(`#!/bin/sh
+cat >/dev/null
+echo "ARGS $*" >> `+log+`
+echo '{"event":"result","result":{"conversation_id":"c1","status":"SUCCESS","response":"ok","num_turns":1}}'
+`))
+	run := func(write bool) string {
+		os.Remove(log)
+		if _, err := (antigravityRunner{}).Run(context.Background(), RunRequest{Bin: bin, Prompt: "x", WorkDir: wt, Write: write}, func(Event) {}); err != nil {
+			t.Fatal(err)
+		}
+		raw, _ := os.ReadFile(log)
+		return string(raw)
+	}
+	if got := run(false); !strings.Contains(got, "--add-dir "+dirs[1]) || !strings.Contains(got, "--add-dir "+dirs[0]) {
+		t.Fatalf("read only, args: %s", got)
+	}
+	if got := run(true); strings.Contains(got, ".git") {
+		t.Fatalf("may write, given .git: %s", got)
 	}
 }

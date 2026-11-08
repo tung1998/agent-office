@@ -113,6 +113,9 @@ type RunCheckpoint struct {
 	DepthLeft   int    `json:"depth_left,omitempty"` // sub-workflow levels it may still open
 	// CallerJob is the job of the chat that called it: it ends when the run does
 	CallerJob string `json:"caller_job,omitempty"`
+	// Paused is how long its steps waited for their agents' quota, which
+	// does not count against its time (ADR-270)
+	Paused time.Duration `json:"paused,omitempty"`
 }
 
 // StepState is what a step left for the steps after it (workflow.StepResult).
@@ -128,6 +131,7 @@ type StepMark struct {
 	ActionID   string     `json:"action_id,omitempty"`    // an approval or a check: its card
 	ChildRunID string     `json:"child_run_id,omitempty"` // a sub-workflow: its run
 	QuotaUntil *time.Time `json:"quota_until,omitempty"`  // an agent's step out of quota: it waits until then (ADR-269)
+	QuotaFrom  *time.Time `json:"quota_from,omitempty"`   // since when it waits: the run's time stops meanwhile (ADR-270)
 }
 
 // Clone is a copy that shares nothing with c.

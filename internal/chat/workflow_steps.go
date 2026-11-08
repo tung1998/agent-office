@@ -517,14 +517,27 @@ func (e *Engine) stepAgent(ctx context.Context, own storage.Conversation, projec
 	// out of quota before it starts (every connection of its agent, or
 	// still, past a restart that cut the wait): it waits for the reset
 	// instead of failing the run (ADR-269)
-	if m, ok := e.markBefore(run, s.ID); ok && m.QuotaUntil != nil && time.Until(*m.QuotaUntil) > 0 {
+	m, marked := e.markBefore(run, s.ID)
+	if marked && m.QuotaUntil != nil && m.QuotaFrom != nil && time.Until(*m.QuotaUntil) <= 0 {
+		// it waited while office was down and the quota reset meanwhile:
+		// that wait does not count against the run's time either (ADR-270)
+		e.wf.mu.Lock()
+		e.pauseTime(run, *m.QuotaFrom)
+		e.goOnTime(run, *m.QuotaUntil)
+		e.wf.mu.Unlock()
+	}
+	if marked && m.QuotaUntil != nil && time.Until(*m.QuotaUntil) > 0 {
 		quotaWaits++
-		if err := e.stepQuotaWait(ctx, own, run, s, a, *m.QuotaUntil); err != nil {
+		from := time.Now()
+		if m.QuotaFrom != nil { // the wait the last office started goes on
+			from = *m.QuotaFrom
+		}
+		if err := e.stepQuotaWait(ctx, own, run, s, a, from, *m.QuotaUntil); err != nil {
 			return "", err
 		}
 	} else if until, out := e.QuotaStop(ctx, a); out && until.After(time.Now()) {
 		quotaWaits++
-		if err := e.stepQuotaWait(ctx, own, run, s, a, until.Add(QuotaRetrySlack)); err != nil {
+		if err := e.stepQuotaWait(ctx, own, run, s, a, time.Now(), until.Add(QuotaRetrySlack)); err != nil {
 			return "", err
 		}
 	}
@@ -532,7 +545,7 @@ func (e *Engine) stepAgent(ctx context.Context, own storage.Conversation, projec
 		out, err := e.stepTurn(ctx, own, project, run, s, a, d, level, prompt)
 		if err != nil && ctx.Err() == nil && OutOfTokens(err) && quotaWaits < StepQuotaWaits && !e.stopping.Load() {
 			quotaWaits++
-			if werr := e.stepQuotaWait(ctx, own, run, s, a, e.QuotaFree(ctx, a.ID).Add(QuotaRetrySlack)); werr != nil {
+			if werr := e.stepQuotaWait(ctx, own, run, s, a, time.Now(), e.QuotaFree(ctx, a.ID).Add(QuotaRetrySlack)); werr != nil {
 				return "", werr
 			}
 			prompt = prompts.Render("workflow/step-quota-resumed", nil) + "\n\n" + base
@@ -562,12 +575,24 @@ const StepQuotaWaits = 2
 // stepQuotaWait holds step s until its agent's quota resets (until): said in
 // the run's chat, kept with the run (a mark), so office may go down under it
 // (an update does not wait for it) and the next one waits only for what is
-// left of it.
-func (e *Engine) stepQuotaWait(ctx context.Context, own storage.Conversation, run *wfRun, s workflow.Step, a storage.Agent, until time.Time) error {
-	at := until.UTC()
+// left of it. The run's time stands still meanwhile (from: since when it
+// waits), a person may end the wait now (SkipQuotaWait), and a reset further
+// off than QuotaMaxWait fails the step instead (ADR-270).
+func (e *Engine) stepQuotaWait(ctx context.Context, own storage.Conversation, run *wfRun, s workflow.Step, a storage.Agent, from, until time.Time) error {
+	if time.Until(until) > QuotaMaxWait {
+		return fmt.Errorf("mọi kết nối AI của %s hết quota tới %s, xa hơn %d ngày quy trình chờ cho một bước", // i18n-ignore
+			a.Name, until.Local().Format("02/01 15:04"), int(QuotaMaxWait/(24*time.Hour)))
+	}
+	at, since := until.UTC(), from.UTC()
 	e.post(own, s, prompts.Render("workflow/step-quota-wait", map[string]any{"Agent": a.Name, "Until": until.Local().Format("02/01 15:04")}))
+	skip := make(chan struct{})
 	e.wf.mu.Lock()
-	run.mark(s.ID, storage.StepMark{QuotaUntil: &at})
+	run.mark(s.ID, storage.StepMark{QuotaUntil: &at, QuotaFrom: &since})
+	if run.quotaSkip == nil {
+		run.quotaSkip = map[string]chan struct{}{}
+	}
+	run.quotaSkip[s.ID] = skip
+	e.pauseTime(run, from)
 	rec, seq := run.snapshot()
 	e.wf.mu.Unlock()
 	e.saveRun(run, rec, seq)
@@ -575,11 +600,17 @@ func (e *Engine) stepQuotaWait(ctx context.Context, own storage.Conversation, ru
 	defer t.Stop()
 	select {
 	case <-t.C:
+	case <-skip: // Chạy ngay
 	case <-ctx.Done():
+		e.wf.mu.Lock()
+		delete(run.quotaSkip, s.ID)
+		e.wf.mu.Unlock()
 		return ctx.Err() // office going down: the mark stays, the next office waits for the rest
 	}
 	e.wf.mu.Lock()
 	delete(run.marks, s.ID)
+	delete(run.quotaSkip, s.ID)
+	e.goOnTime(run, time.Now())
 	rec, seq = run.snapshot()
 	e.wf.mu.Unlock()
 	e.saveRun(run, rec, seq)

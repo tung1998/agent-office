@@ -353,6 +353,7 @@ export interface RunCheckpoint {
   pending: RunStep[]
   resumes: number // how often it went on after a restart that cut a step
   max_resumes: number // past it, it ends
+  paused_s?: number // seconds its steps waited for quota, not counted as its time (ADR-270)
   parked: boolean // it only waits: a restart would not hurt it
   resumable: boolean // the restart ended it, it may go on from where it was
   why?: string // why it cannot go on
