@@ -51,19 +51,25 @@ type Manager struct {
 	adapters map[string]Adapter // by channel id: where answers go
 	ready    map[string]bool    // by channel id: connected (false while it connects)
 	waiting  map[string]waiter  // by job id: a message waiting for its answer
-	// early: a job id whose Reply(final) already ran before handle() could
-	// register its waiter (the job finished inside Runner.Enqueue or right
-	// after it returned, before handle locked m.mu to write m.waiting).
-	// handle() checks this once it takes the lock, so the race never leaves a
-	// waiter nobody cleans up (ADR-048's "seen"/typing bookkeeping). Reply
-	// only writes to it while enqueuing > 0 (a handle() is between starting
-	// Enqueue and registering its waiter), and it is reset to empty the
-	// moment enqueuing drops back to 0: Reply also fires for jobs that never
-	// go through handle() at all (a follow-up turn, a job resumed after a
-	// restart, approvals.go's own Enqueue), and none of those ever clears its
-	// own entry, so without this bound the map would grow forever.
-	early     map[string]bool
-	enqueuing int
+	// early: job.ID -> the channel/chat key (ch.ID+"/"+in.ChatID) whose
+	// Reply(final) already ran before handle() could register its waiter
+	// (the job finished inside Runner.Enqueue or right after it returned,
+	// before handle locked m.mu to write m.waiting). handle() checks its own
+	// job.ID once it takes the lock, so the race never leaves a waiter
+	// nobody cleans up (ADR-048's "seen"/typing bookkeeping) — keyed by
+	// job.ID (not just the chat key) so a *different* job on the very same
+	// chat (another concurrent handle(), a follow-up turn, a resumed job,
+	// approvals.go's own Enqueue) never makes a handle() mistake someone
+	// else's early reply for its own and skip registering its waiter.
+	// Reply only writes an entry while enqueuing[key] says some handle() is
+	// mid-Enqueue for that key, never from a bare "some handle() somewhere is
+	// mid-Enqueue" counter, which can't tell one chat's race from another's.
+	// handle() deletes its own job.ID once it reads it; stoppedEnqueuing also
+	// sweeps any leftover entries for its key once enqueuing[key] drops to 0
+	// (a job whose own handle() never got to read it, e.g. Enqueue itself
+	// errored), so the map stays bounded by jobs concurrently mid-Enqueue.
+	early     map[string]string
+	enqueuing map[string]int
 	root      context.Context
 	pending   Pending
 	reload    sync.Mutex // one Reload at a time: never two bots for one channel
@@ -175,7 +181,8 @@ func (p *Pending) Done(key string) {
 // NewManager builds a Manager; wire the runner's answers to Reply.
 func NewManager(store storage.Store, engine *chat.Engine, runner Runner, factory Factory) *Manager {
 	return &Manager{store: store, engine: engine, runner: runner, factory: factory, running: map[string]context.CancelFunc{},
-		adapters: map[string]Adapter{}, ready: map[string]bool{}, waiting: map[string]waiter{}, early: map[string]bool{}, ProgressAfter: 10 * time.Second}
+		adapters: map[string]Adapter{}, ready: map[string]bool{}, waiting: map[string]waiter{}, early: map[string]string{},
+		enqueuing: map[string]int{}, ProgressAfter: 10 * time.Second}
 }
 
 // Start runs the enabled channels until ctx ends.
@@ -285,14 +292,20 @@ func (m *Manager) run(ch storage.Channel) {
 // handle takes one message: the first rule (automation) of the channel that
 // matches gets it as a job; nothing matching gets the channel's refusal.
 // stoppedEnqueuing marks one handle() as done with its Runner.Enqueue call
-// (call under m.mu). Once none is left, m.early is reset: nothing outside
-// this window can ever clear its own entry (a follow-up turn, a job resumed
-// after a restart, approvals.go's own Enqueue), so this is what keeps it from
-// growing forever.
-func (m *Manager) stoppedEnqueuing() {
-	m.enqueuing--
-	if m.enqueuing == 0 {
-		m.early = map[string]bool{}
+// for key (call under m.mu). Once no handle() is left mid-Enqueue for key,
+// its m.early entry is dropped: nothing outside this window can ever clear
+// its own entry (a follow-up turn, a job resumed after a restart,
+// approvals.go's own Enqueue), so this is what keeps the map from growing
+// forever.
+func (m *Manager) stoppedEnqueuing(key string) {
+	m.enqueuing[key]--
+	if m.enqueuing[key] <= 0 {
+		delete(m.enqueuing, key)
+		for id, k := range m.early { // sweep whatever this key's own handle() never got to read itself
+			if k == key {
+				delete(m.early, id)
+			}
+		}
 	}
 }
 
@@ -473,7 +486,7 @@ func (m *Manager) handle(ctx context.Context, channelID string, ad Adapter, in I
 	}
 	raw, _ := json.Marshal(p)
 	m.mu.Lock()
-	m.enqueuing++ // tells Reply a handle() is mid-Enqueue: its final reply, if it races ahead, goes to m.early instead of being dropped
+	m.enqueuing[key]++ // tells Reply this key is mid-Enqueue: its final reply, if it races ahead, goes to m.early instead of being dropped
 	m.mu.Unlock()
 	job, status, err := m.runner.Enqueue(actx, rule, ch.Kind, string(raw), "", "") // not under m.mu: it writes to the DB and must not block other channels
 	if err == nil && status == "queued" {
@@ -484,9 +497,9 @@ func (m *Manager) handle(ctx context.Context, channelID string, ad Adapter, in I
 			w.respond = in.Respond // the answer edits the slash command's "thinking…"
 		}
 		m.mu.Lock()
-		wasEarly := m.early[job.ID] // Reply(final) already ran before this (ADR-048 race): nothing to wait for
+		_, wasEarly := m.early[job.ID] // Reply(final) for this job already ran before this (ADR-048 race): nothing to wait for
 		delete(m.early, job.ID)
-		m.stoppedEnqueuing()
+		m.stoppedEnqueuing(key)
 		if !wasEarly {
 			m.waiting[job.ID] = w
 		}
@@ -503,7 +516,7 @@ func (m *Manager) handle(ctx context.Context, channelID string, ad Adapter, in I
 		}
 	} else {
 		m.mu.Lock()
-		m.stoppedEnqueuing()
+		m.stoppedEnqueuing(key)
 		m.mu.Unlock()
 	}
 	if err != nil {
@@ -531,6 +544,7 @@ func (m *Manager) Reply(ctx context.Context, origin storage.Job, text string, er
 	if json.Unmarshal([]byte(origin.Payload), &p) != nil || p.ChatID == "" {
 		return
 	}
+	key := p.ChannelID + "/" + p.ChatID
 	m.mu.Lock()
 	ad := m.adapters[p.ChannelID]
 	w, waited := m.waiting[origin.ID]
@@ -541,12 +555,18 @@ func (m *Manager) Reply(ctx context.Context, origin storage.Job, text string, er
 	}
 	if final && waited {
 		delete(m.waiting, origin.ID)
-	} else if final && m.enqueuing > 0 { // a handle() is mid-Enqueue (ADR-048 race): tell it not to wait either.
+	} else if final && m.enqueuing[key] > 0 { // this key's handle() is mid-Enqueue (ADR-048 race): tell it not to wait either.
 		// Outside that window this job never came from handle() at all (a
 		// follow-up turn, a resume after a restart, approvals.go's own
 		// Enqueue) and nothing would ever clear the entry, so it must not be
-		// written then.
-		m.early[origin.ID] = true
+		// written then. Gating on this key (not just "some handle() somewhere
+		// is mid-Enqueue") keeps an unrelated job's reply on a different
+		// chat/channel from ever marking early. Keyed by origin.ID (not just
+		// the chat key) so a *different* job racing on this same chat — a
+		// second concurrent handle(), a follow-up turn, a resumed job,
+		// approvals.go's own Enqueue — never gets mistaken for the one job
+		// this chat's handle() is actually about to wait on.
+		m.early[origin.ID] = key
 	}
 	m.mu.Unlock()
 	if final && waited {
