@@ -122,10 +122,14 @@ const monitorEvents = ref<MonitorEvent[] | null>(null)
 watch(shown, async (x) => {
   monitorEvents.value = null
   if (x?.kind !== 'monitor') return
+  const id = x.id
   try {
     const res = await $fetch<{ events: MonitorEvent[] }>('/api/monitor-events', { query: { project: x.project_id, limit: 50 } })
+    if (shown.value?.id !== id) return
     monitorEvents.value = res.events.filter(e => e.monitor_id === x.id).slice(0, 10)
-  } catch { monitorEvents.value = [] }
+  } catch {
+    if (shown.value?.id === id) monitorEvents.value = []
+  }
 })
 const canRetry = (k: string) => ['monitor', 'process', 'automation', 'bot', 'jobs', 'mcp'].includes(k)
 const incIcon: Record<string, string> = {
