@@ -64,10 +64,14 @@ func (s *server) briefRole(r *http.Request, old, a storage.Agent, also ...string
 	if last, ok := briefed.Load(a.ID); ok && now.Sub(last.(time.Time)) < briefGap {
 		return
 	}
+	// Reserve the slot before spawning so a second edit arriving before the
+	// goroutine below finishes sees it as already claimed, instead of also
+	// passing the Load check above and sending a second brief.
+	briefed.Store(a.ID, now)
 	ctx := context.WithoutCancel(r.Context())
 	go func() {
-		if err := s.cfg.Chat.Brief(ctx, a, chat.RoleChange{Changes: changes}); err == nil {
-			briefed.Store(a.ID, now)
+		if err := s.cfg.Chat.Brief(ctx, a, chat.RoleChange{Changes: changes}); err != nil {
+			briefed.CompareAndDelete(a.ID, now)
 		}
 	}()
 }

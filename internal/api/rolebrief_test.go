@@ -153,3 +153,65 @@ func TestRoleChangeBriefRetriesAfterTransientFailure(t *testing.T) {
 		t.Fatalf("agent was not re-briefed after the transient failure: %q", got)
 	}
 }
+
+// blockingBrief wraps a Store so every CreateConversation call whose title
+// looks like a role-change brief ("Cập nhật vai:") blocks until released,
+// letting a test force two briefRole calls to overlap.
+type blockingBrief struct {
+	storage.Store
+	release chan struct{}
+	calls   atomic.Int32
+}
+
+type blockingBriefChatRepo struct {
+	storage.ChatRepo
+	owner *blockingBrief
+}
+
+func (s *blockingBrief) Chat() storage.ChatRepo { return blockingBriefChatRepo{s.Store.Chat(), s} }
+
+func (c blockingBriefChatRepo) CreateConversation(ctx context.Context, conv storage.Conversation) (storage.Conversation, error) {
+	if strings.HasPrefix(conv.Title, "Cập nhật vai:") {
+		c.owner.calls.Add(1)
+		<-c.owner.release
+	}
+	return c.ChatRepo.CreateConversation(ctx, conv)
+}
+
+// Two role edits on the same agent in quick succession must brief it only
+// once: the dedup slot has to be reserved synchronously before Chat.Brief
+// runs, not only after it succeeds, or both edits race past the check and
+// each sends its own "your job changed" brief.
+func TestRoleChangeBriefDoesNotRaceOnConcurrentEdits(t *testing.T) {
+	var wrapped *blockingBrief
+	e := setupWithStore(t, nil, func(st storage.Store) storage.Store {
+		wrapped = &blockingBrief{Store: st, release: make(chan struct{})}
+		return wrapped
+	})
+	admin := e.client(t)
+	login(t, e, admin, "admin@x.io", "admin-password")
+	_, body := do(t, admin, "POST", e.srv.URL+"/api/projects", map[string]any{"path": t.TempDir(), "name": "shop"}, nil)
+	project := body["project"].(map[string]any)
+	a := project["agents"].([]any)[0].(map[string]any)
+	id := a["id"].(string)
+	put := func(change map[string]any) {
+		t.Helper()
+		in := map[string]any{}
+		for _, k := range []string{"key", "name", "role", "description", "provider_id", "model_tier", "llm_model", "instructions", "permissions"} {
+			in[k] = a[k]
+		}
+		for k, v := range change {
+			in[k] = v
+		}
+		if resp, b := do(t, admin, "PATCH", e.srv.URL+"/api/agents/"+id, in, nil); resp.StatusCode != 200 {
+			t.Fatalf("PATCH = %d %v", resp.StatusCode, b)
+		}
+	}
+	put(map[string]any{"role": "Trưởng phòng kinh doanh"})
+	put(map[string]any{"role": "Giám đốc kinh doanh"})
+	close(wrapped.release)
+	time.Sleep(200 * time.Millisecond)
+	if n := wrapped.calls.Load(); n != 1 {
+		t.Fatalf("Brief invoked %d times for two quick edits, want 1", n)
+	}
+}
