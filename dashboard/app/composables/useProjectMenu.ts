@@ -10,6 +10,24 @@ interface Saved { order: string[], hidden: string[], max?: number, sort?: MenuSo
 const PREF_URL = '/api/me/prefs/projects'
 const MENU_MAX = { min: 1, max: 30, def: 5 }
 
+// Guards save()'s optimistic-revert-on-error against overlapping calls: hide
+// a project (call A, slow PUT) then reorder (call B, fast PUT, succeeds); if
+// A's PUT later fails, A must not revert to a snapshot predating B's already
+// -persisted change. Each call takes a ticket from begin(); its catch only
+// reverts if no later call has started one since (shouldRevert(ticket)).
+export function createRevertGuard() {
+  let seq = 0
+  return {
+    begin: () => ++seq,
+    shouldRevert: (ticket: number) => seq === ticket
+  }
+}
+
+// module-scoped (not useState): every useProjectMenu() call anywhere in the
+// app -- a sidebar, the projects page, the settings modal -- must share one
+// guard, since an overlapping pair of save()s can come from any two of them
+const revertGuard = createRevertGuard()
+
 export function useProjectMenu() {
   const { user } = useAuth()
   const prefs = useState<Saved>('project-menu', () => ({ order: [], hidden: [] }))
@@ -30,11 +48,12 @@ export function useProjectMenu() {
 
   async function save(next: Saved) {
     const before = prefs.value
+    const ticket = revertGuard.begin()
     prefs.value = next
     try {
       await $fetch(PREF_URL, { method: 'PUT', body: { value: next } })
     } catch (e) {
-      prefs.value = before
+      if (revertGuard.shouldRevert(ticket)) prefs.value = before
       throw e
     }
   }
