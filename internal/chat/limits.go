@@ -126,48 +126,59 @@ func resetAtClock(msg string, now time.Time) (time.Time, bool) {
 
 // resetsAt is how Claude Code's own limit message says when it resets: an
 // hour of the day ("resets 3pm", "resets 3:30pm (Asia/Saigon)"), with the
-// day first when it is not today ("resets Nov 13, 10am").
-var resetsAt = regexp.MustCompile(`(?i)\bresets (?:([a-z]{3})[a-z]* (\d{1,2})(?:st|nd|rd|th)?,? (?:at )?)?(\d{1,2})(?::(\d{2}))?\s*([ap]m)\b(?:\s*\(([A-Za-z_]+(?:/[A-Za-z_+-]+)*)\))?`)
+// day first when it is not today: a date ("resets Nov 13, 10am") or, for a
+// weekly limit, a day of the week ("resets Mon 9am", ADR-269).
+var resetsAt = regexp.MustCompile(`(?i)\bresets (?:(mon|tue|wed|thu|fri|sat|sun)[a-z]*,? (?:at )?|([a-z]{3})[a-z]* (\d{1,2})(?:st|nd|rd|th)?,? (?:at )?)?(\d{1,2})(?::(\d{2}))?\s*([ap]m)\b(?:\s*\(([A-Za-z_]+(?:/[A-Za-z_+-]+)*)\))?`)
+
+// weekdays are the days of the week as resetsAt reads them.
+var weekdays = map[string]time.Weekday{"sun": time.Sunday, "mon": time.Monday, "tue": time.Tuesday, "wed": time.Wednesday,
+	"thu": time.Thursday, "fri": time.Friday, "sat": time.Saturday}
 
 // resetsClock reads resetsAt, in the time zone it names (else now's): an
-// hour already past today is tomorrow's, a day already past is next year's.
+// hour already past today is tomorrow's, a day of the week already past
+// this week is next week's, a date already past is next year's.
 func resetsClock(msg string, now time.Time) (time.Time, bool) {
 	m := resetsAt.FindStringSubmatch(msg)
 	if m == nil {
 		return time.Time{}, false
 	}
+	wd, mon, day, hour, minute, ampm, zone := m[1], m[2], m[3], m[4], m[5], m[6], m[7]
 	loc := now.Location()
-	if m[6] != "" {
-		if l, err := time.LoadLocation(m[6]); err == nil {
+	if zone != "" {
+		if l, err := time.LoadLocation(zone); err == nil {
 			loc = l
 		}
 	}
-	h, _ := strconv.Atoi(m[3])
-	mi, _ := strconv.Atoi(m[4])
+	h, _ := strconv.Atoi(hour)
+	mi, _ := strconv.Atoi(minute)
 	if h < 1 || h > 12 || mi > 59 {
 		return time.Time{}, false
 	}
 	h %= 12
-	if strings.EqualFold(m[5], "pm") {
+	if strings.EqualFold(ampm, "pm") {
 		h += 12
 	}
 	ref := now.In(loc)
 	y, mo, d := ref.Date()
-	if m[1] != "" {
-		t, err := time.Parse("Jan", strings.ToUpper(m[1][:1])+strings.ToLower(m[1][1:]))
+	if mon != "" {
+		t, err := time.Parse("Jan", strings.ToUpper(mon[:1])+strings.ToLower(mon[1:]))
 		if err != nil {
 			return time.Time{}, false
 		}
 		mo = t.Month()
-		d, _ = strconv.Atoi(m[2])
+		d, _ = strconv.Atoi(day)
 	}
 	at := time.Date(y, mo, d, h, mi, 0, 0, loc)
-	if !at.After(now) {
-		if m[1] == "" {
-			at = at.AddDate(0, 0, 1)
-		} else {
-			at = at.AddDate(1, 0, 0)
+	switch {
+	case wd != "":
+		at = at.AddDate(0, 0, (int(weekdays[strings.ToLower(wd)])-int(ref.Weekday())+7)%7)
+		if !at.After(now) {
+			at = at.AddDate(0, 0, 7)
 		}
+	case !at.After(now) && mon == "":
+		at = at.AddDate(0, 0, 1)
+	case !at.After(now):
+		at = at.AddDate(1, 0, 0)
 	}
 	return at, true
 }

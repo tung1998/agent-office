@@ -97,6 +97,7 @@ const en: Record<keyof typeof vi, string> = {
   'chat.reportShow': 'Content',
   'chat.linkedPending': 'Waiting for your approval in {project}',
   'chat.retryPlanned': 'Passing API error: goes on by itself at {at} (try {n}/{max})',
+  'chat.quotaRetryPlanned': 'Out of AI quota: goes on by itself at {at}, once the quota resets (wait {n}/{max})',
   'chat.retryNow': 'Run now',
   'chat.retryCancel': 'Cancel',
   'chat.linkedOpen': 'Open chat',

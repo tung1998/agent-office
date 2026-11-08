@@ -101,6 +101,7 @@ export default {
   'wf.run.parked': 'Chỉ đang chờ: office khởi động lại không làm mất việc',
   'wf.run.at': 'Đang ở: {steps}',
   'wf.run.waitUntil': '{step} chờ tới {time}',
+  'wf.run.quotaUntil': '{step} chờ quota AI reset tới {time}',
   'wf.run.resume': 'Chạy tiếp từ bước dở',
   'wf.run.resumeInfo': 'Office khởi động lại khi quy trình đang chạy. Nó đã lưu chỗ dừng nên chạy tiếp được; các bước đã xong không chạy lại.',
   'wf.run.resumeNo': 'Không chạy tiếp được: {why}',

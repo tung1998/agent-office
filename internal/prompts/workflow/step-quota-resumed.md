@@ -1,0 +1,1 @@
+[office] Your last turn on this step stopped because your AI connection ran out of quota; it has reset now. Go on with this step from where you stopped (check first what is already done, such as the files you changed).

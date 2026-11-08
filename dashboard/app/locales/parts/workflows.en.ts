@@ -102,6 +102,7 @@ const en: Record<keyof typeof vi, string> = {
   'wf.run.parked': 'Only waiting: an office restart loses nothing',
   'wf.run.at': 'At: {steps}',
   'wf.run.waitUntil': '{step} waits until {time}',
+  'wf.run.quotaUntil': '{step} waits for the AI quota to reset at {time}',
   'wf.run.resume': 'Resume from where it stopped',
   'wf.run.resumeInfo': 'Office restarted while this workflow ran. It saved where it was, so it can go on; the steps already done do not run again.',
   'wf.run.resumeNo': 'Cannot resume: {why}',

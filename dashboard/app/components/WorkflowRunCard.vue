@@ -37,7 +37,7 @@ const pageTo = computed(() => `/projects/${props.run.project_id}/workflows/runs/
 // where a graph of steps is (ADR-256): what it waits on, how often it went
 // on after a restart; one the restart ended may go on from where it was
 const cp = computed(() => props.run.checkpoint ?? null)
-const waits = computed(() => props.run.status === 'running' ? (cp.value?.running ?? []).filter(s => s.wait_until) : [])
+const waits = computed(() => props.run.status === 'running' ? (cp.value?.running ?? []).filter(s => s.wait_until || s.quota_until) : [])
 const clock = (d?: string) => d ? new Date(d).toLocaleString(dateLocale.value, { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' }) : ''
 const resuming = ref(false)
 async function resume() {
@@ -90,7 +90,12 @@ async function stop() {
       <UBadge v-if="cp.parked" color="info" variant="subtle" size="sm" icon="i-lucide-pause" :label="t('wf.run.parked')" />
       <span v-if="run.status === 'running' && cp.running.length && !waits.length" class="text-(--ui-text-muted)">{{ t('wf.run.at', { steps: cp.running.map(s => s.label).join(', ') }) }}</span>
       <span v-for="s in waits" :key="s.id" class="flex items-center gap-1 text-(--ui-text-muted)">
-        <UIcon name="i-lucide-hourglass" class="size-3.5" />{{ t('wf.run.waitUntil', { step: s.label, time: clock(s.wait_until) }) }}
+        <template v-if="s.quota_until">
+          <UIcon name="i-lucide-battery-low" class="size-3.5" />{{ t('wf.run.quotaUntil', { step: s.label, time: clock(s.quota_until) }) }}
+        </template>
+        <template v-else>
+          <UIcon name="i-lucide-hourglass" class="size-3.5" />{{ t('wf.run.waitUntil', { step: s.label, time: clock(s.wait_until) }) }}
+        </template>
       </span>
     </div>
 

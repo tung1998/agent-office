@@ -94,6 +94,7 @@ export default {
   'incidents.kind.unread': 'tin chưa xem',
   'incidents.kind.stalled': 'hết token',
   'incidents.kind.retrying': 'tự chạy tiếp',
+  'incidents.kind.quota_wait': 'chờ quota',
   'incidents.kind.peer_request': 'xin ghép nối',
   'incidents.kind.mcp': 'MCP hỏng',
   'home.continue': 'Tiếp tục',

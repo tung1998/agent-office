@@ -115,11 +115,12 @@ type runCheckpointDTO struct {
 }
 
 type runStepDTO struct {
-	ID        string     `json:"id"`
-	Label     string     `json:"label"`
-	Type      string     `json:"type"`
-	WaitUntil *time.Time `json:"wait_until,omitempty"`
-	ActionID  string     `json:"action_id,omitempty"`
+	ID         string     `json:"id"`
+	Label      string     `json:"label"`
+	Type       string     `json:"type"`
+	WaitUntil  *time.Time `json:"wait_until,omitempty"`
+	ActionID   string     `json:"action_id,omitempty"`
+	QuotaUntil *time.Time `json:"quota_until,omitempty"` // an agent's step out of quota waits until then (ADR-269)
 }
 
 func (s *server) toCheckpointDTO(ctx context.Context, r storage.WorkflowRun, def *workflow.Def) *runCheckpointDTO {
@@ -135,7 +136,7 @@ func (s *server) toCheckpointDTO(ctx context.Context, r storage.WorkflowRun, def
 			}
 		}
 		m := cp.Marks[id]
-		x.WaitUntil, x.ActionID = m.WaitUntil, m.ActionID
+		x.WaitUntil, x.ActionID, x.QuotaUntil = m.WaitUntil, m.ActionID, m.QuotaUntil
 		return x
 	}
 	d := &runCheckpointDTO{Running: []runStepDTO{}, Pending: []runStepDTO{}, Resumes: cp.Resumes, MaxResumes: workflow.MaxResumes}

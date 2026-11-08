@@ -96,6 +96,7 @@ export default {
   'chat.reportShow': 'Nội dung',
   'chat.linkedPending': 'Đang chờ bạn duyệt ở {project}',
   'chat.retryPlanned': 'Lỗi API tạm thời: tự chạy tiếp lúc {at} (lần {n}/{max})',
+  'chat.quotaRetryPlanned': 'Hết quota AI: tự chạy tiếp lúc {at}, sau khi quota reset (lần {n}/{max})',
   'chat.retryNow': 'Chạy ngay',
   'chat.retryCancel': 'Thôi',
   'chat.linkedOpen': 'Mở chat',

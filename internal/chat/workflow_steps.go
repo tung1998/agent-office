@@ -513,8 +513,32 @@ func (e *Engine) stepAgent(ctx context.Context, own storage.Conversation, projec
 		prompt = prompts.Render("workflow/step-resumed", nil) + "\n\n" + prompt
 	}
 	base := prompt
+	quotaWaits := 0
+	// out of quota before it starts (every connection of its agent, or
+	// still, past a restart that cut the wait): it waits for the reset
+	// instead of failing the run (ADR-269)
+	if m, ok := e.markBefore(run, s.ID); ok && m.QuotaUntil != nil && time.Until(*m.QuotaUntil) > 0 {
+		quotaWaits++
+		if err := e.stepQuotaWait(ctx, own, run, s, a, *m.QuotaUntil); err != nil {
+			return "", err
+		}
+	} else if until, out := e.QuotaStop(ctx, a); out && until.After(time.Now()) {
+		quotaWaits++
+		if err := e.stepQuotaWait(ctx, own, run, s, a, until.Add(QuotaRetrySlack)); err != nil {
+			return "", err
+		}
+	}
 	for try := 1; ; try++ {
 		out, err := e.stepTurn(ctx, own, project, run, s, a, d, level, prompt)
+		if err != nil && ctx.Err() == nil && OutOfTokens(err) && quotaWaits < StepQuotaWaits && !e.stopping.Load() {
+			quotaWaits++
+			if werr := e.stepQuotaWait(ctx, own, run, s, a, e.QuotaFree(ctx, a.ID).Add(QuotaRetrySlack)); werr != nil {
+				return "", werr
+			}
+			prompt = prompts.Render("workflow/step-quota-resumed", nil) + "\n\n" + base
+			try--
+			continue
+		}
 		// a passing failure of the AI service: the step goes on in its
 		// session a while later instead of failing the run (ADR-260)
 		if err == nil || ctx.Err() != nil || !Transient(err) || try > len(StepTransientWaits) || e.stopping.Load() {
@@ -529,6 +553,37 @@ func (e *Engine) stepAgent(ctx context.Context, own storage.Conversation, projec
 		}
 		prompt = prompts.Render("workflow/step-api-resumed", nil) + "\n\n" + base
 	}
+}
+
+// StepQuotaWaits is how many times a step waits for its agent's quota to
+// reset before its out-of-quota failure fails the run (ADR-269).
+const StepQuotaWaits = 2
+
+// stepQuotaWait holds step s until its agent's quota resets (until): said in
+// the run's chat, kept with the run (a mark), so office may go down under it
+// (an update does not wait for it) and the next one waits only for what is
+// left of it.
+func (e *Engine) stepQuotaWait(ctx context.Context, own storage.Conversation, run *wfRun, s workflow.Step, a storage.Agent, until time.Time) error {
+	at := until.UTC()
+	e.post(own, s, prompts.Render("workflow/step-quota-wait", map[string]any{"Agent": a.Name, "Until": until.Local().Format("02/01 15:04")}))
+	e.wf.mu.Lock()
+	run.mark(s.ID, storage.StepMark{QuotaUntil: &at})
+	rec, seq := run.snapshot()
+	e.wf.mu.Unlock()
+	e.saveRun(run, rec, seq)
+	t := time.NewTimer(max(time.Until(until), 0))
+	defer t.Stop()
+	select {
+	case <-t.C:
+	case <-ctx.Done():
+		return ctx.Err() // office going down: the mark stays, the next office waits for the rest
+	}
+	e.wf.mu.Lock()
+	delete(run.marks, s.ID)
+	rec, seq = run.snapshot()
+	e.wf.mu.Unlock()
+	e.saveRun(run, rec, seq)
+	return nil
 }
 
 // StepTransientWaits are the waits before a step cut by a passing API

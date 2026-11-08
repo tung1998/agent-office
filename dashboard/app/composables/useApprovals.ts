@@ -19,7 +19,7 @@ export function incidentActs(x: Incident): IncidentAct[] {
   if (isApproval(x)) return ['approve', 'reject']
   if (x.kind === 'unread') return ['seen']
   if (x.kind === 'stalled') return ['continue']
-  if (x.kind === 'retrying') return ['retryNow', 'cancelRetry'] // a passing API failure: it goes on by itself (ADR-260)
+  if (x.kind === 'retrying' || x.kind === 'quota_wait') return ['retryNow', 'cancelRetry'] // it goes on by itself: after a passing API failure (ADR-260), once the quota resets (ADR-269)
   return ['dismiss']
 }
 

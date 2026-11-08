@@ -72,6 +72,9 @@ func Cuts(ctx context.Context, st storage.Store, cp *storage.RunCheckpoint) bool
 		if SafeStep(kind) {
 			continue
 		}
+		if kind == StepAgent && cp.Marks[id].QuotaUntil != nil { // it only waits for its agent's quota (ADR-269)
+			continue
+		}
 		if kind == StepWorkflow || kind == StepCoordinate {
 			if m := cp.Marks[id]; m.ChildRunID != "" {
 				if c, err := st.WorkflowRuns().Get(ctx, m.ChildRunID); err == nil && c.Status == storage.RunRunning && c.Checkpoint != nil && !Cuts(ctx, st, c.Checkpoint) {
@@ -102,6 +105,10 @@ func Parked(ctx context.Context, st storage.Store, r storage.WorkflowRun) bool {
 		switch kind {
 		case StepWait:
 			if m.WaitUntil == nil {
+				return false
+			}
+		case StepAgent: // only while it waits for its agent's quota to reset (ADR-269)
+			if m.QuotaUntil == nil {
 				return false
 			}
 		case StepWorkflow, StepCoordinate: // its sub-run only waits too

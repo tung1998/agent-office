@@ -470,10 +470,15 @@ const running = ref<RunningTurn[]>([])
 const reportBody = (text: string) => text.split('\n\n').slice(1).join('\n\n').trim() || text
 const linkedPending = ref<LinkedPending[]>([])
 // the last answer died on a passing API failure: it goes on by itself then (ADR-260)
-interface PlannedRetry { job_id: string, at: string, n: number, max: number }
+interface PlannedRetry { job_id: string, at: string, n: number, max: number, quota?: boolean } // quota: waits for the AI quota to reset (ADR-269)
 const retry = ref<PlannedRetry | null>(null)
 const retryActing = ref<'' | 'now' | 'cancel'>('')
-const retryAt = computed(() => retry.value ? new Date(retry.value.at).toLocaleTimeString(dateLocale.value, { hour: '2-digit', minute: '2-digit' }) : '')
+const retryAt = computed(() => {
+  if (!retry.value) return ''
+  const at = new Date(retry.value.at)
+  // a quota resets hours or days away: its day too
+  return retry.value.quota ? at.toLocaleString(dateLocale.value, { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' }) : at.toLocaleTimeString(dateLocale.value, { hour: '2-digit', minute: '2-digit' })
+})
 // the plan as the server has it now: the row changes when it is planned, run
 // or called off from the overview or the bell, which this chat did not do
 async function refreshRetry(id: string) {
@@ -1290,8 +1295,8 @@ onBeforeUnmount(() => {
         <WorkflowRunCard v-for="r in runsAt.after" :key="r.id" :run="r" @updated="onRunUpdated" />
         <!-- the last answer died on a passing API failure: it goes on by itself, or now, or not (ADR-260) -->
         <div v-if="retry && !streaming" class="flex flex-wrap items-center gap-2 rounded-lg border border-(--ui-info)/40 bg-(--ui-info)/5 px-3 py-2 text-xs">
-          <UIcon name="i-lucide-timer" class="size-4 shrink-0 text-(--ui-info)" />
-          <span class="min-w-0 flex-1">{{ t('chat.retryPlanned', { at: retryAt, n: retry.n, max: retry.max }) }}</span>
+          <UIcon :name="retry.quota ? 'i-lucide-battery-low' : 'i-lucide-timer'" class="size-4 shrink-0 text-(--ui-info)" />
+          <span class="min-w-0 flex-1">{{ t(retry.quota ? 'chat.quotaRetryPlanned' : 'chat.retryPlanned', { at: retryAt, n: retry.n, max: retry.max }) }}</span>
           <UButton size="xs" icon="i-lucide-play" :label="t('chat.retryNow')" :loading="retryActing === 'now'" :disabled="!!retryActing" @click="retryNow" />
           <UButton size="xs" color="neutral" variant="ghost" :label="t('chat.retryCancel')" :loading="retryActing === 'cancel'" :disabled="!!retryActing" @click="cancelRetry" />
         </div>

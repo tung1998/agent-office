@@ -86,7 +86,7 @@ async function skipAll() {
 }
 // Bỏ qua N mục: every item that can be let go (not a card to decide, not a
 // chat to read), let go at once
-const dismissable = computed(() => incidents.value.filter(x => !['approval', 'patch', 'unread', 'stalled', 'retrying'].includes(x.kind) && manages(x.project_id)))
+const dismissable = computed(() => incidents.value.filter(x => !['approval', 'patch', 'unread', 'stalled', 'retrying', 'quota_wait'].includes(x.kind) && manages(x.project_id)))
 const dismissingAll = ref(false)
 async function dismissAll() {
   const keys = dismissable.value.map(x => x.key)
@@ -111,7 +111,7 @@ function investigate(x: Incident) {
 // a failure opened in place: what happened, its failed runs, its logs or checks
 const shown = ref<Incident | null>(null)
 const shownOpen = computed({ get: () => !!shown.value, set: (v: boolean) => { if (!v) shown.value = null } })
-const isDecision = (x: Incident) => x.kind === 'approval' || x.kind === 'patch' || x.kind === 'unread' || x.kind === 'stalled' || x.kind === 'retrying' // a link: where to act on it
+const isDecision = (x: Incident) => x.kind === 'approval' || x.kind === 'patch' || x.kind === 'unread' || x.kind === 'stalled' || x.kind === 'retrying' || x.kind === 'quota_wait' // a link: where to act on it
 const runsQuery = (x: Incident) => ({
   jobs: `project=${x.project_id}&status=failed&since=24h&limit=30`,
   automation: `origin_id=${x.id}&limit=20`,
@@ -135,7 +135,7 @@ const canRetry = (k: string) => ['monitor', 'process', 'automation', 'bot', 'job
 const incIcon: Record<string, string> = {
   monitor: 'i-lucide-activity', process: 'i-lucide-square-terminal', automation: 'i-lucide-alarm-clock-off',
   bot: 'i-lucide-bot', jobs: 'i-lucide-circle-x', approval: 'i-lucide-stamp', patch: 'i-lucide-file-diff', limit: 'i-lucide-gauge', unread: 'i-lucide-message-square-dot',
-  stalled: 'i-lucide-battery-low', retrying: 'i-lucide-timer'
+  stalled: 'i-lucide-battery-low', retrying: 'i-lucide-timer', quota_wait: 'i-lucide-battery-low'
 }
 
 const providers = computed(() => prov.value?.providers ?? [])
@@ -211,7 +211,7 @@ const steps = computed(() => [
             <UButton size="xs" color="neutral" variant="ghost" :label="t('chat.markSeen')" :loading="acting.has(x.key + 'seen')" @click="seen(x)" />
           </div>
           <!-- a chat going on by itself after a passing API failure: now, or not (ADR-260) -->
-          <div v-else-if="x.kind === 'retrying'" class="flex shrink-0 items-center gap-1 max-sm:w-full max-sm:ps-7">
+          <div v-else-if="x.kind === 'retrying' || x.kind === 'quota_wait'" class="flex shrink-0 items-center gap-1 max-sm:w-full max-sm:ps-7">
             <UButton size="xs" icon="i-lucide-play" :label="t('chat.retryNow')" :loading="acting.has(x.key + 'retryNow')" @click="act(x, 'retryNow')" />
             <UButton size="xs" color="neutral" variant="outline" icon="i-lucide-eye" :label="t('home.view')" :to="x.link" />
             <UButton size="xs" color="neutral" variant="ghost" :label="t('chat.retryCancel')" :loading="acting.has(x.key + 'cancelRetry')" @click="act(x, 'cancelRetry')" />

@@ -127,6 +127,7 @@ type StepMark struct {
 	WaitUntil  *time.Time `json:"wait_until,omitempty"`   // a wait step: until when
 	ActionID   string     `json:"action_id,omitempty"`    // an approval or a check: its card
 	ChildRunID string     `json:"child_run_id,omitempty"` // a sub-workflow: its run
+	QuotaUntil *time.Time `json:"quota_until,omitempty"`  // an agent's step out of quota: it waits until then (ADR-269)
 }
 
 // Clone is a copy that shares nothing with c.

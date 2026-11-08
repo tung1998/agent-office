@@ -344,6 +344,7 @@ export interface RunStep {
   type: string
   wait_until?: string
   action_id?: string
+  quota_until?: string // an agent's step out of quota waits until then (ADR-269)
 }
 
 // Where a graph of steps is (ADR-256): it goes on from there after a restart.

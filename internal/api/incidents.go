@@ -25,7 +25,7 @@ import (
 // fix it: a monitor down, a process crashed, an automation office turned off,
 // a bot that lost its connection, tasks and runs that failed, a card waiting.
 type incident struct {
-	Kind        string    `json:"kind"`     // monitor | process | automation | bot | jobs | approval | patch | unread | stalled | peer_request | mcp
+	Kind        string    `json:"kind"`     // monitor | process | automation | bot | jobs | approval | patch | unread | stalled | retrying | quota_wait | peer_request | mcp
 	Severity    string    `json:"severity"` // error | warning | info
 	ProjectID   string    `json:"project_id"`
 	ProjectName string    `json:"project_name"`

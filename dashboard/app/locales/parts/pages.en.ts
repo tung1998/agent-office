@@ -95,6 +95,7 @@ const en: Record<keyof typeof vi, string> = {
   'incidents.kind.unread': 'unread',
   'incidents.kind.stalled': 'out of tokens',
   'incidents.kind.retrying': 'going on by itself',
+  'incidents.kind.quota_wait': 'waiting for quota',
   'incidents.kind.peer_request': 'pairing request',
   'incidents.kind.mcp': 'MCP broken',
   'home.continue': 'Continue',

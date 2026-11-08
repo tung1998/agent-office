@@ -24,12 +24,38 @@ import (
 // repeats past its end); tests make them short.
 var TransientRetryWaits = []time.Duration{2 * time.Minute, 10 * time.Minute, 30 * time.Minute}
 
+// A person's turn that stopped because every AI connection of its agent is
+// out of quota (error code out_of_tokens) waits for the first of them to
+// reset, then goes on the same way (ADR-269): planned on the job too, called
+// off the same way, at most QuotaRetries times in a row. The office's own
+// daily budget (code budget) is a cap the person set: never waited out.
+
+// OutOfTokensCode is the error code of a job that stopped for quota.
+const OutOfTokensCode = "out_of_tokens"
+
+// QuotaRetries is how many times in a row a turn out of quota waits for the
+// reset and goes on.
+const QuotaRetries = 2
+
+// QuotaRetrySlack is how long after the reset a turn out of quota goes on
+// (the AI service's clock is not office's); tests make it short.
+var QuotaRetrySlack = 2 * time.Minute
+
 // Retry is a planned retry of a chat's last turn, for the dashboard.
 type Retry struct {
 	JobID string    `json:"job_id"`
 	At    time.Time `json:"at"`
 	N     int       `json:"n"`
 	Max   int       `json:"max"`
+	Quota bool      `json:"quota,omitempty"` // it waits for the quota to reset (ADR-269)
+}
+
+// retryOf is j's planned retry, for the dashboard.
+func (e *Engine) retryOf(ctx context.Context, j storage.Job) *Retry {
+	if j.ErrorCode == OutOfTokensCode {
+		return &Retry{JobID: j.ID, At: *j.RetryAt, N: j.RetryN, Max: max(QuotaRetries, j.RetryN), Quota: true}
+	}
+	return &Retry{JobID: j.ID, At: *j.RetryAt, N: j.RetryN, Max: max(e.maxRetries(ctx), j.RetryN)}
 }
 
 // retryTimers: job id → the timer of its planned retry.
@@ -87,13 +113,19 @@ func (e *Engine) maxRetries(ctx context.Context) int {
 // transientInARow is how many of agentID's latest turns in a chat in a row
 // died on a passing API failure (j itself included once it ended so).
 func (e *Engine) transientInARow(ctx context.Context, conversationID, agentID string, max int) int {
+	return e.inARow(ctx, conversationID, agentID, TransientCode, max)
+}
+
+// inARow is how many of agentID's latest turns in a chat in a row ended
+// with error code.
+func (e *Engine) inARow(ctx context.Context, conversationID, agentID, code string, max int) int {
 	jobs, err := e.store.Jobs().List(ctx, storage.JobFilter{ConversationID: conversationID, Kind: "chat_turn", AgentID: agentID, Limit: max + 2})
 	if err != nil {
 		return 0
 	}
 	n := 0
 	for _, j := range jobs {
-		if j.ErrorCode != TransientCode {
+		if j.ErrorCode != code {
 			break
 		}
 		n++
@@ -106,11 +138,15 @@ func (e *Engine) transientInARow(ctx context.Context, conversationID, agentID st
 // chat waits for the person.
 func (e *Engine) planRetry(j storage.Job, conv storage.Conversation) {
 	ctx := context.Background()
-	if j.ErrorCode != TransientCode || !retryable(j, conv) || e.stopping.Load() {
+	if (j.ErrorCode != TransientCode && j.ErrorCode != OutOfTokensCode) || !retryable(j, conv) || e.stopping.Load() {
 		return
 	}
 	max := e.maxRetries(ctx)
 	if max == 0 {
+		return
+	}
+	if j.ErrorCode == OutOfTokensCode {
+		e.planQuotaRetry(ctx, j, conv)
 		return
 	}
 	n := e.transientInARow(ctx, conv.ID, j.AgentID, max)
@@ -127,6 +163,37 @@ func (e *Engine) planRetry(j storage.Job, conv storage.Conversation) {
 	e.note(conv, prompts.Render("chat/api-retry-planned", map[string]any{"At": at.Local().Format("15:04"), "N": n, "Max": max}))
 	e.armRetry(j.ID, wait)
 	e.running(conv.ID) // the dashboard shows the plan
+}
+
+// planQuotaRetry plans j, a turn that just stopped because its agent's
+// connections are out of quota, to go on once the first of them resets
+// (ADR-269); past QuotaRetries in a row, the chat waits for the person.
+func (e *Engine) planQuotaRetry(ctx context.Context, j storage.Job, conv storage.Conversation) {
+	n := e.inARow(ctx, conv.ID, j.AgentID, OutOfTokensCode, QuotaRetries)
+	if n > QuotaRetries {
+		e.note(conv, prompts.Render("chat/quota-retry-over", map[string]any{"Max": QuotaRetries}))
+		return
+	}
+	at := e.QuotaFree(ctx, j.AgentID).Add(QuotaRetrySlack).UTC()
+	if err := e.store.Jobs().SetRetry(ctx, j.ID, &at, n); err != nil {
+		slog.Warn("chat: plan quota retry", "job", j.ID, "err", err)
+		return
+	}
+	e.note(conv, prompts.Render("chat/quota-retry-planned", map[string]any{"At": at.Local().Format("02/01 15:04"), "N": n, "Max": QuotaRetries}))
+	e.armRetry(j.ID, time.Until(at))
+	e.running(conv.ID) // the dashboard shows the plan
+}
+
+// QuotaFree is when agentID may take a turn again: the first of its
+// connections out of quota to reset (QuotaStop), else — a report that named
+// no reset, or a connection free already — in RejectedCooldown.
+func (e *Engine) QuotaFree(ctx context.Context, agentID string) time.Time {
+	if a, err := e.store.Agents().Get(ctx, agentID); err == nil {
+		if until, out := e.QuotaStop(ctx, a); out && until.After(time.Now()) {
+			return until
+		}
+	}
+	return time.Now().Add(RejectedCooldown)
 }
 
 func (e *Engine) armRetry(jobID string, wait time.Duration) {
@@ -170,7 +237,11 @@ func (e *Engine) RetryNow(ctx context.Context, jobID string) (*Turn, error) {
 	if err != nil {
 		return nil, err
 	}
-	text := prompts.Render("chat/api-retry", map[string]any{"Agent": a.Name, "N": j.RetryN})
+	tmpl := "chat/api-retry"
+	if j.ErrorCode == OutOfTokensCode {
+		tmpl = "chat/quota-retry"
+	}
+	text := prompts.Render(tmpl, map[string]any{"Agent": a.Name, "N": j.RetryN})
 	from := e.lastAsked(ctx, j.ConversationID)
 	pageContext := ""
 	var info relayInfo
@@ -225,7 +296,7 @@ func (e *Engine) PlannedRetry(ctx context.Context, conversationID string) *Retry
 	}
 	for _, j := range jobs {
 		if j.RetryAt != nil {
-			return &Retry{JobID: j.ID, At: *j.RetryAt, N: j.RetryN, Max: max(e.maxRetries(ctx), j.RetryN)}
+			return e.retryOf(ctx, j)
 		}
 	}
 	return nil

@@ -1093,13 +1093,18 @@ func (s *Service) WeeklyReset(ctx context.Context, agentID string) (time.Time, b
 
 // limitHit: the AI connection said no more for now, or every connection
 // the agent may run on passed its stop threshold (ADR-136) — until when.
+//
+// With a chat engine it is the chat's own reading (chat.QuotaStop, ADR-269):
+// every connection the agent may run on, its fallbacks too, is out of quota
+// or past its stop threshold — one Codex still free keeps the Burn going
+// when its Claude is out, and it waits until the first one resets.
 func (s *Service) limitHit(ctx context.Context, agentID string) (time.Time, bool) {
 	if s.chat != nil {
-		if ag, err := s.store.Agents().Get(ctx, agentID); err == nil {
-			if until, hit := s.chat.CapStop(ctx, ag); hit {
-				return until, true
-			}
+		ag, err := s.store.Agents().Get(ctx, agentID)
+		if err != nil {
+			return time.Time{}, false
 		}
+		return s.chat.QuotaStop(ctx, ag)
 	}
 	l, ok := s.limits(ctx, agentID)
 	if !ok || l.Status != "rejected" {

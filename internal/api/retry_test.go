@@ -63,3 +63,37 @@ func TestRetryingChat(t *testing.T) {
 		t.Fatalf("retry-now with nothing planned: %d", res.StatusCode)
 	}
 }
+
+// A chat out of quota that waits for its reset is a "quota_wait" item, not a
+// stalled one asking for Tiếp tục: it goes on by itself (ADR-269).
+func TestQuotaWaitingChat(t *testing.T) {
+	e := setup(t)
+	admin := e.client(t)
+	login(t, e, admin, "admin@x.io", "admin-password")
+	ctx := context.Background()
+	_, body := do(t, admin, "POST", e.srv.URL+"/api/projects", map[string]any{"path": t.TempDir(), "name": "shop"}, nil)
+	pid := body["project"].(map[string]any)["id"].(string)
+	c, _ := e.st.Chat().CreateConversation(ctx, storage.Conversation{ProjectID: pid, Title: "Sửa giỏ hàng"})
+	now := time.Now().UTC()
+	j, _ := e.st.Jobs().Create(ctx, storage.Job{ProjectID: pid, Kind: "chat_turn", Origin: "user", ConversationID: c.ID, Title: "x", Status: "running", StartedAt: &now})
+	e.st.Jobs().Finish(ctx, j.ID, "failed", chat.OutOfTokensCode, "claude: You've hit your limit · resets 3pm", now)
+	at := now.Add(3 * time.Hour)
+	e.st.Jobs().SetRetry(ctx, j.ID, &at, 1)
+
+	_, b := do(t, admin, "GET", e.srv.URL+"/api/incidents", nil, nil)
+	got := map[string]map[string]any{}
+	for _, x := range b["incidents"].([]any) {
+		it := x.(map[string]any)
+		got[it["kind"].(string)] = it
+	}
+	if it := got["quota_wait"]; it == nil || it["id"] != c.ID {
+		t.Fatalf("incidents = %v", got)
+	}
+	if _, ok := got["stalled"]; ok {
+		t.Fatalf("stalled too: %v", got["stalled"])
+	}
+	_, conv := do(t, admin, "GET", e.srv.URL+"/api/conversations/"+c.ID, nil, nil)
+	if r, _ := conv["retry"].(map[string]any); r == nil || r["quota"] != true || r["max"] != float64(chat.QuotaRetries) {
+		t.Fatalf("retry = %v", conv["retry"])
+	}
+}

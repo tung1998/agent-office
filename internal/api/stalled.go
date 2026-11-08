@@ -25,6 +25,10 @@ func (s *server) stalledChats(ctx context.Context, u storage.User, p storage.Rep
 		if !chat.Stalled(j.ErrorCode) || j.ConversationID == "" || seen[j.ConversationID] {
 			continue
 		}
+		if j.RetryAt != nil { // it waits for the quota to reset and goes on by itself (ADR-269): retryingChats
+			seen[j.ConversationID] = true
+			continue
+		}
 		seen[j.ConversationID] = true
 		if !manages(u) && j.CreatedBy != "human:"+u.Email {
 			continue
@@ -82,7 +86,8 @@ func (s *server) burnOwned(ctx context.Context, c storage.Conversation) bool {
 }
 
 // retryingChats are p's chats whose last answer died on a passing API failure
-// and goes on by itself later (ADR-260): when, which try; Chạy ngay or Thôi.
+// and goes on by itself later (ADR-260), or stopped out of quota and goes on
+// once it resets (quota_wait, ADR-269): when, which try; Chạy ngay or Thôi.
 func (s *server) retryingChats(ctx context.Context, u storage.User, p storage.Repo) []incident {
 	jobs, err := s.cfg.Store.Jobs().Retries(ctx)
 	if err != nil {
@@ -101,9 +106,13 @@ func (s *server) retryingChats(ctx context.Context, u storage.User, p storage.Re
 		if err != nil {
 			continue
 		}
-		out = append(out, incident{Kind: "retrying", Severity: "info", ProjectID: p.ID, ProjectName: p.Name,
+		kind := "retrying"
+		if r.Quota {
+			kind = "quota_wait"
+		}
+		out = append(out, incident{Kind: kind, Severity: "info", ProjectID: p.ID, ProjectName: p.Name,
 			Title: firstNonEmptyStr(c.Title, j.Title), Detail: j.Error, At: r.At,
-			Link: "/projects/" + p.ID + "?tab=chat&c=" + c.ID, ID: c.ID, Key: "retrying:" + j.ID})
+			Link: "/projects/" + p.ID + "?tab=chat&c=" + c.ID, ID: c.ID, Key: kind + ":" + j.ID})
 	}
 	return out
 }
