@@ -141,14 +141,17 @@ const endItems = computed(() => [
 // next runs, asked from the server (same parser as the scheduler)
 const preview = ref<{ next: string[], error?: string }>({ next: [] })
 let timer: ReturnType<typeof setTimeout> | undefined
+let previewGen = 0
 watch(() => [form.source, form.config.every_minutes, form.config.cron, form.config.timezone, form.config.ends_at], () => {
   clearTimeout(timer)
   if (form.source !== 'schedule') return
+  const gen = ++previewGen
   timer = setTimeout(async () => {
     const q = new URLSearchParams({ every: String(form.config.every_minutes || 0), cron: form.config.cron ?? '', tz: form.config.timezone ?? '', ends: form.config.ends_at ?? '' })
     try {
-      preview.value = await $fetch(`/api/automations/preview-schedule?${q}`)
-    } catch { preview.value = { next: [] } }
+      const result = await $fetch(`/api/automations/preview-schedule?${q}`)
+      if (gen === previewGen) preview.value = result
+    } catch { if (gen === previewGen) preview.value = { next: [] } }
   }, 400)
 }, { immediate: true })
 const fmt = (d: string) => new Date(d).toLocaleString(dateLocale.value, { weekday: 'short', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
