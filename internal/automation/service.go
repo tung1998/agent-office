@@ -21,6 +21,16 @@ func versionOf(v any) string {
 	return hex.EncodeToString(sum[:8])
 }
 
+// itemVersion is versionOf applied to whatever field actually holds an
+// item's edited content: Files for skill/agent, but Template for mcp (its
+// config lives there, not in Files, which Content() never populates for mcp).
+func itemVersion(it LibraryItem) string {
+	if it.Kind == "mcp" {
+		return versionOf(it.Template)
+	}
+	return versionOf(it.Files)
+}
+
 // Service is what the API uses.
 type Service struct {
 	Home      string
@@ -174,7 +184,7 @@ func (s *Service) Install(ctx context.Context, req InstallRequest) (InstallResul
 	defer s.mu.Unlock()
 	res := InstallResult{Findings: []Finding{}}
 	if req.Version != "" && req.Edited != nil && req.Overwrite {
-		if cur, err := s.Content(ctx, *req.Edited); err == nil && versionOf(cur.Files) != req.Version {
+		if cur, err := s.Content(ctx, *req.Edited); err == nil && itemVersion(cur) != req.Version {
 			return res, ErrConflict
 		}
 	}

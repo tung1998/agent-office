@@ -92,6 +92,17 @@ func (m mcpStash) Save(ctx context.Context, recs map[string]automation.DisabledM
 
 func validKind(k string) bool { return k == "skill" || k == "agent" || k == "mcp" || k == "template" }
 
+// automationItemVersion is versionOf applied to whatever field holds an
+// automation library item's edited content: Files for skill/agent, but
+// Template for mcp (Content() never populates Files for mcp items, so
+// versionOf(it.Files) would hash a constant nil and never detect a change).
+func automationItemVersion(it automation.LibraryItem) string {
+	if it.Kind == "mcp" {
+		return versionOf(it.Template)
+	}
+	return versionOf(it.Files)
+}
+
 // autoError maps automation errors to HTTP statuses.
 func (s *server) autoError(w http.ResponseWriter, r *http.Request, err error) {
 	switch {
@@ -125,7 +136,7 @@ func (s *server) autoContent(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, struct {
 		automation.LibraryItem
 		Version string `json:"version"` // what an edit is made from (ADR-072)
-	}{it, versionOf(it.Files)})
+	}{it, automationItemVersion(it)})
 }
 
 func (s *server) autoInstall(w http.ResponseWriter, r *http.Request) {
@@ -138,7 +149,7 @@ func (s *server) autoInstall(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if req.Version != "" && req.Edited != nil && req.Overwrite { // the editor's skill as it opened it
-		if cur, err := s.cfg.Automation.Content(r.Context(), *req.Edited); err == nil && conflicted(w, req.Version, versionOf(cur.Files)) {
+		if cur, err := s.cfg.Automation.Content(r.Context(), *req.Edited); err == nil && conflicted(w, req.Version, automationItemVersion(cur)) {
 			return
 		}
 	}

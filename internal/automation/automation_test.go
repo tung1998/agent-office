@@ -473,6 +473,43 @@ func TestInstallSkillConcurrentStaleVersionConflicts(t *testing.T) {
 	}
 }
 
+// Content() for an mcp item must reflect its actual config, not just the
+// always-nil Files field, so two edits of the same server get different
+// versions and the second, stale one is rejected instead of silently
+// clobbering the first (ADR-072; service.go's Content left Files nil for mcp).
+func TestInstallMCPConcurrentStaleVersionConflicts(t *testing.T) {
+	ctx := context.Background()
+	home, proj := fixture(t)
+	s := svc(t, home, proj)
+	target := Target{Scope: "project", ProjectPath: proj}
+
+	it := find(s.Scan(ctx), "mcp", "sentry", "project")
+	edited := refOf(it)
+	cur, err := s.Content(ctx, edited)
+	if err != nil {
+		t.Fatal(err)
+	}
+	base := itemVersion(cur)
+
+	tmplA := MCPTemplate{Name: "sentry", Title: "sentry", Config: map[string]any{"type": "http", "url": "https://mcp.sentry.dev/mcp-a"}, Inputs: []Input{}}
+	req := InstallRequest{Kind: "mcp", Name: "sentry", Target: target, Overwrite: true, Edited: &edited, Version: base, Template: &tmplA}
+	if _, err := s.Install(ctx, req); err != nil {
+		t.Fatalf("first overwrite: %v", err)
+	}
+	// Second save still carries the same (now stale) base version, as if it
+	// had read the config before the first save landed.
+	tmplB := tmplA
+	tmplB.Config = map[string]any{"type": "http", "url": "https://mcp.sentry.dev/mcp-b"}
+	req.Template = &tmplB
+	if _, err := s.Install(ctx, req); !errors.Is(err, ErrConflict) {
+		t.Fatalf("second overwrite from stale version = %v, want ErrConflict", err)
+	}
+	got, _ := os.ReadFile(filepath.Join(proj, ".mcp.json"))
+	if !strings.Contains(string(got), "mcp-a") || strings.Contains(string(got), "mcp-b") {
+		t.Fatalf(".mcp.json = %q, want person A's edit kept", got)
+	}
+}
+
 // An overwrite that fails (bad relative path rejected before anything is
 // touched) must leave the existing skill exactly as it was, with nothing new
 // in the trash.
