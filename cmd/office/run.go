@@ -252,6 +252,7 @@ func serveCmd() *cobra.Command {
 			monitors := monitor.New(a.store, procs, chatEngine)
 			// schedules and webhooks start chats as jobs (ADR-040)
 			runner := trigger.New(a.store, officeExecutor{chat: chatEngine})
+			runner.SetQuotaStop(chatEngine.QuotaStop) // a schedule waits out a quota, not fail each hour (ADR-268)
 			go runner.Run(ctx)
 			// stuck work (cards no one decides, loops, the same failure): the
 			// coordinator looks into it while it happens (ADR-230)

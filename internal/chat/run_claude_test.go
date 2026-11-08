@@ -3,6 +3,7 @@ package chat
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -353,5 +354,96 @@ func TestLineTailKeepsTheLast(t *testing.T) {
 	tl.add("   ")
 	if len(tl.lines) != tailLines || !strings.HasSuffix(tl.String(), "line d") {
 		t.Fatalf("tail = %q", tl.String())
+	}
+}
+
+// The CLI wraps an API failure in an assistant message of model "<synthetic>"
+// and ends with a result whose api_error_status is a number: both used to
+// fail to decode (api_error_status read as a string), fell to the plain tail
+// and the error was raw JSON (16 failures of 2026-11-07/08). The message's
+// own words are the reason.
+func TestClaudeSyntheticMessageReadsItsText(t *testing.T) {
+	dir := t.TempDir()
+	bin := filepath.Join(dir, "claude")
+	script := `#!/bin/sh
+if [ "$1" = auth ]; then echo '{"loggedIn":true}'; exit 0; fi
+cat >/dev/null
+echo '{"type":"system","subtype":"init","session_id":"s1"}'
+echo '{"type":"assistant","message":{"id":"m1","model":"<synthetic>","role":"assistant","stop_reason":"stop_sequence","type":"message","usage":{"output_tokens_details":null,"input_tokens":0,"output_tokens":0},"content":[{"type":"text","text":"API Error: 529 {\"type\":\"error\",\"error\":{\"type\":\"overloaded_error\",\"message\":\"Overloaded\"}}"}]},"is_api_error_message":true,"api_error_status":529,"error":"server_error","session_id":"s1"}'
+echo '{"duration_api_ms":0,"stop_reason":"stop_sequence","session_id":"s1","total_cost_usd":0,"usage":{"output_tokens_details":{"thinking_tokens":0},"input_tokens":0,"output_tokens":0},"type":"result","subtype":"success","is_error":true,"api_error_status":529,"result":"API Error: 529 {\"type\":\"error\",\"error\":{\"type\":\"overloaded_error\",\"message\":\"Overloaded\"}}"}'
+exit 1
+`
+	fakebin.Write(bin, []byte(script))
+	_, err := claudeRunner{}.Run(context.Background(), RunRequest{Bin: bin, WorkDir: dir, Prompt: "hi"}, func(Event) {})
+	if err == nil || strings.Contains(err.Error(), "<synthetic>") || strings.Contains(err.Error(), "duration_api_ms") || strings.Contains(err.Error(), "success") ||
+		!strings.Contains(err.Error(), "Overloaded") || !strings.Contains(err.Error(), "529") {
+		t.Fatalf("err = %v", err)
+	}
+	if !Transient(err) {
+		t.Fatalf("a 529 overloaded must read as passing: %v", err)
+	}
+
+	// no result line: the synthetic message alone is the reason
+	script = `#!/bin/sh
+if [ "$1" = auth ]; then echo '{"loggedIn":true}'; exit 0; fi
+cat >/dev/null
+echo '{"type":"assistant","message":{"model":"<synthetic>","content":[{"type":"text","text":"You'"'"'ve hit your limit · resets 3pm"}]},"api_error_status":429,"error":"rate_limit"}'
+exit 1
+`
+	fakebin.Write(bin, []byte(script))
+	_, err = claudeRunner{}.Run(context.Background(), RunRequest{Bin: bin, WorkDir: dir, Prompt: "hi"}, func(Event) {})
+	if err == nil || strings.Contains(err.Error(), "<synthetic>") || !strings.Contains(err.Error(), "hit your limit") || !OutOfTokens(err) {
+		t.Fatalf("err = %v", err)
+	}
+}
+
+// Claude's own limit message says when it resets ("resets 3pm", "resets Nov
+// 13, 10:30am (Asia/Saigon)"): the connection is held until then, not for the
+// 5 minutes of a report without a time.
+func TestClaudeSyntheticLimitSetsLimits(t *testing.T) {
+	loc := time.FixedZone("ICT", 7*3600)
+	now := time.Date(2026, 11, 8, 10, 0, 0, 0, loc)
+	cases := []struct {
+		msg  string
+		want time.Time
+	}{
+		{"claude: You've hit your limit · resets 3pm", time.Date(2026, 11, 8, 15, 0, 0, 0, loc)},
+		{"claude: You've hit your limit · resets 9am", time.Date(2026, 11, 9, 9, 0, 0, 0, loc)},
+		{"claude: You've hit your limit · resets 3:30pm (Asia/Saigon)", time.Date(2026, 11, 8, 15, 30, 0, 0, time.FixedZone("ICT", 7*3600))},
+		{"claude: You've hit your weekly limit · resets Nov 13, 10am", time.Date(2026, 11, 13, 10, 0, 0, 0, loc)},
+	}
+	for _, c := range cases {
+		l := limitsFromError(nil, errors.New(c.msg), now)
+		if l == nil || l.Status != "rejected" || !l.Windows["quota"].ResetsAt.Equal(c.want) {
+			t.Fatalf("%q: limits = %+v, want reset %v", c.msg, l, c.want)
+		}
+		if !overNow(*l, now) {
+			t.Fatalf("%q: not over quota now", c.msg)
+		}
+	}
+}
+
+// A compaction whose CLI exits 1 with nothing on stderr: what it printed
+// (plain or its own synthetic message) is the reason, not "exit status 1".
+func TestCompactClaudeKeepsStdoutReason(t *testing.T) {
+	dir := t.TempDir()
+	bin := filepath.Join(dir, "claude")
+	fakebin.Write(bin, []byte(`#!/bin/sh
+echo 'Error: No conversation found with session ID: s1'
+exit 1
+`))
+	_, err := compactClaude(context.Background(), bin, nil, dir, "", "s1")
+	if err == nil || !strings.Contains(err.Error(), "No conversation found") || !strings.Contains(err.Error(), "exit status 1") {
+		t.Fatalf("err = %v", err)
+	}
+
+	fakebin.Write(bin, []byte(`#!/bin/sh
+echo '{"type":"assistant","message":{"model":"<synthetic>","content":[{"type":"text","text":"Prompt is too long"}]},"api_error_status":400}'
+echo '{"type":"result","subtype":"success","is_error":true,"api_error_status":400,"result":""}'
+exit 1
+`))
+	_, err = compactClaude(context.Background(), bin, nil, dir, "", "s1")
+	if err == nil || !strings.Contains(err.Error(), "Prompt is too long") || strings.Contains(err.Error(), "success") {
+		t.Fatalf("err = %v", err)
 	}
 }

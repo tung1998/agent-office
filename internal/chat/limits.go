@@ -72,6 +72,8 @@ func limitsFromError(reported *Limits, err error, now time.Time) *Limits {
 		}
 	} else if at, ok := resetAtClock(err.Error(), now); ok {
 		l.Windows = map[string]LimitWindow{"quota": {Utilization: 1, ResetsAt: at}}
+	} else if at, ok := resetsClock(err.Error(), now); ok {
+		l.Windows = map[string]LimitWindow{"quota": {Utilization: 1, ResetsAt: at}}
 	}
 	return l
 }
@@ -118,6 +120,54 @@ func resetAtClock(msg string, now time.Time) (time.Time, bool) {
 	}
 	if !at.After(now) {
 		return time.Time{}, false
+	}
+	return at, true
+}
+
+// resetsAt is how Claude Code's own limit message says when it resets: an
+// hour of the day ("resets 3pm", "resets 3:30pm (Asia/Saigon)"), with the
+// day first when it is not today ("resets Nov 13, 10am").
+var resetsAt = regexp.MustCompile(`(?i)\bresets (?:([a-z]{3})[a-z]* (\d{1,2})(?:st|nd|rd|th)?,? (?:at )?)?(\d{1,2})(?::(\d{2}))?\s*([ap]m)\b(?:\s*\(([A-Za-z_]+(?:/[A-Za-z_+-]+)*)\))?`)
+
+// resetsClock reads resetsAt, in the time zone it names (else now's): an
+// hour already past today is tomorrow's, a day already past is next year's.
+func resetsClock(msg string, now time.Time) (time.Time, bool) {
+	m := resetsAt.FindStringSubmatch(msg)
+	if m == nil {
+		return time.Time{}, false
+	}
+	loc := now.Location()
+	if m[6] != "" {
+		if l, err := time.LoadLocation(m[6]); err == nil {
+			loc = l
+		}
+	}
+	h, _ := strconv.Atoi(m[3])
+	mi, _ := strconv.Atoi(m[4])
+	if h < 1 || h > 12 || mi > 59 {
+		return time.Time{}, false
+	}
+	h %= 12
+	if strings.EqualFold(m[5], "pm") {
+		h += 12
+	}
+	ref := now.In(loc)
+	y, mo, d := ref.Date()
+	if m[1] != "" {
+		t, err := time.Parse("Jan", strings.ToUpper(m[1][:1])+strings.ToLower(m[1][1:]))
+		if err != nil {
+			return time.Time{}, false
+		}
+		mo = t.Month()
+		d, _ = strconv.Atoi(m[2])
+	}
+	at := time.Date(y, mo, d, h, mi, 0, 0, loc)
+	if !at.After(now) {
+		if m[1] == "" {
+			at = at.AddDate(0, 0, 1)
+		} else {
+			at = at.AddDate(1, 0, 0)
+		}
 	}
 	return at, true
 }

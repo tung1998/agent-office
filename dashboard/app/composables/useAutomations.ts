@@ -426,6 +426,14 @@ export function mergeDraft(d: AutomationDraft, patch: Record<string, unknown>): 
   return changed
 }
 
+// quotaWait: the automation's last run was skipped because every AI
+// connection of its agent was out of quota; the job's error says until when
+// (ADR-268). null = not waiting.
+export function quotaWait(a: Automation): string | null {
+  const j = a.last_job
+  return j && j.status === 'skipped' && j.error_code === 'quota' ? j.error : null
+}
+
 // spentToday: what an automation spent today against its daily cap ('' = no cap) (ADR-263)
 export function spentToday(a: Automation): { spent: string, cap: string, over: boolean } | null {
   const cap = a.limits?.daily_cost_usd ?? 0

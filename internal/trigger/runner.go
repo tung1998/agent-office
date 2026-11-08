@@ -69,6 +69,25 @@ type Runner struct {
 	onDone     []OnDone
 	quests     GiveQuests  // a script's @@quest lines to the Burn (ADR-132); nil = none
 	hold       func() bool // true: start no unattended job now (an update waits for office to be idle, ADR-255)
+	quotaStop  QuotaStop   // every AI connection of an agent is out of quota, until when (ADR-268); nil = never
+}
+
+// QuotaStop says every AI connection agent may run on is out of its quota
+// for now, and when the first is free again (chat.Engine.QuotaStop).
+type QuotaStop func(ctx context.Context, agent storage.Agent) (until time.Time, out bool)
+
+// SetQuotaStop sets what tells an agent's connections are all out of quota:
+// a scheduled run is then skipped, not run to fail (ADR-268).
+func (r *Runner) SetQuotaStop(fn QuotaStop) { r.quotaStop = fn }
+
+// QuotaCode is the error code of a run skipped because the agent's AI
+// connections were all out of quota (ADR-268).
+const QuotaCode = "quota"
+
+// QuotaNote says why a run was skipped for quota.
+func QuotaNote(agent string, until time.Time) string {
+	return fmt.Sprintf("mọi kết nối AI của %s đang hết hạn mức, chờ tới %s; bỏ lượt này, lượt theo lịch sau đó chạy lại", // i18n-ignore
+		agent, until.Local().Format("02/01 15:04"))
 }
 
 // SetHold sets what holds the unattended jobs (schedules, webhooks,
@@ -492,6 +511,15 @@ func (r *Runner) execute(ctx context.Context, j storage.Job) {
 			finish("skipped", "agent_off", notice)
 			answer(notice, nil, true)
 			return
+		} else if ok && r.quotaStop != nil && j.Trigger != "manual" && j.ParentJobID == "" && a.Action != "workflow" {
+			// every connection of its agent is out of quota with a known
+			// reset: a run now only fails, as each hour used to (ADR-268).
+			// A run pressed by hand still runs; a workflow's steps have
+			// agents of their own.
+			if until, out := r.quotaStop(ctx, ag); out {
+				finish("skipped", QuotaCode, QuotaNote(ag.Name, until))
+				return
+			}
 		}
 	}
 	agentID, prompt := a.AgentID, promptFor(a, j, now, loc)

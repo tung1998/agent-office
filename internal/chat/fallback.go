@@ -65,6 +65,54 @@ func (e *Engine) CapStop(ctx context.Context, agent storage.Agent) (time.Time, b
 	return time.Time{}, false
 }
 
+// QuotaStop: no connection agent may run on can take a turn now: each is
+// past its stop threshold or out of its quota as its last report says (a
+// limit hit, a rejected run) — until the first of them is free again. An
+// unattended run (an automation's schedule) waits for it instead of failing
+// every hour (ADR-268). A broken connection is not out of quota: it is tried.
+func (e *Engine) QuotaStop(ctx context.Context, agent storage.Agent) (time.Time, bool) {
+	if e.providers == nil {
+		return time.Time{}, false
+	}
+	chain, err := e.providers.Chain(ctx, agent)
+	if err != nil || len(chain) == 0 {
+		return time.Time{}, false
+	}
+	now := time.Now()
+	var until time.Time
+	for _, c := range chain {
+		l, has := e.limits(ctx, c.Provider.ID)
+		var free time.Time
+		if ce := capHit(c.Provider, l, has, now); ce != nil {
+			free = ce.Until
+		} else if has && overNow(l, now) {
+			free = freeAt(l, now)
+		} else {
+			return time.Time{}, false // this one can answer
+		}
+		if until.IsZero() || free.Before(until) {
+			until = free
+		}
+	}
+	return until, true
+}
+
+// freeAt is when a connection out of quota (overNow) takes turns again: the
+// last of its full windows to reset, else the cooldown of a rejected report
+// that named no window.
+func freeAt(l Limits, now time.Time) time.Time {
+	var at time.Time
+	for _, w := range l.Windows {
+		if w.Utilization >= 1 && w.ResetsAt.After(now) && w.ResetsAt.After(at) {
+			at = w.ResetsAt
+		}
+	}
+	if at.IsZero() {
+		at = l.UpdatedAt.Add(RejectedCooldown)
+	}
+	return at
+}
+
 // CapError: a turn not started because its connections passed the stop
 // thresholds the person set on them. Its text says "quota", so the turn is
 // out of tokens: the chat goes on once a window resets.

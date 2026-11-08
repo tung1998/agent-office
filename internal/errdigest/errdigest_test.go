@@ -69,7 +69,15 @@ func TestCategory(t *testing.T) {
 		{"agent_error", "claude: exit status 1 · lỗi API cuối: 529 overloaded_error, lần 10/10", CatTransient},
 		{"agent_error", "claude: API Error: 529 {\"type\":\"overloaded_error\"}", CatTransient},
 		{"budget", "", CatBudget},
-		{"out_of_tokens", "", CatBudget},
+		// out_of_tokens is the AI service's quota, not the office's budget
+		{"out_of_tokens", "", CatQuota},
+		{"out_of_tokens", "codex: You’ve hit your usage limit. try again at Nov 13th, 2026 10:18 AM.", CatQuota},
+		{"out_of_tokens", "anthropic: 429 Too Many Requests", CatRateLimit},
+		// Claude Code's synthetic messages, read (2026-11-07/08)
+		{"out_of_tokens", "claude: You've hit your weekly limit · resets Nov 13, 10am", CatQuota},
+		{"agent_error", "claude: You’ve reached your Fable limit.", CatQuota},
+		{"agent_error", "claude: You're out of usage credits · resets 3pm", CatQuota},
+		{"api_transient", "claude: API Error: 529 {\"type\":\"error\",\"error\":{\"type\":\"overloaded_error\",\"message\":\"Overloaded\"}}", CatTransient},
 		{"busy_timeout", "", CatTimeout},
 		{"agent_error", "context deadline exceeded", CatTimeout},
 		{"agent_error", "mcp server sentry: spawn npx ENOENT", CatMCP},

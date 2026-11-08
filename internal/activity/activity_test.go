@@ -127,6 +127,29 @@ func TestFailureDigest(t *testing.T) {
 	}
 }
 
+// ADR-268: an AI connection out of quota is the service's quota, not the
+// office's budget (it was listed as [budget]); a scheduled run skipped while
+// every connection is out of quota is not a failure at all.
+func TestFailureDigestIgnoresQuotaSkips(t *testing.T) {
+	ctx := context.Background()
+	st, _ := sqlite.Open(filepath.Join(t.TempDir(), "o.db"))
+	defer st.Close()
+	st.Migrate(ctx)
+	p, _ := st.Repos().Create(ctx, storage.Repo{Name: "P", Path: t.TempDir()})
+	ag, _ := st.Agents().Create(ctx, storage.Agent{ProjectID: p.ID, Key: "t", Name: "Thực thi", ModelTier: storage.TierBalanced})
+	end := func(status, code, msg string) {
+		j, _ := st.Jobs().Create(ctx, storage.Job{ProjectID: p.ID, AgentID: ag.ID, Kind: "chat_turn", Origin: "automation", Status: "running"})
+		st.Jobs().Finish(ctx, j.ID, status, code, msg, time.Now().UTC())
+	}
+	end("failed", "out_of_tokens", "codex: You’ve hit your usage limit. try again at Nov 13th, 2026 10:18 AM.")
+	end("skipped", "quota", "mọi kết nối AI của Thực thi đang hết hạn mức, chờ tới 13/11 10:18")
+	end("skipped", "quota", "mọi kết nối AI của Thực thi đang hết hạn mức, chờ tới 13/11 10:18")
+	out, isErr := activity.NewTools(st).Call(ctx, officetools.Scope{ProjectID: p.ID}, "failure_digest", []byte(`{}`))
+	if isErr || !strings.Contains(out, "Failures in the last 7 days: 1") || !strings.Contains(out, "1× [quota]") || strings.Contains(out, "[budget]") {
+		t.Fatalf("digest:\n%s", out)
+	}
+}
+
 // success_rate: goal completion by Burn piece owner — done without the
 // result reviewer sending it back (Attempts>1) over closed (skipped
 // excluded), not lumped together across owners.

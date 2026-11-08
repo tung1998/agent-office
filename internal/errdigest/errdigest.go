@@ -93,7 +93,7 @@ var AllCategories = []string{CatCLIBroken, CatNeedsLogin, CatQuota, CatRateLimit
 
 // byCode: a job's error code that already says the kind.
 var byCode = map[string]string{
-	"cancelled": CatCancelled, "restart": CatRestart, "budget": CatBudget, "out_of_tokens": CatBudget,
+	"cancelled": CatCancelled, "restart": CatRestart, "budget": CatBudget,
 	"rate_limit": CatRateLimit, "busy_timeout": CatTimeout, "agent_missing": CatConfig, "disabled": CatConfig,
 	"script_error": CatScript, "api_transient": CatTransient,
 }
@@ -108,7 +108,9 @@ var byText = []struct {
 	{CatMCP, []string{"mcp"}},
 	{CatCLIBroken, []string{"cli không chạy được", "không tìm thấy lệnh", "command not found", "cannot find module", " enoent", "executable file not found"}},
 	{CatNeedsLogin, []string{"chưa đăng nhập", "đăng nhập lại", "not logged in", "please log in", "please login", "unauthorized", "invalid api key", "invalid_api_key", "no api key", "authentication"}},
-	{CatQuota, []string{"usage limit", "quota", "hết lượt", "credit balance", "purchase more credits", "insufficient_quota", "billing"}},
+	// Claude Code's own limit words: "You've hit your weekly limit · resets 3pm"
+	{CatQuota, []string{"usage limit", "quota", "hết lượt", "credit balance", "purchase more credits", "insufficient_quota", "billing",
+		"hit your limit", "you've hit your", "you've reached your", "out of usage"}},
 	{CatRateLimit, []string{"rate limit", "rate_limit", "ratelimit", "too many requests", " 429"}},
 	// overloaded is the service, not the account: it passes by waiting (ADR-260)
 	{CatTransient, []string{"overloaded", "lỗi api cuối", "lỗi api tạm thời", "internal server error", "api error: 5", "stream disconnected"}},
@@ -126,7 +128,15 @@ func Category(code, msg string) string {
 	if c, ok := byCode[code]; ok {
 		return c
 	}
-	low := " " + strings.ToLower(msg)
+	if code == "out_of_tokens" {
+		// the AI service's quota or rate limit (chat.OutOfTokens), never
+		// the office's own budget, which has its code: the words tell which
+		if c := Category("", msg); c == CatRateLimit {
+			return c
+		}
+		return CatQuota
+	}
+	low := " " + strings.ReplaceAll(strings.ToLower(msg), "’", "'") // "You’ve" as "You've"
 	// a workflow that did not finish: its own words lead; what broke inside
 	// it is read from the rest
 	wf := strings.Contains(low, "quy trình") && strings.Contains(low, "không xong")

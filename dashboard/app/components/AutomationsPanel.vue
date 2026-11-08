@@ -164,6 +164,7 @@ async function runNow(a: Automation) {
         </NuxtLink>
         <span v-if="a.config.tags?.length" class="flex flex-wrap items-center gap-1"><ChatTags :tags="a.config.tags" /></span>
         <UBadge v-if="isFullAccess(a)" color="warning" variant="subtle" size="sm" icon="i-lucide-shield-alert" :label="t('auto.adminBadge')" :title="t('auto.adminBadgeHint')" />
+        <UBadge v-if="quotaWait(a)" color="warning" variant="subtle" size="sm" icon="i-lucide-hourglass" :label="t('auto.quotaWait')" :title="quotaWait(a)!" />
         <UBadge v-if="spentToday(a)" :color="spentToday(a)!.over ? 'error' : 'neutral'" variant="subtle" size="sm" icon="i-lucide-wallet" :label="t('auto.spentToday', { spent: spentToday(a)!.spent, cap: spentToday(a)!.cap })" :title="t('auto.spentTodayHint')" />
         <UBadge v-if="a.disabled_code" color="error" variant="subtle" size="sm" icon="i-lucide-circle-alert" :label="t('auto.disabledBy', { reason: a.disabled_reason })" class="max-w-64 truncate" />
         <UBadge v-else-if="a.bot_status?.last_error" color="error" variant="subtle" size="sm" icon="i-lucide-bot" :label="a.bot_status.last_error" :title="a.bot_status.last_error" class="max-w-64 truncate" />

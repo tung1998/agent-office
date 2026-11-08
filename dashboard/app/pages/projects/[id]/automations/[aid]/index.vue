@@ -70,6 +70,7 @@ async function remove() {
         <span class="font-mono">{{ scheduleText(a, t) }}</span>
         <span>{{ a.action === 'script' ? t('auto.actionScript') : a.action === 'workflow' ? t('auto.toWorkflow', { key: a.config.workflow ?? '' }) : t('auto.actionChat') }}</span>
         <UBadge :label="a.enabled ? t('auto.on') : t('auto.off')" :color="a.enabled ? 'success' : 'neutral'" variant="subtle" size="sm" />
+        <UBadge v-if="quotaWait(a)" color="warning" variant="subtle" size="sm" icon="i-lucide-hourglass" :label="t('auto.quotaWait')" :title="quotaWait(a)!" />
         <UBadge v-if="spentToday(a)" :color="spentToday(a)!.over ? 'error' : 'neutral'" variant="subtle" size="sm" icon="i-lucide-wallet" :label="t('auto.spentToday', { spent: spentToday(a)!.spent, cap: spentToday(a)!.cap })" :title="t('auto.spentTodayHint')" />
       </div>
       <UAlert v-if="a.command_taken" color="warning" variant="subtle" icon="i-lucide-terminal" :title="t('auto.commandTaken', { name: a.command_taken })" :description="t('auto.commandTakenHint')" />

@@ -303,6 +303,9 @@ func (r claudeRunner) run(ctx context.Context, req RunRequest, emit func(Event),
 		// with nothing printed, what it was at: the API error it last
 		// retried on and its last step
 		lastRetry, lastStep string
+		// the words of the CLI's own message for an API failure (model
+		// "<synthetic>"): why the turn ended when no result says it
+		apiErr string
 	)
 	pending := map[string]int{}      // tool_use id → index in res.Tools
 	subagents := map[string]string{} // a Task call's id → the subagent's label, for the steps it takes
@@ -340,24 +343,19 @@ func (r claudeRunner) run(ctx context.Context, req RunRequest, emit func(Event),
 					CacheReadTokens     int `json:"cache_read_input_tokens"`
 					CacheCreationTokens int `json:"cache_creation_input_tokens"`
 				} `json:"usage"`
-				Content []struct {
-					Type      string          `json:"type"`
-					ID        string          `json:"id"`
-					Name      string          `json:"name"`
-					Input     json.RawMessage `json:"input"`
-					ToolUseID string          `json:"tool_use_id"`
-					IsError   bool            `json:"is_error"`
-					Content   json.RawMessage `json:"content"` // tool_result: what the tool said
-				} `json:"content"`
+				Content []claudeBlock `json:"content"`
 			} `json:"message"`
 			// system/api_retry: the API failed and the CLI tries again
-			Attempt        int             `json:"attempt"`
-			MaxRetries     int             `json:"max_retries"`
-			ErrorStatus    json.RawMessage `json:"error_status"`
-			RetryError     json.RawMessage `json:"error"`
-			Result         string          `json:"result"`
-			Errors         []string        `json:"errors"`
-			APIErrorStatus string          `json:"api_error_status"`
+			Attempt     int             `json:"attempt"`
+			MaxRetries  int             `json:"max_retries"`
+			ErrorStatus json.RawMessage `json:"error_status"`
+			RetryError  json.RawMessage `json:"error"`
+			Result      string          `json:"result"`
+			Errors      []string        `json:"errors"`
+			// a number in the CLI's schema (529): read as a string it failed
+			// the whole line, which then showed as raw JSON
+			APIErrorStatus json.RawMessage `json:"api_error_status"`
+			IsAPIError     bool            `json:"is_api_error_message"`
 			IsError        bool            `json:"is_error"`
 			TotalCostUSD   float64         `json:"total_cost_usd"`
 			Usage          struct {
@@ -367,9 +365,14 @@ func (r claudeRunner) run(ctx context.Context, req RunRequest, emit func(Event),
 				CacheCreationTokens int `json:"cache_creation_input_tokens"`
 			} `json:"usage"`
 		}
-		if json.Unmarshal(sc.Bytes(), &ev) != nil {
-			plain.add(sc.Text())
-			continue
+		if err := json.Unmarshal(sc.Bytes(), &ev); err != nil {
+			// a field of another type than expected still leaves the rest of
+			// the event read: only a line that is not JSON is plain output
+			var te *json.UnmarshalTypeError
+			if !errors.As(err, &te) || ev.Type == "" {
+				plain.add(sc.Text())
+				continue
+			}
 		}
 		if ev.SessionID != "" {
 			res.SessionID = ev.SessionID
@@ -390,6 +393,12 @@ func (r claudeRunner) run(ctx context.Context, req RunRequest, emit func(Event),
 			}
 			res.Limits = lim
 		case "assistant":
+			if ev.IsAPIError || ev.Message.Model == syntheticModel {
+				// the CLI's own message for an API failure, not the model's:
+				// its words are why the turn ends
+				apiErr = syntheticText(ev.Message.Content, ev.APIErrorStatus)
+				continue
+			}
 			// the last call's input is what the context holds
 			if u := ev.Message.Usage; u.InputTokens+u.CacheReadTokens+u.CacheCreationTokens > 0 {
 				res.Context.Tokens = u.InputTokens + u.CacheReadTokens + u.CacheCreationTokens
@@ -442,17 +451,24 @@ func (r claudeRunner) run(ctx context.Context, req RunRequest, emit func(Event),
 				// the subtype alone ("error_during_execution") says nothing:
 				// keep whatever the CLI did explain, stderr included
 				why := []string{}
-				for _, m := range append(append([]string{ev.Result}, ev.Errors...), ev.APIErrorStatus) {
+				for _, m := range append([]string{ev.Result}, ev.Errors...) {
 					if m = strings.TrimSpace(m); m != "" && !slices.Contains(why, m) {
 						why = append(why, m)
 					}
 				}
+				// the HTTP status, unless the words already name it
+				if st := apiStatus(ev.APIErrorStatus); st != "" && !strings.Contains(strings.Join(why, " "), st) {
+					why = append(why, st)
+				}
 				if msg := strings.TrimSpace(stderr.String()); msg != "" && !slices.Contains(why, msg) {
 					why = append(why, truncate(msg, 300))
 				}
+				if len(why) == 0 && apiErr != "" {
+					why = append(why, apiErr)
+				}
 				if len(why) == 0 {
 					why = append(why, ev.Subtype)
-				} else if ev.Subtype != "" && ev.Subtype != "error" {
+				} else if ev.Subtype != "" && ev.Subtype != "error" && ev.Subtype != "success" {
 					why = append(why, "("+ev.Subtype+")")
 				}
 				resErr = fmt.Errorf("claude: %s", strings.Join(why, " · "))
@@ -492,7 +508,10 @@ func (r claudeRunner) run(ctx context.Context, req RunRequest, emit func(Event),
 		return res, ctx.Err()
 	case werr != nil && !gotFinal:
 		why := exitReason(stderr.String(), plain.String(), werr)
-		if strings.TrimSpace(stderr.String()+plain.String()) == "" {
+		if apiErr != "" { // the CLI said the API failed: that leads
+			why = exitReason(stderr.String(), apiErr, werr)
+		}
+		if strings.TrimSpace(stderr.String()+plain.String()+apiErr) == "" {
 			// only events were printed: what it was at says more than the code
 			if lastRetry != "" {
 				why += " · lỗi API cuối: " + lastRetry
@@ -508,6 +527,50 @@ func (r claudeRunner) run(ctx context.Context, req RunRequest, emit func(Event),
 		return res, fmt.Errorf("claude: %s", why)
 	}
 	return res, nil
+}
+
+// claudeBlock is one block of a message the CLI prints.
+type claudeBlock struct {
+	Type      string          `json:"type"`
+	ID        string          `json:"id"`
+	Name      string          `json:"name"`
+	Input     json.RawMessage `json:"input"`
+	ToolUseID string          `json:"tool_use_id"`
+	IsError   bool            `json:"is_error"`
+	Content   json.RawMessage `json:"content"` // tool_result: what the tool said
+	Text      string          `json:"text"`    // a text block (a synthetic message's words)
+}
+
+// syntheticModel is the model Claude Code names on a message it writes
+// itself, an API failure or a limit hit, not one the model answered.
+const syntheticModel = "<synthetic>"
+
+// syntheticText is what a synthetic message says: its text, with the HTTP
+// status when the text does not name it.
+func syntheticText(content []claudeBlock, status json.RawMessage) string {
+	var parts []string
+	for _, c := range content {
+		if t := strings.TrimSpace(c.Text); c.Type == "text" && t != "" {
+			parts = append(parts, t)
+		}
+	}
+	text := truncate(strings.Join(parts, " "), 500)
+	if st := apiStatus(status); st != "" && !strings.Contains(text, st) {
+		text = strings.TrimSpace(text + " (HTTP " + st + ")")
+	}
+	return text
+}
+
+// apiStatus reads api_error_status, a number or a string ("" = none).
+func apiStatus(raw json.RawMessage) string {
+	var str string
+	if json.Unmarshal(raw, &str) == nil {
+		return strings.TrimSpace(str)
+	}
+	if v := strings.TrimSpace(string(raw)); v != "null" {
+		return v
+	}
+	return ""
 }
 
 // exitReason says why the CLI ended with no result: what it wrote on stderr,
@@ -793,10 +856,12 @@ func compactClaude(ctx context.Context, bin string, env []string, dir, model, se
 	}
 	defer inUse()
 	if err := cmd.Start(); err != nil {
-		return 0, err
+		return 0, llm.StartErrorIn(bin, cmd.Dir, err) // gone from PATH: the connection is broken, as a turn says
 	}
 	defer proctrack.Track(ctx, cmd.Process.Pid)()
 	post, compacted, fail := 0, false, ""
+	var plain lineTail // what it printed that is not an event: why it ended with no result
+	apiErr := ""       // its own message for an API failure (model "<synthetic>")
 	sc := bufio.NewScanner(out)
 	sc.Buffer(make([]byte, 1<<20), 16<<20)
 	for sc.Scan() {
@@ -808,24 +873,42 @@ func compactClaude(ctx context.Context, bin string, env []string, dir, model, se
 			Metadata struct {
 				PostTokens int `json:"post_tokens"`
 			} `json:"compact_metadata"`
+			Message struct {
+				Model   string        `json:"model"`
+				Content []claudeBlock `json:"content"`
+			} `json:"message"`
+			IsAPIError     bool            `json:"is_api_error_message"`
+			APIErrorStatus json.RawMessage `json:"api_error_status"`
 		}
-		if json.Unmarshal(sc.Bytes(), &ev) != nil {
-			continue
+		if err := json.Unmarshal(sc.Bytes(), &ev); err != nil {
+			var te *json.UnmarshalTypeError
+			if !errors.As(err, &te) || ev.Type == "" {
+				plain.add(sc.Text())
+				continue
+			}
 		}
 		switch {
 		case ev.Type == "system" && ev.Subtype == "compact_boundary":
 			post, compacted = ev.Metadata.PostTokens, true
+		case ev.Type == "assistant" && (ev.IsAPIError || ev.Message.Model == syntheticModel):
+			apiErr = syntheticText(ev.Message.Content, ev.APIErrorStatus)
 		case ev.Type == "result" && (ev.IsError || ev.Subtype != "success"):
-			fail = firstNonEmpty(ev.Result, ev.Subtype)
+			fail = cmp.Or(strings.TrimSpace(ev.Result), apiErr, ev.Subtype)
 		}
 	}
+	io.Copy(io.Discard, out) // a line over the cap: let the CLI finish writing
 	werr := cmd.Wait()
 	switch {
 	case fail != "":
 		return 0, fmt.Errorf("claude: %s", fail)
 	case !compacted && werr != nil:
-		return 0, fmt.Errorf("claude: %v %s", werr, strings.TrimSpace(stderr.String()))
+		// a bare "exit status 1" says nothing: stderr, else its own words
+		return 0, fmt.Errorf("claude: %s", exitReason(stderr.String(), cmp.Or(apiErr, plain.String()), werr))
 	case !compacted:
+		why := cmp.Or(apiErr, plain.String())
+		if why != "" {
+			return 0, fmt.Errorf("claude: không tóm gọn được phiên: %s", truncate(why, 500))
+		}
 		return 0, errors.New("claude: không tóm gọn được phiên")
 	}
 	return post, nil

@@ -142,14 +142,17 @@ func (e *Engine) turnEnded(j storage.Job, conv storage.Conversation, agent stora
 // outOfTokens are how the AI services say a run stopped because the account
 // ran out of quota or credit (Claude Code's usage limit, an API's 429/quota).
 var outOfTokens = []string{
-	"usage limit", "limit reached", "hit your limit", "rate limit", "rate_limit", " 429", "quota",
+	"usage limit", "limit reached", "hit your limit", "rate limit",
+	// Claude Code's own words: "You've hit your weekly limit", "You've
+	// reached your Fable limit", "You're out of usage credits"
+	"you've hit your", "you've reached your", "out of usage", "rate_limit", " 429", "quota",
 	"credit balance", "insufficient credit", "insufficient_quota", "out of credits", "too many requests",
 }
 
 // OutOfTokens: err says the AI connection is out of tokens for now (not a
 // bug in the run), so the chat can go on once there are tokens again.
 func OutOfTokens(err error) bool {
-	s := strings.ToLower(err.Error())
+	s := strings.ReplaceAll(strings.ToLower(err.Error()), "’", "'") // "You’ve" as "You've"
 	for _, k := range outOfTokens {
 		if strings.Contains(s, k) {
 			return true
