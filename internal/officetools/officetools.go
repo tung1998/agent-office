@@ -1486,24 +1486,22 @@ func (t *Toolbox) burnChat(sc Scope) bool {
 // project for the office assistant), for an administrator to decide (ADR-188).
 func (t *Toolbox) pendingRequests(ctx context.Context, sc Scope) (string, error) {
 	var b strings.Builder
-	acts, err := t.store.Actions().Pending(ctx, 200)
+	var projectIDs []string
+	if !sc.Office {
+		projectIDs = []string{sc.ProjectID}
+	}
+	acts, err := t.store.Actions().PendingVisible(ctx, projectIDs, 200)
 	if err != nil {
 		return "", err
 	}
 	for _, a := range acts {
-		if sc.Office || a.ProjectID == sc.ProjectID {
-			fmt.Fprintf(&b, "- action %s: %s %s (by %s, chat %s)\n", a.ID, a.Kind, a.Target, a.ProposedBy, a.ConversationID)
-		}
+		fmt.Fprintf(&b, "- action %s: %s %s (by %s, chat %s)\n", a.ID, a.Kind, a.Target, a.ProposedBy, a.ConversationID)
 	}
-	patches, err := t.store.Chat().PendingPatches(ctx, 200)
+	patches, err := t.store.Chat().PendingPatchesVisible(ctx, projectIDs, 200)
 	if err != nil {
 		return "", err
 	}
 	for _, p := range patches {
-		c, err := t.store.Chat().GetConversation(ctx, p.ConversationID)
-		if err != nil || (!sc.Office && c.ProjectID != sc.ProjectID) {
-			continue
-		}
 		fmt.Fprintf(&b, "- patch %s: %s (chat %s)\n", p.ID, strings.Join(p.Files, ", "), p.ConversationID)
 	}
 	if b.Len() == 0 {

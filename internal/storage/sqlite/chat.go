@@ -527,7 +527,24 @@ func (r chatRepo) PatchRefs(ctx context.Context, conversationID string) ([]stora
 }
 
 func (r chatRepo) PendingPatches(ctx context.Context, limit int) ([]storage.Patch, error) {
-	rows, err := r.db.QueryContext(ctx, `SELECT `+patchCols+` FROM patches WHERE status='pending' AND conversation_id<>'' ORDER BY created_at DESC, id DESC LIMIT ?`, limit)
+	return r.PendingPatchesVisible(ctx, nil, limit)
+}
+
+func (r chatRepo) PendingPatchesVisible(ctx context.Context, projectIDs []string, limit int) ([]storage.Patch, error) {
+	if projectIDs != nil && len(projectIDs) == 0 {
+		return []storage.Patch{}, nil
+	}
+	query := `SELECT p.` + strings.ReplaceAll(patchCols, ", ", ", p.") + ` FROM patches p JOIN conversations c ON c.id = p.conversation_id WHERE p.status='pending' AND p.conversation_id<>''`
+	args := []any{}
+	if projectIDs != nil {
+		query += ` AND c.project_id IN (?` + strings.Repeat(",?", len(projectIDs)-1) + `)`
+		for _, id := range projectIDs {
+			args = append(args, id)
+		}
+	}
+	query += ` ORDER BY p.created_at DESC, p.id DESC LIMIT ?`
+	args = append(args, limit)
+	rows, err := r.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}
