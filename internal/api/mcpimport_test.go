@@ -358,3 +358,74 @@ func TestMCPImportTakeOutFailedAPI(t *testing.T) {
 		t.Fatalf(".mcp.json lost its entry despite the failed take-out: %s", raw)
 	}
 }
+
+// When take_out itself succeeds (the server is gone from .mcp.json) but the
+// follow-up CAS write that records the trash backup path in OriginRef loses
+// a race and exhausts its retries, the result must not be reported as a
+// plain ok=true: office has lost track of where the backup lives, so a
+// later "put back" cannot offer that path.
+func TestMCPImportTakeOutCASFailedAPI(t *testing.T) {
+	e := setup(t)
+	admin := e.client(t)
+	login(t, e, admin, "admin@x.io", "admin-password")
+	ctx := context.Background()
+	dir := t.TempDir()
+	if _, err := e.st.Repos().Create(ctx, storage.Repo{Name: "shop", Path: dir}); err != nil {
+		t.Fatal(err)
+	}
+	mcpPath := filepath.Join(dir, ".mcp.json")
+	mcpJSON := `{"mcpServers":{"docs_src":{"type":"http","url":"https://docs.example/mcp"}}}`
+	if err := os.WriteFile(mcpPath, []byte(mcpJSON), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	_, body := do(t, admin, "GET", e.srv.URL+"/api/mcp/import", nil, nil)
+	var docs map[string]any
+	for _, c := range body["candidates"].([]any) {
+		if c := c.(map[string]any); c["name"] == "docs_src" {
+			docs = c
+		}
+	}
+	if docs == nil {
+		t.Fatal("docs_src not a candidate")
+	}
+	// Race the import's own CAS write-back: as soon as the "docs" row
+	// exists, keep bumping its updated_at so the handler's Get-then-Update
+	// (2 attempts) finds a stale row both times and gives up with ErrConflict.
+	stop := make(chan struct{})
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		for {
+			select {
+			case <-stop:
+				return
+			default:
+			}
+			if list, err := e.st.MCPServers().List(ctx); err == nil {
+				for _, m := range list {
+					if m.Name == "docs" {
+						e.st.MCPServers().Update(ctx, m)
+					}
+				}
+			}
+		}
+	}()
+	resp, body := do(t, admin, "POST", e.srv.URL+"/api/mcp/import", map[string]any{"take_out": true,
+		"items": []any{map[string]any{"ref": docs["ref"], "name": "docs"}}}, nil)
+	close(stop)
+	<-done
+	if resp.StatusCode != 200 {
+		t.Fatalf("import = %d %v", resp.StatusCode, body)
+	}
+	res := body["results"].([]any)[0].(map[string]any)
+	if raw, _ := os.ReadFile(mcpPath); strings.Contains(string(raw), "docs_src") {
+		t.Skip("racer didn't win before take-out ran; flaky by nature, rerun")
+	}
+	errMsg, _ := res["error"].(string)
+	if !strings.Contains(errMsg, "chưa ghi lại được nguồn gốc") {
+		t.Skip("racer didn't win the CAS write-back; flaky by nature, rerun")
+	}
+	if res["ok"] == true {
+		t.Fatalf("CAS failure after a successful take-out reported as ok: %v", res)
+	}
+}

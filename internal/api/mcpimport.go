@@ -350,6 +350,7 @@ func (s *server) mcpImport(w http.ResponseWriter, r *http.Request) {
 					m = updated
 				} else {
 					res.Error = "đã gỡ khỏi " + it.Location.Label + " nhưng chưa ghi lại được nguồn gốc: " + err.Error()
+					takeOutFailed = true
 				}
 			}
 		}
