@@ -182,3 +182,130 @@ func TestTelegramButtons(t *testing.T) {
 		}
 	}
 }
+
+func TestChunksKeepsFenceBalanced(t *testing.T) {
+	n := 100
+	// A code fence that straddles the natural cut point (around n/2..n).
+	body := strings.Repeat("line of code here\n", 10)
+	text := "intro text\n```go\n" + body + "```\nafter the fence"
+	if len(text) <= n {
+		t.Fatalf("test text too short to force a split: %d bytes", len(text))
+	}
+
+	parts := chunks(text, n)
+	if len(parts) < 2 {
+		t.Fatalf("expected the fence to force a split, got %d chunk(s)", len(parts))
+	}
+
+	for i, p := range parts {
+		if strings.Count(p, "```")%2 != 0 {
+			t.Fatalf("chunk %d has an unbalanced fence:\n%s", i, p)
+		}
+	}
+
+	// Reassembling (minus the synthetic close/reopen markers) must still
+	// contain every original line of code.
+	var rejoined strings.Builder
+	for _, p := range parts {
+		rejoined.WriteString(p)
+	}
+	for _, line := range strings.Split(strings.TrimSpace(body), "\n") {
+		if !strings.Contains(rejoined.String(), line) {
+			t.Fatalf("lost content %q across split", line)
+		}
+	}
+}
+
+// TestChunksTerminatesOnOverlongFenceLine guards against the infinite loop a
+// reviewer caught: a fence-opening line that alone is at or beyond n/2 bytes
+// made close+reopen reconstruct the exact same remaining text forever.
+func TestChunksTerminatesOnOverlongFenceLine(t *testing.T) {
+	n := 100
+	text := "```" + strings.Repeat("a", 60) + "\n" + strings.Repeat("b", 60)
+
+	done := make(chan []string, 1)
+	go func() { done <- chunks(text, n) }()
+
+	select {
+	case parts := <-done:
+		if len(parts) == 0 {
+			t.Fatal("expected at least one chunk")
+		}
+		if len(parts) > 10 {
+			t.Fatalf("suspiciously many chunks (%d), possible non-termination symptom", len(parts))
+		}
+		for i, p := range parts {
+			if len(p) > n+4 { // +4 = len("\n```"), the synthetic close marker
+				t.Fatalf("chunk %d is %d bytes, over the n=%d (+4 overhead) limit:\n%s", i, len(p), n, p)
+			}
+		}
+		var rejoined strings.Builder
+		for _, p := range parts {
+			rejoined.WriteString(p)
+		}
+		if !strings.Contains(rejoined.String(), strings.Repeat("a", 60)) || !strings.Contains(rejoined.String(), strings.Repeat("b", 60)) {
+			t.Fatalf("lost content across split: %q", parts)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("chunks() did not terminate: infinite loop on an overlong fence-opening line")
+	}
+}
+
+// TestChunksTerminatesOnOverlongInlineFence covers the other no-progress
+// shape a reviewer asked for: a single inline ```x``` span whose markers
+// themselves are longer than n, so the hard byte-cut fallback must slice
+// through it. chunks() must still terminate, keep every chunk within the
+// n+4 overhead bound, and not lose content.
+func TestChunksTerminatesOnOverlongInlineFence(t *testing.T) {
+	n := 60
+	text := "```" + strings.Repeat("x", n+20) + "```\n" + strings.Repeat("plain trailing line here\n", 3)
+
+	done := make(chan []string, 1)
+	go func() { done <- chunks(text, n) }()
+
+	select {
+	case parts := <-done:
+		if len(parts) == 0 {
+			t.Fatal("expected at least one chunk")
+		}
+		for i, p := range parts {
+			if len(p) > n+4 {
+				t.Fatalf("chunk %d is %d bytes, over the n=%d (+4 overhead) limit:\n%s", i, len(p), n, p)
+			}
+		}
+		var rejoined strings.Builder
+		for _, p := range parts {
+			rejoined.WriteString(p)
+		}
+		if !strings.Contains(rejoined.String(), strings.Repeat("x", n+20)) {
+			t.Fatalf("lost content across split: %q", parts)
+		}
+		if !strings.Contains(rejoined.String(), "plain trailing line here") {
+			t.Fatalf("lost trailing lines across split: %q", parts)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("chunks() did not terminate: infinite loop on an overlong inline fence")
+	}
+}
+
+// TestChunksInlineFenceDoesNotFlipParity checks that a complete, self-closing
+// inline ```x``` span (open and close on the same line) that ends up fully
+// inside one piece doesn't get mistaken for an unterminated fence once the
+// split lands on a later line.
+func TestChunksInlineFenceDoesNotFlipParity(t *testing.T) {
+	n := 60
+	text := "```inline```\n" + strings.Repeat("plain trailing line here\n", 6)
+	if len(text) <= n {
+		t.Fatalf("test text too short to force a split: %d bytes", len(text))
+	}
+
+	parts := chunks(text, n)
+	if len(parts) < 2 {
+		t.Fatalf("expected a split, got %d chunk(s)", len(parts))
+	}
+	for i, p := range parts {
+		if strings.Count(p, "```")%2 != 0 {
+			t.Fatalf("chunk %d has an unbalanced fence caused by a complete inline ```x``` span:\n%s", i, p)
+		}
+	}
+}

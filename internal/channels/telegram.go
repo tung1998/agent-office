@@ -485,7 +485,10 @@ func (t *Telegram) Typing(ctx context.Context, chatID string) {
 	}
 }
 
-// chunks splits text into pieces of at most n bytes, on line breaks when it can.
+// chunks splits text into pieces of at most n bytes, on line breaks when it
+// can, without leaving a ``` code fence unbalanced across the split: a chunk
+// that would end mid-fence gets the fence closed, and the next chunk reopens
+// it with the same language tag.
 func chunks(text string, n int) []string {
 	var out []string
 	for len(text) > n {
@@ -496,13 +499,54 @@ func chunks(text string, n int) []string {
 				cut--
 			}
 		}
-		out = append(out, text[:cut])
-		text = strings.TrimLeft(text[cut:], "\n")
+		piece := text[:cut]
+		rest := strings.TrimLeft(text[cut:], "\n")
+		if lang, open := fenceStateAfter(piece); open {
+			closed := piece + "\n```"
+			reopened := "```" + lang + "\n" + rest
+			// Closing and reopening must still shrink the remainder, or a
+			// fence-opening line alone in piece (reopened == original text)
+			// loops forever. When it doesn't make progress, leave the fence
+			// unbalanced for this split rather than hang; later chunks' fence
+			// parity can come out wrong as a result — accepted tradeoff for
+			// termination on this rare shape (a single fence line/marker at
+			// or beyond n/2 bytes).
+			if len(reopened) < len(text) {
+				piece, rest = closed, reopened
+			}
+		}
+		out = append(out, piece)
+		text = rest
+	}
+	if _, open := fenceStateAfter(text); open {
+		text += "\n```"
 	}
 	if strings.TrimSpace(text) != "" || len(out) == 0 {
 		out = append(out, text)
 	}
 	return out
+}
+
+// fenceStateAfter scans text for ``` fence markers and reports the language
+// tag of the fence still open at the end, and whether one is open.
+func fenceStateAfter(text string) (lang string, open bool) {
+	for _, line := range strings.Split(text, "\n") {
+		trimmed := strings.TrimSpace(line)
+		if !strings.HasPrefix(trimmed, "```") {
+			continue
+		}
+		if len(trimmed) > 6 && strings.HasSuffix(trimmed, "```") {
+			continue // inline ```x``` opens and closes on the same line; parity unchanged
+		}
+		if open {
+			open = false
+			lang = ""
+		} else {
+			open = true
+			lang = strings.TrimSpace(trimmed[3:])
+		}
+	}
+	return lang, open
 }
 
 // removeTag drops the first "@bot" (any case) from s, rune by rune so a
