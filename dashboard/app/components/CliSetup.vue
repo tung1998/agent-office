@@ -178,7 +178,7 @@ async function copy(text: string) {
 const selectedMethod = computed(() => status.value?.methods.find(m => m.id === method.value))
 const running = computed(() => job.value?.state === 'running')
 
-watch(() => props.tool, () => { status.value = null; job.value = null; method.value = ''; load() })
+watch(() => props.tool, () => { clearTimeout(timer); status.value = null; job.value = null; method.value = ''; load() })
 // the newest version the server still reads (first look, or after 6h): its badge shows a little later
 let looks = 0
 async function lookLatest() {
