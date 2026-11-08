@@ -84,6 +84,28 @@ func TestFinishIfRunningDoesNotRevertACancel(t *testing.T) {
 	}
 }
 
+// A restart resuming chat_turn/running jobs must see all of them, not just
+// the 200 newest List() hard-caps at (jobRepo.List, jobs.go).
+func TestListRunningHasNoCap(t *testing.T) {
+	ctx := context.Background()
+	st, p := openStore(t)
+	now := time.Now().UTC()
+	const n = 2100 // past jobRepo.List's 200 cap and past bigLimit's 2000, to rule out any leftover cap
+	for i := 0; i < n; i++ {
+		if _, err := st.Jobs().Create(ctx, storage.Job{ProjectID: p.ID, Kind: "chat_turn", Origin: "user", Status: "running", StartedAt: &now}); err != nil {
+			t.Fatalf("create %d: %v", i, err)
+		}
+	}
+	capped, err := st.Jobs().List(ctx, storage.JobFilter{Kind: "chat_turn", Status: "running", Limit: 500})
+	if err != nil || len(capped) != 200 {
+		t.Fatalf("List = %d %v, want 200 (hard cap)", len(capped), err)
+	}
+	all, err := st.Jobs().ListRunning(ctx, storage.JobFilter{Kind: "chat_turn"})
+	if err != nil || len(all) != n {
+		t.Fatalf("ListRunning = %d %v, want %d", len(all), err, n)
+	}
+}
+
 func TestAutomationsDue(t *testing.T) {
 	ctx := context.Background()
 	st, p := openStore(t)

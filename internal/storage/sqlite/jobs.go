@@ -363,6 +363,12 @@ func (r jobRepo) List(ctx context.Context, f storage.JobFilter) ([]storage.Job, 
 	return r.query(ctx, `SELECT `+jobCols+` FROM jobs`+w+` ORDER BY created_at DESC, id DESC LIMIT ?`, args...)
 }
 
+func (r jobRepo) ListRunning(ctx context.Context, f storage.JobFilter) ([]storage.Job, error) {
+	f.Status = "running"
+	w, args := r.where(f)
+	return r.query(ctx, `SELECT `+jobCols+` FROM jobs`+w+` ORDER BY created_at DESC, id DESC`, args...)
+}
+
 func (r jobRepo) Count(ctx context.Context, f storage.JobFilter) (int, error) {
 	w, args := r.where(f)
 	var n int

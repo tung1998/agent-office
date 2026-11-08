@@ -208,6 +208,11 @@ type JobRepo interface {
 	// (0 = none); an origin missing from it has nothing running yet.
 	Claim(ctx context.Context, now time.Time, limit int, remaining map[string]int) ([]Job, error)
 	List(ctx context.Context, f JobFilter) ([]Job, error)
+	// ListRunning is every job matching f with status "running", with no
+	// limit cap (unlike List, which stops at 200): for a restart's resume/
+	// requeue, where missing a running job leaves its chat/automation chain
+	// stuck with no resume and no cut-notification.
+	ListRunning(ctx context.Context, f JobFilter) ([]Job, error)
 	// Count is how many jobs f matches (List stops at 200).
 	Count(ctx context.Context, f JobFilter) (int, error)
 	// Failed lists the failed jobs of f, newest first (at most f.Limit, 2000

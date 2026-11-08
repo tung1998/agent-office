@@ -129,8 +129,8 @@ func serveCmd() *cobra.Command {
 			downWhy := selfupdate.TakeRestart(h.Dir)
 			// chat answers cut off by the last shutdown go on (below), and the
 			// automations' runs that resume on a restart run again (ADR-257)
-			interrupted, _ := a.store.Jobs().List(ctx, storage.JobFilter{Kind: "chat_turn", Status: "running", Limit: 200})
-			cutRuns, _ := a.store.Jobs().List(ctx, storage.JobFilter{Origin: "automation", Status: "running", Limit: 500})
+			interrupted, _ := a.store.Jobs().ListRunning(ctx, storage.JobFilter{Kind: "chat_turn"})
+			cutRuns, _ := a.store.Jobs().ListRunning(ctx, storage.JobFilter{Origin: "automation"})
 			if n, err := a.store.Jobs().FailRunning(ctx, "restart", "office khởi động lại khi job đang chạy: "+downWhy, time.Now().UTC()); err == nil && n > 0 {
 				fmt.Fprintf(cmd.ErrOrStderr(), "office: %d job đang chạy dở được đánh dấu lỗi (khởi động lại)\n", n)
 			}
