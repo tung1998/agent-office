@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/tung1998/agent-office/internal/memory"
 	"github.com/tung1998/agent-office/internal/ops"
 	"github.com/tung1998/agent-office/internal/peer"
 	"github.com/tung1998/agent-office/internal/perm"
@@ -621,5 +622,26 @@ func TestAutomationEnabled(t *testing.T) {
 		if x.Name == "Mới" && x.Enabled {
 			t.Fatal("a new one with enabled false came in on")
 		}
+	}
+}
+
+// keptThisTurn must not read a storage error as "no notes kept yet": that
+// would reopen AutoPerTurn every time List fails, instead of counting
+// against it (fail-open vs fail-closed).
+func TestKeptThisTurnFailsClosedOnStoreError(t *testing.T) {
+	ctx := context.Background()
+	st, err := sqlite.Open(filepath.Join(t.TempDir(), "o.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := st.Migrate(ctx); err != nil {
+		t.Fatal(err)
+	}
+	svc := New(st, ops.NewManager(st, t.TempDir(), nil))
+	st.Close() // forces the next List call to error
+
+	a := storage.Action{ID: "a_new", RunRef: "r1"}
+	if n := svc.keptThisTurn(ctx, a); n != memory.AutoPerTurn {
+		t.Fatalf("a List error must count as the cap reached, got %d", n)
 	}
 }

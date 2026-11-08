@@ -1004,11 +1004,16 @@ func samePatch(a, b *storage.ConfigChange) bool {
 }
 
 // keptThisTurn counts the notes the turn of a already kept on its own.
+// A List error must not read as 0: that would silently reopen the
+// AutoPerTurn cap (fail-open), so it reports the cap already reached instead.
 func (s *Service) keptThisTurn(ctx context.Context, a storage.Action) int {
 	if a.RunRef == "" {
 		return 0
 	}
-	list, _ := s.store.Actions().List(ctx, "", "", a.RunRef)
+	list, err := s.store.Actions().List(ctx, "", "", a.RunRef)
+	if err != nil {
+		return memory.AutoPerTurn
+	}
 	n := 0
 	for _, x := range list {
 		if x.Kind == "remember" && x.Status == "done" && x.ID != a.ID {
