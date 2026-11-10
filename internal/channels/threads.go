@@ -125,10 +125,12 @@ func (m *Manager) makeThread(ctx context.Context, ch storage.Channel, ad Adapter
 	conv := ""
 	from := in.MessageID
 	if in.ReplyTo == "" && in.Respond != nil { // from the "/" menu (no message it replies to): the latest answer here
-		var last string
-		// …unless it has its thread already (Discord gives a message one): then
-		// a new thread on its own, with a new conversation
-		if ok, _ := m.store.Settings().Get(ctx, lastKey(ch.ID, in.ChatID), &last); ok && last != "" && !m.threaded(ctx, ch, last) {
+		var last, closed string
+		// …unless it has its thread already (Discord gives a message one) or
+		// /close-conversation ended it (no answer since): then a new thread on
+		// its own, with a new conversation
+		_, _ = m.store.Settings().Get(ctx, closedKey(ch.ID, in.ChatID), &closed)
+		if ok, _ := m.store.Settings().Get(ctx, lastKey(ch.ID, in.ChatID), &last); ok && last != "" && last != closed && !m.threaded(ctx, ch, last) {
 			in.ReplyTo = last
 		}
 	}

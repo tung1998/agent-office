@@ -247,6 +247,66 @@ func TestCreateThreadSlash(t *testing.T) {
 	}
 }
 
+// /create-thread from the "/" menu right after /close-conversation (no answer
+// since): a new thread on its own, not back into the closed conversation.
+func TestCreateThreadAfterClose(t *testing.T) {
+	ctx := context.Background()
+	tmp := t.TempDir()
+	st, _ := sqlite.Open(filepath.Join(tmp, "o.db"))
+	defer st.Close()
+	st.Migrate(ctx)
+	box, _ := secrets.Load(filepath.Join(tmp, "k"))
+	engine := chat.NewEngine(st, provider.NewService(st, box, llm.Options{}), usage.New(st, time.UTC))
+	project, _ := st.Repos().Create(ctx, storage.Repo{Name: "shop", Path: t.TempDir()})
+	org := team.NewService(st, nil)
+	org.AddFromLibrary(ctx, project.ID, team.StarterAgent)
+	bot := &threadBot{fakeBot: fakeBot{in: make(chan channels.Incoming, 4), sent: map[string][]string{}}, made: make(chan [3]string, 2)}
+	ch, _ := st.Channels().Create(ctx, storage.Channel{ProjectID: project.ID, Kind: "discord", Name: "Dev", Enabled: true, Allow: []string{"*"}, Header: "-"})
+	m := channels.NewManager(st, engine, trigger.New(st, chatExec{engine}), func(storage.Channel) (channels.Adapter, error) { return bot, nil })
+	runCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	m.Start(runCtx)
+	for deadline := time.Now().Add(5 * time.Second); m.State(ch.ID) != "running"; time.Sleep(20 * time.Millisecond) {
+		if time.Now().After(deadline) {
+			t.Fatal("the bot did not start")
+		}
+	}
+	conv, err := engine.StartConversationPurpose(ctx, project.ID, "", "channel")
+	if err != nil {
+		t.Fatal(err)
+	}
+	payload, _ := json.Marshal(trigger.ChannelPayload{ChannelID: ch.ID, ChatID: "c2", ConversationID: conv.ID})
+	m.Reply(ctx, storage.Job{ID: "job_1", Payload: string(payload)}, "Câu trả lời", nil, false)
+	bot.wait(t, "c2", 1) // message "1"
+	for deadline := time.Now().Add(3 * time.Second); ; time.Sleep(10 * time.Millisecond) {
+		if id, _ := st.Channels().Thread(ctx, ch.ID, "thread:1"); id == conv.ID {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("the answer is not remembered")
+		}
+	}
+	responded := make(chan string, 2)
+	respond := func(_ context.Context, text string) (string, error) { responded <- text; return "r", nil }
+	bot.in <- channels.Incoming{ChatID: "c2", GuildID: "g", UserID: "8", Text: "/close-conversation", Addressed: true, Respond: respond}
+	if got := <-responded; !strings.Contains(got, "kết thúc") {
+		t.Fatalf("close responded %q", got)
+	}
+	bot.in <- channels.Incoming{ChatID: "c2", GuildID: "g", UserID: "8", Text: "/create-thread review pr", Addressed: true, Respond: respond}
+	select {
+	case got := <-bot.made:
+		if got[0] != "c2" || got[1] != "" || got[2] != "review pr" {
+			t.Fatalf("made = %v, want a new thread on its own", got)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("no thread made")
+	}
+	<-responded
+	if id, _ := st.Channels().Thread(ctx, ch.ID, "in:t-new"); id != "" {
+		t.Fatalf("the new thread went on with the closed conversation %q", id)
+	}
+}
+
 // In a thread of a conversation the bot still wants a tag, until
 // /create-conversation there (that thread only), which keeps its conversation.
 func TestThreadNeedsTag(t *testing.T) {
