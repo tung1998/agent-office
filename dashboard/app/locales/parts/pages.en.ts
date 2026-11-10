@@ -450,6 +450,8 @@ const en: Record<keyof typeof vi, string> = {
   'pages.genericError': 'Something went wrong, try again later',
   'md.copy': 'Copy',
   'md.apply': 'Apply',
+  'md.run': 'Run in the project',
+  'md.runFailed': 'Could not run the command',
   'md.diffHidden': '_(proposed change shown below)_',
   'burn.openRunChat': 'Open the chat of {run}',
   'burn.settingsTitle': 'Burn settings',

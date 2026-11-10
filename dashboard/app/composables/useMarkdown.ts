@@ -14,14 +14,20 @@ const MAX = 300
 
 // a code block gets a bar: copy (plugins/md-copy), and for a form's draft
 // (```workflow, ```skill, ```automation) apply, shown where a chat can fill
-// that form (ChatPanel's md-apply-<lang> class) and handled there
+// that form (ChatPanel's md-apply-<lang> class) and handled there. A one-line
+// shell block (```sh/bash/shell/zsh/console, or no language) gets run (▶),
+// shown where the reader may run it (ChatPanel's md-runnable class)
 const APPLY = new Set(['workflow', 'skill', 'automation'])
+const SHELL = new Set(['sh', 'bash', 'shell', 'zsh', 'console'])
 const COPY_ICON = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>'
-function codeBars(html: string, copy: string, apply: string): string {
-  return html.replace(/<pre>(<code(?: class="language-([\w-]+)")?>)/g, (_, code: string, lang?: string) => {
+const RUN_ICON = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 4l14 8-14 8z"/></svg>'
+function codeBars(html: string, copy: string, apply: string, run: string): string {
+  return html.replace(/<pre>(<code(?: class="language-([\w-]+)")?>)([\s\S]*?)<\/code><\/pre>/g, (_, code: string, lang: string | undefined, body: string) => {
     const ap = lang && APPLY.has(lang) ? `<button type="button" class="md-apply" data-md-act="apply" data-lang="${lang}">${apply}</button>` : ''
-    return `<div class="md-code"><div class="md-code-bar">${lang ? `<span class="md-lang">${lang}</span>` : ''}${ap}<button type="button" class="md-copy" data-md-act="copy" title="${copy}" aria-label="${copy}">${COPY_ICON}</button></div><pre>${code}`
-  }).replace(/<\/pre>/g, '</pre></div>')
+    const line = body.replace(/\n$/, '')
+    const rn = (!lang || SHELL.has(lang)) && line.trim() && !line.includes('\n') ? `<button type="button" class="md-run" data-md-act="run" title="${run}" aria-label="${run}">${RUN_ICON}</button>` : ''
+    return `<div class="md-code"><div class="md-code-bar">${lang ? `<span class="md-lang">${lang}</span>` : ''}${ap}${rn}<button type="button" class="md-copy" data-md-act="copy" title="${copy}" aria-label="${copy}">${COPY_ICON}</button></div><pre>${code}${body}</code></pre></div>`
+  })
 }
 
 // a project file the text names (`internal/x.go:12`, or a relative link to it)
@@ -64,7 +70,7 @@ export function renderMarkdown(text: string, hideDiffs = true, project = ''): st
   if (hideDiffs) {
     src = src.replace(/```(?:diff|patch)[ \t]*\n[\s\S]*?```/g, t('md.diffHidden'))
   }
-  const html = fileRefs(codeBars(DOMPurify.sanitize(marked.parse(src, { async: false }) as string), t('md.copy'), t('md.apply')), project)
+  const html = fileRefs(codeBars(DOMPurify.sanitize(marked.parse(src, { async: false }) as string), t('md.copy'), t('md.apply'), t('md.run')), project)
   if (cache.size >= MAX) cache.delete(cache.keys().next().value!)
   cache.set(key, html)
   return html

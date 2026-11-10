@@ -449,6 +449,8 @@ export default {
   'pages.genericError': 'Có lỗi xảy ra, thử lại sau',
   'md.copy': 'Sao chép',
   'md.apply': 'Áp dụng',
+  'md.run': 'Chạy lệnh trong project',
+  'md.runFailed': 'Không chạy được lệnh',
   'md.diffHidden': '_(đề xuất thay đổi ở bên dưới)_',
   'burn.openRunChat': 'Mở hội thoại của {run}',
   'burn.settingsTitle': 'Cài đặt Burn',

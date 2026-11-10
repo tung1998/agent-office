@@ -189,6 +189,7 @@ func (s *server) orgRoutes(mux *http.ServeMux) {
 		mux.Handle("POST /api/actions/{id}/reject", admin(s.decideAction(false)))
 		mux.Handle("GET /api/actions/{id}/always", admin(s.alwaysPreview))
 		mux.Handle("GET /api/actions/{id}", admin(s.getAction))
+		mux.Handle("POST /api/conversations/{id}/run", admin(s.ownChat(s.runChatCommand)))
 	}
 	mux.Handle("GET /api/system/update", admin(s.updateStatus))
 	if s.cfg.Updater != nil {

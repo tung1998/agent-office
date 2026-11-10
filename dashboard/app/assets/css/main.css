@@ -47,6 +47,9 @@
 .markdown .md-copy.md-copied { color: var(--ui-success); }
 .markdown .md-apply { display: none !important; border: 1px solid var(--ui-primary); color: var(--ui-primary) !important; font-weight: 500; }
 .md-apply-workflow .md-apply[data-lang="workflow"], .md-apply-skill .md-apply[data-lang="skill"], .md-apply-automation .md-apply[data-lang="automation"] { display: inline-flex !important; }
+.markdown .md-run { display: none !important; }
+.md-runnable .md-run { display: inline-flex !important; }
+.markdown .md-run.md-running { opacity: 0.5; pointer-events: none; }
 .markdown h1, .markdown h2, .markdown h3 { font-weight: 600; margin: 0.75rem 0 0.25rem; }
 .markdown a { color: var(--ui-primary); text-decoration: underline; }
 .markdown table { border-collapse: collapse; margin: 0.5rem 0; font-size: 0.85em; }

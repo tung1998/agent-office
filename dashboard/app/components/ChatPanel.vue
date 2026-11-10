@@ -913,8 +913,11 @@ function fencedBlocks(text: string, lang: string): Record<string, unknown>[] {
   return out
 }
 
-// a code block's Apply (useMarkdown): the draft fills the editor next to the chat again
-function onMarkdownClick(e: MouseEvent) {
+// a code block's Apply (useMarkdown): the draft fills the editor next to the chat again;
+// its ▶ runs the one-line command in the project, as a card on that message
+function onMarkdownClick(e: MouseEvent, m?: Message) {
+  const run = (e.target as HTMLElement).closest<HTMLElement>('[data-md-act="run"]')
+  if (run) return void runBlock(run, m)
   const btn = (e.target as HTMLElement).closest<HTMLElement>('[data-md-act="apply"]')
   const lang = btn?.dataset.lang
   const code = btn?.closest('.md-code')?.querySelector('code')?.textContent
@@ -922,6 +925,21 @@ function onMarkdownClick(e: MouseEvent) {
   const blocks = fencedBlocks('```' + lang + '\n' + code.replace(/\n$/, '') + '\n```', lang)
   if (!blocks.length) return toast.add({ title: t('chat.applyBad'), color: 'error' })
   for (const b of blocks) emit(`${lang}-patch` as 'workflow-patch', b)
+}
+
+async function runBlock(btn: HTMLElement, m?: Message) {
+  const cmd = btn.closest('.md-code')?.querySelector('code')?.textContent?.trim().replace(/^\$\s+/, '')
+  const id = current.value?.id
+  if (!cmd || !id || btn.classList.contains('md-running')) return
+  btn.classList.add('md-running')
+  try {
+    const res = await $fetch<{ action: ProposedAction }>(`/api/conversations/${id}/run`, { method: 'POST', body: { command: cmd, message_id: m?.id } })
+    if (m) m.actions = [...(m.actions ?? []).filter(x => x.id !== res.action.id), res.action]
+  } catch (err) {
+    toast.add({ title: t('md.runFailed'), description: apiError(err), color: 'error' })
+  } finally {
+    btn.classList.remove('md-running')
+  }
 }
 
 // a skill an agent drafted in the chat (Claude Code may not write .claude/): the
@@ -1274,7 +1292,7 @@ onBeforeUnmount(() => {
             </details>
             <AdviceCard v-for="a in m.advice ?? []" :key="a.id" :advice="a" :project-id="projectId" />
             <!-- eslint-disable-next-line vue/no-v-html -->
-            <div class="markdown min-w-0 text-sm @max-[420px]/chat:text-xs" :class="purpose && `md-apply-${purpose}`" @click="onMarkdownClick" v-html="renderMarkdown(m.content, true, projectId)" />
+            <div class="markdown min-w-0 text-sm @max-[420px]/chat:text-xs" :class="[purpose && `md-apply-${purpose}`, isAdmin && current?.id && 'md-runnable']" @click="onMarkdownClick($event, m)" v-html="renderMarkdown(m.content, true, projectId)" />
             <UButton
               v-for="(d, i) in (purpose || current?.purpose === 'skill' || current?.purpose === 'workflow' ? [] : skillDrafts(m.content))" :key="`sk${i}`"
               icon="i-lucide-sparkles" size="sm" color="neutral" variant="outline" :label="t('chat.openSkillEditor', { name: String(d.name) })"

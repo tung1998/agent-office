@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"slices"
 	"strings"
 
 	"github.com/tung1998/agent-office/internal/actions"
@@ -163,4 +164,73 @@ func proposerWho(a storage.Action, u storage.User) audit.Who {
 	}
 	return audit.Who{Kind: "agent", Name: a.ProposedBy, ApprovedBy: u.Email, Via: via,
 		ConversationID: a.ConversationID, JobID: a.JobID, TaskID: a.TaskID, ActionID: a.ID}
+}
+
+// runChatCommand: the ▶ of a one-line shell block in a chat (useMarkdown) —
+// the person runs the command themselves, in the project folder, without a
+// shell (no | ; & > $), as a run_command card on the message it came from.
+// Clicking it is the person's decision: the card is approved at once and
+// shows the output; no agent turn is started about it.
+func (s *server) runChatCommand(w http.ResponseWriter, r *http.Request) {
+	ctx, u := r.Context(), userFrom(r)
+	var in struct {
+		Command   string `json:"command"`
+		MessageID string `json:"message_id"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&in); err != nil || strings.TrimSpace(in.Command) == "" {
+		writeError(w, http.StatusBadRequest, "thiếu lệnh")
+		return
+	}
+	if strings.ContainsAny(strings.TrimSpace(in.Command), "\r\n") {
+		writeError(w, http.StatusBadRequest, "chỉ chạy được lệnh một dòng")
+		return
+	}
+	c, err := s.cfg.Store.Chat().GetConversation(ctx, r.PathValue("id"))
+	if err != nil {
+		s.writeDomainError(w, r, err)
+		return
+	}
+	if in.MessageID != "" { // the card shows under that message: one of this chat's
+		msgs, err := s.cfg.Store.Chat().ListMessages(ctx, c.ID)
+		if err != nil {
+			s.internal(w, r, err)
+			return
+		}
+		if !slices.ContainsFunc(msgs, func(m storage.Message) bool { return m.ID == in.MessageID }) {
+			writeError(w, http.StatusBadRequest, "tin nhắn không thuộc cuộc trò chuyện")
+			return
+		}
+	}
+	sc := actions.Scope{ProjectID: c.ProjectID, ConversationID: c.ID, Agent: u.Email}
+	a, err := s.cfg.Actions.Propose(ctx, sc, "run_command", in.Command, "Người dùng chạy từ khối lệnh trong chat")
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if a.Status == "pending" && in.MessageID != "" && a.MessageID == "" {
+		a.MessageID = in.MessageID
+		if err := s.cfg.Store.Actions().Update(ctx, a); err != nil {
+			s.internal(w, r, err)
+			return
+		}
+	}
+	if a.Status == "pending" {
+		ctx = audit.With(ctx, audit.Who{Kind: "human", ID: u.ID, Name: u.Email, Via: "ui", ConversationID: c.ID, ActionID: a.ID})
+		r = r.WithContext(ctx)
+		if a, err = s.cfg.Actions.Decide(ctx, a.ID, true, u.Email); errors.Is(err, actions.ErrDecided) {
+			writeJSON(w, http.StatusConflict, map[string]any{"error": err.Error(), "action": chat.ToActionDTO(a)})
+			return
+		} else if err != nil {
+			s.writeDomainError(w, r, err)
+			return
+		}
+		var runErr error
+		if a.Status == "failed" {
+			runErr = errors.New(a.Detail)
+		}
+		s.audit(r, audit.Change{Action: "action.run", Resource: "action", ResourceID: a.ID, ProjectID: a.ProjectID,
+			Detail: map[string]any{"kind": a.Kind, "target": a.Target, "status": a.Status}, Err: runErr})
+	}
+	s.redrawBot(ctx, c.ID)
+	writeJSON(w, http.StatusOK, map[string]any{"action": chat.ToActionDTO(a)})
 }
