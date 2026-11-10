@@ -29,6 +29,10 @@ export default defineNuxtConfig({
   // "Cập nhật office" builds into a side folder, then swaps it in
   nitro: {
     output: { dir: (globalThis as { process?: { env: Record<string, string | undefined> } }).process?.env.OFFICE_UI_OUT_DIR || '.output' },
+    // ssr: false writes no index.html on `nuxi build`; prerendering "/" writes
+    // the SPA shell to public/index.html, which the office binary embeds
+    // (internal/webui) and "Cập nhật office" requires
+    prerender: { routes: ['/'] },
     // gzip and brotli copies of the bundles: a phone over a VPN downloads a quarter of them
     compressPublicAssets: { gzip: true, brotli: true }
   }
