@@ -86,7 +86,7 @@ type MessageDTO struct {
 	CostUSD     *float64             `json:"cost_usd,omitempty"`
 	Relay       *Relay               `json:"relay,omitempty"`    // sent by an agent from another chat: who, from which project and chat
 	Consult     *Consult             `json:"consult,omitempty"`  // an expert's answer to a question asked here (ADR-177)
-	Btw         string               `json:"btw,omitempty"`      // a /btw answer: the side question it answers (ADR-271)
+	Btw         string               `json:"btw,omitempty"`      // a /btw answer: the side question it answers (ADR-273)
 	Provider    string               `json:"provider,omitempty"` // the connection that wrote it
 	Model       string               `json:"model,omitempty"`
 	Advice      []AdviceDTO          `json:"advice,omitempty"` // an advisor's answers in its run (ADR-262)
@@ -1196,7 +1196,7 @@ func (e *Engine) finish(t *Turn) {
 	if freed && !e.stopping.Load() {
 		safeGo("SendQueued", func() { e.SendQueued(t.ConversationID) })       // what the person wrote meanwhile goes now
 		failed := t.err                                                       // set by run, on this goroutine
-		safeGo("goalAfter", func() { e.goalAfter(t.ConversationID, failed) }) // the chat's goal: checked, the next round (ADR-271)
+		safeGo("goalAfter", func() { e.goalAfter(t.ConversationID, failed) }) // the chat's goal: checked, the next round (ADR-273)
 	}
 	// keep the turn for late subscribers, then forget it
 	time.AfterFunc(10*time.Minute, func() {
@@ -1850,7 +1850,7 @@ func canPropose(a storage.Agent) bool { return perm.AtLeast(perm.Agent(a), perm.
 func HistoryFor(msgs []storage.Message, self string) []HistoryItem {
 	var out []HistoryItem
 	for _, m := range msgs {
-		if (m.Role == "user" || m.Role == "assistant") && !IsBtw(m) { // a /btw answer is beside the chat (ADR-271)
+		if (m.Role == "user" || m.Role == "assistant") && !IsBtw(m) { // a /btw answer is beside the chat (ADR-273)
 			h := HistoryItem{Role: m.Role, Content: m.Content}
 			if m.Role == "assistant" && m.Author != "" && m.Author != self {
 				h.Author = m.Author

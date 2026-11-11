@@ -26,7 +26,7 @@ interface Message {
   relay?: { agent: string, project: string, project_id: string, conversation_id: string, title: string, report: boolean, url?: string }
   // an expert's answer to a question an agent here asked (ADR-177)
   consult?: { agent: string, project: string, office?: string, link?: string }
-  // a /btw answer: the side question it answers, beside the chat (ADR-271)
+  // a /btw answer: the side question it answers, beside the chat (ADR-273)
   btw?: string
   // what an advisor told the agent stuck in this run (ADR-262)
   advice?: Advice[]
@@ -475,7 +475,7 @@ const linkedPending = ref<LinkedPending[]>([])
 // the last answer died on a passing API failure: it goes on by itself then (ADR-260)
 interface PlannedRetry { job_id: string, at: string, n: number, max: number, quota?: boolean } // quota: waits for the AI quota to reset (ADR-269)
 const retry = ref<PlannedRetry | null>(null)
-// the chat's goal (/goal, ADR-271): office goes on round after round until it is reached
+// the chat's goal (/goal, ADR-273): office goes on round after round until it is reached
 interface ChatGoal { text: string, check?: string, max_rounds: number, round: number, last?: string }
 const goal = ref<ChatGoal | null>(null)
 const goalCancelling = ref(false)
@@ -763,7 +763,7 @@ async function post(text: string, files: Attachment[]) {
     const id = current.value.id
     const res = await $fetch<{ turn_id: string, message: Message, notice?: Message, queued?: Queued, btw?: string, text?: string, cleared?: boolean, goal?: ChatGoal | null }>(`/api/conversations/${id}/messages`, { method: 'POST', body: { text, attachments: files.map(a => a.id), mode: 'operate', edit_mode: editMode.value, effort: effort.value, context: props.pageContext?.() ?? '' } })
     if (current.value?.id !== id) return // switched chats while this was in flight: the reply belongs to the old one
-    // office's own commands (ADR-271): /btw answered apart, /goal status or clear
+    // office's own commands (ADR-273): /btw answered apart, /goal status or clear
     if (res.btw) return void toast.add({ title: t('chat.btwAsked'), icon: 'i-lucide-message-circle-question' })
     if (res.text !== undefined) {
       goal.value = res.goal ?? null
@@ -1358,7 +1358,7 @@ onBeforeUnmount(() => {
           </div>
         </template>
         <WorkflowRunCard v-for="r in runsAt.after" :key="r.id" :run="r" @updated="onRunUpdated" />
-        <!-- the chat's goal: office goes on round after round until it is reached (ADR-271) -->
+        <!-- the chat's goal: office goes on round after round until it is reached (ADR-273) -->
         <div v-if="goal" class="flex flex-wrap items-center gap-2 rounded-lg border border-(--ui-primary)/40 bg-(--ui-primary)/5 px-3 py-2 text-xs">
           <UIcon name="i-lucide-target" class="size-4 shrink-0 text-(--ui-primary)" />
           <span class="min-w-0 flex-1 truncate" :title="goal.last || goal.text">{{ t('chat.goalBar', { text: goal.text }) }}</span>

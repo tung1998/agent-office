@@ -358,7 +358,7 @@ func (m *Manager) handle(ctx context.Context, channelID string, ad Adapter, in I
 		m.waitIdle(ctx, convs) // the stopped answer ends first: the new one is not put back as busy
 		in.Text = arg
 	}
-	if cmd, arg, isCmd := command(in.Text); isCmd && cmd == "btw" { // before the flood check: it is asked beside the running answer (ADR-271)
+	if cmd, arg, isCmd := command(in.Text); isCmd && cmd == "btw" { // before the flood check: it is asked beside the running answer (ADR-273)
 		if arg == "" {
 			say("Hãy nhập câu hỏi sau lệnh, ví dụ: /btw …")
 			return
@@ -371,7 +371,7 @@ func (m *Manager) handle(ctx context.Context, channelID string, ad Adapter, in I
 			return
 		}
 	}
-	var goal *storage.AutomationGoal // /goal: the message runs until its goal is reached (ADR-271)
+	var goal *storage.AutomationGoal // /goal: the message runs until its goal is reached (ADR-273)
 	if cmd, arg, isCmd := command(in.Text); isCmd && cmd == "goal" {
 		g, text, reply := m.goalCommand(ctx, ch, in, key, arg)
 		if reply != "" {

@@ -12,7 +12,7 @@ import (
 	"github.com/tung1998/agent-office/internal/trigger"
 )
 
-// A bot's /btw and /goal (ADR-271).
+// A bot's /btw and /goal (ADR-273).
 
 // runningConv is the conversation of the answer running for the chat key
 // ("" = none runs).

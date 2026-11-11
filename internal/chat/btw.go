@@ -11,7 +11,7 @@ import (
 	"github.com/tung1998/agent-office/internal/storage"
 )
 
-// /btw (ADR-271): a side question while the chat's agent works. The chat's
+// /btw (ADR-273): a side question while the chat's agent works. The chat's
 // agent answers it apart, in a hidden read-only chat that sees the chat's
 // last messages and what the running answer did so far; the running answer
 // goes on untouched. Its answer is kept in the chat as a card of its own,

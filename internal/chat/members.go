@@ -584,7 +584,7 @@ func (e *Engine) chatTree(ctx context.Context, conv storage.Conversation, agent 
 // hand-offs in the background (none reports back); how many were stopped.
 func (e *Engine) StopAll(conversationID string) int {
 	e.stopRun(conversationID) // its workflow ends first: nothing calls the coordinator back
-	// its goal ends too: a stopped chat does not start a next round (ADR-271)
+	// its goal ends too: a stopped chat does not start a next round (ADR-273)
 	e.ClearGoal(context.Background(), conversationID, "🎯 Đã huỷ mục tiêu: chat đã dừng.")
 	e.mu.Lock()
 	for k := range e.held { // hand-offs waiting their turn end too

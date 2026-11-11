@@ -166,7 +166,7 @@ func TestGoalRoundsKept(t *testing.T) {
 	}
 }
 
-// A bot's /goal (ADR-271): the message's own goal makes its chat go on until
+// A bot's /goal (ADR-273): the message's own goal makes its chat go on until
 // the judge agrees, though the bot's rule has none.
 func TestChannelMessageGoal(t *testing.T) {
 	ctx := context.Background()

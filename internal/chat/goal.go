@@ -19,7 +19,7 @@ import (
 	"github.com/tung1998/agent-office/internal/verdict"
 )
 
-// A chat's goal (/goal, ADR-271): ADR-132's "until the goal is reached" for a
+// A chat's goal (/goal, ADR-273): ADR-132's "until the goal is reached" for a
 // chat a person writes in. After each answer, once the chat is free, office
 // runs the check (exit 0 = reached) and/or asks a read-only judge; not
 // reached, it sends the chat what they said as the next round, until it is

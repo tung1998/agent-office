@@ -8,7 +8,7 @@ import (
 	"github.com/tung1998/agent-office/internal/storage"
 )
 
-// A bot's /goal (ADR-271): a goal for the message, its check an admin's
+// A bot's /goal (ADR-273): a goal for the message, its check an admin's
 // only; status and clear say so when nothing runs.
 func TestGoalCommand(t *testing.T) {
 	ctx := context.Background()

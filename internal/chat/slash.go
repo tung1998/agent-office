@@ -6,7 +6,7 @@ import (
 	"unicode"
 )
 
-// Office's own chat commands (ADR-271), typed in a chat or to a bot:
+// Office's own chat commands (ADR-273), typed in a chat or to a bot:
 //
 //	/btw <question>        a side question while the agent works: answered
 //	                       apart, read only, not part of the chat's history

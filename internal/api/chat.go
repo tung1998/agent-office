@@ -324,7 +324,7 @@ func (s *server) sendMessage(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusConflict, "đây là chat riêng của một việc Burn: chỉ để xem, không đổi được")
 		return
 	}
-	if cmd, ok := chat.ParseSlash(in.Text); ok { // office's own /btw, /goal (ADR-271)
+	if cmd, ok := chat.ParseSlash(in.Text); ok { // office's own /btw, /goal (ADR-273)
 		s.slashCommand(w, r, cmd, in.Context, in.Attachments)
 		return
 	}
@@ -768,7 +768,7 @@ func (s *server) markSeen(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// slashCommand runs /btw or /goal typed in a chat (ADR-271).
+// slashCommand runs /btw or /goal typed in a chat (ADR-273).
 func (s *server) slashCommand(w http.ResponseWriter, r *http.Request, cmd chat.Slash, pageContext string, attachments []string) {
 	id := r.PathValue("id")
 	if cmd.Name == chat.SlashBtw {
@@ -834,7 +834,7 @@ func (s *server) goalError(w http.ResponseWriter, r *http.Request, err error) {
 	s.chatError(w, r, err)
 }
 
-// getGoal / clearGoal: the chat's goal for the dashboard's bar (ADR-271).
+// getGoal / clearGoal: the chat's goal for the dashboard's bar (ADR-273).
 func (s *server) getGoal(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"goal": s.cfg.Chat.Goal(r.Context(), r.PathValue("id"))})
 }

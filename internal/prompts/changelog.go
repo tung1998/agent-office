@@ -145,6 +145,6 @@ var changelog = map[string][]ChangeEntry{
 	"trigger/bot-quota-wait":      {{Hash: "76ecb33a4351", Date: "2026-11-08", Note: "mới: hết quota thì chờ reset rồi tự chạy tiếp (ADR-269)"}},
 	"workflow/step-quota-resumed": {{Hash: "5dfc9038fd64", Date: "2026-11-08", Note: "mới: hết quota thì chờ reset rồi tự chạy tiếp (ADR-269)"}},
 	"workflow/step-quota-wait":    {{Hash: "4b2599c83036", Date: "2026-11-08", Note: "mới: hết quota thì chờ reset rồi tự chạy tiếp (ADR-269)"}},
-	"chat/btw":                    {{Hash: "946847d46ee2", Date: "2026-11-11", Note: "mới: /btw hỏi chen, trả lời riêng chỉ đọc (ADR-272)"}},
-	"chat/goal-start":             {{Hash: "6fc53a1c56b5", Date: "2026-11-11", Note: "mới: /goal trong chat, làm tới khi đạt (ADR-272)"}},
+	"chat/btw":                    {{Hash: "946847d46ee2", Date: "2026-11-11", Note: "mới: /btw hỏi chen, trả lời riêng chỉ đọc (ADR-273)"}},
+	"chat/goal-start":             {{Hash: "6fc53a1c56b5", Date: "2026-11-11", Note: "mới: /goal trong chat, làm tới khi đạt (ADR-273)"}},
 }

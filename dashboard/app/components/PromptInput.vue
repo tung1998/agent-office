@@ -12,7 +12,7 @@ const props = withDefaults(defineProps<{
   maxrows?: number
   submitOnEnter?: boolean
   mentions?: { name: string, label: string, icon?: string }[] // agents "@" can tag
-  commands?: Skill[] // office's own commands "/" offers first (/btw, /goal: ADR-271)
+  commands?: Skill[] // office's own commands "/" offers first (/btw, /goal: ADR-273)
 }>(), { placeholder: '', rows: 1, maxrows: 8, submitOnEnter: true, mentions: () => [], commands: () => [] })
 const text = defineModel<string>({ default: '' })
 const files = defineModel<Attachment[]>('attachments', { default: () => [] })
