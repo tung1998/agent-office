@@ -3,9 +3,11 @@ module github.com/tung1998/agent-office
 go 1.27.3
 
 require (
+	filippo.io/age v1.3.2
 	github.com/creack/pty v1.1.24
 	github.com/fxamacker/cbor/v2 v2.7.0
 	github.com/go-webauthn/webauthn v0.11.0
+	github.com/klauspost/compress v1.19.2
 	github.com/oklog/ulid/v2 v2.1.2
 	github.com/pressly/goose/v3 v3.28.0
 	github.com/robfig/cron/v3 v3.0.1
@@ -20,6 +22,7 @@ require (
 )
 
 require (
+	filippo.io/hpke v0.4.0 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/ebitengine/purego v0.11.1 // indirect
 	github.com/go-ole/go-ole v1.2.6 // indirect

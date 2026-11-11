@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"text/tabwriter"
 	"time"
 
@@ -19,7 +20,7 @@ import (
 )
 
 func exportCmd() *cobra.Command {
-	var file string
+	var file, full string
 	var commit bool
 	cmd := &cobra.Command{
 		Use:   "export [thư-mục]",
@@ -28,9 +29,18 @@ func exportCmd() *cobra.Command {
 Không xuất API key, tài khoản, phiên đăng nhập. Chạy lại sẽ cập nhật và xóa file thừa.`,
 		Example: `  office export ./office-config
   office export ./office-config --commit     # tự git commit nếu thư mục nằm trong repo git
-  office export --file office-bundle.json    # một file duy nhất`,
+  office export --file office-bundle.json    # một file duy nhất
+  office export --full                        # TOÀN BỘ: database, file, code mọi project (mã hóa)
+  office export --full ./office.tar.zst.age`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if cmd.Flags().Changed("full") {
+				file := strings.TrimSpace(full)
+				if file == "" && len(args) == 1 { // --full <file>: cobra takes the file as the folder argument
+					file = args[0]
+				}
+				return runFullExport(cmd.Context(), file)
+			}
 			return withApp(cmd.Context(), func(a *app) error {
 				b, err := transfer.New(a.store, a.providers, a.team, a.workflows.Lib).Export(cmd.Context())
 				if err != nil {
@@ -64,7 +74,9 @@ Không xuất API key, tài khoản, phiên đăng nhập. Chạy lại sẽ c�
 	}
 	cmd.Flags().StringVar(&file, "file", "", "xuất ra một file JSON thay vì thư mục")
 	cmd.Flags().BoolVar(&commit, "commit", false, "git add + commit thư mục sau khi xuất")
-	cmd.MarkFlagsMutuallyExclusive("file", "commit")
+	cmd.Flags().StringVar(&full, "full", "", "xuất TOÀN BỘ office ra một file mã hóa (database, file, code); bỏ trống tên = office-<thời-gian>.tar.zst.age")
+	cmd.Flags().Lookup("full").NoOptDefVal = " "
+	cmd.MarkFlagsMutuallyExclusive("file", "commit", "full")
 	return cmd
 }
 
@@ -90,12 +102,19 @@ func gitCommit(dir string) error {
 }
 
 func importCmd() *cobra.Command {
-	var dryRun, yes bool
+	var dryRun, yes, full, force bool
+	var mode, projectsDir string
 	cmd := &cobra.Command{
-		Use:   "import <thư-mục|file.json>",
-		Short: "Nhập config đã export (xem trước với --dry-run)",
-		Args:  cobra.ExactArgs(1),
+		Use:   "import <thư-mục|file.json|file.tar.zst.age>",
+		Short: "Nhập config đã export (xem trước với --dry-run), hoặc cả office với --full",
+		Example: `  office import ./office-config --dry-run
+  office import --full office-20261111.tar.zst.age                 # chuyển máy (mặc định)
+  office import --full office.tar.zst.age --mode clone --projects-dir ~/code`,
+		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if full {
+				return runFullImport(cmd.Context(), args[0], mode, projectsDir, force, yes)
+			}
 			b, err := transfer.ReadAny(args[0])
 			if err != nil {
 				return err
@@ -131,6 +150,10 @@ func importCmd() *cobra.Command {
 	}
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "chỉ xem trước, không ghi")
 	cmd.Flags().BoolVarP(&yes, "yes", "y", false, "không hỏi xác nhận")
+	cmd.Flags().BoolVar(&full, "full", false, "nhập TOÀN BỘ office từ file của export --full (thay database ở máy này)")
+	cmd.Flags().StringVar(&mode, "mode", "move", "với --full: move (chuyển máy, máy cũ thôi chạy) hoặc clone (nhân bản: bot, tự động hóa tắt, bỏ ghép đôi peer)")
+	cmd.Flags().StringVar(&projectsDir, "projects-dir", "", "với --full: thư mục đặt code các project (mặc định cạnh project của office)")
+	cmd.Flags().BoolVar(&force, "force", false, "với --full: thay database office đã có ở máy này (bản cũ được giữ lại bên cạnh)")
 	return cmd
 }
 
