@@ -149,7 +149,7 @@ func callerContext(msgs []storage.Message) string {
 	size := 0
 	for i := len(msgs) - 1; i >= 0 && len(parts) < most; i-- {
 		m := msgs[i]
-		if m.Role != "user" && m.Role != "assistant" || strings.TrimSpace(m.Content) == "" {
+		if m.Role != "user" && m.Role != "assistant" || IsBtw(m) || strings.TrimSpace(m.Content) == "" {
 			continue
 		}
 		who := "Person"

@@ -2,6 +2,7 @@ package trigger_test
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -162,5 +163,28 @@ func TestGoalRoundsKept(t *testing.T) {
 	runOnce(t, r, st, a, "")
 	if j := mainJob(t, st, a); j.GoalRounds != 3 || j.Status != "done" {
 		t.Fatalf("job: %s rounds %d", j.Status, j.GoalRounds)
+	}
+}
+
+// A bot's /goal (ADR-271): the message's own goal makes its chat go on until
+// the judge agrees, though the bot's rule has none.
+func TestChannelMessageGoal(t *testing.T) {
+	ctx := context.Background()
+	st, p := openStore(t)
+	ex := &goalExec{dir: p.Path, verdicts: []string{"VERDICT: DISAGREE\nchưa xong", "nên làm Y", "VERDICT: AGREE\nxong"}}
+	r := trigger.New(st, ex)
+	a, _ := st.Automations().Create(ctx, storage.Automation{ProjectID: p.ID, Name: "@bot", Source: "discord", Action: "chat", Enabled: true})
+	payload, _ := json.Marshal(trigger.ChannelPayload{Message: "sửa test", UserID: "7", ChatID: "c1", ChannelID: "chn_1",
+		Goal: &storage.AutomationGoal{Text: "sửa test", Judge: true}})
+	if _, _, err := r.Enqueue(ctx, a, "discord", string(payload), "", ""); err != nil {
+		t.Fatal(err)
+	}
+	r.StartReady(ctx, time.Now().UTC())
+	r.Wait()
+	if len(ex.prompts) != 2 || !strings.Contains(ex.prompts[1], "round 2 of 5") {
+		t.Fatalf("prompts = %q", ex.prompts)
+	}
+	if j := mainJob(t, st, a); !strings.HasPrefix(j.Output, "Mục tiêu: đạt sau 2 vòng") {
+		t.Fatalf("job output = %q", j.Output)
 	}
 }

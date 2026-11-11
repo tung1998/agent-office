@@ -265,7 +265,7 @@ func (s *server) getConversation(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"conversation": s.toConvDTO(c), "messages": msgs, "has_more": more, "members": s.chatMembers(r, c.ID),
 		"running": s.cfg.Chat.Running(c.ID), "linked_pending": s.cfg.Chat.LinkedPending(r.Context(), c.ID),
-		"retry": s.cfg.Chat.PlannedRetry(r.Context(), c.ID)})
+		"retry": s.cfg.Chat.PlannedRetry(r.Context(), c.ID), "goal": s.cfg.Chat.Goal(r.Context(), c.ID)})
 }
 
 // chatMembers: the agents in a chat (ADR-044), with their rights and context.
@@ -322,6 +322,10 @@ func (s *server) sendMessage(w http.ResponseWriter, r *http.Request) {
 		return
 	} else if err == nil && (c.Purpose == chat.BurnReviewPurpose || c.Purpose == chat.BurnWorkPurpose) {
 		writeError(w, http.StatusConflict, "đây là chat riêng của một việc Burn: chỉ để xem, không đổi được")
+		return
+	}
+	if cmd, ok := chat.ParseSlash(in.Text); ok { // office's own /btw, /goal (ADR-271)
+		s.slashCommand(w, r, cmd, in.Context, in.Attachments)
 		return
 	}
 	// answering now (or messages wait already): it waits, kept by office
@@ -762,4 +766,79 @@ func (s *server) markSeen(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// slashCommand runs /btw or /goal typed in a chat (ADR-271).
+func (s *server) slashCommand(w http.ResponseWriter, r *http.Request, cmd chat.Slash, pageContext string, attachments []string) {
+	id := r.PathValue("id")
+	if cmd.Name == chat.SlashBtw {
+		if strings.TrimSpace(cmd.Arg) == "" {
+			writeError(w, http.StatusBadRequest, "hãy viết câu hỏi sau /btw, ví dụ: /btw file nào đang sửa?")
+			return
+		}
+		// answered apart while the chat goes on: the card comes when it is ready
+		ctx := context.WithoutCancel(r.Context())
+		go func() {
+			if _, err := s.cfg.Chat.Btw(ctx, id, cmd.Arg); err != nil {
+				_, _ = s.cfg.Store.Chat().AddMessage(context.Background(), storage.Message{ConversationID: id, Role: "error", Content: "/btw: " + err.Error()})
+				s.cfg.Chat.Touch(id)
+			}
+		}()
+		writeJSON(w, http.StatusAccepted, map[string]any{"btw": "pending"})
+		return
+	}
+	switch cmd.GoalOp() {
+	case "status":
+		g := s.cfg.Chat.Goal(r.Context(), id)
+		writeJSON(w, http.StatusOK, map[string]any{"goal": g, "text": chat.GoalStatus(g)})
+		return
+	case "clear":
+		writeJSON(w, http.StatusOK, map[string]any{"cleared": s.cfg.Chat.ClearGoal(r.Context(), id, "🎯 Đã huỷ mục tiêu.")})
+		return
+	}
+	mayCheck := userFrom(r).Role == storage.RoleAdmin // a check is a shell command: an admin's, as a script
+	if _, busy := s.cfg.Chat.Active(id); busy || s.cfg.Chat.HasQueued(r.Context(), id) {
+		// answering now: the goal is set, its first message waits its turn
+		g, err := s.cfg.Chat.SetGoal(r.Context(), id, cmd, mayCheck)
+		if err != nil {
+			s.goalError(w, r, err)
+			return
+		}
+		s.queueMessage(w, r, g.Text, pageContext, attachments, storage.QueuedOptions{})
+		return
+	}
+	g, turn, msg, err := s.cfg.Chat.StartGoal(r.Context(), id, cmd, mayCheck, pageContext, attachments)
+	if errors.Is(err, chat.ErrBusy) { // an answer started just now: it waits
+		s.queueMessage(w, r, g.Text, pageContext, attachments, storage.QueuedOptions{})
+		return
+	}
+	if err != nil {
+		s.goalError(w, r, err)
+		return
+	}
+	_ = s.cfg.Store.Chat().MarkSeen(r.Context(), userFrom(r).ID, id, true)
+	turnID := ""
+	if turn != nil {
+		turnID = turn.ID
+	}
+	writeJSON(w, http.StatusAccepted, map[string]any{"turn_id": turnID, "message": plainMessageDTO(msg), "goal": g})
+}
+
+// goalError: a goal that cannot be set is the person's to fix (400), the rest as chat errors.
+func (s *server) goalError(w http.ResponseWriter, r *http.Request, err error) {
+	var ge *chat.GoalError
+	if errors.As(err, &ge) {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	s.chatError(w, r, err)
+}
+
+// getGoal / clearGoal: the chat's goal for the dashboard's bar (ADR-271).
+func (s *server) getGoal(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, http.StatusOK, map[string]any{"goal": s.cfg.Chat.Goal(r.Context(), r.PathValue("id"))})
+}
+
+func (s *server) clearGoal(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, http.StatusOK, map[string]any{"cleared": s.cfg.Chat.ClearGoal(r.Context(), r.PathValue("id"), "🎯 Đã huỷ mục tiêu.")})
 }

@@ -86,6 +86,7 @@ type MessageDTO struct {
 	CostUSD     *float64             `json:"cost_usd,omitempty"`
 	Relay       *Relay               `json:"relay,omitempty"`    // sent by an agent from another chat: who, from which project and chat
 	Consult     *Consult             `json:"consult,omitempty"`  // an expert's answer to a question asked here (ADR-177)
+	Btw         string               `json:"btw,omitempty"`      // a /btw answer: the side question it answers (ADR-271)
 	Provider    string               `json:"provider,omitempty"` // the connection that wrote it
 	Model       string               `json:"model,omitempty"`
 	Advice      []AdviceDTO          `json:"advice,omitempty"` // an advisor's answers in its run (ADR-262)
@@ -1193,7 +1194,9 @@ func (e *Engine) finish(t *Turn) {
 	}
 	e.running(t.ConversationID)
 	if freed && !e.stopping.Load() {
-		safeGo("SendQueued", func() { e.SendQueued(t.ConversationID) }) // what the person wrote meanwhile goes now
+		safeGo("SendQueued", func() { e.SendQueued(t.ConversationID) })       // what the person wrote meanwhile goes now
+		failed := t.err                                                       // set by run, on this goroutine
+		safeGo("goalAfter", func() { e.goalAfter(t.ConversationID, failed) }) // the chat's goal: checked, the next round (ADR-271)
 	}
 	// keep the turn for late subscribers, then forget it
 	time.AfterFunc(10*time.Minute, func() {
@@ -1847,7 +1850,7 @@ func canPropose(a storage.Agent) bool { return perm.AtLeast(perm.Agent(a), perm.
 func HistoryFor(msgs []storage.Message, self string) []HistoryItem {
 	var out []HistoryItem
 	for _, m := range msgs {
-		if m.Role == "user" || m.Role == "assistant" {
+		if (m.Role == "user" || m.Role == "assistant") && !IsBtw(m) { // a /btw answer is beside the chat (ADR-271)
 			h := HistoryItem{Role: m.Role, Content: m.Content}
 			if m.Role == "assistant" && m.Author != "" && m.Author != self {
 				h.Author = m.Author
@@ -2096,7 +2099,7 @@ func (e *Engine) History(ctx context.Context, conversationID string) ([]MessageD
 		}
 	}
 	for _, m := range msgs {
-		d := MessageDTO{ID: m.ID, Role: m.Role, Content: m.Content, Tools: m.Tools, Attachments: nonNilAtt(m.Attachments), Author: m.Author, Sender: m.Sender, CreatedAt: m.CreatedAt, Patches: byMsg[m.ID], Relay: RelayOf(m), Consult: ConsultOf(m), Provider: m.Provider, Model: m.Model, Advice: advised[m.ID]}
+		d := MessageDTO{ID: m.ID, Role: m.Role, Content: m.Content, Tools: m.Tools, Attachments: nonNilAtt(m.Attachments), Author: m.Author, Sender: m.Sender, CreatedAt: m.CreatedAt, Patches: byMsg[m.ID], Relay: RelayOf(m), Consult: ConsultOf(m), Btw: BtwOf(m), Provider: m.Provider, Model: m.Model, Advice: advised[m.ID]}
 		if s, ok := rated[m.ID]; ok && m.Role == "assistant" {
 			d.Rated, d.Feedback, d.Frozen = true, s.Feedback, scoring.Final(s, time.Now())
 		}

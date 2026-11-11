@@ -26,6 +26,8 @@ interface Message {
   relay?: { agent: string, project: string, project_id: string, conversation_id: string, title: string, report: boolean, url?: string }
   // an expert's answer to a question an agent here asked (ADR-177)
   consult?: { agent: string, project: string, office?: string, link?: string }
+  // a /btw answer: the side question it answers, beside the chat (ADR-271)
+  btw?: string
   // what an advisor told the agent stuck in this run (ADR-262)
   advice?: Advice[]
   // scored for the model statistics; the person's 👍 1 / 👎 -1 (ADR-267)
@@ -349,7 +351,7 @@ onLiveEvent<{ conversation_id: string, message: Message }>('message', ({ convers
   if (current.value?.id !== id || loadingMsgs.value) return
   // a person's message shows at once (it often comes just after its answer
   // started streaming here); only an answer waits, not to show twice
-  if (streaming.value && message.role === 'assistant') held.push(message)
+  if (streaming.value && message.role === 'assistant' && !message.btw) held.push(message) // a /btw answer is beside the stream: at once
   else place(message)
 })
 watch(streaming, (s) => { if (!s) held.splice(0).forEach(place) })
@@ -358,6 +360,7 @@ onLiveEvent<{ conversation: Conversation }>('conversation', ({ conversation: c }
   c = { ...c, active_turn: c.active_turn || undefined } // not answering: the field is left out, so say so
   if (current.value?.id === c.id) {
     current.value = { ...current.value, ...c }
+    void refreshGoal(c.id) // a round went or the goal ended
     if (c.active_turn && !streaming.value) follow(c.active_turn) // an answer started elsewhere (a bot's message here)
     else if (!c.active_turn && !streaming.value && !sending.value) refreshRetry(c.id) // planned, run or called off elsewhere (ADR-261)
   }
@@ -472,6 +475,36 @@ const linkedPending = ref<LinkedPending[]>([])
 // the last answer died on a passing API failure: it goes on by itself then (ADR-260)
 interface PlannedRetry { job_id: string, at: string, n: number, max: number, quota?: boolean } // quota: waits for the AI quota to reset (ADR-269)
 const retry = ref<PlannedRetry | null>(null)
+// the chat's goal (/goal, ADR-271): office goes on round after round until it is reached
+interface ChatGoal { text: string, check?: string, max_rounds: number, round: number, last?: string }
+const goal = ref<ChatGoal | null>(null)
+const goalCancelling = ref(false)
+async function refreshGoal(id = current.value?.id) {
+  if (!id) return void (goal.value = null)
+  try {
+    const res = await $fetch<{ goal: ChatGoal | null }>(`/api/conversations/${id}/goal`)
+    if (current.value?.id === id) goal.value = res.goal
+  } catch { /* the next change tries again */ }
+}
+watch(() => current.value?.id, id => { goal.value = null; void refreshGoal(id) }, { immediate: true })
+async function cancelGoal() {
+  const id = current.value?.id
+  if (!id) return
+  goalCancelling.value = true
+  try {
+    await $fetch(`/api/conversations/${id}/goal`, { method: 'DELETE' })
+    goal.value = null
+  } catch (e) {
+    toast.add({ title: apiError(e), color: 'error' })
+  } finally {
+    goalCancelling.value = false
+  }
+}
+// office's own commands the "/" menu offers first
+const officeCommands = computed(() => [
+  { name: 'btw', description: t('chat.cmdBtw'), source: 'office' as const },
+  { name: 'goal', description: t('chat.cmdGoal'), source: 'office' as const }
+])
 const retryActing = ref<'' | 'now' | 'cancel'>('')
 const retryAt = computed(() => {
   if (!retry.value) return ''
@@ -728,8 +761,20 @@ async function post(text: string, files: Attachment[]) {
   try {
     // mode operate: the agent's own rights are the limit (members are capped server-side)
     const id = current.value.id
-    const res = await $fetch<{ turn_id: string, message: Message, notice?: Message, queued?: Queued }>(`/api/conversations/${id}/messages`, { method: 'POST', body: { text, attachments: files.map(a => a.id), mode: 'operate', edit_mode: editMode.value, effort: effort.value, context: props.pageContext?.() ?? '' } })
+    const res = await $fetch<{ turn_id: string, message: Message, notice?: Message, queued?: Queued, btw?: string, text?: string, cleared?: boolean, goal?: ChatGoal | null }>(`/api/conversations/${id}/messages`, { method: 'POST', body: { text, attachments: files.map(a => a.id), mode: 'operate', edit_mode: editMode.value, effort: effort.value, context: props.pageContext?.() ?? '' } })
     if (current.value?.id !== id) return // switched chats while this was in flight: the reply belongs to the old one
+    // office's own commands (ADR-271): /btw answered apart, /goal status or clear
+    if (res.btw) return void toast.add({ title: t('chat.btwAsked'), icon: 'i-lucide-message-circle-question' })
+    if (res.text !== undefined) {
+      goal.value = res.goal ?? null
+      return void toast.add({ title: res.goal ? t('chat.goalBar', { text: res.goal.text }) : t('chat.goalNone'), description: res.goal ? res.text : undefined, icon: 'i-lucide-target' })
+    }
+    if (res.cleared !== undefined) {
+      goal.value = null
+      return void toast.add({ title: res.cleared ? t('chat.goalCleared') : t('chat.goalNone'), icon: 'i-lucide-target' })
+    }
+    if (res.goal) goal.value = res.goal
+    else if (/^\/goal\s/i.test(text)) void refreshGoal(id) // set while it answered: its first message waits
     if (res.queued) { // it answers: sent once it is free (the live row may have it already)
       if (!queuedHere.value.some(q => q.id === res.queued!.id)) setQueued(id, [...queuedHere.value, res.queued])
       scrollDown(true) // theirs: in view
@@ -1274,6 +1319,7 @@ onBeforeUnmount(() => {
                 <NuxtLink v-if="m.consult.link" :to="m.consult.link" class="hover:underline">{{ t('chat.expert') }}</NuxtLink>
                 <template v-else>{{ t('chat.expert') }}</template>
               </UBadge>
+              <UBadge v-if="m.btw" color="neutral" variant="subtle" size="sm" icon="i-lucide-message-circle-question" :label="t('chat.btwBadge')" />
               <span>{{ when(m.created_at) }}</span>
               <span v-if="m.cost_usd">· ${{ m.cost_usd.toFixed(3) }}</span>
               <MessageFeedback v-if="current?.id && m.role === 'assistant' && (m.rated || m.cost_usd)" :conversation-id="current.id" :message-id="m.id" :value="m.feedback" :frozen="m.frozen" />
@@ -1291,6 +1337,7 @@ onBeforeUnmount(() => {
               </ul>
             </details>
             <AdviceCard v-for="a in m.advice ?? []" :key="a.id" :advice="a" :project-id="projectId" />
+            <p v-if="m.btw" class="border-s-2 border-(--ui-border-accented) ps-2 text-xs text-(--ui-text-muted)">/btw {{ m.btw }}</p>
             <!-- eslint-disable-next-line vue/no-v-html -->
             <div class="markdown min-w-0 text-sm @max-[420px]/chat:text-xs" :class="[purpose && `md-apply-${purpose}`, isAdmin && current?.id && 'md-runnable']" @click="onMarkdownClick($event, m)" v-html="renderMarkdown(m.content, true, projectId)" />
             <UButton
@@ -1311,6 +1358,14 @@ onBeforeUnmount(() => {
           </div>
         </template>
         <WorkflowRunCard v-for="r in runsAt.after" :key="r.id" :run="r" @updated="onRunUpdated" />
+        <!-- the chat's goal: office goes on round after round until it is reached (ADR-271) -->
+        <div v-if="goal" class="flex flex-wrap items-center gap-2 rounded-lg border border-(--ui-primary)/40 bg-(--ui-primary)/5 px-3 py-2 text-xs">
+          <UIcon name="i-lucide-target" class="size-4 shrink-0 text-(--ui-primary)" />
+          <span class="min-w-0 flex-1 truncate" :title="goal.last || goal.text">{{ t('chat.goalBar', { text: goal.text }) }}</span>
+          <span class="text-(--ui-text-muted)">{{ t('chat.goalRound', { n: goal.round, max: goal.max_rounds }) }}</span>
+          <code v-if="goal.check" class="max-w-48 truncate text-(--ui-text-muted)" :title="goal.check">{{ t('chat.goalCheck', { cmd: goal.check }) }}</code>
+          <UButton size="xs" color="neutral" variant="ghost" icon="i-lucide-x" :label="t('chat.goalCancel')" :loading="goalCancelling" @click="cancelGoal" />
+        </div>
         <!-- the last answer died on a passing API failure: it goes on by itself, or now, or not (ADR-260) -->
         <div v-if="retry && !streaming" class="flex flex-wrap items-center gap-2 rounded-lg border border-(--ui-info)/40 bg-(--ui-info)/5 px-3 py-2 text-xs">
           <UIcon :name="retry.quota ? 'i-lucide-battery-low' : 'i-lucide-timer'" class="size-4 shrink-0 text-(--ui-info)" />
@@ -1396,6 +1451,7 @@ onBeforeUnmount(() => {
           ref="prompt" v-model="draft" v-model:attachments="draftFiles" :project-id="projectId"
           :placeholder="picked ? t('chat.placeholderWithAgent', { agent: picked.name }) : t('chat.placeholderNoAgent')"
           :mentions="single ? [] : onAgents.map(a => ({ name: a.name, label: permOf(agentLevel(a.permissions)).label, icon: permOf(agentLevel(a.permissions)).icon }))"
+          :commands="purpose ? [] : officeCommands"
           @submit="send"
         >
           <template #actions>

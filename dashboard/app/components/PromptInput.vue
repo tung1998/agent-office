@@ -3,7 +3,7 @@
 // the agents to tag (Chat, ADR-044), files
 // can be attached (button, drag & drop, paste) and are uploaded right away.
 export interface Attachment { id: string, name: string, kind: 'image' | 'pdf' | 'text', mime: string, size: number }
-interface Skill { name: string, description: string, source: 'project' | 'user' | 'plugin' | 'workflow', kind?: 'skill' | 'command', tool?: string }
+export interface Skill { name: string, description: string, source: 'project' | 'user' | 'plugin' | 'workflow' | 'office', kind?: 'skill' | 'command', tool?: string }
 
 const props = withDefaults(defineProps<{
   projectId: string
@@ -12,7 +12,8 @@ const props = withDefaults(defineProps<{
   maxrows?: number
   submitOnEnter?: boolean
   mentions?: { name: string, label: string, icon?: string }[] // agents "@" can tag
-}>(), { placeholder: '', rows: 1, maxrows: 8, submitOnEnter: true, mentions: () => [] })
+  commands?: Skill[] // office's own commands "/" offers first (/btw, /goal: ADR-271)
+}>(), { placeholder: '', rows: 1, maxrows: 8, submitOnEnter: true, mentions: () => [], commands: () => [] })
 const text = defineModel<string>({ default: '' })
 const files = defineModel<Attachment[]>('attachments', { default: () => [] })
 const emit = defineEmits<{ submit: [] }>()
@@ -26,7 +27,7 @@ const { data: skillData } = useLiveFetch<{ skills: Skill[] }>(() => `/api/projec
 const { data: wfData } = useLiveFetch<{ workflows: ProjectWorkflow[] }>(() => `/api/projects/${props.projectId}/workflows`, { lazy: true })
 const workflows = computed<Skill[]>(() => (wfData.value?.workflows ?? []).filter(w => w.enabled && !w.error && w.callable !== 'sub')
   .map(w => ({ name: w.key, description: w.description || w.name, source: 'workflow' as const })))
-const skills = computed<Skill[]>(() => skillData.value?.skills ?? [])
+const skills = computed<Skill[]>(() => [...props.commands, ...(skillData.value?.skills ?? []).filter(s => !props.commands.some(c => c.name === s.name))])
 const menuIndex = ref(0)
 const menuClosed = ref(false)
 // open while typing the first word after "/" (skills) or "#" (workflows)
@@ -66,11 +67,11 @@ const activeSkill = computed(() => {
   // "/key" of a workflow still runs it (a workflow wins over a skill of its name)
   return workflows.value.find(s => s.name === m[2]) ?? (m[1] === '/' ? skills.value.find(s => s.name === m[2]) : undefined)
 })
-const sourceLabel = computed(() => ({ project: t('prompt.sourceProject'), user: t('prompt.sourceUser'), plugin: t('prompt.sourcePlugin'), workflow: t('wf.slashBadge') }))
+const sourceLabel = computed(() => ({ project: t('prompt.sourceProject'), user: t('prompt.sourceUser'), plugin: t('prompt.sourcePlugin'), workflow: t('wf.slashBadge'), office: t('prompt.sourceOffice') }))
 // whose folder a skill is in, when not Claude Code's: "Codex · máy"
 const toolName: Record<string, string> = { codex: 'Codex', gemini: 'Gemini', antigravity: 'Antigravity' }
 const badge = (s: Skill) => [toolName[s.tool ?? ''], sourceLabel.value[s.source]].filter(Boolean).join(' · ')
-const skillIcon = (s: Skill) => s.source === 'workflow' ? 'i-lucide-workflow' : s.kind === 'command' ? 'i-lucide-square-terminal' : 'i-lucide-sparkles'
+const skillIcon = (s: Skill) => s.source === 'workflow' ? 'i-lucide-workflow' : s.source === 'office' ? (s.name === 'goal' ? 'i-lucide-target' : 'i-lucide-message-circle-question') : s.kind === 'command' ? 'i-lucide-square-terminal' : 'i-lucide-sparkles'
 
 // The menu is teleported to <body> with fixed position so no scrolling or
 // overflow-hidden parent can clip it; it opens upward unless there is no room.

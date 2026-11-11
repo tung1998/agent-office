@@ -697,6 +697,11 @@ func (r *Runner) execute(ctx context.Context, j storage.Job) {
 	if fromChannel && j.ParentJobID == "" { // a bot's message: tried once more now, while its person waits (ADR-261)
 		got, text, err = r.channelGoOn(ctx, actx, a, origin, agentID, cmp.Or(got, conv), got, text, err)
 	}
+	if fromChannel && a.Action == "chat" { // a bot's /goal: this message's goal, not the rule's (ADR-271)
+		if g := channelPayloadOf(origin).Goal; g.On() {
+			a.Config.Goal = g
+		}
+	}
 	if err == nil && a.Config.Goal.On() && j.ParentJobID == "" { // until its goal is reached (ADR-132)
 		var g goalRun
 		got, text, g, err = r.pursue(ctx, WithSender(actx, nil), a, j, got, text, now, loc) // its prompts are office's, not the person's
@@ -823,6 +828,8 @@ type ChannelPayload struct {
 	QuotaWaits     int             `json:"quota_waits,omitempty"`     // how often (ADR-270)
 	QuotaUntil     *time.Time      `json:"quota_until,omitempty"`     // the reset it last waited for
 	QuotaSince     *time.Time      `json:"quota_since,omitempty"`     // since when it waits
+	// Goal: the person's /goal (ADR-271): the message's chat goes on until it is reached
+	Goal *storage.AutomationGoal `json:"goal,omitempty"`
 }
 
 // waits is how often the message was put off for quota (one for a message

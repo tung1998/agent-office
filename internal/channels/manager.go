@@ -358,6 +358,28 @@ func (m *Manager) handle(ctx context.Context, channelID string, ad Adapter, in I
 		m.waitIdle(ctx, convs) // the stopped answer ends first: the new one is not put back as busy
 		in.Text = arg
 	}
+	if cmd, arg, isCmd := command(in.Text); isCmd && cmd == "btw" { // before the flood check: it is asked beside the running answer (ADR-271)
+		if arg == "" {
+			say("Hãy nhập câu hỏi sau lệnh, ví dụ: /btw …")
+			return
+		}
+		conv := m.runningConv(ctx, key)
+		if conv == "" { // nothing runs: an ordinary message
+			in.Text = arg
+		} else {
+			m.btw(ctx, ch, in, conv, arg, say)
+			return
+		}
+	}
+	var goal *storage.AutomationGoal // /goal: the message runs until its goal is reached (ADR-271)
+	if cmd, arg, isCmd := command(in.Text); isCmd && cmd == "goal" {
+		g, text, reply := m.goalCommand(ctx, ch, in, key, arg)
+		if reply != "" {
+			say(reply)
+			return
+		}
+		goal, in.Text = g, text
+	}
 	if ok, tell := m.pending.Take(key); !ok { // a flood from one chat: the rest is turned away, never silently
 		slog.Info("channels: busy, message dropped", "channel", ch.ID, "chat", in.ChatID, "user", in.UserID)
 		// a slash command waits for an answer; a message is told once per busy
@@ -460,7 +482,11 @@ func (m *Manager) handle(ctx context.Context, channelID string, ad Adapter, in I
 		return
 	}
 	p := trigger.ChannelPayload{Message: in.Text, User: who, UserID: in.UserID, ChatID: in.ChatID, ChannelID: ch.ID,
-		Admin: MayDecide(ch, in.UserID), Sender: m.senderOf(ctx, ch, in)} // an admin runs as the agent's own; anyone else proposes (ADR-081)
+		Admin: MayDecide(ch, in.UserID), Sender: m.senderOf(ctx, ch, in), Goal: goal} // an admin runs as the agent's own; anyone else proposes (ADR-081)
+	if goal != nil && rule.Action != "chat" {
+		say("Quy tắc nhận tin này không phải chat với agent, nên không chạy theo mục tiêu được.")
+		return
+	}
 	if len(in.Files) > 0 && rule.Action == "chat" { // the files go to the agent with the message
 		var skipped []string
 		p.Attachments, skipped = m.saveFiles(actx, ch, in.Files, actor.From(actx))
@@ -493,7 +519,7 @@ func (m *Manager) handle(ctx context.Context, channelID string, ad Adapter, in I
 		tctx, stop := context.WithCancel(m.root)
 		w := waiter{key: key, typing: stop, chat: in.ChatID, msg: in.MessageID, started: time.Now(),
 			verbose: rule.Action == "chat" && storage.ReplyModeOf(ch, rule.Config) == storage.ReplySteps}
-		if custom {
+		if custom || goal != nil {
 			w.respond = in.Respond // the answer edits the slash command's "thinking…"
 		}
 		m.mu.Lock()
@@ -828,6 +854,10 @@ func command(text string) (cmd, arg string, ok bool) {
 		return "push", rest, true
 	case "update", "cap-nhat":
 		return "update", rest, true
+	case "btw":
+		return "btw", rest, true
+	case "goal":
+		return "goal", rest, true
 	}
 	return "", "", false
 }

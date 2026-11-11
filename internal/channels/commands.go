@@ -30,6 +30,8 @@ func Builtins() []Command {
 		{"stop", "Dừng câu trả lời đang chạy (và tin đang chờ) của chat này", "", false},
 		{"push", "Dừng câu trả lời đang chạy rồi gửi ngay tin này", "tin nhắn", false},
 		{"skip", "Bỏ qua đề xuất theo số (hoặc all): từ chối, agent không chạy tiếp, chỉ Admin", "number", false},
+		{"btw", "Hỏi chen khi agent đang làm: trả lời riêng, không dừng việc đang chạy", "câu hỏi", false},
+		{"goal", "Làm tới khi đạt mục tiêu (status, clear; --check \"lệnh\" chỉ Admin)", "mục tiêu", false},
 	}
 }
 
@@ -37,7 +39,7 @@ func Builtins() []Command {
 var UpdateCommand = Command{"update", "Cập nhật office hoặc CLI AI khi rảnh (status, cancel, cli <tên>), chỉ Admin", "status|cancel|cli <tên>", true}
 
 // Reserved are names a custom command may not take.
-var Reserved = []string{"job", "create-conversation", "close-conversation", "create-thread", "create-conversion", "close-conversion", "start", "help", "pending", "approve", "approve-always", "reject", "skip", "stop", "push", "dung", "mode", "cho-duyet", "duyet", "tu-choi", "bo-qua", "update", "cap-nhat"}
+var Reserved = []string{"job", "create-conversation", "close-conversation", "create-thread", "create-conversion", "close-conversion", "start", "help", "pending", "approve", "approve-always", "reject", "skip", "stop", "push", "dung", "mode", "cho-duyet", "duyet", "tu-choi", "bo-qua", "update", "cap-nhat", "btw", "goal"}
 
 // CommandName makes a name safe for Discord and Telegram menus: lower case,
 // no accents, words joined by "-", at most 32 characters ("" = nothing left).
