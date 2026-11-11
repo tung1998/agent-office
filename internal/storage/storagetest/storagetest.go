@@ -122,6 +122,32 @@ func testSessions(t *testing.T, s storage.Store) {
 	if _, err := s.Sessions().GetByTokenHash(ctx, "th3"); !errors.Is(err, storage.ErrNotFound) {
 		t.Fatalf("after DeleteForUser err = %v", err)
 	}
+
+	// ADR-272: an account lists its own devices, the last used first, and
+	// revokes only its own
+	other, err := s.Users().Create(ctx, storage.User{Email: "o@b.c", Role: storage.RoleMember, PasswordHash: "h"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	old, _ := s.Sessions().Create(ctx, storage.Session{UserID: u.ID, TokenHash: "l1", CreatedAt: now, ExpiresAt: now.Add(time.Hour), LastSeenAt: now})
+	recent, _ := s.Sessions().Create(ctx, storage.Session{UserID: u.ID, TokenHash: "l2", CreatedAt: now, ExpiresAt: now.Add(time.Hour), LastSeenAt: now.Add(time.Minute), UserAgent: "phone", IP: "100.1.2.3"})
+	theirs, _ := s.Sessions().Create(ctx, storage.Session{UserID: other.ID, TokenHash: "l3", CreatedAt: now, ExpiresAt: now.Add(time.Hour), LastSeenAt: now})
+	list, err := s.Sessions().ListForUser(ctx, u.ID)
+	if err != nil || len(list) != 2 || list[0].ID != recent.ID || list[1].ID != old.ID || list[0].UserAgent != "phone" || list[0].IP != "100.1.2.3" {
+		t.Fatalf("ListForUser = %+v, %v", list, err)
+	}
+	if err := s.Sessions().DeleteOwned(ctx, u.ID, theirs.ID); !errors.Is(err, storage.ErrNotFound) {
+		t.Fatalf("DeleteOwned of another account's session = %v", err)
+	}
+	if _, err := s.Sessions().GetByTokenHash(ctx, "l3"); err != nil {
+		t.Fatalf("another account's session gone: %v", err)
+	}
+	if err := s.Sessions().DeleteOwned(ctx, u.ID, old.ID); err != nil {
+		t.Fatalf("DeleteOwned: %v", err)
+	}
+	if _, err := s.Sessions().GetByTokenHash(ctx, "l1"); !errors.Is(err, storage.ErrNotFound) {
+		t.Fatalf("revoked session still there: %v", err)
+	}
 }
 
 func testAudit(t *testing.T, s storage.Store) {

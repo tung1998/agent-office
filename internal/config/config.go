@@ -51,6 +51,9 @@ type Server struct {
 	UITokenEnv  string   `json:"ui_token_env"`
 	Workers     int      `json:"workers"`
 	CORSOrigins []string `json:"cors_origins"`
+	// UILAN: the dashboard's port on every network, the LAN too; off, it
+	// answers on this machine and its Tailscale addresses only (ADR-272)
+	UILAN bool `json:"ui_lan"`
 }
 
 // ErrNotFound means the config file does not exist.

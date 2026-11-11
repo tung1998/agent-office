@@ -76,6 +76,7 @@ func serveCmd() *cobra.Command {
 		trustedProxies []string
 		cliSetup       bool
 		uiListen       string
+		uiTailnet      bool
 	)
 	cmd := &cobra.Command{
 		Use:   "serve",
@@ -481,6 +482,10 @@ func serveCmd() *cobra.Command {
 					return fmt.Errorf("không nghe được %s (--ui-listen): %w", uiListen, err)
 				}
 				go func() { errCh <- srv.Serve(uiLn) }()
+				if uiTailnet { // the same port on the Tailscale addresses (ADR-272)
+					_, port, _ := net.SplitHostPort(uiListen)
+					go serveTailnet(ctx, srv, port, 30*time.Second, os.Stderr)
+				}
 			}
 			// once it listens and the gateway is set (the turns reach their tools):
 			// answers cut off by the last shutdown go on, then what waited in chats
@@ -528,6 +533,7 @@ func serveCmd() *cobra.Command {
 	cmd.Flags().BoolVar(&cliSetup, "cli-setup", true, "cho phép cài và đăng nhập Claude Code/Codex từ dashboard (tắt khi chạy trong container)")
 	cmd.Flags().StringSliceVar(&trustedProxies, "trusted-proxy", []string{"127.0.0.1/32", "::1/128"}, "dải IP của proxy (dashboard Nuxt) được tin header X-Forwarded-*")
 	cmd.Flags().StringVar(&uiListen, "ui-listen", "", "địa chỉ thứ hai nghe cùng handler (dashboard nhúng giữ cổng Nuxt cũ, ví dụ :2704)")
+	cmd.Flags().BoolVar(&uiTailnet, "ui-tailnet", false, "nghe thêm cổng của --ui-listen tại các địa chỉ Tailscale của máy")
 	return cmd
 }
 

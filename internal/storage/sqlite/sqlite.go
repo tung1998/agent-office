@@ -340,21 +340,19 @@ func (r sessionRepo) Create(ctx context.Context, s storage.Session) (storage.Ses
 	return s, err
 }
 
-func (r sessionRepo) GetByTokenHash(ctx context.Context, tokenHash string) (storage.Session, error) {
+const sessionCols = `id, user_id, token_hash, created_at, expires_at, last_seen_at, user_agent, ip, impersonator_id`
+
+type rowScanner interface{ Scan(dest ...any) error }
+
+func scanSession(row rowScanner) (storage.Session, error) {
 	var (
 		s                      storage.Session
 		created, expires, seen string
 	)
-	err := r.db.QueryRowContext(ctx,
-		`SELECT id, user_id, token_hash, created_at, expires_at, last_seen_at, user_agent, ip, impersonator_id
-		 FROM sessions WHERE token_hash = ?`, tokenHash).
-		Scan(&s.ID, &s.UserID, &s.TokenHash, &created, &expires, &seen, &s.UserAgent, &s.IP, &s.ImpersonatorID)
-	if errors.Is(err, sql.ErrNoRows) {
-		return s, storage.ErrNotFound
-	}
-	if err != nil {
+	if err := row.Scan(&s.ID, &s.UserID, &s.TokenHash, &created, &expires, &seen, &s.UserAgent, &s.IP, &s.ImpersonatorID); err != nil {
 		return s, err
 	}
+	var err error
 	if s.CreatedAt, err = parseTime(created); err != nil {
 		return s, err
 	}
@@ -365,6 +363,38 @@ func (r sessionRepo) GetByTokenHash(ctx context.Context, tokenHash string) (stor
 		return s, err
 	}
 	return s, nil
+}
+
+func (r sessionRepo) GetByTokenHash(ctx context.Context, tokenHash string) (storage.Session, error) {
+	s, err := scanSession(r.db.QueryRowContext(ctx, `SELECT `+sessionCols+` FROM sessions WHERE token_hash = ?`, tokenHash))
+	if errors.Is(err, sql.ErrNoRows) {
+		return s, storage.ErrNotFound
+	}
+	return s, err
+}
+
+// ListForUser: userID's sessions, the last used first (ADR-272).
+func (r sessionRepo) ListForUser(ctx context.Context, userID string) ([]storage.Session, error) {
+	rows, err := r.db.QueryContext(ctx, `SELECT `+sessionCols+` FROM sessions WHERE user_id = ? ORDER BY last_seen_at DESC`, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []storage.Session
+	for rows.Next() {
+		s, err := scanSession(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, s)
+	}
+	return out, rows.Err()
+}
+
+// DeleteOwned revokes session id only if it is userID's: ErrNotFound
+// otherwise, so nobody revokes (or learns of) another account's session.
+func (r sessionRepo) DeleteOwned(ctx context.Context, userID, id string) error {
+	return execOne(ctx, r.db, `DELETE FROM sessions WHERE id = ? AND user_id = ?`, id, userID)
 }
 
 func (r sessionRepo) Touch(ctx context.Context, id string, at time.Time) error {

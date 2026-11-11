@@ -49,5 +49,6 @@ async function onSubmit() {
       </form>
     </UCard>
     <Passkeys class="mt-4" />
+    <AccountSessions class="mt-4" />
   </PageShell>
 </template>

@@ -201,6 +201,10 @@ type SessionRepo interface {
 	// DeleteForUserExcept revokes every session of userID but keepID.
 	DeleteForUserExcept(ctx context.Context, userID, keepID string) error
 	DeleteExpired(ctx context.Context, now time.Time) (int64, error)
+	// ListForUser: userID's sessions, the last used first (ADR-272).
+	ListForUser(ctx context.Context, userID string) ([]Session, error)
+	// DeleteOwned revokes id only if it is userID's (ErrNotFound otherwise).
+	DeleteOwned(ctx context.Context, userID, id string) error
 }
 
 // Passkey is a WebAuthn credential of an account (ADR-226).

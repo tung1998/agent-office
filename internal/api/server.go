@@ -204,6 +204,8 @@ func New(cfg Config) http.Handler {
 	mux.Handle("POST /api/me/passkeys/begin", s.requireAuth(http.HandlerFunc(s.beginPasskey)))
 	mux.Handle("POST /api/me/passkeys", s.requireAuth(http.HandlerFunc(s.addPasskey)))
 	mux.Handle("DELETE /api/me/passkeys/{id}", s.requireAuth(http.HandlerFunc(s.deletePasskey)))
+	mux.Handle("GET /api/me/sessions", s.requireAuth(http.HandlerFunc(s.listSessions)))
+	mux.Handle("DELETE /api/me/sessions/{id}", s.requireAuth(http.HandlerFunc(s.revokeSession)))
 
 	mux.Handle("GET /api/users", s.requireRole(storage.RoleAdmin, http.HandlerFunc(s.listUsers)))
 	mux.Handle("POST /api/users", s.requireRole(storage.RoleAdmin, http.HandlerFunc(s.createUser)))
