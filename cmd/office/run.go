@@ -101,6 +101,7 @@ func serveCmd() *cobra.Command {
 			// what office starts (a script automation running `office tools
 			// update` in another project's folder) finds this office's data
 			_ = os.Setenv(home.EnvHome, h.Dir)
+			chat.OfficeDir = h.Dir // no agent reads its DB, key or backups (ADR-271)
 			a, err := openApp(ctx, h)
 			if err != nil {
 				return err
@@ -456,7 +457,12 @@ func serveCmd() *cobra.Command {
 					auth.DefaultAdminEmail, auth.DefaultAdminPassword)
 			}
 
-			srv := &http.Server{Addr: addr, Handler: withEmbeddedUI(handler), ReadHeaderTimeout: 10 * time.Second}
+			// IdleTimeout closes a kept-alive connection nobody uses (ADR-271). No
+			// Read/WriteTimeout: their deadline cancels a running request's context,
+			// which would cut the SSE streams and long MCP calls; bodies are capped
+			// by size instead (maxBody)
+			srv := &http.Server{Addr: addr, Handler: withEmbeddedUI(handler), ReadHeaderTimeout: 10 * time.Second,
+				IdleTimeout: 2 * time.Minute}
 			go sweepSessions(ctx, st, log)
 
 			ln, err := net.Listen("tcp", addr)

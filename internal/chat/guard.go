@@ -151,7 +151,7 @@ const headlessDisallowed = "Monitor ScheduleWakeup CronCreate CronDelete CronLis
 // file tools for the home's secrets, ADR-227).
 func foregroundSettings() string {
 	b, _ := json.Marshal(map[string]any{"hooks": map[string]any{"PreToolUse": []map[string]any{
-		{"matcher": "Bash|Agent|Task|Read|Grep|Glob|Edit|Write|MultiEdit|NotebookEdit", "hooks": []map[string]any{{"type": "command", "command": ForegroundCommand}}},
+		{"matcher": "Bash|Agent|Task|Read|Grep|Glob|Edit|Write|MultiEdit|NotebookEdit", "hooks": []map[string]any{{"type": "command", "command": ForegroundCommand + officeDirFlag()}}},
 	}}})
 	return string(b)
 }
@@ -181,7 +181,7 @@ func Foreground(in io.Reader, out io.Writer) {
 		}
 	}
 	if cmd, _ := ev.ToolInput["command"].(string); cmd != "" {
-		if why := secretInCommand(cmd); why != "" {
+		if why := secretInCommand(cmd, ev.Cwd); why != "" {
 			deny(out, "agent-office: "+why)
 			return
 		}

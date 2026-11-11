@@ -41,6 +41,7 @@ func hookCmd() *cobra.Command {
 			return nil
 		},
 	}
+	foreground.Flags().StringVar(&chat.OfficeDir, "office-dir", "", "thư mục dữ liệu của office (DB, khóa): agent không đọc")
 	cmd.AddCommand(guard, check, foreground)
 	return cmd
 }

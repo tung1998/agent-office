@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 )
 
@@ -35,18 +36,82 @@ func homeSecretDenies() []string {
 	return out
 }
 
+// OfficeDir is the office's data directory (.office). Its database, key and
+// backups open every connection's key, every token and every chat, so no
+// agent reads them, the administrator's included. The office binary sets it;
+// the hook process gets it with --office-dir. Empty: not checked.
+var OfficeDir string
+
+// officeDirFlag: what tells the hook process OfficeDir (shell-quoted).
+func officeDirFlag() string {
+	if OfficeDir == "" {
+		return ""
+	}
+	return " --office-dir '" + strings.ReplaceAll(OfficeDir, "'", `'\''`) + "'"
+}
+
+// officeSecrets: the entries of OfficeDir no agent touches (worktrees,
+// accounts, attachments… stay readable: a run works there).
+var officeSecrets = []string{"office.db", "office.db-wal", "office.db-shm", "office.db-journal", "secret.key", "backups"}
+
+// officeSecretDenies: Claude Code deny rules for the runs that are not
+// administrator.
+func officeSecretDenies() []string {
+	if OfficeDir == "" {
+		return nil
+	}
+	var out []string
+	for _, s := range officeSecrets {
+		p := "/" + filepath.ToSlash(filepath.Join(OfficeDir, s))
+		out = append(out, "Read("+p+")", "Read("+p+"/**)", "Edit("+p+")", "Edit("+p+"/**)")
+	}
+	return out
+}
+
+// officeSecret: why the absolute path p (or a glob on it) reaches one of
+// officeSecrets, "" when it does not. Compared lowercased: macOS paths are
+// case-insensitive, OFFICE.DB is the same file.
+func officeSecret(p string) string {
+	if OfficeDir == "" || p == "" {
+		return ""
+	}
+	dirs := []string{strings.ToLower(filepath.Clean(OfficeDir)), strings.ToLower(realPath(OfficeDir))}
+	for _, t := range []string{filepath.Clean(p), realPath(p)} {
+		t = strings.ToLower(t)
+		for _, d := range dirs {
+			rel, err := filepath.Rel(d, t)
+			if err != nil || rel == "." || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+				continue
+			}
+			first, _, _ := strings.Cut(rel, string(filepath.Separator))
+			for _, s := range officeSecrets {
+				if ok, _ := filepath.Match(first, s); ok || first == s {
+					return "không đọc/sửa " + s + " của office (khóa mã hóa, DB và bản sao lưu)"
+				}
+			}
+		}
+	}
+	return ""
+}
+
 // secretPath: why p (a file tool's path, absolute or relative to cwd) may not
 // be touched, "" when it may.
 func secretPath(p, cwd string) string {
-	h := homeDir()
-	if p == "" || h == "" {
+	if p == "" {
 		return ""
 	}
-	if strings.HasPrefix(p, "~/") || p == "~" {
+	h := homeDir()
+	if h != "" && (strings.HasPrefix(p, "~/") || p == "~") {
 		p = filepath.Join(h, strings.TrimPrefix(p, "~"))
 	}
 	if !filepath.IsAbs(p) {
 		p = filepath.Join(cwd, p)
+	}
+	if why := officeSecret(p); why != "" {
+		return why
+	}
+	if h == "" {
+		return ""
 	}
 	for _, t := range []string{filepath.Clean(p), realPath(p)} {
 		for _, s := range homeSecrets {
@@ -59,10 +124,34 @@ func secretPath(p, cwd string) string {
 	return ""
 }
 
+// shellWords splits a command into the words that may be paths (best effort:
+// quotes, operators and `--flag=` are separators).
+var shellWords = regexp.MustCompile(`[^\s'"` + "`" + `;|&()<>=]+`)
+
 // secretInCommand: a shell command that names one of homeSecrets (as ~/x,
-// $HOME/x or the full path). Best effort on the text.
-func secretInCommand(cmd string) string {
+// $HOME/x or the full path) or one of officeSecrets (any path, relative to
+// cwd). Best effort on the text.
+func secretInCommand(cmd, cwd string) string {
 	h := homeDir()
+	for _, w := range shellWords.FindAllString(cmd, -1) {
+		if h != "" {
+			for _, pre := range []string{"~", "$HOME", "${HOME}"} {
+				if w == pre || strings.HasPrefix(w, pre+"/") {
+					w = h + strings.TrimPrefix(w, pre)
+					break
+				}
+			}
+		}
+		if !filepath.IsAbs(w) {
+			if cwd == "" {
+				continue
+			}
+			w = filepath.Join(cwd, w)
+		}
+		if why := officeSecret(w); why != "" {
+			return why
+		}
+	}
 	for _, s := range homeSecrets {
 		for _, pre := range []string{"~/", "$HOME/", "${HOME}/", h + "/"} {
 			if pre == "/" {
@@ -154,4 +243,30 @@ func exfiltrates(cmd string) string {
 		}
 	}
 	return ""
+}
+
+// agentHiddenEnv: variables of the office's environment no agent CLI gets
+// (ADR-271): the office's own key, and the git host and cloud tokens whose
+// files ADR-227 already keeps from agents. A connection's own key is added
+// back by its CLIEnv, after the filter.
+var agentHiddenEnv = []string{
+	"OFFICE_SECRET_KEY",
+	"GH_TOKEN", "GITHUB_TOKEN", "GH_ENTERPRISE_TOKEN", "GITHUB_ENTERPRISE_TOKEN", "GITLAB_TOKEN",
+	"AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "AWS_SESSION_TOKEN",
+}
+
+// agentEnv: os.Environ() less agentHiddenEnv.
+func agentEnv() []string {
+	return withoutEnv(os.Environ(), agentHiddenEnv)
+}
+
+func withoutEnv(env, hidden []string) []string {
+	out := make([]string, 0, len(env))
+	for _, kv := range env {
+		name, _, _ := strings.Cut(kv, "=")
+		if !slices.Contains(hidden, name) {
+			out = append(out, kv)
+		}
+	}
+	return out
 }

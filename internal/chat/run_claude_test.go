@@ -225,8 +225,14 @@ echo '{"type":"result","subtype":"success","result":"'"$CLAUDE_CONFIG_DIR"'","se
 	if err != nil || res.Text != home {
 		t.Fatalf("res = %+v, %v", res, err)
 	}
-	if cliEnv(storage.Provider{Kind: storage.ProviderClaudeCLI}) != nil {
+	t.Setenv("OFFICE_TEST_KEEP", "1")
+	t.Setenv("GH_TOKEN", "x")
+	env := cliEnv(storage.Provider{Kind: storage.ProviderClaudeCLI})
+	if !slices.Contains(env, "OFFICE_TEST_KEEP=1") {
 		t.Fatal("the machine's account must keep the office's environment")
+	}
+	if slices.Contains(env, "GH_TOKEN=x") {
+		t.Fatal("a git host token reached the agent (ADR-271)")
 	}
 }
 
@@ -263,7 +269,7 @@ func TestClaudeEnv(t *testing.T) {
 	}
 	t.Setenv("CLAUDE_CODE_SUBAGENT_EFFORT", "high")
 	t.Setenv("CLAUDE_CODE_DISABLE_ULTRATHINK", "0")
-	if env := claudeEnv(RunRequest{Effort: "max"}); env != nil {
+	if env := claudeEnv(RunRequest{Effort: "max"}); slices.Contains(env, "CLAUDE_CODE_SUBAGENT_EFFORT=medium") || slices.Contains(env, "CLAUDE_CODE_DISABLE_ULTRATHINK=1") {
 		t.Fatalf("the person's own settings must win: %v", env)
 	}
 }

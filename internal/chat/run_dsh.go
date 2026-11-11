@@ -207,7 +207,7 @@ func (dshRunner) run(ctx context.Context, req RunRequest, emit func(Event)) (res
 	cmd := exec.CommandContext(runCtx, bin, "--profile", "acp", "--patch", patchFile)
 	ownGroup(cmd)
 	cmd.Dir = req.WorkDir // dsh's workspace root
-	cmd.Env = append(os.Environ(), dshKeyEnv+"="+req.APIKey, "DSH_TELEMETRY_MODE=DISABLED", "DSH_PERMISSION_MODE="+dshPermission(req))
+	cmd.Env = append(agentEnv(), dshKeyEnv+"="+req.APIKey, "DSH_TELEMETRY_MODE=DISABLED", "DSH_PERMISSION_MODE="+dshPermission(req))
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
 	in, err := cmd.StdinPipe()

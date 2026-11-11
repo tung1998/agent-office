@@ -194,7 +194,7 @@ func (geminiRunner) run(ctx context.Context, req RunRequest, emit func(Event)) (
 	}
 	// the workdir is office's to trust; yolo would otherwise start a Docker sandbox
 	// the connection's own account first (ADR-178): the run's home below builds on it
-	env := append(append(os.Environ(), req.Provider.CLIEnv()...), "GEMINI_CLI_TRUST_WORKSPACE=true")
+	env := append(append(agentEnv(), req.Provider.CLIEnv()...), "GEMINI_CLI_TRUST_WORKSPACE=true")
 	if mode == "yolo" {
 		env = append(env, "GEMINI_SANDBOX=false")
 	}

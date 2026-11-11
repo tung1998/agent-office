@@ -69,14 +69,7 @@ func claudeEnv(req RunRequest) []string {
 	if _, set := os.LookupEnv("CLAUDE_CODE_DISABLE_ULTRATHINK"); !set {
 		extra = append(extra, "CLAUDE_CODE_DISABLE_ULTRATHINK=1")
 	}
-	env := cliEnv(req.Provider)
-	if len(extra) == 0 {
-		return env
-	}
-	if env == nil {
-		env = os.Environ()
-	}
-	return append(env, extra...)
+	return append(cliEnv(req.Provider), extra...)
 }
 
 func (claudeRunner) args(req RunRequest, resume bool) []string {
@@ -129,7 +122,7 @@ func (claudeRunner) args(req RunRequest, resume bool) []string {
 	a := []string{"-p", "--output-format", "stream-json", "--verbose", "--include-partial-messages", "--permission-mode", "dontAsk",
 		"--setting-sources", "user,project,local"}
 	deny := []string{"Read(./.env)", "Read(./.env.*)", "Read(**/.env)", "Read(**/*.pem)", "Read(**/*.key)"}
-	deny = append(deny, homeSecretDenies()...) // ADR-227
+	deny = append(append(deny, homeSecretDenies()...), officeSecretDenies()...) // ADR-227, ADR-271
 	if req.Write {
 		// edits stay in the working folder (dontAsk refuses the rest), never
 		// secrets or the project's protected files
@@ -673,12 +666,10 @@ func claudeSignedIn(bin string, env []string) bool {
 }
 
 // cliEnv runs a connection with an account of its own in its config folder
-// (ADR-178); nil keeps the office's environment.
+// (ADR-178), on the office's environment less what an agent must not hold
+// (agentEnv, ADR-271).
 func cliEnv(p storage.Provider) []string {
-	if env := p.CLIEnv(); env != nil {
-		return append(os.Environ(), env...)
-	}
-	return nil
+	return append(agentEnv(), p.CLIEnv()...)
 }
 
 // firstJSONObject pulls the JSON object out of output that may carry warnings.

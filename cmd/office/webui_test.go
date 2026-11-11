@@ -3,6 +3,7 @@ package main
 import (
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"testing/fstest"
 )
@@ -96,7 +97,7 @@ func TestEmbeddedUISecurityHeaders(t *testing.T) {
 	h.ServeHTTP(rec, req)
 	want := map[string]string{
 		"X-Frame-Options":         "DENY",
-		"Content-Security-Policy": "frame-ancestors 'none'",
+		"Content-Security-Policy": dashboardCSP(testDist()),
 		"X-Content-Type-Options":  "nosniff",
 		"Referrer-Policy":         "same-origin",
 	}
@@ -152,5 +153,39 @@ func TestWithEmbeddedUIFSServesWhenOK(t *testing.T) {
 	}
 	if rec.Body.String() != "<html>app shell</html>" {
 		t.Errorf("got body %q, want index.html", rec.Body.String())
+	}
+}
+
+// ADR-271: the dashboard's inline scripts run by hash, nothing else inline;
+// data blocks and external files add no hash.
+func TestDashboardCSP(t *testing.T) {
+	dist := fstest.MapFS{"index.html": {Data: []byte(`<html><head>` +
+		`<script type="importmap">{"imports":{}}</script>` +
+		`<script type="module" src="/_nuxt/a.js"></script>` +
+		`<script>boot()</script>` +
+		`<script type="application/json" id="__NUXT_DATA__">[1]</script>` +
+		`</head></html>`)}}
+	csp := dashboardCSP(dist)
+	script := ""
+	for _, d := range strings.Split(csp, "; ") {
+		if strings.HasPrefix(d, "script-src ") {
+			script = d
+		}
+	}
+	if n := strings.Count(script, "'sha256-"); n != 2 {
+		t.Fatalf("want 2 hashes (importmap, boot), got %d: %s", n, script)
+	}
+	if !strings.Contains(script, "'sha256-") || strings.Contains(script, "unsafe-inline") {
+		t.Fatalf("script-src = %s", script)
+	}
+	for _, want := range []string{"frame-ancestors 'none'", "object-src 'none'", "base-uri 'self'"} {
+		if !strings.Contains(csp, want) {
+			t.Errorf("missing %q in %s", want, csp)
+		}
+	}
+	rec := httptest.NewRecorder()
+	embeddedUIHandler(http.NotFoundHandler(), dist).ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/", nil))
+	if rec.Header().Get("Content-Security-Policy") != csp {
+		t.Fatalf("served CSP = %q", rec.Header().Get("Content-Security-Policy"))
 	}
 }

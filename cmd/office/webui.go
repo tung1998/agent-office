@@ -1,8 +1,12 @@
 package main
 
 import (
+	"crypto/sha256"
+	"encoding/base64"
 	"io/fs"
 	"net/http"
+	"regexp"
+	"slices"
 	"strings"
 
 	"github.com/tung1998/agent-office/internal/webui"
@@ -36,6 +40,7 @@ func withEmbeddedUIFS(api http.Handler, dist fs.FS, ok bool) http.Handler {
 // can pass an fstest.MapFS instead of the real embedded build.
 func embeddedUIHandler(api http.Handler, dist fs.FS) http.Handler {
 	fileServer := http.FileServer(http.FS(dist))
+	csp := dashboardCSP(dist)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet && r.Method != http.MethodHead {
 			api.ServeHTTP(w, r)
@@ -51,7 +56,7 @@ func embeddedUIHandler(api http.Handler, dist fs.FS) http.Handler {
 		// when office serve answers these pages itself (no Nitro in front)
 		h := w.Header()
 		h.Set("X-Frame-Options", "DENY")
-		h.Set("Content-Security-Policy", "frame-ancestors 'none'")
+		h.Set("Content-Security-Policy", csp)
 		h.Set("X-Content-Type-Options", "nosniff")
 		h.Set("Referrer-Policy", "same-origin")
 		name := strings.TrimPrefix(r.URL.Path, "/")
@@ -71,4 +76,49 @@ func embeddedUIHandler(api http.Handler, dist fs.FS) http.Handler {
 		}
 		fileServer.ServeHTTP(w, r)
 	})
+}
+
+// inlineScript: a <script> element and its body (Nuxt's importmap and its
+// colour-mode/boot scripts are inline in the built index.html).
+var inlineScript = regexp.MustCompile(`(?is)<script\b([^>]*)>(.*?)</script>`)
+
+// dashboardCSP (ADR-271): only the build's own scripts run, the inline ones
+// by their hash (computed from the embedded build, so a new build needs no
+// change here), never a script a message or a file could slip into the page.
+// Styles stay inline (Vue/Nuxt UI set style attributes); images, fonts and
+// the preview frames (a watched page, a PDF) may come from anywhere.
+func dashboardCSP(dist fs.FS) string {
+	var hashes []string
+	files, _ := fs.Glob(dist, "*.html")
+	for _, f := range files {
+		b, err := fs.ReadFile(dist, f)
+		if err != nil {
+			continue
+		}
+		for _, m := range inlineScript.FindAllStringSubmatch(string(b), -1) {
+			attrs := strings.ToLower(m[1])
+			if strings.Contains(attrs, "src=") || strings.Contains(attrs, "application/json") || strings.TrimSpace(m[2]) == "" {
+				continue // an external file (covered by 'self') or data, never run
+			}
+			sum := sha256.Sum256([]byte(m[2]))
+			if h := "'sha256-" + base64.StdEncoding.EncodeToString(sum[:]) + "'"; !slices.Contains(hashes, h) {
+				hashes = append(hashes, h)
+			}
+		}
+	}
+	script := strings.Join(append([]string{"'self'"}, hashes...), " ")
+	return strings.Join([]string{
+		"default-src 'self'",
+		"script-src " + script,
+		"style-src 'self' 'unsafe-inline'",
+		"img-src 'self' data: blob: https: http:",
+		"font-src 'self' data:",
+		"connect-src 'self' https://api.iconify.design https://api.simplesvg.com https://api.unisvg.com",
+		"frame-src 'self' blob: https: http:",
+		"worker-src 'self' blob:",
+		"object-src 'none'",
+		"base-uri 'self'",
+		"form-action 'self'",
+		"frame-ancestors 'none'",
+	}, "; ")
 }

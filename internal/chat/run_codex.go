@@ -139,7 +139,7 @@ func (codexRunner) run(ctx context.Context, req RunRequest, emit func(Event)) (R
 	if req.Office != nil && !req.NoTools {
 		// the run's token reaches Codex through its environment, not argv
 		if cmd.Env == nil {
-			cmd.Env = os.Environ()
+			cmd.Env = agentEnv()
 		}
 		cmd.Env = append(cmd.Env, codexTokenEnv+"="+req.Office.Token)
 	}

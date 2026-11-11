@@ -84,3 +84,77 @@ func TestClaudeArgsHomeSecrets(t *testing.T) {
 		t.Fatalf("disallowed: %s", d)
 	}
 }
+
+// ADR-271: no agent reads the office's DB, key or backups, by a file tool or
+// by the shell, whatever the case or the relative path; the rest of the
+// office's folder (worktrees, accounts) stays open.
+func TestForegroundOfficeSecrets(t *testing.T) {
+	withHome(t, "/home/me")
+	old := OfficeDir
+	OfficeDir = "/srv/proj/.office"
+	t.Cleanup(func() { OfficeDir = old })
+	cwd := "/srv/proj/.office/worktrees/r1/chat-1"
+	say := func(tool string, in map[string]any) string {
+		b, _ := json.Marshal(map[string]any{"tool_name": tool, "cwd": cwd, "tool_input": in})
+		var out bytes.Buffer
+		Foreground(bytes.NewReader(b), &out)
+		return out.String()
+	}
+	key := "secret" + ".key"
+	denied := []struct {
+		tool string
+		in   map[string]any
+	}{
+		{"Read", map[string]any{"file_path": "/srv/proj/.office/" + key}},
+		{"Read", map[string]any{"file_path": "../../../" + strings.ToUpper(key)}},
+		{"Read", map[string]any{"file_path": "/srv/proj/.office/backups/office-before-1.db"}},
+		{"Grep", map[string]any{"pattern": "x", "path": "/srv/proj/.office/backups"}},
+		{"Bash", map[string]any{"command": "cat ../../../" + key}},
+		{"Bash", map[string]any{"command": "sqlite3 /srv/proj/.office/office.db 'select * from providers'"}},
+		{"Bash", map[string]any{"command": `sqlite3 "/srv/proj/.office/Office.DB-wal"`}},
+		{"Bash", map[string]any{"command": "cp /srv/proj/.office/*.db /tmp/"}},
+		{"Bash", map[string]any{"command": "tar czf x.tgz --file=/srv/proj/.office/backups"}},
+	}
+	for _, c := range denied {
+		if s := say(c.tool, c.in); !strings.Contains(s, `"deny"`) {
+			t.Errorf("%s %v allowed", c.tool, c.in)
+		}
+	}
+	allowed := []struct {
+		tool string
+		in   map[string]any
+	}{
+		{"Read", map[string]any{"file_path": cwd + "/main.go"}},
+		{"Read", map[string]any{"file_path": "/srv/proj/.office/accounts/a/memory/MEMORY.md"}},
+		{"Bash", map[string]any{"command": `grep -rn "office.db" internal`}},
+		{"Bash", map[string]any{"command": "ls /srv/proj/.office/worktrees"}},
+		{"Bash", map[string]any{"command": "go test ./internal/secrets/..."}},
+	}
+	for _, c := range allowed {
+		if s := say(c.tool, c.in); strings.Contains(s, `"deny"`) {
+			t.Errorf("%s %v denied: %s", c.tool, c.in, s)
+		}
+	}
+	// the runs that are not administrator get the same as deny rules
+	if d := officeSecretDenies(); !slices.Contains(d, "Read(//srv/proj/.office/"+key+")") {
+		t.Errorf("denies = %v", d)
+	}
+	if f := officeDirFlag(); f != " --office-dir '/srv/proj/.office'" {
+		t.Errorf("flag = %q", f)
+	}
+}
+
+func TestAgentEnvHidesTokens(t *testing.T) {
+	t.Setenv("OFFICE_SECRET_KEY", "k")
+	t.Setenv("AWS_SECRET_ACCESS_KEY", "k")
+	t.Setenv("PATH", "/usr/bin")
+	env := agentEnv()
+	for _, kv := range env {
+		if strings.HasPrefix(kv, "OFFICE_SECRET_KEY=") || strings.HasPrefix(kv, "AWS_SECRET_ACCESS_KEY=") {
+			t.Errorf("%s reached the agent", kv)
+		}
+	}
+	if !slices.Contains(env, "PATH=/usr/bin") {
+		t.Error("PATH dropped")
+	}
+}
