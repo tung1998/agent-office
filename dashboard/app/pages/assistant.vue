@@ -10,11 +10,12 @@ const { data, error } = await useLiveFetch<{ project_id: string }>('/api/assista
 
 <template>
   <PageShell :title="t('assistant.title')">
-    <template v-if="isAdmin && data?.project_id" #actions>
-      <AssistantSettings :project-id="data.project_id" />
-    </template>
     <div class="flex min-h-0 flex-1 flex-col gap-3">
-      <p class="text-sm text-(--ui-text-muted)">{{ t('assistant.intro') }}</p>
+      <!-- the settings button shares the intro's line: a row of its own would take room from the chat -->
+      <div class="flex shrink-0 items-start gap-2">
+        <p class="min-w-0 flex-1 text-sm text-(--ui-text-muted)">{{ t('assistant.intro') }}</p>
+        <AssistantSettings v-if="isAdmin && data?.project_id" :project-id="data.project_id" />
+      </div>
       <ChatPanel v-if="data?.project_id" :project-id="data.project_id" />
       <UAlert v-else-if="error" color="warning" variant="subtle" :title="t('assistant.missing')" />
     </div>
