@@ -32,6 +32,11 @@ func (s *server) fullExportRoutes(mux *http.ServeMux, admin func(http.HandlerFun
 		mux.Handle("POST /api/peers/{id}/full-offer", admin(s.fullOffer))
 		mux.Handle("POST /api/peers/{id}/full-pull", admin(s.fullPull))
 		mux.HandleFunc("GET /api/peer/full-export", s.peerCall(s.peerFullExport))
+		mux.Handle("POST /api/peers/{id}/projects-offer", admin(s.projectsOffer)) // ADR-278
+		mux.Handle("POST /api/peers/{id}/projects-fetch", admin(s.projectsFetch))
+		mux.Handle("POST /api/peers/{id}/projects-sync", admin(s.projectsSync))
+		mux.HandleFunc("GET /api/peer/projects-export", s.peerCall(s.peerProjectsExport))
+		mux.HandleFunc("POST /api/peer/projects-sync", s.peerCall(s.peerProjectsSync))
 	}
 }
 
@@ -51,7 +56,7 @@ var (
 		sync.Mutex
 		m map[string]fullOfferEntry // peer id → its offer
 	}{m: map[string]fullOfferEntry{}}
-	exportName = regexp.MustCompile(`^(office|projects)-[0-9-]+\.tar\.zst\.age$`)
+	exportName = regexp.MustCompile(`^(office|projects)-[0-9a-f-]+\.tar\.zst\.age$`)
 )
 
 type fullOfferEntry struct {

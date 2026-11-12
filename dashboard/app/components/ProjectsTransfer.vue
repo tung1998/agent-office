@@ -5,10 +5,13 @@
 interface Project { id: string, name: string }
 interface Staged { slug: string, name: string, kind: string, conflict?: { id: string, name: string, reason: 'name' | 'remote' }, new_name: string }
 interface Result { name: string, action: string, ok: boolean, path?: string, note?: string }
+interface Peer { id: string, name: string }
 
 const { t } = useLang()
 const toast = useToast()
 const { data: projData, error: projError, refresh: refreshProjects } = useLiveFetch<{ projects: Project[] }>('/api/projects', { lazy: true })
+const { data: peerData, error: peerError, refresh: refreshPeers } = useLazyFetch<{ peers: Peer[] }>('/api/peers')
+const peerItems = computed(() => (peerData.value?.peers ?? []).map(p => ({ label: p.name, value: p.id })))
 const projectItems = computed(() => (projData.value?.projects ?? []).map(p => ({ label: p.name, value: p.id })))
 
 const tab = ref<'export' | 'import'>('export')
@@ -31,8 +34,7 @@ async function exportChosen() {
   busy.value = 'export'
   download.value = null
   try {
-    const include = [...(withChats.value ? ['chats'] : []), ...(withMemory.value ? ['memory'] : [])]
-    download.value = await $fetch('/api/transfer/projects-export', { method: 'POST', body: { project_ids: chosen.value, include, passphrase: pass.value } })
+    download.value = await $fetch('/api/transfer/projects-export', { method: 'POST', body: { project_ids: chosen.value, include: includes(), passphrase: pass.value } })
   } catch (e) {
     toast.add({ title: apiError(e), color: 'error' })
   } finally {
@@ -40,7 +42,41 @@ async function exportChosen() {
   }
 }
 
-// ---- import: file → preview → choices → import ----
+// ---- through a paired office: let it fetch once, or sync now ----
+const sendTo = ref('')
+const synced = ref<Result[] | null>(null)
+const peerName = (id: string) => peerData.value?.peers.find(p => p.id === id)?.name ?? ''
+const includes = () => [...(withChats.value ? ['chats'] : []), ...(withMemory.value ? ['memory'] : [])]
+async function offer() {
+  busy.value = 'offer'
+  try {
+    const r = await $fetch<{ size: number }>(`/api/peers/${sendTo.value}/projects-offer`, { method: 'POST', body: { project_ids: chosen.value, include: includes(), passphrase: pass.value } })
+    toast.add({ title: t('transfer.office.sent', { name: peerName(sendTo.value), mb: mb(r.size) }), color: 'success' })
+  } catch (e) {
+    toast.add({ title: apiError(e), color: 'error' })
+  } finally {
+    busy.value = ''
+  }
+}
+async function syncNow() {
+  busy.value = 'sync'
+  synced.value = null
+  try {
+    synced.value = (await $fetch<{ results: Result[] }>(`/api/peers/${sendTo.value}/projects-sync`, { method: 'POST', body: { project_ids: chosen.value, include: includes() } })).results
+  } catch (e) {
+    toast.add({ title: apiError(e), color: 'error' })
+  } finally {
+    busy.value = ''
+  }
+}
+
+// ---- import: file or paired office → preview → choices → import ----
+const source = ref<'file' | 'peer'>('file')
+const sources = computed(() => [
+  { label: t('transfer.office.fromFile'), value: 'file' },
+  { label: t('transfer.office.fromPeer'), value: 'peer', disabled: !peerItems.value.length }
+])
+const fromPeer = ref('')
 const fileInput = ref<HTMLInputElement | null>(null)
 const file = ref<File | null>(null)
 const token = ref('')
@@ -60,12 +96,18 @@ function onFile(e: Event) {
 async function preview() {
   busy.value = 'preview'
   try {
-    const res = await fetch('/api/transfer/projects-import', {
-      method: 'POST', body: file.value, credentials: 'same-origin',
-      headers: { 'Content-Type': 'application/octet-stream', 'X-Office-Passphrase': pass.value }
-    })
-    const body = await res.json()
-    if (!res.ok) throw new Error(body?.error || res.statusText)
+    let body: { token: string, projects: Staged[] }
+    if (source.value === 'peer') {
+      body = await $fetch(`/api/peers/${fromPeer.value}/projects-fetch`, { method: 'POST', body: { passphrase: pass.value } })
+    } else {
+      const res = await fetch('/api/transfer/projects-import', {
+        method: 'POST', body: file.value, credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/octet-stream', 'X-Office-Passphrase': pass.value }
+      })
+      const raw = await res.json()
+      if (!res.ok) throw new Error(raw?.error || res.statusText)
+      body = raw
+    }
     token.value = body.token
     staged.value = body.projects
     choice.value = Object.fromEntries(staged.value.map(p => [p.slug, 'new'])) // a clash becomes a copy unless the person says otherwise
@@ -127,16 +169,56 @@ async function apply() {
         <UButton v-if="download" icon="i-lucide-download" color="success" variant="soft" :to="`/api/transfer/full-export/${download.name}`" external
                  :label="t('transfer.download', { mb: mb(download.size) })" />
       </div>
+      <div class="space-y-3 border-t border-(--ui-border) pt-4">
+        <p class="text-sm font-medium">{{ t('transfer.office.orPeer') }}</p>
+        <UAlert v-if="peerError" color="error" variant="subtle" :description="apiError(peerError)">
+          <template #actions><UButton size="xs" color="neutral" variant="outline" :label="t('common.refresh')" @click="refreshPeers()" /></template>
+        </UAlert>
+        <USkeleton v-else-if="!peerData" class="h-8 w-64" />
+        <p v-else-if="!peerItems.length" class="text-sm text-(--ui-text-muted)">{{ t('transfer.office.noPeers') }}</p>
+        <template v-else>
+          <div class="flex flex-wrap items-end gap-2">
+            <UFormField :label="t('transfer.office.peer')">
+              <USelect v-model="sendTo" :items="peerItems" :placeholder="t('transfer.office.pickPeer')" class="min-w-56" />
+            </UFormField>
+            <UButton icon="i-lucide-refresh-cw" :label="t('transfer.projects.syncNow')" :loading="busy === 'sync'" :disabled="!sendTo || !chosen.length || !!busy" @click="syncNow" />
+            <UButton icon="i-lucide-send" color="neutral" variant="outline" :label="t('transfer.office.sendPeer')" :loading="busy === 'offer'"
+                     :disabled="!sendTo || !chosen.length || !passValid || !!busy" @click="offer" />
+          </div>
+          <ul class="space-y-1 text-xs text-(--ui-text-muted)">
+            <li><span class="font-medium text-(--ui-text)">{{ t('transfer.projects.syncNow') }}:</span> {{ t('transfer.projects.syncHint') }}</li>
+            <li><span class="font-medium text-(--ui-text)">{{ t('transfer.office.sendPeer') }}:</span> {{ t('transfer.projects.offerHint') }}</li>
+          </ul>
+        </template>
+        <UAlert v-if="synced" :color="synced.every(r => r.ok) ? 'success' : 'warning'" variant="subtle"
+                :icon="synced.every(r => r.ok) ? 'i-lucide-circle-check' : 'i-lucide-triangle-alert'" :title="t('transfer.projects.synced', { name: peerName(sendTo) })">
+          <template #description>
+            <ul class="space-y-1 text-xs">
+              <li v-for="r in synced" :key="r.name" class="flex items-start gap-1.5">
+                <UIcon :name="r.ok ? 'i-lucide-check' : 'i-lucide-alert-circle'" class="mt-0.5 size-3.5 shrink-0" :aria-label="r.ok ? t('transfer.ok') : t('transfer.failed')" />
+                <span>{{ r.name }} · {{ r.action === 'overwrite' ? t('transfer.projects.updated') : r.action === 'new' ? t('transfer.projects.added') : r.action }}<span v-if="r.note"> · {{ r.note }}</span></span>
+              </li>
+            </ul>
+          </template>
+        </UAlert>
+      </div>
     </div>
 
     <div v-else class="space-y-5">
       <template v-if="!staged.length">
-        <div>
+        <UFormField :label="t('transfer.office.source')">
+          <URadioGroup v-model="source" :items="sources" orientation="horizontal" />
+        </UFormField>
+        <div v-if="source === 'file'">
           <input ref="fileInput" type="file" accept=".age" class="hidden" @change="onFile">
           <UButton icon="i-lucide-file-up" color="neutral" variant="outline" :label="file ? file.name : t('transfer.chooseFile')" @click="fileInput?.click()" />
         </div>
+        <UFormField v-else :label="t('transfer.office.peer')" :hint="t('transfer.projects.fetchHint')">
+          <USelect v-model="fromPeer" :items="peerItems" :placeholder="t('transfer.office.pickPeer')" class="min-w-56" />
+        </UFormField>
         <PassphraseField v-model="pass" v-model:valid="passValid" />
-        <UButton icon="i-lucide-list-checks" :label="t('transfer.projects.preview')" :loading="busy === 'preview'" :disabled="!file || !passValid || !!busy" @click="preview" />
+        <UButton icon="i-lucide-list-checks" :label="t('transfer.projects.preview')" :loading="busy === 'preview'"
+                 :disabled="(source === 'file' ? !file : !fromPeer) || !passValid || !!busy" @click="preview" />
       </template>
 
       <template v-else>

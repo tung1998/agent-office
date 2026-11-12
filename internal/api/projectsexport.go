@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -43,34 +44,40 @@ func (s *server) projectsExport(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "invalid json")
 		return
 	}
-	if !fullBusy.TryLock() {
-		writeError(w, http.StatusConflict, "đang có một lần xuất/nhập, chờ nó xong")
+	path, size, status, err := s.buildProjectsArchive(r, in.ProjectIDs, in.Include, in.Passphrase)
+	if err != nil {
+		writeError(w, status, err.Error())
 		return
 	}
+	writeJSON(w, http.StatusOK, map[string]any{"name": filepath.Base(path), "size": size})
+}
+
+// buildProjectsArchive writes the chosen projects to a new file in
+// exportsDir; on failure, the HTTP status to answer with.
+func (s *server) buildProjectsArchive(r *http.Request, ids, include []string, passphrase string) (string, int64, int, error) {
+	if !fullBusy.TryLock() {
+		return "", 0, http.StatusConflict, errors.New("đang có một lần xuất/nhập, chờ nó xong")
+	}
 	defer fullBusy.Unlock()
-	include := append([]string{transfer.IncludeConfig}, in.Include...) // the agents always go: a project is nothing without them
+	include = append([]string{transfer.IncludeConfig}, include...) // the agents always go: a project is nothing without them
 	var refs []fullexport.ProjectRef
-	for _, id := range in.ProjectIDs {
+	for _, id := range ids {
 		rp, err := s.cfg.Store.Repos().Get(r.Context(), id)
 		if err != nil {
-			writeError(w, http.StatusNotFound, "không có project "+id)
-			return
+			return "", 0, http.StatusNotFound, errors.New("không có project " + id)
 		}
 		refs = append(refs, fullexport.ProjectRef{ID: rp.ID, Name: rp.Name, Path: rp.Path})
 	}
 	if err := os.MkdirAll(s.exportsDir(), 0o700); err != nil {
-		s.internal(w, r, err)
-		return
+		return "", 0, http.StatusInternalServerError, err
 	}
-	name := "projects-" + time.Now().Format("20060102-150405") + ".tar.zst.age"
-	path := filepath.Join(s.exportsDir(), name)
+	path := filepath.Join(s.exportsDir(), "projects-"+time.Now().Format("20060102-150405")+"-"+randomHex(3)+".tar.zst.age")
 	f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_EXCL, 0o600)
 	if err != nil {
-		s.internal(w, r, err)
-		return
+		return "", 0, http.StatusInternalServerError, err
 	}
 	_, err = fullexport.ExportProjects(r.Context(), f, fullexport.ProjectsExportOptions{
-		HomeDir: s.cfg.System.HomeDir, Projects: refs, Passphrase: in.Passphrase,
+		HomeDir: s.cfg.System.HomeDir, Projects: refs, Passphrase: passphrase,
 		Pack: func(id string) ([]byte, error) {
 			p, err := s.cfg.Transfer.ExportPack(r.Context(), id, include, nil)
 			if err != nil {
@@ -82,14 +89,22 @@ func (s *server) projectsExport(w http.ResponseWriter, r *http.Request) {
 	if cerr := f.Close(); err == nil {
 		err = cerr
 	}
-	s.audit(r, audit.Change{Action: "office.projects_export", Resource: "office", Detail: map[string]any{"projects": in.ProjectIDs}, Err: err})
+	s.audit(r, audit.Change{Action: "office.projects_export", Resource: "office", Detail: map[string]any{"projects": ids}, Err: err})
 	if err != nil {
 		_ = os.Remove(path)
-		writeError(w, http.StatusBadRequest, err.Error())
-		return
+		return "", 0, http.StatusBadRequest, err
 	}
-	st, _ := os.Stat(path)
-	writeJSON(w, http.StatusOK, map[string]any{"name": name, "size": st.Size()})
+	st, err := os.Stat(path)
+	if err != nil {
+		return "", 0, http.StatusInternalServerError, err
+	}
+	return path, st.Size(), 0, nil
+}
+
+func randomHex(n int) string {
+	b := make([]byte, n)
+	_, _ = rand.Read(b)
+	return hex.EncodeToString(b)
 }
 
 // stagedProject is what the preview tells of one project.
@@ -109,16 +124,20 @@ type stagedProject struct {
 // projectsImportPreview unpacks an uploaded archive and says which projects
 // clash with this office's.
 func (s *server) projectsImportPreview(w http.ResponseWriter, r *http.Request) {
+	s.stagePreview(w, r, r.Body, r.Header.Get(passphraseHeader))
+}
+
+// stagePreview unpacks an archive of projects for the person to choose
+// what each becomes, and answers the preview.
+func (s *server) stagePreview(w http.ResponseWriter, r *http.Request, body io.Reader, passphrase string) {
 	if !fullBusy.TryLock() {
 		writeError(w, http.StatusConflict, "đang có một lần xuất/nhập, chờ nó xong")
 		return
 	}
 	defer fullBusy.Unlock()
 	s.dropOldStages()
-	b := make([]byte, 12)
-	_, _ = rand.Read(b)
-	token := hex.EncodeToString(b)
-	st, err := fullexport.StageProjects(r.Context(), r.Body, r.Header.Get(passphraseHeader), s.stagingDir(token))
+	token := randomHex(12)
+	st, err := fullexport.StageProjects(r.Context(), body, passphrase, s.stagingDir(token))
 	if err != nil {
 		_ = os.RemoveAll(s.stagingDir(token))
 		writeError(w, http.StatusBadRequest, err.Error())
@@ -129,8 +148,7 @@ func (s *server) projectsImportPreview(w http.ResponseWriter, r *http.Request) {
 		s.internal(w, r, err)
 		return
 	}
-	out := previewProjects(st.Manifest.Projects, list)
-	writeJSON(w, http.StatusOK, map[string]any{"token": token, "exported_at": st.Manifest.ExportedAt, "projects": out})
+	writeJSON(w, http.StatusOK, map[string]any{"token": token, "exported_at": st.Manifest.ExportedAt, "projects": previewProjects(st.Manifest.Projects, list)})
 }
 
 // previewProjects marks the clashes with existing and the name a new copy gets.
@@ -218,8 +236,30 @@ func (s *server) projectsImportApply(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer os.RemoveAll(dir)
+	results, err := s.applyStaged(r, st, in.Decisions, in.ProjectsDir, "skip")
+	if err != nil {
+		s.internal(w, r, err)
+		return
+	}
+	s.audit(r, audit.Change{Action: "office.projects_import", Resource: "office", Detail: map[string]any{"decisions": in.Decisions}})
+	writeJSON(w, http.StatusOK, map[string]any{"results": results})
+}
+
+// importResult is what became of one imported project.
+type importResult struct {
+	Name   string `json:"name"`
+	Action string `json:"action"`
+	ID     string `json:"id,omitempty"`
+	Path   string `json:"path,omitempty"`
+	OK     bool   `json:"ok"`
+	Note   string `json:"note,omitempty"`
+}
+
+// applyStaged imports staged projects by decisions (slug → new | overwrite |
+// skip). A project with no decision is made new, or, when it clashes with
+// one here, gets onClash (the dashboard: skip; a sync: overwrite).
+func (s *server) applyStaged(r *http.Request, st fullexport.Staged, decisions map[string]string, projectsDir, onClash string) ([]importResult, error) {
 	ctx := r.Context()
-	projectsDir := in.ProjectsDir
 	if projectsDir == "" {
 		projectsDir = filepath.Dir(s.cfg.System.ProjectRoot)
 		if s.cfg.System.ProjectRoot == "" {
@@ -228,29 +268,20 @@ func (s *server) projectsImportApply(w http.ResponseWriter, r *http.Request) {
 	}
 	existing, err := s.cfg.Store.Repos().List(ctx)
 	if err != nil {
-		s.internal(w, r, err)
-		return
+		return nil, err
 	}
 	preview := previewProjects(st.Manifest.Projects, existing)
-	type result struct {
-		Name   string `json:"name"`
-		Action string `json:"action"`
-		ID     string `json:"id,omitempty"`
-		Path   string `json:"path,omitempty"`
-		OK     bool   `json:"ok"`
-		Note   string `json:"note,omitempty"`
-	}
-	var results []result
+	var results []importResult
 	for i, p := range st.Manifest.Projects {
 		pv := preview[i]
-		action := in.Decisions[p.Slug]
+		action := decisions[p.Slug]
 		if action == "" || action == "import" {
 			action = "new"
 			if pv.Conflict != nil {
-				action = "skip" // a clash never overwrites unless the person said so
+				action = onClash
 			}
 		}
-		res := result{Name: p.Name, Action: action}
+		res := importResult{Name: p.Name, Action: action}
 		raw, err := st.Pack(p.Slug)
 		var pack transfer.Pack
 		if err == nil {
@@ -284,8 +315,7 @@ func (s *server) projectsImportApply(w http.ResponseWriter, r *http.Request) {
 		}
 		results = append(results, res)
 	}
-	s.audit(r, audit.Change{Action: "office.projects_import", Resource: "office", Detail: map[string]any{"decisions": in.Decisions}})
-	writeJSON(w, http.StatusOK, map[string]any{"results": results})
+	return results, nil
 }
 
 // importNewProject makes p a new project called name: its code in a fresh
