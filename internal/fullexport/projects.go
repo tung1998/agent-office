@@ -184,13 +184,26 @@ func (st Staged) Pack(slug string) ([]byte, error) {
 }
 
 // RestoreCode puts staged project p's code at to (a folder that does not
-// exist or is empty).
-func (st Staged) RestoreCode(ctx context.Context, p Project, to string) (bool, string) {
+// exist or is empty). A failed clone leaves to made but empty, and says so
+// (NoCode): the caller keeps the code with KeepCode once the project exists.
+func (st Staged) RestoreCode(ctx context.Context, p Project, to string) restored {
 	if p.Kind == KindMissing {
 		if err := os.MkdirAll(to, 0o755); err != nil {
-			return false, err.Error()
+			return restored{Note: err.Error()}
 		}
-		return true, "thư mục đã mất ở office cũ: tạo thư mục trống"
+		return restored{OK: true, Note: "thư mục đã mất ở office cũ: tạo thư mục trống"}
 	}
-	return restoreProject(ctx, p, filepath.Join(st.Dir, "code", p.Slug), to)
+	r := restoreProject(ctx, p, filepath.Join(st.Dir, "code", p.Slug), to)
+	if r.NoCode {
+		_ = os.MkdirAll(to, 0o755)
+	}
+	return r
 }
+
+// KeepCode keeps staged project p's code for project id, waiting for access.
+func (st Staged) KeepCode(home, projectID string, p Project, r restored) error {
+	return KeepPending(home, projectID, p, filepath.Join(st.Dir, "code", p.Slug), r)
+}
+
+// Restored is RestoreCode's answer, exported for callers outside.
+type Restored = restored

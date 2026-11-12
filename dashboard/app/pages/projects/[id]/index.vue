@@ -103,6 +103,7 @@ async function removeRepo() {
     <!-- Chat fills the page height (the panel body is a bounded flex column) -->
     <div v-if="project" :class="((tab === 'chat' || tab === 'tasks') && project.agent_count) || tab === 'files' || tab === 'support' ? 'flex min-h-0 flex-1 flex-col gap-4' : 'space-y-4'">
       <UAlert v-if="!project.exists" color="error" variant="subtle" icon="i-lucide-folder-x" :title="t('project.notFound')" />
+      <PendingCodeBanner :project-id="project.id" @done="refresh()" />
 
 
       <!-- a tab whose panel waits for its data (an await in setup) shows its shape

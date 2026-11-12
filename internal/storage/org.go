@@ -783,6 +783,9 @@ type RepoRepo interface {
 	// prevUpdatedAt is updated_at as last read by the caller (CAS): ErrStale if
 	// the row changed since, ErrNotFound if it was deleted meanwhile.
 	UpdateInfoRemote(ctx context.Context, id, name, description, gitRemote string, prevUpdatedAt time.Time) error
+	// SetPath moves a project to another folder (its code cloned elsewhere,
+	// ADR-279); ErrConflict when another project has that folder.
+	SetPath(ctx context.Context, id, path, gitRemote string) error
 	// SetDefaultAgent writes only the default agent, leaving other fields untouched.
 	SetDefaultAgent(ctx context.Context, id, agentID string) error
 	Get(ctx context.Context, id string) (Repo, error)

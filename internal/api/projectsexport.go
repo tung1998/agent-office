@@ -119,6 +119,10 @@ type stagedProject struct {
 		Reason string `json:"reason"` // name | remote
 	} `json:"conflict,omitempty"`
 	NewName string `json:"new_name"` // the name "new" would give
+	// Access: whether this machine may clone its repo (ok | auth | network |
+	// missing | other); "" when it has no remote (ADR-279)
+	Access     string `json:"access,omitempty"`
+	AccessNote string `json:"access_note,omitempty"`
 }
 
 // projectsImportPreview unpacks an uploaded archive and says which projects
@@ -148,7 +152,9 @@ func (s *server) stagePreview(w http.ResponseWriter, r *http.Request, body io.Re
 		s.internal(w, r, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"token": token, "exported_at": st.Manifest.ExportedAt, "projects": previewProjects(st.Manifest.Projects, list)})
+	out := previewProjects(st.Manifest.Projects, list)
+	probeAccess(r.Context(), out) // say before importing which repos this machine cannot clone yet
+	writeJSON(w, http.StatusOK, map[string]any{"token": token, "exported_at": st.Manifest.ExportedAt, "projects": out})
 }
 
 // previewProjects marks the clashes with existing and the name a new copy gets.
@@ -165,7 +171,7 @@ func previewProjects(in []fullexport.Project, existing []storage.Repo) []stagedP
 			switch {
 			case strings.EqualFold(r.Name, p.Name):
 				reason = "name"
-			case p.Remote != "" && sameRemote(r.GitRemote, p.Remote):
+			case p.Remote != "" && fullexport.SameRemote(r.GitRemote, p.Remote):
 				reason = "remote"
 			}
 			if reason != "" {
@@ -194,23 +200,6 @@ func numbered(name string, taken func(string) bool) string {
 			return n
 		}
 	}
-}
-
-// sameRemote compares git remotes without scheme, user, ".git" and case
-// (git@host:a/b.git is https://host/a/b).
-func sameRemote(a, b string) bool {
-	norm := func(u string) string {
-		u = strings.ToLower(strings.TrimSpace(u))
-		u = strings.TrimSuffix(strings.TrimSuffix(u, "/"), ".git")
-		if i := strings.Index(u, "://"); i >= 0 {
-			u = u[i+3:]
-		}
-		if i := strings.Index(u, "@"); i >= 0 {
-			u = u[i+1:]
-		}
-		return strings.Replace(u, ":", "/", 1)
-	}
-	return a != "" && norm(a) == norm(b)
 }
 
 // projectsImportApply carries out the person's choice for each staged project.
@@ -322,6 +311,7 @@ func (s *server) applyStaged(r *http.Request, st fullexport.Staged, decisions ma
 // folder under projectsDir, then its pack.
 func (s *server) importNewProject(r *http.Request, st fullexport.Staged, p fullexport.Project, pack transfer.Pack, name, projectsDir string) (id, path string, ok bool, note string) {
 	ctx := r.Context()
+	var waiting fullexport.Restored // a failed clone: the project still comes, its code waits (ADR-279)
 	repo := storage.Repo{Name: name, Description: pack.Project.Description, GitRemote: p.Remote}
 	if p.Kind != fullexport.KindHelper {
 		base := filepath.Base(p.Path)
@@ -332,13 +322,16 @@ func (s *server) importNewProject(r *http.Request, st fullexport.Staged, p fulle
 		for i := 2; exists(to); i++ {
 			to = filepath.Join(projectsDir, fmt.Sprintf("%s-%d", base, i))
 		}
-		okCode, codeNote := st.RestoreCode(ctx, p, to)
-		if !okCode && !exists(to) {
-			return "", "", false, codeNote
+		rc := st.RestoreCode(ctx, p, to)
+		if !rc.OK && !rc.NoCode && !exists(to) {
+			return "", "", false, rc.Note
 		}
-		note = codeNote
+		note, waiting = rc.Note, rc
 		if info, err := repos.Detect(to); err == nil {
-			repo.Path, repo.GitRemote = info.Path, info.GitRemote
+			repo.Path = info.Path
+			if info.GitRemote != "" { // a folder still waiting for its clone keeps the repo it came with
+				repo.GitRemote = info.GitRemote
+			}
 		} else {
 			repo.Path = to
 		}
@@ -352,6 +345,12 @@ func (s *server) importNewProject(r *http.Request, st fullexport.Staged, p fulle
 	}
 	if _, err := s.cfg.Transfer.ImportPack(ctx, pack, created, pack.Include); err != nil {
 		return created.ID, created.Path, false, "đã tạo project nhưng nhập cấu hình lỗi: " + err.Error()
+	}
+	if waiting.NoCode {
+		if err := st.KeepCode(s.cfg.System.HomeDir, created.ID, p, waiting); err != nil {
+			return created.ID, created.Path, false, "đã tạo project nhưng không giữ được code chờ clone: " + err.Error()
+		}
+		return created.ID, created.Path, true, "chờ code: " + note
 	}
 	return created.ID, created.Path, true, note
 }

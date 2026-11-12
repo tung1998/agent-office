@@ -330,7 +330,7 @@ func countFiles(root, home string) (int, error) {
 
 func git(ctx context.Context, dir string, args ...string) (string, error) {
 	cmd := exec.CommandContext(ctx, "git", append([]string{"-C", dir}, args...)...)
-	cmd.Env = append(os.Environ(), "GIT_TERMINAL_PROMPT=0")
+	cmd.Env = gitEnv()
 	out, err := cmd.CombinedOutput()
 	return string(out), err
 }
@@ -338,7 +338,7 @@ func git(ctx context.Context, dir string, args ...string) (string, error) {
 // gitRaw is git's stdout only (a patch or a NUL list must not get stderr).
 func gitRaw(ctx context.Context, dir string, args ...string) ([]byte, error) {
 	cmd := exec.CommandContext(ctx, "git", append([]string{"-C", dir}, args...)...)
-	cmd.Env = append(os.Environ(), "GIT_TERMINAL_PROMPT=0")
+	cmd.Env = gitEnv()
 	return cmd.Output()
 }
 
@@ -382,4 +382,15 @@ func realDir(p string) string {
 		return r
 	}
 	return filepath.Clean(p)
+}
+
+// gitEnv never lets git wait for a person: no password prompt, and SSH in
+// batch mode (an unknown host or a key with a passphrase fails at once, as
+// "no access", instead of hanging the import).
+func gitEnv() []string {
+	env := append(os.Environ(), "GIT_TERMINAL_PROMPT=0")
+	if os.Getenv("GIT_SSH_COMMAND") == "" {
+		env = append(env, "GIT_SSH_COMMAND=ssh -o BatchMode=yes -o ConnectTimeout=15")
+	}
+	return env
 }

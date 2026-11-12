@@ -21,6 +21,7 @@ import (
 	"github.com/tung1998/agent-office/internal/audit"
 	"github.com/tung1998/agent-office/internal/automation"
 	"github.com/tung1998/agent-office/internal/deps"
+	"github.com/tung1998/agent-office/internal/fullexport"
 	"github.com/tung1998/agent-office/internal/mcpserver"
 	"github.com/tung1998/agent-office/internal/memory"
 	"github.com/tung1998/agent-office/internal/officetools"
@@ -505,6 +506,11 @@ func (e *Engine) placeFor(ctx context.Context, project storage.Repo, policy perm
 	}
 	dir, err := e.trees.Ensure(ctx, project.Path, project.ID, name, policy.WorktreeLinks)
 	if errors.Is(err, worktree.ErrNotGit) {
+		// a project imported before its repo could be cloned here (ADR-279):
+		// say so instead of letting the agent edit an empty folder
+		if pc, waiting, _ := fullexport.LoadPending(OfficeDir, project.ID); waiting && write {
+			return place{}, fmt.Errorf("project này chưa có code: repo %s chưa clone được về máy này (%s). Mở trang project để clone lại, dùng URL khác hoặc chọn thư mục đã clone", pc.Project.Remote, pc.Message)
+		}
 		return place{dir: project.Path}, nil
 	}
 	if err != nil {

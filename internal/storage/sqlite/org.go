@@ -369,6 +369,14 @@ func (r repoRepo) UpdateInfoRemote(ctx context.Context, id, name, description, g
 	return nil
 }
 
+func (r repoRepo) SetPath(ctx context.Context, id, path, gitRemote string) error {
+	err := execOne(ctx, r.db, `UPDATE repos SET path=?, git_remote=?, updated_at=? WHERE id=?`, path, gitRemote, fmtTime(time.Now()), id)
+	if isUnique(err) {
+		return storage.ErrConflict
+	}
+	return err
+}
+
 func (r repoRepo) SetDefaultAgent(ctx context.Context, id, agentID string) error {
 	return execOne(ctx, r.db, `UPDATE repos SET default_agent_id=?, updated_at=? WHERE id=?`,
 		agentID, fmtTime(time.Now()), id)

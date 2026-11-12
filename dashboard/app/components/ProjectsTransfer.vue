@@ -3,7 +3,7 @@
 // are two tabs; importing shows what each project becomes before anything is
 // written, and asks only where a project clashes with one here.
 interface Project { id: string, name: string }
-interface Staged { slug: string, name: string, kind: string, conflict?: { id: string, name: string, reason: 'name' | 'remote' }, new_name: string }
+interface Staged { slug: string, name: string, kind: string, conflict?: { id: string, name: string, reason: 'name' | 'remote' }, new_name: string, access?: string, access_note?: string }
 interface Result { name: string, action: string, ok: boolean, path?: string, note?: string }
 interface Peer { id: string, name: string }
 
@@ -230,6 +230,10 @@ async function apply() {
               <UBadge v-if="p.conflict" color="warning" variant="subtle" icon="i-lucide-copy"
                       :label="p.conflict.reason === 'name' ? t('transfer.projects.clashName', { name: p.conflict.name }) : t('transfer.projects.clashRemote', { name: p.conflict.name })" />
             </div>
+            <p v-if="p.access && p.access !== 'ok'" class="flex items-start gap-1.5 text-xs text-(--ui-warning)">
+              <UIcon name="i-lucide-lock" class="mt-0.5 size-3.5 shrink-0" />
+              <span>{{ p.access === 'network' ? t('pendingCode.previewNetwork') : t('pendingCode.previewAuth') }}<span v-if="p.access_note"> · <code class="break-all">{{ p.access_note }}</code></span></span>
+            </p>
             <URadioGroup v-if="p.conflict" v-model="choice[p.slug]" :items="choices" orientation="horizontal" size="sm"
                          :aria-label="t('transfer.projects.choiceFor', { name: p.name })" />
             <p class="text-xs text-(--ui-text-muted)">{{ outcome(p) }}</p>

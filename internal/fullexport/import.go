@@ -39,6 +39,7 @@ type ImportOptions struct {
 type ProjectResult struct {
 	Name, From, To, Kind string
 	OK                   bool
+	Pending              bool // the clone failed: the project waits for its code (ADR-279)
 	Note                 string
 }
 
@@ -148,7 +149,14 @@ func Import(ctx context.Context, r io.Reader, o ImportOptions) (Report, error) {
 		}
 		res := ProjectResult{Name: p.Name, From: p.Path, To: targets[p.Path], Kind: p.Kind}
 		logf("• %s → %s", p.Name, res.To)
-		res.OK, res.Note = restoreProject(ctx, p, filepath.Join(stage, "code", p.Slug), res.To)
+		r := restoreProject(ctx, p, filepath.Join(stage, "code", p.Slug), res.To)
+		res.OK, res.Note = r.OK, r.Note
+		if r.NoCode { // its data comes in all the same; its code waits for access (ADR-279)
+			_ = os.MkdirAll(res.To, 0o755)
+			if err := KeepPending(o.HomeDir, p.ID, p, filepath.Join(stage, "code", p.Slug), r); err == nil {
+				res.Pending, res.Note = true, "chờ code: "+r.Note
+			}
+		}
 		if !res.OK {
 			rep.Warnings = append(rep.Warnings, fmt.Sprintf("%s: %s", p.Name, res.Note))
 		}
@@ -239,7 +247,7 @@ func projectTargets(m Manifest, o ImportOptions) map[string]string {
 }
 
 // restoreProject puts p's code at to from its staged files in src.
-func restoreProject(ctx context.Context, p Project, src, to string) (bool, string) {
+func restoreProject(ctx context.Context, p Project, src, to string) restored {
 	// .office alone (this office's data, just restored) does not make the folder taken
 	exists := false
 	if entries, err := os.ReadDir(to); err == nil {
@@ -251,34 +259,34 @@ func restoreProject(ctx context.Context, p Project, src, to string) (bool, strin
 	}
 	switch p.Kind {
 	case KindMissing:
-		return false, "thư mục đã mất trên máy cũ, không có code để mang"
+		return restored{OK: false, Note: "thư mục đã mất trên máy cũ, không có code để mang"}
 	case KindPlain:
 		if exists {
-			return false, "thư mục đích đã có file, giữ nguyên (file trong bản export không được chép)"
+			return restored{OK: false, Note: "thư mục đích đã có file, giữ nguyên (file trong bản export không được chép)"}
 		}
 		if err := os.MkdirAll(filepath.Dir(to), 0o755); err != nil {
-			return false, err.Error()
+			return restored{OK: false, Note: err.Error()}
 		}
 		files := filepath.Join(src, "files")
 		if _, err := os.Stat(files); err != nil {
-			return true, "thư mục trống"
+			return restored{OK: true, Note: "thư mục trống"}
 		}
 		if err := os.Rename(files, to); err != nil { // another disk: file by file
 			if err := copyTree(files, to); err != nil {
-				return false, err.Error()
+				return restored{OK: false, Note: err.Error()}
 			}
 		}
-		return true, fmt.Sprintf("%d file", p.Files)
+		return restored{OK: true, Note: fmt.Sprintf("%d file", p.Files)}
 	}
 	bundle := filepath.Join(src, "repo.bundle")
 	if exists {
 		if _, err := git(ctx, to, "rev-parse", "--git-dir"); err != nil {
-			return false, "thư mục đích đã có file nhưng không phải repo git, giữ nguyên"
+			return restored{OK: false, Note: "thư mục đích đã có file nhưng không phải repo git, giữ nguyên"}
 		}
-		return true, "repo đã có ở đây, giữ nguyên (không áp phần chưa commit)"
+		return restored{OK: true, Note: "repo đã có ở đây, giữ nguyên (không áp phần chưa commit)"}
 	}
 	if err := os.MkdirAll(filepath.Dir(to), 0o755); err != nil {
-		return false, err.Error()
+		return restored{OK: false, Note: err.Error()}
 	}
 	// git clones only into an empty folder: clone beside it, then move in
 	final := to
@@ -289,7 +297,7 @@ func restoreProject(ctx context.Context, p Project, src, to string) (bool, strin
 	switch p.Kind {
 	case KindRemote:
 		if out, err := git(ctx, filepath.Dir(to), "clone", p.Remote, to); err != nil {
-			return false, "clone " + p.Remote + " lỗi: " + lastLine(out)
+			return restored{NoCode: true, Reason: ClassifyCloneError(out), Message: lastLine(out), Note: "clone " + p.Remote + " lỗi: " + lastLine(out)}
 		}
 		if p.Bundle {
 			if out, err := git(ctx, to, "fetch", bundle, "+refs/heads/*:refs/remotes/office-export/*"); err != nil {
@@ -301,11 +309,11 @@ func restoreProject(ctx context.Context, p Project, src, to string) (bool, strin
 	case KindGit:
 		if !p.Bundle {
 			if out, err := git(ctx, filepath.Dir(to), "init", to); err != nil {
-				return false, "git init lỗi: " + lastLine(out)
+				return restored{OK: false, Note: "git init lỗi: " + lastLine(out)}
 			}
 		} else {
 			if out, err := git(ctx, filepath.Dir(to), "clone", bundle, to); err != nil {
-				return false, "clone từ bundle lỗi: " + lastLine(out)
+				return restored{OK: false, Note: "clone từ bundle lỗi: " + lastLine(out)}
 			}
 			_, _ = git(ctx, to, "remote", "remove", "origin") // the bundle was a file here, not a remote
 		}
@@ -336,7 +344,7 @@ func restoreProject(ctx context.Context, p Project, src, to string) (bool, strin
 		}
 	}
 	if err := moveInto(to, final); err != nil {
-		return false, err.Error()
+		return restored{OK: false, Note: err.Error()}
 	}
 	to = final
 	if p.Untracked > 0 {
@@ -352,7 +360,7 @@ func restoreProject(ctx context.Context, p Project, src, to string) (bool, strin
 			ok = false
 		}
 	}
-	return ok, strings.Join(notes, "; ")
+	return restored{OK: ok, Note: strings.Join(notes, "; ")}
 }
 
 // moveInto moves each entry of src into dst (made if missing).
