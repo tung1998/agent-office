@@ -24,6 +24,9 @@ interface Tool {
   update_command?: string
   in_use: number
   upgrade?: Upgrade
+  used?: boolean // an AI connection runs it (ADR-279)
+  // the copies the connections run, when not only the one first on PATH
+  installs?: { path: string, version?: string, outdated?: boolean }[]
 }
 type Mode = 'off' | 'notify' | 'auto'
 interface List {
@@ -42,7 +45,8 @@ const busy = ref('')
 let timer: ReturnType<typeof setTimeout> | undefined
 
 const active = (u?: Upgrade) => !!u && ['waiting', 'updating', 'checking', 'rolling_back'].includes(u.state)
-const installed = computed(() => (data.value?.tools ?? []).filter(x => x.installed))
+// only the CLIs an AI connection runs (ADR-279)
+const installed = computed(() => (data.value?.tools ?? []).filter(x => x.installed && x.used !== false))
 const outdated = computed(() => installed.value.filter(x => x.outdated).length)
 // a CLI office tells about (notify or auto) with no chat to tell it in
 const untold = computed(() => data.value?.alert_chat === false
@@ -217,6 +221,13 @@ onBeforeUnmount(() => clearTimeout(timer))
             />
           </div>
         </div>
+        <ul v-if="x.installs?.length" class="space-y-0.5 ps-1">
+          <li v-for="i in x.installs" :key="i.path" class="flex flex-wrap items-center gap-x-2 text-xs text-(--ui-text-muted)">
+            <span class="min-w-0 break-all font-mono">{{ i.path }}</span>
+            <span class="font-mono">{{ i.version }}</span>
+            <UBadge v-if="i.outdated" color="warning" variant="subtle" size="sm" :label="t('cliup.newer', { v: x.latest ?? '' })" />
+          </li>
+        </ul>
         <p v-if="badOf(x.id)" class="flex items-start gap-1.5 text-xs text-(--ui-text-muted)">
           <UIcon name="i-lucide-undo-2" class="mt-0.5 size-3.5 shrink-0" />
           <span class="min-w-0 break-words">{{ t('cliup.bad', { v: badOf(x.id) ?? '' }) }}</span>

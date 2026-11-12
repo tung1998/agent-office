@@ -76,7 +76,7 @@ type Notice struct {
 	UpdateWhenIdle bool // auto mode: updated whether it was told or not
 }
 
-// Check looks at every installed CLI once: what to tell or update under s.
+// Check looks at every CLI the connections run once: what to tell or update under s.
 // A CLI told broken that starts again loses that mark (changed says so), so
 // the next break is told too.
 func (m *Manager) Check(ctx context.Context, s *AutoSetting) (out []Notice, changed bool) {
@@ -86,15 +86,16 @@ func (m *Manager) Check(ctx context.Context, s *AutoSetting) (out []Notice, chan
 		if mode == AutoOff {
 			continue
 		}
-		path := m.lookPath(t.Bin)
-		if path == "" {
+		// only the copies the connections run; a CLI none runs is left alone (ADR-279)
+		paths, _ := m.installs(ctx, t)
+		if len(paths) == 0 {
 			continue
 		}
 		if u, ok := m.Upgrade(t.ID); ok && u.Active() {
 			continue
 		}
 		n := Notice{Tool: t.ID, Name: t.Name}
-		if why := m.broken(t); why != "" { // an install broken outside office (ADR-259)
+		if why := m.brokenOf(t, paths); why != "" { // an install broken outside office (ADR-259)
 			n.Broken, n.Key = why, "broken"
 			// reinstalled once per break: one that did not fix it is told,
 			// not run again on every look
@@ -108,7 +109,7 @@ func (m *Manager) Check(ctx context.Context, s *AutoSetting) (out []Notice, chan
 				delete(s.Repair, t.ID)
 				changed = true
 			}
-			n.Version = m.version(t)
+			n.Version = m.oldest(paths)
 			latest, err := m.LatestNow(ctx, t.ID)
 			if err != nil || !Newer(n.Version, latest) {
 				continue

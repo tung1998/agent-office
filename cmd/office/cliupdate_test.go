@@ -63,7 +63,7 @@ func TestCLIUpdatesHooks(t *testing.T) {
 	if err := cu.KnownCLI("nope"); err == nil || cu.KnownCLI("codex") == nil {
 		t.Fatal("known cli")
 	}
-	if !strings.Contains(cu.CLIStatus(ctx), "chưa cài") {
+	if !strings.Contains(cu.CLIStatus(ctx), "Chưa có kết nối AI") {
 		t.Fatalf("status = %q", cu.CLIStatus(ctx))
 	}
 }

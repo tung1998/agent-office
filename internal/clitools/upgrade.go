@@ -154,13 +154,12 @@ func (m *Manager) beginUpgrade(id, by, when string) (UpgradeView, error) {
 	if !ok {
 		return UpgradeView{}, ErrUnknownTool
 	}
-	path := m.lookPath(t.Bin)
-	if path == "" {
+	targets, unknown := m.targets(context.Background(), t)
+	if len(targets) == 0 {
+		if unknown > 0 {
+			return UpgradeView{}, ErrUnknownInstall
+		}
 		return UpgradeView{}, ErrNotInstalled
-	}
-	meth, ok := updateMethod(t, path)
-	if !ok {
-		return UpgradeView{}, ErrUnknownInstall
 	}
 	m.mu.Lock()
 	if m.upgrades == nil {
@@ -182,7 +181,7 @@ func (m *Manager) beginUpgrade(id, by, when string) (UpgradeView, error) {
 	m.upgrades[id] = u
 	v := u.view
 	m.mu.Unlock()
-	go m.runUpgrade(ctx, t, meth, u)
+	go m.runUpgrade(ctx, t, targets, u)
 	return v, nil
 }
 
@@ -192,7 +191,7 @@ func (m *Manager) set(u *upgrade, fn func(v *UpgradeView)) {
 	m.mu.Unlock()
 }
 
-func (m *Manager) runUpgrade(ctx context.Context, t Tool, meth Method, u *upgrade) {
+func (m *Manager) runUpgrade(ctx context.Context, t Tool, targets []target, u *upgrade) {
 	defer u.cancel()
 	poll := m.upPoll
 	if poll <= 0 {
@@ -285,28 +284,55 @@ func (m *Manager) runUpgrade(ctx context.Context, t Tool, meth Method, u *upgrad
 	// connections' check runs the CLI exempt from it, every other run waits
 	defer func() { release() }()
 	m.set(u, func(v *UpgradeView) { v.State, v.Waiting = "updating", 0 })
-	from := m.version(t)
 	target := m.latestKnown(t.ID)
-	m.set(u, func(v *UpgradeView) { v.From, v.Target = from, target })
-	j, err := m.start(t.ID, t.ID, "update", meth.update, 15*time.Minute, term{}, "HOMEBREW_NO_ASK=1", "HOMEBREW_ASK=")
+	m.set(u, func(v *UpgradeView) { v.Target = target })
+	// every copy the connections run, one after the other under the same
+	// hold (ADR-279); the update says how the worst of them went
+	rank := map[string]int{"done": 0, "rolled_back": 1, "failed": 2}
+	state, notes := "done", []string(nil)
+	for i, tg := range targets {
+		st, note := m.upgradeOne(t, tg, u, i == 0)
+		if rank[st] > rank[state] {
+			state = st
+		}
+		if note != "" {
+			if len(targets) > 1 {
+				note = tg.path + ": " + note
+			}
+			notes = append(notes, note)
+		}
+	}
+	end(state, strings.Join(notes, "; "))
+}
+
+// upgradeOne updates the copy at tg and says how it went (done |
+// rolled_back | failed) and why; the first copy gives the update its
+// versions before and after.
+func (m *Manager) upgradeOne(t Tool, tg target, u *upgrade, first bool) (state, note string) {
+	m.set(u, func(v *UpgradeView) { v.State = "updating" })
+	from := m.versionAt(tg.path)
+	if first {
+		m.set(u, func(v *UpgradeView) { v.From = from })
+	}
+	j, err := m.start(t.ID, t.ID, "update", tg.argv, 15*time.Minute, term{}, "HOMEBREW_NO_ASK=1", "HOMEBREW_ASK=")
 	if err != nil {
-		end("failed", err.Error())
-		return
+		return "failed", err.Error()
 	}
 	m.set(u, func(v *UpgradeView) { v.JobID = j.ID })
 	j.Wait()
 	jv := j.Snapshot()
 	m.set(u, func(v *UpgradeView) { v.State = "checking" })
-	why := m.broken(t) // the new version does not start
-	if why == "" {
+	why := m.brokenAt(t, tg.path) // the new version does not start
+	if why == "" && tg.dflt {
 		why = m.recheck(t.ID)
 	}
 	if why != "" {
-		m.rollback(t, meth, u, from, why, end)
-		return
+		return m.rollback(t, tg, u, from, why, first)
 	}
-	to := m.version(t)
-	m.set(u, func(v *UpgradeView) { v.To = to })
+	to := m.versionAt(tg.path)
+	if first {
+		m.set(u, func(v *UpgradeView) { v.To = to })
+	}
 	m.mu.Lock()
 	if to != "" && m.bad[t.ID] == to { // the version put back now starts: no longer bad
 		delete(m.bad, t.ID)
@@ -318,18 +344,16 @@ func (m *Manager) runUpgrade(ctx context.Context, t Tool, meth Method, u *upgrad
 	// global prefix than the one lookPath finds, a stray Homebrew copy
 	// ahead of a native install, …) — not "done", the broken copy may still
 	// be the one every run actually uses
-	if jv.State == "succeeded" && to != "" && to == from {
-		if dups := m.Duplicates(m.lookPath(t.Bin)); len(dups) > 0 {
-			end("failed", fmt.Sprintf("đã chạy lệnh cập nhật nhưng %s vẫn ở bản %s: có bản khác đứng trước trên PATH, có thể che bản vừa cập nhật: %s",
-				t.Bin, to, strings.Join(dups, ", ")))
-			return
+	if tg.dflt && jv.State == "succeeded" && to != "" && to == from {
+		if dups := m.Duplicates(tg.path); len(dups) > 0 {
+			return "failed", fmt.Sprintf("đã chạy lệnh cập nhật nhưng %s vẫn ở bản %s: có bản khác đứng trước trên PATH, có thể che bản vừa cập nhật: %s",
+				t.Bin, to, strings.Join(dups, ", "))
 		}
 	}
 	if jv.State != "succeeded" { // the command failed but the CLI still starts: the old one is kept
-		end("failed", cmpOr(jv.Error, "lệnh cập nhật lỗi")+" (CLI vẫn chạy được)")
-		return
+		return "failed", cmpOr(jv.Error, "lệnh cập nhật lỗi") + " (CLI vẫn chạy được)"
 	}
-	end("done", "")
+	return "done", ""
 }
 
 // recheck checks the connections on the tool (SetAfterUpdate): why its
@@ -350,46 +374,52 @@ func (m *Manager) latestKnown(id string) string {
 	return m.latest[id].version
 }
 
-// rollback puts version from back after an update that left the CLI
-// broken: npm installs that exact version, under the update's hold (no run
-// started since the files changed);
+// rollback puts version from back after an update that left the copy at
+// tg broken: npm installs that exact version (into the copy's own prefix),
+// under the update's hold (no run started since the files changed);
 // Homebrew and the official installer cannot pick a version, so the person
 // is told how to fix it.
-func (m *Manager) rollback(t Tool, meth Method, u *upgrade, from, why string, end func(state, note string)) {
-	if from != "" && u.view.Target != "" {
+func (m *Manager) rollback(t Tool, tg target, u *upgrade, from, why string, first bool) (state, note string) {
+	m.mu.Lock()
+	target := u.view.Target
+	if from != "" && target != "" {
 		// a broken version: Watch does not update to it again on its own.
 		// An install that did not start before (from "") was not broken by
 		// the new version: it is not marked
-		m.mu.Lock()
 		if m.bad == nil {
 			m.bad = map[string]string{}
 		}
-		m.bad[t.ID] = u.view.Target
-		m.mu.Unlock()
+		m.bad[t.ID] = target
 	}
+	m.mu.Unlock()
 	p := pkgs[t.ID]
-	if meth.ID != "npm" || p.npm == "" || from == "" {
-		end("failed", fmt.Sprintf("bản mới không chạy được (%s); hãy cài lại: %s", why, cmpOr(manualFix(t), "cài lại CLI")))
-		return
+	if tg.meth.ID != "npm" || p.npm == "" || from == "" {
+		return "failed", fmt.Sprintf("bản mới không chạy được (%s); hãy cài lại: %s", why, cmpOr(manualFix(t), "cài lại CLI"))
 	}
 	m.set(u, func(v *UpgradeView) { v.State = "rolling_back" })
-	j, err := m.start(t.ID, t.ID, "update", []string{"npm", "install", "-g", p.npm + "@" + from}, 15*time.Minute, term{})
+	argv := []string{"npm", "install", "-g", p.npm + "@" + from}
+	if !tg.dflt {
+		if x := npmAt(tg.path, p.npm, from); x != nil {
+			argv = x
+		}
+	}
+	j, err := m.start(t.ID, t.ID, "update", argv, 15*time.Minute, term{})
 	if err != nil {
-		end("failed", fmt.Sprintf("bản mới không chạy được (%s), quay về bản %s lỗi: %v", why, from, err))
-		return
+		return "failed", fmt.Sprintf("bản mới không chạy được (%s), quay về bản %s lỗi: %v", why, from, err)
 	}
 	j.Wait()
-	still := m.broken(t)
-	if still == "" {
+	still := m.brokenAt(t, tg.path)
+	if still == "" && tg.dflt {
 		still = m.recheck(t.ID)
 	}
 	if still != "" {
-		end("failed", fmt.Sprintf("bản mới không chạy được (%s), quay về bản %s vẫn lỗi: %s", why, from, still))
-		return
+		return "failed", fmt.Sprintf("bản mới không chạy được (%s), quay về bản %s vẫn lỗi: %s", why, from, still)
 	}
-	to := m.version(t)
-	m.set(u, func(v *UpgradeView) { v.To = to })
-	end("rolled_back", "Lỗi của bản mới: "+why)
+	if first {
+		to := m.versionAt(tg.path)
+		m.set(u, func(v *UpgradeView) { v.To = to })
+	}
+	return "rolled_back", "Lỗi của bản mới: " + why
 }
 
 func manualFix(t Tool) string {
@@ -423,8 +453,10 @@ func (m *Manager) InstallFixFor(bin string) string {
 }
 
 // version is the x.y.z the installed tool says ("" when it does not start).
-func (m *Manager) version(t Tool) string {
-	path := m.lookPath(t.Bin)
+func (m *Manager) version(t Tool) string { return m.versionAt(m.lookPath(t.Bin)) }
+
+// versionAt is the x.y.z the copy at path says ("" when it does not start).
+func (m *Manager) versionAt(path string) string {
 	if path == "" {
 		return ""
 	}
@@ -439,8 +471,10 @@ func (m *Manager) version(t Tool) string {
 
 // broken says why the installed tool cannot start ("" = it starts): gone
 // from PATH, its --version failing, or npm's wrapper finding no binary.
-func (m *Manager) broken(t Tool) string {
-	path := m.lookPath(t.Bin)
+func (m *Manager) broken(t Tool) string { return m.brokenAt(t, m.lookPath(t.Bin)) }
+
+// brokenAt is broken for the copy at path.
+func (m *Manager) brokenAt(t Tool, path string) string {
 	if path == "" {
 		return "không còn lệnh " + t.Bin
 	}

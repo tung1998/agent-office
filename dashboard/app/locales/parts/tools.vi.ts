@@ -364,7 +364,7 @@ export default {
   // cliup.* — CliUpdates.vue, CliSetup.vue (ADR-259)
   'cliup.title': 'Cập nhật CLI AI',
   'cliup.loadError': 'Không tải được danh sách CLI.',
-  'cliup.help': 'Office đọc bản mới nhất của từng CLI (npm hoặc Homebrew). "Khi rảnh" chờ các lượt đang dùng CLI đó chạy xong; lượt mới chỉ chờ trong lúc thay file. Bản mới không chạy được thì office cài lại bản cũ (npm) và báo ở bot cảnh báo.',
+  'cliup.help': 'Office đọc bản mới nhất của từng CLI (npm hoặc Homebrew). "Khi rảnh" chờ các lượt đang dùng CLI đó chạy xong; lượt mới chỉ chờ trong lúc thay file. Bản mới không chạy được thì office cài lại bản cũ (npm) và báo ở bot cảnh báo. Chỉ hiện CLI mà kết nối AI đang dùng; mọi bản cài các kết nối chạy đều được cập nhật.',
   'cliup.mode': 'Chế độ cập nhật',
   'cliup.modeOf': 'Chế độ cập nhật của {name}',
   'cliup.modeOff': 'Không tự làm gì',

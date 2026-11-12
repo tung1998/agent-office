@@ -71,7 +71,7 @@ func (c cliUpdates) UpdateCLIWhenIdle(_ context.Context, tool, by string) error 
 func (c cliUpdates) CLIStatus(ctx context.Context) string {
 	var lines []string
 	for _, st := range c.m.List(ctx) {
-		if !st.Installed {
+		if !st.Installed || !st.Used { // the CLIs the connections run (ADR-279)
 			continue
 		}
 		line := "• " + st.Name + " " + cmpOr(clitools.VersionOf(st.Version), st.Version)
@@ -84,9 +84,9 @@ func (c cliUpdates) CLIStatus(ctx context.Context) string {
 		lines = append(lines, line)
 	}
 	if len(lines) == 0 {
-		return "Máy chưa cài CLI AI nào."
+		return "Chưa có kết nối AI nào chạy CLI."
 	}
-	return "CLI AI trên máy:\n" + strings.Join(lines, "\n") + "\nCập nhật: /update cli <tên> (" + strings.Join(c.m.IDs(), ", ") + ")"
+	return "CLI AI các kết nối dùng:\n" + strings.Join(lines, "\n") + "\nCập nhật: /update cli <tên> (" + strings.Join(c.m.IDs(), ", ") + ")"
 }
 
 // UpdateCLI is /update cli <tool>.
@@ -171,6 +171,49 @@ func (c cliUpdates) runsInstall(bin, shared string) bool {
 		return false
 	}
 	return samePath(p) == shared
+}
+
+// uses is, per CLI, the binaries the enabled connections run (ADR-279): the
+// update card shows only those CLIs and an update reaches every copy, not
+// only the first on PATH. A bare name is looked up as its runs look it up;
+// a relative path depends on the run's folder and is left out.
+func (c cliUpdates) uses(ctx context.Context) map[string][]string {
+	out := map[string][]string{}
+	if c.providers == nil {
+		return out
+	}
+	list, err := c.store.Providers().List(ctx)
+	if err != nil {
+		return out
+	}
+	for _, p := range list {
+		if !p.Enabled || !(p.Kind.IsCLI() || p.Kind.Harness()) {
+			continue
+		}
+		tool := ""
+		for id, k := range cliKinds {
+			if k == p.Kind {
+				tool = id
+			}
+		}
+		if tool == "" {
+			continue
+		}
+		bin := c.providers.CLIBin(p)
+		switch {
+		case filepath.IsAbs(bin):
+		case strings.ContainsRune(bin, filepath.Separator):
+			continue
+		default:
+			if lp, err := exec.LookPath(bin); err == nil {
+				bin = lp
+			} else if bin = c.m.LookPath(bin); bin == "" {
+				continue
+			}
+		}
+		out[tool] = append(out[tool], bin)
+	}
+	return out
 }
 
 // installBroken: a check's failure says the CLI itself cannot start.

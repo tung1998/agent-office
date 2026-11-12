@@ -406,6 +406,7 @@ func serveCmd() *cobra.Command {
 			if cliTools != nil {
 				cu := cliUpdates{m: cliTools, store: a.store, providers: a.providers, notify: bots.Notify}
 				cliTools.SetAfterUpdate(cu.recheck)
+				cliTools.SetUses(cu.uses) // only the CLIs connections run, every copy they run (ADR-279)
 				cliTools.SetOnUpgradeEnd(cu.ended)
 				acts.SetCLIUpdater(cu)
 				bots.SetCLIUpdater(cu)

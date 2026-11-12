@@ -358,7 +358,7 @@ const en: Record<keyof typeof vi, string> = {
   // cliup.* — CliUpdates.vue, CliSetup.vue (ADR-259)
   'cliup.title': 'AI CLI updates',
   'cliup.loadError': 'Could not load the CLI list.',
-  'cliup.help': 'Office reads each CLI\'s newest version (npm or Homebrew). "When idle" waits for the runs using that CLI to end; new runs only wait while its files change. A new version that does not start is replaced by the old one (npm) and told in the alert bot.',
+  'cliup.help': 'Office reads each CLI\'s newest version (npm or Homebrew). "When idle" waits for the runs using that CLI to end; new runs only wait while its files change. A new version that does not start is replaced by the old one (npm) and told in the alert bot. Only the CLIs your AI connections run are listed; every copy they run is updated.',
   'cliup.mode': 'Update mode',
   'cliup.modeOf': 'Update mode of {name}',
   'cliup.modeOff': 'Do nothing',
