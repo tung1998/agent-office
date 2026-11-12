@@ -189,3 +189,14 @@ func runFullImport(ctx context.Context, file, mode, projectsDir string, force, y
 	fmt.Println("Chạy `office run` để khởi động office. Migration tự chạy nếu bản export cũ hơn office này.")
 	return nil
 }
+
+// snapshotOf: a consistent copy of a's database (nil when its storage cannot).
+func snapshotOf(a *app) func(ctx context.Context, dest string) error {
+	b, ok := a.store.(interface {
+		Backup(ctx context.Context, dest string) error
+	})
+	if !ok {
+		return nil
+	}
+	return b.Backup
+}

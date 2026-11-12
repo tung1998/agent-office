@@ -239,6 +239,7 @@ func (s *server) orgRoutes(mux *http.ServeMux) {
 	if s.cfg.Backup != nil {
 		mux.Handle("POST /api/transfer/backup", admin(s.transferBackup))
 	}
+	s.fullExportRoutes(mux, admin) // ADR-275
 	if s.cfg.Setup != nil {
 		mux.Handle("POST /api/projects/{id}/setup/scan", admin(s.setupScan))
 		mux.Handle("POST /api/projects/{id}/setup/propose", admin(s.setupPropose))

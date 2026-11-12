@@ -128,7 +128,9 @@ func setupWithStore(t *testing.T, proxies []netip.Prefix, wrap func(storage.Stor
 	transfers.SetBurnCheck(burn.CheckSetup)
 	acts.SetProjects(transfers)
 	office.SetProjects(transfers, t.TempDir())
+	home := filepath.Join(t.TempDir(), ".office") // the whole office's export (ADR-275)
 	h := api.New(api.Config{Peers: peers, Store: st, Auth: svc, AllowedOrigins: []string{"http://localhost:3000"}, TrustedProxies: proxies,
+		Snapshot: sqliteSt.Backup, KeyPath: filepath.Join(home, "key"), System: api.SystemInfo{HomeDir: home},
 		Providers: provs, Team: org, Setup: officesetup.New(st, provs, org), Transfer: transfers, Workflows: wfs, Usage: u, CLITools: cliManager(), Chat: chatEng, BackgroundsDir: t.TempDir(),
 		Trigger: trigger.New(st, idleExec{}), Actions: acts, Office: office, MCP: mcp, Memory: mem, Events: bus, Automation: testAutomation(t, st),
 		Monitors: monitor.New(st, nil, chatEng), Ops: ops.NewManager(st, t.TempDir(), []string{}), Burn: burn.New(st, chatEng, nil),

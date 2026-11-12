@@ -53,6 +53,7 @@ import (
 	"github.com/tung1998/agent-office/internal/cognee"
 	"github.com/tung1998/agent-office/internal/collections"
 	"github.com/tung1998/agent-office/internal/embed"
+	"github.com/tung1998/agent-office/internal/fullexport"
 	"github.com/tung1998/agent-office/internal/setup"
 	"github.com/tung1998/agent-office/internal/storage"
 	"github.com/tung1998/agent-office/internal/support"
@@ -103,6 +104,12 @@ func serveCmd() *cobra.Command {
 			// update` in another project's folder) finds this office's data
 			_ = os.Setenv(home.EnvHome, h.Dir)
 			chat.OfficeDir = h.Dir // no agent reads its DB, key or backups (ADR-271)
+			// a whole office imported from the dashboard or a paired office waited for this start (ADR-275)
+			if ok, err := fullexport.ApplyPending(ctx, h.Dir, h.DB(), h.SecretKey()); err != nil {
+				return fmt.Errorf("áp database nhập từ office khác: %w", err)
+			} else if ok {
+				fmt.Fprintln(os.Stderr, "office: đã áp database nhập từ office khác (bản cũ giữ bên cạnh, .before-import-*)")
+			}
 			a, err := openApp(ctx, h)
 			if err != nil {
 				return err
@@ -447,7 +454,9 @@ func serveCmd() *cobra.Command {
 				Backup: func(ctx context.Context) (string, error) {
 					return backupTo(ctx, a, filepath.Join(h.Dir, "backups", time.Now().Format("20060102-150405")))
 				},
-				System: api.SystemInfo{Mode: string(h.Mode), HomeDir: h.Dir, ProjectRoot: h.ProjectRoot},
+				Snapshot: snapshotOf(a), // ADR-275
+				KeyPath:  h.SecretKey(),
+				System:   api.SystemInfo{Mode: string(h.Mode), HomeDir: h.Dir, ProjectRoot: h.ProjectRoot},
 			})
 
 			// a first run gets admin / admin, to replace with a real email and password on first sign-in

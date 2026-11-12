@@ -82,6 +82,7 @@ const kindLabelOf = computed<Record<string, string>>(() => ({ provider: t('admin
 <template>
   <PageShell :title="t('admin.transferTitle')">
     <div class="max-w-4xl space-y-6">
+      <FullOfficeTransfer />
       <UCard>
         <template #header>
           <p class="font-medium"><InfoLabel :label="t('admin.exportTitle')" :info="t('admin.exportDesc')" /></p>

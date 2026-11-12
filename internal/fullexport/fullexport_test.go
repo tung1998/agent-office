@@ -342,3 +342,42 @@ func TestSafeJoin(t *testing.T) {
 		}
 	}
 }
+
+// Defer: a running office keeps its database until ApplyPending at its next start.
+func TestImportDeferredUntilRestart(t *testing.T) {
+	ctx := context.Background()
+	eo, _ := oldOffice(t)
+	eo.Projects = nil
+	var buf bytes.Buffer
+	if _, err := Export(ctx, &buf, eo); err != nil {
+		t.Fatal(err)
+	}
+	nhome := filepath.Join(t.TempDir(), ".office")
+	db := filepath.Join(nhome, "office.db")
+	if err := os.MkdirAll(nhome, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := sqlExec(db, `CREATE TABLE running (x TEXT)`); err != nil {
+		t.Fatal(err)
+	}
+	rep, err := Import(ctx, &buf, ImportOptions{HomeDir: nhome, KeyPath: filepath.Join(nhome, "k"), Passphrase: pass, Defer: true, Mode: ModeClone})
+	if err != nil || !rep.Pending {
+		t.Fatalf("deferred import: %+v, %v", rep, err)
+	}
+	if one(t, db, `SELECT count(*) FROM sqlite_master WHERE name = 'running'`) != "1" {
+		t.Fatal("the running office's database was replaced before its restart")
+	}
+	ok, err := ApplyPending(ctx, nhome, db, filepath.Join(nhome, "k"))
+	if err != nil || !ok {
+		t.Fatalf("ApplyPending = %v, %v", ok, err)
+	}
+	if one(t, db, `SELECT count(*) FROM sqlite_master WHERE name = 'repos'`) != "1" || one(t, db, `SELECT enabled FROM channels`) != "0" {
+		t.Fatal("the imported database is not in place (or clone mode not applied)")
+	}
+	if read(t, filepath.Join(nhome, "k")) != "KEY" {
+		t.Error("key not in place")
+	}
+	if ok, _ := ApplyPending(ctx, nhome, db, ""); ok {
+		t.Error("applied twice")
+	}
+}

@@ -31,6 +31,7 @@ type ImportOptions struct {
 	Passphrase           string
 	Mode                 string // ModeMove (default) or ModeClone
 	Force                bool   // replace a database already here (kept aside, not deleted)
+	Defer                bool   // the office here is running: stage the database, ApplyPending puts it in place at its next start
 	Log                  func(format string, a ...any)
 }
 
@@ -47,6 +48,7 @@ type Report struct {
 	Projects []ProjectResult
 	Files    int
 	Remapped int64 // database values whose paths were moved
+	Pending  bool  // the database waits for the office's next start (Defer)
 	Warnings []string
 }
 
@@ -67,7 +69,7 @@ func Import(ctx context.Context, r io.Reader, o ImportOptions) (Report, error) {
 		return rep, fmt.Errorf("fullexport: chế độ %q không có (move hoặc clone)", o.Mode)
 	}
 	dbPath := filepath.Join(o.HomeDir, "office.db")
-	if _, err := os.Stat(dbPath); err == nil && !o.Force {
+	if _, err := os.Stat(dbPath); err == nil && !o.Force && !o.Defer {
 		return rep, ErrExists
 	}
 	tr, done, err := newArchiveReader(r, o.Passphrase)
@@ -151,30 +153,6 @@ func Import(ctx context.Context, r io.Reader, o ImportOptions) (Report, error) {
 	}
 
 	// the database and key last: until here this machine's office is untouched
-	if _, err := os.Stat(dbPath); err == nil {
-		aside := dbPath + ".before-import-" + time.Now().Format("20060102-150405")
-		if err := os.Rename(dbPath, aside); err != nil {
-			return rep, err
-		}
-		for _, sfx := range []string{"-wal", "-shm"} {
-			_ = os.Rename(dbPath+sfx, aside+sfx)
-		}
-		rep.Warnings = append(rep.Warnings, "database cũ được giữ tại "+aside)
-	}
-	if err := os.Rename(filepath.Join(stage, "office.db"), dbPath); err != nil {
-		return rep, err
-	}
-	if o.KeyPath != "" {
-		if _, err := os.Stat(filepath.Join(stage, "key")); err == nil {
-			if _, err := os.Stat(o.KeyPath); err == nil {
-				_ = os.Rename(o.KeyPath, o.KeyPath+".before-import-"+time.Now().Format("20060102-150405"))
-			}
-			if err := os.Rename(filepath.Join(stage, "key"), o.KeyPath); err != nil {
-				return rep, err
-			}
-			_ = os.Chmod(o.KeyPath, 0o600)
-		}
-	}
 	moves := map[string]string{}
 	for from, to := range targets {
 		moves[from] = to
@@ -184,11 +162,32 @@ func Import(ctx context.Context, r io.Reader, o ImportOptions) (Report, error) {
 			moves[h] = o.HomeDir
 		}
 	}
-	n, err := fixDatabase(ctx, dbPath, moves, o.Mode)
-	if err != nil {
-		return rep, fmt.Errorf("fullexport: sửa database: %w", err)
+	if o.Defer { // the office runs on this database: it takes the new one when it starts again
+		pend := filepath.Join(o.HomeDir, PendingDir)
+		_ = os.RemoveAll(pend)
+		if err := os.MkdirAll(pend, 0o700); err != nil {
+			return rep, err
+		}
+		for _, f := range []string{"office.db", "key"} {
+			if _, err := os.Stat(filepath.Join(stage, f)); err == nil {
+				if err := os.Rename(filepath.Join(stage, f), filepath.Join(pend, f)); err != nil {
+					return rep, err
+				}
+			}
+		}
+		raw, _ := json.Marshal(pendingPlan{Moves: moves, Mode: o.Mode})
+		if err := os.WriteFile(filepath.Join(pend, "plan.json"), raw, 0o600); err != nil {
+			return rep, err
+		}
+		rep.Pending = true
+		rep.Warnings = append(rep.Warnings, "database mới được áp khi office khởi động lại; những gì đổi trên office này từ giờ tới lúc đó sẽ mất")
+	} else {
+		w, err := placeDatabase(ctx, filepath.Join(stage, "office.db"), filepath.Join(stage, "key"), dbPath, o.KeyPath, moves, o.Mode, &rep.Remapped)
+		if err != nil {
+			return rep, err
+		}
+		rep.Warnings = append(rep.Warnings, w...)
 	}
-	rep.Remapped = n
 	if o.Mode == ModeMove {
 		rep.Warnings = append(rep.Warnings, "chế độ chuyển máy: dừng office ở máy cũ trước khi chạy office ở đây (bot, tự động hóa và peer chạy y như bên đó)")
 	} else {
@@ -424,4 +423,71 @@ func short(h string) string {
 		return h[:8]
 	}
 	return h
+}
+
+// PendingDir holds a database an import staged while the office ran.
+const PendingDir = "pending-import"
+
+type pendingPlan struct {
+	Moves map[string]string `json:"moves"`
+	Mode  string            `json:"mode"`
+}
+
+// placeDatabase puts the staged database and key in place (the ones there
+// kept aside) and moves their paths.
+func placeDatabase(ctx context.Context, stageDB, stageKey, dbPath, keyPath string, moves map[string]string, mode string, remapped *int64) ([]string, error) {
+	var warnings []string
+	stamp := time.Now().Format("20060102-150405")
+	if _, err := os.Stat(dbPath); err == nil {
+		aside := dbPath + ".before-import-" + stamp
+		if err := os.Rename(dbPath, aside); err != nil {
+			return nil, err
+		}
+		for _, sfx := range []string{"-wal", "-shm"} {
+			_ = os.Rename(dbPath+sfx, aside+sfx)
+		}
+		warnings = append(warnings, "database cũ được giữ tại "+aside)
+	}
+	if err := os.Rename(stageDB, dbPath); err != nil {
+		return nil, err
+	}
+	if keyPath != "" {
+		if _, err := os.Stat(stageKey); err == nil {
+			if _, err := os.Stat(keyPath); err == nil {
+				_ = os.Rename(keyPath, keyPath+".before-import-"+stamp)
+			}
+			if err := os.Rename(stageKey, keyPath); err != nil {
+				return nil, err
+			}
+			_ = os.Chmod(keyPath, 0o600)
+		}
+	}
+	n, err := fixDatabase(ctx, dbPath, moves, mode)
+	if err != nil {
+		return nil, fmt.Errorf("fullexport: sửa database: %w", err)
+	}
+	*remapped = n
+	return warnings, nil
+}
+
+// ApplyPending puts in place the database an import staged while the office
+// ran (Defer); call it before the office opens its database. false: none.
+func ApplyPending(ctx context.Context, homeDir, dbPath, keyPath string) (bool, error) {
+	pend := filepath.Join(homeDir, PendingDir)
+	raw, err := os.ReadFile(filepath.Join(pend, "plan.json"))
+	if errors.Is(err, os.ErrNotExist) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	var plan pendingPlan
+	if err := json.Unmarshal(raw, &plan); err != nil {
+		return false, err
+	}
+	var n int64
+	if _, err := placeDatabase(ctx, filepath.Join(pend, "office.db"), filepath.Join(pend, "key"), dbPath, keyPath, plan.Moves, plan.Mode, &n); err != nil {
+		return false, err
+	}
+	return true, os.RemoveAll(pend)
 }

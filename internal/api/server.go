@@ -93,7 +93,11 @@ type Config struct {
 	// Supervised reports whether `office run` supervises this server.
 	Supervised bool
 	// Backup writes a copy of the data to a new folder and returns its path.
-	Backup   func(ctx context.Context) (string, error)
+	Backup func(ctx context.Context) (string, error)
+	// Snapshot writes a consistent copy of the database at dest; with KeyPath
+	// it lets the whole office be exported and imported (ADR-275). nil: off.
+	Snapshot func(ctx context.Context, dest string) error
+	KeyPath  string
 	System   SystemInfo
 	Office   *officetools.Toolbox // agents' tools: describe/list/get/propose_change use the config registry
 	Channels ChannelReloader      // restarts a Telegram/Discord bot after its settings change (nil = off)
@@ -292,7 +296,10 @@ func (s *server) csrf(next http.Handler) http.Handler {
 			writeError(w, http.StatusForbidden, "origin not allowed")
 			return
 		}
-		if r.ContentLength != 0 || r.Header.Get("Content-Type") != "" {
+		// the whole office's archive comes as the raw body: the passphrase header
+		// it needs already forces the preflight a cross-site page never passes
+		rawUpload := r.URL.Path == fullImportPath && r.Header.Get(passphraseHeader) != ""
+		if !rawUpload && (r.ContentLength != 0 || r.Header.Get("Content-Type") != "") {
 			mt, _, _ := mime.ParseMediaType(r.Header.Get("Content-Type"))
 			if mt != "application/json" {
 				writeError(w, http.StatusUnsupportedMediaType, "content type must be application/json")
@@ -308,6 +315,9 @@ func (s *server) csrf(next http.Handler) http.Handler {
 		}
 		if r.URL.Path == "/api/me/background" {
 			limit = 35 << 20 // 25 MB image or video as base64
+		}
+		if rawUpload {
+			limit = 64 << 30 // the whole office: database, files, code
 		}
 		r.Body = http.MaxBytesReader(w, r.Body, limit)
 		next.ServeHTTP(w, r)
