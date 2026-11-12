@@ -71,7 +71,7 @@ func (c cliUpdates) UpdateCLIWhenIdle(_ context.Context, tool, by string) error 
 func (c cliUpdates) CLIStatus(ctx context.Context) string {
 	var lines []string
 	for _, st := range c.m.List(ctx) {
-		if !st.Installed || !st.Used { // the CLIs the connections run (ADR-279)
+		if !st.Installed || !st.Used { // the CLIs the connections run (ADR-280)
 			continue
 		}
 		line := "• " + st.Name + " " + cmpOr(clitools.VersionOf(st.Version), st.Version)
@@ -173,7 +173,7 @@ func (c cliUpdates) runsInstall(bin, shared string) bool {
 	return samePath(p) == shared
 }
 
-// uses is, per CLI, the binaries the enabled connections run (ADR-279): the
+// uses is, per CLI, the binaries the enabled connections run (ADR-280): the
 // update card shows only those CLIs and an update reaches every copy, not
 // only the first on PATH. A bare name is looked up as its runs look it up;
 // a relative path depends on the run's folder and is left out.

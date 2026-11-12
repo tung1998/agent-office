@@ -24,7 +24,7 @@ interface Tool {
   update_command?: string
   in_use: number
   upgrade?: Upgrade
-  used?: boolean // an AI connection runs it (ADR-279)
+  used?: boolean // an AI connection runs it (ADR-280)
   // the copies the connections run, when not only the one first on PATH
   installs?: { path: string, version?: string, outdated?: boolean }[]
 }
@@ -45,7 +45,7 @@ const busy = ref('')
 let timer: ReturnType<typeof setTimeout> | undefined
 
 const active = (u?: Upgrade) => !!u && ['waiting', 'updating', 'checking', 'rolling_back'].includes(u.state)
-// only the CLIs an AI connection runs (ADR-279)
+// only the CLIs an AI connection runs (ADR-280)
 const installed = computed(() => (data.value?.tools ?? []).filter(x => x.installed && x.used !== false))
 const outdated = computed(() => installed.value.filter(x => x.outdated).length)
 // a CLI office tells about (notify or auto) with no chat to tell it in

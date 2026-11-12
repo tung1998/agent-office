@@ -86,7 +86,7 @@ func (m *Manager) Check(ctx context.Context, s *AutoSetting) (out []Notice, chan
 		if mode == AutoOff {
 			continue
 		}
-		// only the copies the connections run; a CLI none runs is left alone (ADR-279)
+		// only the copies the connections run; a CLI none runs is left alone (ADR-280)
 		paths, _ := m.installs(ctx, t)
 		if len(paths) == 0 {
 			continue

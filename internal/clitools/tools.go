@@ -102,7 +102,7 @@ type Status struct {
 	InUse   int          `json:"in_use"`
 	Upgrade *UpgradeView `json:"upgrade,omitempty"`
 	// Used: a connection runs it (the update card shows only those);
-	// Installs: the copies they run, when more than one (ADR-279)
+	// Installs: the copies they run, when more than one (ADR-280)
 	Used     bool      `json:"used"`
 	Installs []Install `json:"installs,omitempty"`
 }
@@ -346,7 +346,7 @@ type Manager struct {
 	bad          map[string]string // per tool, a version whose update was put back
 	badLoaded    bool              // bad took what the setting kept (SyncBad)
 	onUpgradeEnd func(UpgradeView)
-	// uses: the binaries the connections run per tool (SetUses, ADR-279)
+	// uses: the binaries the connections run per tool (SetUses, ADR-280)
 	uses func(ctx context.Context) map[string][]string
 }
 

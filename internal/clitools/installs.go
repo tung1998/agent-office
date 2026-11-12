@@ -7,7 +7,7 @@ import (
 	"strings"
 )
 
-// The installs a CLI's updates reach (ADR-279): the binaries office's
+// The installs a CLI's updates reach (ADR-280): the binaries office's
 // connections run, not only the first on PATH. A CLI no connection uses is
 // neither shown on the update card nor watched; two connections on two
 // copies of the same CLI (one with a path of its own) get both updated.

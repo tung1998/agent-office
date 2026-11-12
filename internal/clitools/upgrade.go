@@ -287,7 +287,7 @@ func (m *Manager) runUpgrade(ctx context.Context, t Tool, targets []target, u *u
 	target := m.latestKnown(t.ID)
 	m.set(u, func(v *UpgradeView) { v.Target = target })
 	// every copy the connections run, one after the other under the same
-	// hold (ADR-279); the update says how the worst of them went
+	// hold (ADR-280); the update says how the worst of them went
 	rank := map[string]int{"done": 0, "rolled_back": 1, "failed": 2}
 	state, notes := "done", []string(nil)
 	for i, tg := range targets {

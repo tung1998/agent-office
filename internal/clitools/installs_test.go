@@ -26,7 +26,7 @@ func npmPrefixTool(t *testing.T, prefix, link, version string) {
 }
 
 // A CLI no connection runs is not on the update card and not watched,
-// though it is installed (ADR-279).
+// though it is installed (ADR-280).
 func TestUnusedCLINotWatched(t *testing.T) {
 	m, dir := testManager(t)
 	npmTool(t, dir, "codex", "@openai/codex", "1.0.0")
@@ -42,7 +42,7 @@ func TestUnusedCLINotWatched(t *testing.T) {
 }
 
 // Two connections on two npm copies of the same CLI: an update reaches
-// both, each in its own prefix, not only the one first on PATH (ADR-279).
+// both, each in its own prefix, not only the one first on PATH (ADR-280).
 func TestUpdateEveryInstall(t *testing.T) {
 	m, dir := testManager(t)
 	a, b := filepath.Join(dir, "a"), filepath.Join(dir, "b")
