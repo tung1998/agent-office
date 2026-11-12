@@ -39,6 +39,7 @@ const (
 // Manifest is what an export holds, read first on import.
 type Manifest struct {
 	Version       int       `json:"version"`
+	Kind          string    `json:"kind,omitempty"` // "" = the whole office, KindProjects = chosen projects
 	OfficeVersion string    `json:"office_version,omitempty"`
 	ExportedAt    time.Time `json:"exported_at"`
 	HomeDir       string    `json:"home_dir"`               // the office's data folder there

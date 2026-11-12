@@ -25,6 +25,9 @@ func (s *server) fullExportRoutes(mux *http.ServeMux, admin func(http.HandlerFun
 	mux.Handle("POST /api/transfer/full-export", admin(s.fullExport))
 	mux.Handle("GET /api/transfer/full-export/{name}", admin(s.fullExportFile))
 	mux.Handle("POST /api/transfer/full-import", admin(s.fullImport))
+	mux.Handle("POST /api/transfer/projects-export", admin(s.projectsExport))        // ADR-276
+	mux.Handle("POST /api/transfer/projects-import", admin(s.projectsImportPreview)) // raw body
+	mux.Handle("POST /api/transfer/projects-import/apply", admin(s.projectsImportApply))
 	if s.cfg.Peers != nil {
 		mux.Handle("POST /api/peers/{id}/full-offer", admin(s.fullOffer))
 		mux.Handle("POST /api/peers/{id}/full-pull", admin(s.fullPull))
@@ -48,7 +51,7 @@ var (
 		sync.Mutex
 		m map[string]fullOfferEntry // peer id → its offer
 	}{m: map[string]fullOfferEntry{}}
-	exportName = regexp.MustCompile(`^office-[0-9-]+\.tar\.zst\.age$`)
+	exportName = regexp.MustCompile(`^(office|projects)-[0-9-]+\.tar\.zst\.age$`)
 )
 
 type fullOfferEntry struct {

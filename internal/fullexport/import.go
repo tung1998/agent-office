@@ -85,6 +85,9 @@ func Import(ctx context.Context, r io.Reader, o ImportOptions) (Report, error) {
 		return rep, fmt.Errorf("fullexport: manifest: %w", err)
 	}
 	m := rep.Manifest
+	if m.Kind == KindProjects {
+		return rep, errors.New("fullexport: đây là gói project, không phải bản export toàn bộ office (nhập ở mục Project)")
+	}
 	if m.Version > Version {
 		return rep, fmt.Errorf("fullexport: bản export dùng định dạng %d, office này chỉ đọc tới %d: cập nhật office trước", m.Version, Version)
 	}

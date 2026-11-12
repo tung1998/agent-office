@@ -298,7 +298,7 @@ func (s *server) csrf(next http.Handler) http.Handler {
 		}
 		// the whole office's archive comes as the raw body: the passphrase header
 		// it needs already forces the preflight a cross-site page never passes
-		rawUpload := r.URL.Path == fullImportPath && r.Header.Get(passphraseHeader) != ""
+		rawUpload := (r.URL.Path == fullImportPath || r.URL.Path == projectsImportPath) && r.Header.Get(passphraseHeader) != ""
 		if !rawUpload && (r.ContentLength != 0 || r.Header.Get("Content-Type") != "") {
 			mt, _, _ := mime.ParseMediaType(r.Header.Get("Content-Type"))
 			if mt != "application/json" {
