@@ -44,10 +44,14 @@ func inTailnet(ip netip.Addr) bool {
 // uiListenArgs (ADR-272): the dashboard's port answers on this machine and
 // on its Tailscale addresses, not on the LAN (a café's Wi-Fi, a coworker on
 // the same network), unless the person asks for it (server.ui_lan or
-// --ui-lan), as Paseo and Orca do.
-func uiListenArgs(port string, lan bool) []string {
+// --ui-lan), as Paseo and Orca do. local (server.ui_local or --ui-local)
+// keeps it on this machine only, Tailscale off too; lan wins over local.
+func uiListenArgs(port string, lan, local bool) []string {
 	if lan {
 		return []string{"--ui-listen", ":" + port}
+	}
+	if local {
+		return []string{"--ui-listen", "127.0.0.1:" + port}
 	}
 	return []string{"--ui-listen", "127.0.0.1:" + port, "--ui-tailnet"}
 }

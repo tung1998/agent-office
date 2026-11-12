@@ -92,7 +92,7 @@ func (c *child) stop() {
 func supervise(args []string) error {
 	// supervisor flags; the rest goes to `office serve`
 	var fwd []string
-	uiPort, uiDir, noUIFlag, uiLAN := "2704", "", false, false
+	uiPort, uiDir, noUIFlag, uiLAN, uiLocal := "2704", "", false, false, false
 	apiAddr := ""
 	for i := 0; i < len(args); i++ {
 		a := args[i]
@@ -111,6 +111,8 @@ func supervise(args []string) error {
 			noUIFlag = true
 		case a == "--ui-lan":
 			uiLAN = true // the dashboard's port on every network, the LAN too (ADR-272)
+		case a == "--ui-local":
+			uiLocal = true // this machine only, not Tailscale either (ADR-283)
 		case a == "--ui-port" || strings.HasPrefix(a, "--ui-port="):
 			uiPort = val()
 		case a == "--ui-dir" || strings.HasPrefix(a, "--ui-dir="):
@@ -157,10 +159,11 @@ func supervise(args []string) error {
 			// and a Tailscale funnel/serve pointed there before embedding, do
 			// not have to change. This machine and Tailscale only, the LAN
 			// when asked (ADR-272)
-			if cfg, err := loadConfig(); err == nil && cfg.Server.UILAN {
-				uiLAN = true
+			if cfg, err := loadConfig(); err == nil {
+				uiLAN = uiLAN || cfg.Server.UILAN
+				uiLocal = uiLocal || cfg.Server.UILocal
 			}
-			fwd = append(fwd, uiListenArgs(uiPort, uiLAN)...)
+			fwd = append(fwd, uiListenArgs(uiPort, uiLAN, uiLocal)...)
 		}
 	} else if !noUI && uiDir != "" {
 		if _, err := os.Stat(uiEntry); err != nil {
@@ -207,8 +210,12 @@ func supervise(args []string) error {
 		// port (--ui-listen), so :2704 keeps working without reconfiguring
 		// Tailscale or other bookmarks pointed at it
 		fmt.Fprintf(os.Stderr, "office: dashboard http://localhost:%s (nhúng trong server API, cũng nghe tại %s)\n", uiPort, apiAddr)
-		if !uiLAN {
-			fmt.Fprintln(os.Stderr, "office: cổng dashboard chỉ nghe trên máy này và Tailscale; mở cho mạng LAN: --ui-lan hoặc server.ui_lan")
+		switch {
+		case uiLAN:
+		case uiLocal:
+			fmt.Fprintln(os.Stderr, "office: cổng dashboard chỉ nghe trên máy này (--ui-local hoặc server.ui_local), Tailscale không vào được")
+		default:
+			fmt.Fprintln(os.Stderr, "office: cổng dashboard chỉ nghe trên máy này và Tailscale; mở cho mạng LAN: --ui-lan hoặc server.ui_lan; chỉ máy này: --ui-local hoặc server.ui_local")
 		}
 	case embedded:
 		fmt.Fprintf(os.Stderr, "office: dashboard http://%s (nhúng trong server API)\n", loopback(apiAddr))

@@ -9,11 +9,17 @@ import (
 // ADR-272: the dashboard's port is this machine's and Tailscale's, the LAN
 // only when asked.
 func TestUIListenArgs(t *testing.T) {
-	if got := uiListenArgs("2704", false); !slices.Equal(got, []string{"--ui-listen", "127.0.0.1:2704", "--ui-tailnet"}) {
+	if got := uiListenArgs("2704", false, false); !slices.Equal(got, []string{"--ui-listen", "127.0.0.1:2704", "--ui-tailnet"}) {
 		t.Fatalf("default = %v", got)
 	}
-	if got := uiListenArgs("2704", true); !slices.Equal(got, []string{"--ui-listen", ":2704"}) {
+	if got := uiListenArgs("2704", true, false); !slices.Equal(got, []string{"--ui-listen", ":2704"}) {
 		t.Fatalf("lan = %v", got)
+	}
+	if got := uiListenArgs("2704", false, true); !slices.Equal(got, []string{"--ui-listen", "127.0.0.1:2704"}) {
+		t.Fatalf("local = %v", got)
+	}
+	if got := uiListenArgs("2704", true, true); !slices.Equal(got, []string{"--ui-listen", ":2704"}) {
+		t.Fatalf("lan+local = %v", got)
 	}
 }
 

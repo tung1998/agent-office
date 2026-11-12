@@ -54,6 +54,9 @@ type Server struct {
 	// UILAN: the dashboard's port on every network, the LAN too; off, it
 	// answers on this machine and its Tailscale addresses only (ADR-272)
 	UILAN bool `json:"ui_lan"`
+	// UILocal: the dashboard's port on this machine only, not on its
+	// Tailscale addresses either (ADR-283); UILAN wins when both are set
+	UILocal bool `json:"ui_local"`
 }
 
 // ErrNotFound means the config file does not exist.
