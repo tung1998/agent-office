@@ -248,7 +248,9 @@ function onCliReady(ok: boolean) {
 }
 
 // the new account signed in: check the connection (models, status)
+const accountReady = ref(false)
 function onAccountReady(ok: boolean) {
+  accountReady.value = ok
   const p = accountOf.value
   if (!ok || !p || signingIn.value !== p.id) return
   signingIn.value = ''
@@ -620,9 +622,17 @@ const statusText = (s: string) => (s === 'ok' ? t('prov.statusOk') : s === 'erro
           <CliSetup
             v-if="accountOf && toolOf(accountOf.kind)" :key="accountOf.id" :tool="toolOf(accountOf.kind)!"
             :provider="accountOf.own_account ? accountOf.id : undefined" @ready="onAccountReady"
-          />
+          >
+            <!-- signed in: sits in CliSetup's action row with the other buttons -->
+            <template #actions>
+              <UButton
+                v-if="ownAccounts(accountOf.kind) && signingIn !== accountOf.id" icon="i-lucide-user-round-plus" size="xs"
+                color="neutral" variant="ghost" :label="t('prov.newAccount')" @click="openNewAccount(accountOf!.kind)"
+              />
+            </template>
+          </CliSetup>
           <UButton
-            v-if="accountOf && ownAccounts(accountOf.kind) && signingIn !== accountOf.id" icon="i-lucide-user-round-plus" size="xs"
+            v-if="accountOf && !accountReady && ownAccounts(accountOf.kind) && signingIn !== accountOf.id" icon="i-lucide-user-round-plus" size="xs"
             color="neutral" variant="ghost" :label="t('prov.newAccount')" @click="openNewAccount(accountOf!.kind)"
           />
         </div>

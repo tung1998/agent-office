@@ -208,7 +208,10 @@ const where = (s: SupportSource) => {
         </form>
       </template>
       <template #footer>
-        <UButton type="submit" form="sup-source" :label="t('common.save')" :loading="saving" />
+        <div class="flex w-full justify-end gap-2">
+          <UButton color="neutral" variant="ghost" :label="t('common.cancel')" @click="open = false" />
+          <UButton type="submit" form="sup-source" :label="t('common.save')" :loading="saving" />
+        </div>
       </template>
     </UModal>
 
@@ -226,7 +229,9 @@ const where = (s: SupportSource) => {
         </div>
       </template>
       <template #footer>
-        <UButton :label="t('auto.savedIt')" @click="secret = null" />
+        <div class="flex w-full justify-end gap-2">
+          <UButton :label="t('auto.savedIt')" @click="secret = null" />
+        </div>
       </template>
     </UModal>
   </div>

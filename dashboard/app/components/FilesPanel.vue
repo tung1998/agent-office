@@ -421,15 +421,17 @@ function badges(f: Flags) {
           <span class="min-w-0 flex-1 basis-40 truncate font-mono text-xs">{{ file.path }}</span>
           <UBadge v-for="b in badges(file.flags)" :key="b.label" :label="b.label" :color="b.color" variant="subtle" size="sm" />
           <UBadge v-if="dirty" :label="t('files.unsaved')" color="warning" variant="outline" size="sm" />
-          <template v-if="file.preview && file.content !== undefined">
-            <UButton size="xs" :color="previewVisible ? 'primary' : 'neutral'" :variant="previewVisible ? 'soft' : 'ghost'" :label="t('files.preview')" @click="previewVisible = true" />
-            <UButton size="xs" :color="!previewVisible ? 'primary' : 'neutral'" :variant="!previewVisible ? 'soft' : 'ghost'" :label="t('files.edit')" @click="previewVisible = false" />
-          </template>
-          <template v-if="file.content !== undefined">
-            <USwitch v-if="!previewVisible" v-model="showDiff" size="xs" :label="t('files.changes')" />
-            <UButton v-if="dirty && !previewVisible" size="xs" color="neutral" variant="ghost" icon="i-lucide-undo-2" :label="t('files.revert')" @click="revert" />
-            <UButton v-if="!previewVisible" size="xs" icon="i-lucide-save" :label="t('files.save')" :loading="saving" :disabled="!dirty && !file.isNew" @click="save()" />
-          </template>
+          <div class="ms-auto flex shrink-0 flex-wrap items-center justify-end gap-1">
+            <template v-if="file.preview && file.content !== undefined">
+              <UButton size="xs" :color="previewVisible ? 'primary' : 'neutral'" :variant="previewVisible ? 'soft' : 'ghost'" :label="t('files.preview')" @click="previewVisible = true" />
+              <UButton size="xs" :color="!previewVisible ? 'primary' : 'neutral'" :variant="!previewVisible ? 'soft' : 'ghost'" :label="t('files.edit')" @click="previewVisible = false" />
+            </template>
+            <template v-if="file.content !== undefined">
+              <USwitch v-if="!previewVisible" v-model="showDiff" size="xs" :label="t('files.changes')" />
+              <UButton v-if="dirty && !previewVisible" size="xs" color="neutral" variant="ghost" icon="i-lucide-undo-2" :label="t('files.revert')" @click="revert" />
+              <UButton v-if="!previewVisible" size="xs" icon="i-lucide-save" :label="t('files.save')" :loading="saving" :disabled="!dirty && !file.isNew" @click="save()" />
+            </template>
+          </div>
         </div>
         <div v-if="file.preview && previewVisible" class="flex min-h-0 flex-1 items-center justify-center overflow-auto bg-(--ui-bg) p-3">
           <img v-if="file.preview.kind === 'image'" :src="previewUrl" :alt="file.path" class="max-h-full max-w-full object-contain">

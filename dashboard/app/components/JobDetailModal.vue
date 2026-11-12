@@ -84,7 +84,7 @@ const facts = computed(() => {
       </div>
     </template>
     <template v-if="link" #footer>
-      <div class="flex w-full justify-end">
+      <div class="flex w-full justify-end gap-2">
         <UButton :to="link.to" :icon="link.icon" :label="link.label" color="neutral" variant="outline" @click="emit('close')" />
       </div>
     </template>

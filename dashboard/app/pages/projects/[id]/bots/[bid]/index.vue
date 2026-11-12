@@ -61,7 +61,7 @@ async function remove() {
   <PageShell :title="name">
     <template #actions>
       <template v-if="bot && isAdmin">
-        <UButton size="sm" icon="i-lucide-pencil" :label="t('auto.edit')" :to="`/projects/${projectId}/bots/${bid}/edit`" />
+        <UButton icon="i-lucide-pencil" :label="t('auto.edit')" :to="`/projects/${projectId}/bots/${bid}/edit`" />
         <UDropdownMenu
           :content="{ align: 'end' }"
           :items="[[{ label: t('auto.reconnect'), icon: 'i-lucide-refresh-cw', onSelect: reconnect }],

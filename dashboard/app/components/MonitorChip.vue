@@ -125,9 +125,9 @@ const events = computed(() => (evData.value?.events ?? []).filter(e => e.monitor
         </div>
       </template>
       <template v-if="isAdmin" #footer>
-        <div class="flex w-full items-center gap-2">
-          <UButton size="sm" color="error" variant="ghost" icon="i-lucide-heart-off" :label="t('monitor.turnOff')" :disabled="busy" @click="remove" />
-          <UButton size="sm" color="neutral" variant="outline" icon="i-lucide-refresh-cw" :label="t('monitor.menu.checkNow')" :loading="busy" class="ms-auto" @click="checkNow" />
+        <div class="flex w-full justify-end gap-2">
+          <UButton size="sm" color="neutral" variant="ghost" icon="i-lucide-heart-off" :label="t('monitor.turnOff')" :disabled="busy" @click="remove" />
+          <UButton size="sm" icon="i-lucide-refresh-cw" :label="t('monitor.menu.checkNow')" :loading="busy" @click="checkNow" />
         </div>
       </template>
     </UModal>

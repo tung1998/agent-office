@@ -111,7 +111,7 @@ async function apply() {
     <div v-if="tab === 'export'" class="space-y-5">
       <UFormField :label="t('transfer.projects.which')">
         <UAlert v-if="projError" color="error" variant="subtle" :description="apiError(projError)">
-          <template #actions><UButton size="xs" variant="outline" :label="t('common.refresh')" @click="refreshProjects()" /></template>
+          <template #actions><UButton size="xs" color="neutral" variant="outline" :label="t('common.refresh')" @click="refreshProjects()" /></template>
         </UAlert>
         <USkeleton v-else-if="!projData" class="h-8 w-full" />
         <USelectMenu v-else v-model="chosen" :items="projectItems" value-key="value" multiple :placeholder="t('transfer.projects.pick')" class="w-full" />

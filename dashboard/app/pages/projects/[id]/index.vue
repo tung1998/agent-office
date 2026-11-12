@@ -139,7 +139,7 @@ async function removeRepo() {
                   :icon="menu.isHidden(id) ? 'i-lucide-eye' : 'i-lucide-eye-off'" :label="menu.isHidden(id) ? t('project.showInMenu') : t('project.hideFromMenu')"
                   @click="toggleMenu"
                 />
-                <UButton v-if="isAdmin" size="xs" color="error" variant="ghost" icon="i-lucide-folder-minus" :label="t('project.unmanage')" :loading="removing" class="ms-auto" @click="removeRepo" />
+                <UButton v-if="isAdmin" size="xs" color="error" variant="outline" icon="i-lucide-folder-minus" :label="t('project.unmanage')" :loading="removing" @click="removeRepo" />
               </div>
             </UCard>
               <ProjectLinks :project-id="project.id" />

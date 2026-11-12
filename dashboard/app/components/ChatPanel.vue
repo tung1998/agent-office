@@ -1363,17 +1363,21 @@ onBeforeUnmount(() => {
         <!-- the chat's goal: office goes on round after round until it is reached (ADR-273) -->
         <div v-if="goal" class="flex flex-wrap items-center gap-2 rounded-lg border border-(--ui-primary)/40 bg-(--ui-primary)/5 px-3 py-2 text-xs">
           <UIcon name="i-lucide-target" class="size-4 shrink-0 text-(--ui-primary)" />
-          <span class="min-w-0 flex-1 truncate" :title="goal.last || goal.text">{{ t('chat.goalBar', { text: goal.text }) }}</span>
+          <span class="min-w-0 flex-1 basis-48 truncate" :title="goal.last || goal.text">{{ t('chat.goalBar', { text: goal.text }) }}</span>
           <span class="text-(--ui-text-muted)">{{ t('chat.goalRound', { n: goal.round, max: goal.max_rounds }) }}</span>
           <code v-if="goal.check" class="max-w-48 truncate text-(--ui-text-muted)" :title="goal.check">{{ t('chat.goalCheck', { cmd: goal.check }) }}</code>
-          <UButton size="xs" color="neutral" variant="ghost" icon="i-lucide-x" :label="t('chat.goalCancel')" :loading="goalCancelling" @click="cancelGoal" />
+          <div class="ms-auto flex shrink-0 flex-wrap items-center justify-end gap-1">
+            <UButton size="xs" color="neutral" variant="ghost" icon="i-lucide-x" :label="t('chat.goalCancel')" :loading="goalCancelling" @click="cancelGoal" />
+          </div>
         </div>
         <!-- the last answer died on a passing API failure: it goes on by itself, or now, or not (ADR-260) -->
         <div v-if="retry && !streaming" class="flex flex-wrap items-center gap-2 rounded-lg border border-(--ui-info)/40 bg-(--ui-info)/5 px-3 py-2 text-xs">
           <UIcon :name="retry.quota ? 'i-lucide-battery-low' : 'i-lucide-timer'" class="size-4 shrink-0 text-(--ui-info)" />
-          <span class="min-w-0 flex-1">{{ t(retry.quota ? 'chat.quotaRetryPlanned' : 'chat.retryPlanned', { at: retryAt, n: retry.n, max: retry.max }) }}</span>
-          <UButton size="xs" icon="i-lucide-play" :label="t('chat.retryNow')" :loading="retryActing === 'now'" :disabled="!!retryActing" @click="retryNow" />
-          <UButton size="xs" color="neutral" variant="ghost" :label="t('chat.retryCancel')" :loading="retryActing === 'cancel'" :disabled="!!retryActing" @click="cancelRetry" />
+          <span class="min-w-0 flex-1 basis-48">{{ t(retry.quota ? 'chat.quotaRetryPlanned' : 'chat.retryPlanned', { at: retryAt, n: retry.n, max: retry.max }) }}</span>
+          <div class="ms-auto flex shrink-0 flex-wrap items-center justify-end gap-1">
+            <UButton size="xs" color="neutral" variant="ghost" :label="t('chat.retryCancel')" :loading="retryActing === 'cancel'" :disabled="!!retryActing" @click="cancelRetry" />
+            <UButton size="xs" icon="i-lucide-play" :label="t('chat.retryNow')" :loading="retryActing === 'now'" :disabled="!!retryActing" @click="retryNow" />
+          </div>
         </div>
         <!-- a linked project's chat this one handed work to waits for a person: decided here -->
         <div v-for="lp in linkedPending" :key="lp.conversation_id" class="space-y-2 rounded-lg border border-(--ui-warning)/40 bg-(--ui-warning)/5 p-3">

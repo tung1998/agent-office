@@ -54,7 +54,10 @@ async function submit() {
       </div>
     </template>
     <template #footer>
-      <UButton :label="t('handoff.submit')" icon="i-lucide-user-round-check" :loading="saving" :disabled="!to" @click="submit" />
+      <div class="flex w-full justify-end gap-2">
+        <UButton color="neutral" variant="ghost" :label="t('common.cancel')" @click="emit('close')" />
+        <UButton :label="t('handoff.submit')" icon="i-lucide-user-round-check" :loading="saving" :disabled="!to" @click="submit" />
+      </div>
     </template>
   </UModal>
 </template>

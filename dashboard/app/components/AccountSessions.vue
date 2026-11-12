@@ -35,7 +35,7 @@ async function revoke(s: Session) {
     <p class="text-sm font-medium"><InfoLabel :label="t('sessions.title')" :info="t('sessions.hint')" /></p>
     <UAlert v-if="error" color="error" variant="subtle" :description="apiError(error)">
       <template #actions>
-        <UButton size="xs" variant="outline" :label="t('common.refresh')" @click="refresh()" />
+        <UButton size="xs" color="neutral" variant="outline" :label="t('common.refresh')" @click="refresh()" />
       </template>
     </UAlert>
     <LoadingRows v-else-if="!data" :n="2" />

@@ -206,37 +206,37 @@ const steps = computed(() => [
             </span>
           </component>
           <!-- a chat answered since the person looked: theirs, whoever they are -->
-          <div v-if="x.kind === 'unread'" class="flex shrink-0 items-center gap-1 max-sm:w-full max-sm:ps-7">
-            <UButton size="xs" color="neutral" variant="outline" icon="i-lucide-eye" :label="t('home.view')" :to="x.link" />
+          <div v-if="x.kind === 'unread'" class="ms-auto flex shrink-0 flex-wrap items-center justify-end gap-1 max-sm:w-full max-sm:ps-7">
+            <UButton size="xs" color="neutral" variant="ghost" icon="i-lucide-eye" :label="t('home.view')" :to="x.link" />
             <UButton size="xs" color="neutral" variant="ghost" :label="t('chat.markSeen')" :loading="acting.has(x.key + 'seen')" @click="seen(x)" />
           </div>
           <!-- a chat going on by itself after a passing API failure: now, or not (ADR-260) -->
-          <div v-else-if="x.kind === 'retrying' || x.kind === 'quota_wait'" class="flex shrink-0 items-center gap-1 max-sm:w-full max-sm:ps-7">
-            <UButton size="xs" icon="i-lucide-play" :label="t('chat.retryNow')" :loading="acting.has(x.key + 'retryNow')" @click="act(x, 'retryNow')" />
-            <UButton size="xs" color="neutral" variant="outline" icon="i-lucide-eye" :label="t('home.view')" :to="x.link" />
+          <div v-else-if="x.kind === 'retrying' || x.kind === 'quota_wait'" class="ms-auto flex shrink-0 flex-wrap items-center justify-end gap-1 max-sm:w-full max-sm:ps-7">
+            <UButton size="xs" color="neutral" variant="ghost" icon="i-lucide-eye" :label="t('home.view')" :to="x.link" />
             <UButton size="xs" color="neutral" variant="ghost" :label="t('chat.retryCancel')" :loading="acting.has(x.key + 'cancelRetry')" @click="act(x, 'cancelRetry')" />
+            <UButton size="xs" icon="i-lucide-play" :label="t('chat.retryNow')" :loading="acting.has(x.key + 'retryNow')" @click="act(x, 'retryNow')" />
           </div>
           <!-- a chat stopped for tokens: go on, or let it be (the person who sent it, or an admin) -->
-          <div v-else-if="x.kind === 'stalled'" class="flex shrink-0 items-center gap-1 max-sm:w-full max-sm:ps-7">
+          <div v-else-if="x.kind === 'stalled'" class="ms-auto flex shrink-0 flex-wrap items-center justify-end gap-1 max-sm:w-full max-sm:ps-7">
+            <UButton size="xs" color="neutral" variant="ghost" icon="i-lucide-eye" :label="t('home.view')" :to="x.link" />
+            <UButton v-if="manages(x.project_id)" size="xs" color="neutral" variant="ghost" :label="t('home.dismiss')" :loading="acting.has(x.key + 'dismiss')" @click="act(x, 'dismiss')" />
             <UTooltip :text="t('home.continueInfo')">
               <UButton size="xs" icon="i-lucide-play" :label="t('home.continue')" :loading="acting.has(x.key + 'continue')" @click="act(x, 'continue')" />
             </UTooltip>
-            <UButton size="xs" color="neutral" variant="outline" icon="i-lucide-eye" :label="t('home.view')" :to="x.link" />
-            <UButton v-if="manages(x.project_id)" size="xs" color="neutral" variant="ghost" :label="t('home.dismiss')" :loading="acting.has(x.key + 'dismiss')" @click="act(x, 'dismiss')" />
           </div>
           <!-- what to do about it, right here -->
-          <div v-else-if="manages(x.project_id)" class="flex shrink-0 flex-wrap items-center gap-1 max-sm:w-full max-sm:ps-7">
+          <div v-else-if="manages(x.project_id)" class="ms-auto flex shrink-0 flex-wrap items-center justify-end gap-1 max-sm:w-full max-sm:ps-7">
             <template v-if="x.kind === 'approval' || x.kind === 'patch'">
-              <UButton size="xs" icon="i-lucide-check" :label="t('home.approve')" :loading="acting.has(x.key + 'approve')" @click="act(x, 'approve')" />
-              <UButton size="xs" color="neutral" variant="ghost" :label="t('home.reject')" :loading="acting.has(x.key + 'reject')" @click="act(x, 'reject')" />
               <UTooltip :text="t('action.skipInfo')">
                 <UButton size="xs" color="neutral" variant="ghost" icon="i-lucide-skip-forward" :label="t('action.skip')" :loading="acting.has(x.key + 'skip')" @click="act(x, 'skip')" />
               </UTooltip>
+              <UButton size="xs" color="neutral" variant="ghost" :label="t('home.reject')" :loading="acting.has(x.key + 'reject')" @click="act(x, 'reject')" />
+              <UButton size="xs" icon="i-lucide-check" :label="t('home.approve')" :loading="acting.has(x.key + 'approve')" @click="act(x, 'approve')" />
             </template>
             <template v-else>
-              <UButton size="xs" color="neutral" variant="outline" icon="i-lucide-eye" :label="t('home.view')" :to="x.link" />
-              <UButton v-if="canRetry(x.kind)" size="xs" color="neutral" variant="outline" icon="i-lucide-rotate-cw" :label="t('home.retry')" :loading="acting.has(x.key + 'retry')" @click="act(x, 'retry')" />
-              <UButton size="xs" color="neutral" variant="outline" icon="i-lucide-search-check" :label="t('home.investigate')" @click="investigate(x)" />
+              <UButton size="xs" color="neutral" variant="ghost" icon="i-lucide-eye" :label="t('home.view')" :to="x.link" />
+              <UButton v-if="canRetry(x.kind)" size="xs" color="neutral" variant="ghost" icon="i-lucide-rotate-cw" :label="t('home.retry')" :loading="acting.has(x.key + 'retry')" @click="act(x, 'retry')" />
+              <UButton size="xs" color="neutral" variant="ghost" icon="i-lucide-search-check" :label="t('home.investigate')" @click="investigate(x)" />
               <UButton size="xs" color="neutral" variant="ghost" :label="t('home.dismiss')" :loading="acting.has(x.key + 'dismiss')" @click="act(x, 'dismiss')" />
             </template>
           </div>
@@ -326,12 +326,14 @@ const steps = computed(() => [
       </div>
     </div>
     <template #actions>
-      <UButton color="neutral" variant="outline" icon="i-lucide-eye" :label="t('home.view')" :to="shown.link" />
-      <template v-if="manages(shown.project_id)">
-        <UButton v-if="canRetry(shown.kind)" color="neutral" variant="outline" icon="i-lucide-rotate-cw" :label="t('home.retry')" :loading="acting.has(shown.key + 'retry')" @click="act(shown, 'retry')" />
-        <UButton color="neutral" variant="outline" icon="i-lucide-search-check" :label="t('home.investigate')" @click="investigate(shown)" />
-        <UButton color="neutral" variant="ghost" :label="t('home.dismiss')" :loading="acting.has(shown.key + 'dismiss')" @click="act(shown, 'dismiss').then((ok) => { if (ok) shown = null })" />
-      </template>
+      <UButton v-if="manages(shown.project_id)" class="me-auto" color="neutral" variant="ghost" :label="t('home.dismiss')" :loading="acting.has(shown.key + 'dismiss')" @click="act(shown, 'dismiss').then((ok) => { if (ok) shown = null })" />
+      <div class="ms-auto flex flex-wrap justify-end gap-2">
+        <template v-if="manages(shown.project_id)">
+          <UButton v-if="canRetry(shown.kind)" color="neutral" variant="outline" icon="i-lucide-rotate-cw" :label="t('home.retry')" :loading="acting.has(shown.key + 'retry')" @click="act(shown, 'retry')" />
+          <UButton color="neutral" variant="outline" icon="i-lucide-search-check" :label="t('home.investigate')" @click="investigate(shown)" />
+        </template>
+        <UButton color="neutral" variant="outline" icon="i-lucide-eye" :label="t('home.view')" :to="shown.link" />
+      </div>
     </template>
   </WorkDetailModal>
   <UModal v-model:open="skipAllOpen" :title="t('home.skipAllTitle', { n: proposalsN })" :description="t('home.skipAllDesc')">

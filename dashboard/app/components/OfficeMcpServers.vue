@@ -281,13 +281,15 @@ async function save() {
             <UTooltip v-if="stat(s)?.calls" :text="t('tools.gwStatInfo', { errors: stat(s)!.errors, proposed: stat(s)!.proposed })">
               <UBadge :color="stat(s)!.errors ? 'warning' : 'neutral'" variant="outline" size="sm" icon="i-lucide-activity" :label="t('tools.gwCalls24h', { n: stat(s)!.calls })" />
             </UTooltip>
-            <UButton size="xs" color="neutral" variant="subtle" :label="s.tools.length ? t('tools.gwTools', { n: s.tools.length }) : t('tools.gwDetails')"
-                     :trailing-icon="open[s.id] ? 'i-lucide-chevron-up' : 'i-lucide-chevron-down'" @click="open = { ...open, [s.id]: !open[s.id] }" />
-            <UButton v-if="canLogin(s) && !loggedIn(s)" size="xs" icon="i-lucide-log-in" :loading="connecting[s.id]"
-                     :label="s.oauth?.logged_in ? t('tools.gwReconnect') : t('tools.gwConnect')" @click="connect(s)" />
             <UTooltip :text="tip(s)" :disabled="!tip(s)">
               <UBadge :color="badge[s.last_check_status].color" variant="subtle" size="sm" :icon="badge[s.last_check_status].icon" :label="badge[s.last_check_status].label" />
             </UTooltip>
+          </div>
+          <div class="ms-auto flex shrink-0 flex-wrap items-center justify-end gap-1">
+            <UButton size="xs" color="neutral" variant="ghost" :label="s.tools.length ? t('tools.gwTools', { n: s.tools.length }) : t('tools.gwDetails')"
+                     :trailing-icon="open[s.id] ? 'i-lucide-chevron-up' : 'i-lucide-chevron-down'" @click="open = { ...open, [s.id]: !open[s.id] }" />
+            <UButton v-if="canLogin(s) && !loggedIn(s)" size="xs" icon="i-lucide-log-in" :loading="connecting[s.id]"
+                     :label="s.oauth?.logged_in ? t('tools.gwReconnect') : t('tools.gwConnect')" @click="connect(s)" />
             <USwitch :model-value="s.enabled" size="sm" :disabled="busy[s.id]" :aria-label="t('tools.gwEnabled')" @update:model-value="v => toggle(s, v)" />
             <UButton size="xs" color="neutral" variant="ghost" icon="i-lucide-refresh-cw" :aria-label="t('tools.mcpCheck')" :loading="checking[s.id]" @click="check(s)" />
             <UButton v-if="loggedIn(s)" size="xs" color="neutral" variant="ghost" icon="i-lucide-log-out" :aria-label="t('tools.gwLogout')" @click="logout(s)" />
@@ -398,7 +400,7 @@ async function save() {
                 <div v-for="(r, i) in form.env" :key="i" class="flex gap-2">
                   <UInput v-model="r.key" placeholder="API_KEY" class="w-40 font-mono" />
                   <UInput v-model="r.value" type="password" autocomplete="off" :placeholder="r.saved ? t('tools.gwKeepSaved', { hint: r.saved }) : '…'" class="flex-1 font-mono" />
-                  <UButton color="neutral" variant="ghost" icon="i-lucide-x" :aria-label="t('common.delete')" @click="form.env.splice(i, 1)" />
+                  <UButton size="xs" color="neutral" variant="ghost" icon="i-lucide-x" :aria-label="t('common.delete')" @click="form.env.splice(i, 1)" />
                 </div>
                 <UButton size="xs" color="neutral" variant="outline" icon="i-lucide-plus" :label="t('tools.gwAddEnv')" @click="form.env.push({ key: '', value: '' })" />
               </div>
@@ -417,7 +419,7 @@ async function save() {
                 <div v-for="(r, i) in form.rows" :key="i" class="flex gap-2">
                   <UInput v-model="r.key" placeholder="Authorization" class="w-40 font-mono" />
                   <UInput v-model="r.value" type="password" autocomplete="off" :placeholder="r.saved ? t('tools.gwKeepSaved', { hint: r.saved }) : (r.placeholder ?? 'Bearer …')" class="flex-1 font-mono" />
-                  <UButton color="neutral" variant="ghost" icon="i-lucide-x" :aria-label="t('common.delete')" @click="form.rows.splice(i, 1)" />
+                  <UButton size="xs" color="neutral" variant="ghost" icon="i-lucide-x" :aria-label="t('common.delete')" @click="form.rows.splice(i, 1)" />
                 </div>
                 <UButton size="xs" color="neutral" variant="outline" icon="i-lucide-plus" :label="t('tools.gwAddHeader')" @click="form.rows.push({ key: '', value: '' })" />
               </div>

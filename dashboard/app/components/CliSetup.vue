@@ -207,12 +207,16 @@ onBeforeUnmount(() => clearTimeout(timer))
       {{ t('cli.checking', { tool: props.tool }) }}
     </template>
   </div>
-  <div v-else-if="status && !disabled && ready && !running" class="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
+  <!-- status on one line, every action on the next: same size and style, one row -->
+  <div v-else-if="status && !disabled && ready && !running" class="space-y-2 text-sm">
+    <div class="flex min-w-0 items-center gap-2">
     <UIcon name="i-lucide-circle-check" class="size-4 shrink-0 text-(--ui-success)" />
-    <span class="min-w-0 flex-1 basis-40 truncate">
+    <span class="min-w-0 flex-1 truncate">
       {{ status.login_command ? t('cli.loggedIn', { name: status.name }) : t('cli.installedReady', { name: status.name }) }}<span v-if="status.auth.account" class="text-(--ui-text-muted)"> · {{ status.auth.account }}</span>
     </span>
     <UBadge v-if="status.outdated && !upgrading" color="warning" variant="subtle" size="sm" :label="t('cliup.newer', { v: status.latest ?? '' })" />
+    </div>
+    <div class="-ms-2 flex flex-wrap items-center gap-1">
     <span v-if="upgrading" class="inline-flex items-center gap-1 text-xs text-(--ui-text-muted)">
       <UIcon name="i-lucide-loader-circle" class="size-3.5 animate-spin" />
       {{ status.upgrade?.state === 'waiting' ? t('cliup.waitingShort', { n: status.upgrade.waiting }) : t('cli.updating') }}
@@ -226,6 +230,8 @@ onBeforeUnmount(() => clearTimeout(timer))
       <UButton size="xs" color="neutral" variant="ghost" icon="i-lucide-refresh-cw" :label="t('cli.relogin')" @click="relogin" />
       <UButton size="xs" color="neutral" variant="ghost" icon="i-lucide-log-out" :label="t('cli.logout')" @click="confirmLogout" />
     </template>
+    <slot name="actions" />
+    </div>
   </div>
   <div v-else-if="status && !disabled && (!ready || running)" class="space-y-3 rounded-lg border border-(--ui-border) p-3">
     <!-- install -->

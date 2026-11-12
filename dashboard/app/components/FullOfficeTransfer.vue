@@ -108,7 +108,7 @@ async function receive() {
       <div class="space-y-2 border-t border-(--ui-border) pt-4">
         <p class="text-sm font-medium">{{ t('transfer.office.orPeer') }}</p>
         <UAlert v-if="peerError" color="error" variant="subtle" :description="apiError(peerError)">
-          <template #actions><UButton size="xs" variant="outline" :label="t('common.refresh')" @click="refreshPeers()" /></template>
+          <template #actions><UButton size="xs" color="neutral" variant="outline" :label="t('common.refresh')" @click="refreshPeers()" /></template>
         </UAlert>
         <USkeleton v-else-if="!peerData" class="h-8 w-64" />
         <p v-else-if="!peers.length" class="text-sm text-(--ui-text-muted)">{{ t('transfer.office.noPeers') }}</p>

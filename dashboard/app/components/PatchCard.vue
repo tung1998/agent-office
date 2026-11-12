@@ -135,14 +135,16 @@ async function decide(approve: boolean, skip = false) {
       <UBadge v-if="stale && patch.status === 'pending'" color="warning" variant="outline" size="sm" icon="i-lucide-history" :label="t('card.stale')" :title="t('card.staleHint')" />
       <UBadge v-if="patch.origin === 'worktree'" color="neutral" variant="outline" size="sm" icon="i-lucide-git-branch" :label="t('patch.worktree')" :title="t('patch.worktreeHint')" />
       <UBadge v-if="patch.decided_by?.startsWith('auto:')" color="warning" variant="outline" size="sm" icon="i-lucide-zap" :label="t('patch.auto')" :title="patch.decided_by.slice(5)" />
-      <UButton v-if="patch.status === 'queued' && isAdmin" size="xs" color="neutral" variant="ghost" :label="t('card.unqueue')" :loading="busy === 'reject'" :disabled="!!busy" @click="decide(false)" />
-      <template v-if="patch.status === 'pending' && !patch.deciding && isAdmin">
-        <UTooltip :text="t('action.skipInfo')">
-          <UButton size="xs" color="neutral" variant="ghost" icon="i-lucide-skip-forward" :label="t('action.skip')" :loading="busy === 'skip'" :disabled="!!busy" @click="decide(false, true)" />
-        </UTooltip>
-        <UButton size="xs" color="neutral" variant="ghost" :label="t('patch.reject')" :loading="busy === 'reject'" :disabled="!!busy" @click="decide(false)" />
-        <UButton size="xs" icon="i-lucide-check" :label="patch.origin === 'worktree' ? t('patch.merge') : t('patch.approveApply')" :loading="busy === 'approve'" :disabled="!!busy" @click="decide(true)" />
-      </template>
+      <div v-if="isAdmin && (patch.status === 'queued' || (patch.status === 'pending' && !patch.deciding))" class="ms-auto flex shrink-0 flex-wrap items-center justify-end gap-1">
+        <UButton v-if="patch.status === 'queued' && isAdmin" size="xs" color="neutral" variant="ghost" :label="t('card.unqueue')" :loading="busy === 'reject'" :disabled="!!busy" @click="decide(false)" />
+        <template v-if="patch.status === 'pending' && !patch.deciding && isAdmin">
+          <UTooltip :text="t('action.skipInfo')">
+            <UButton size="xs" color="neutral" variant="ghost" icon="i-lucide-skip-forward" :label="t('action.skip')" :loading="busy === 'skip'" :disabled="!!busy" @click="decide(false, true)" />
+          </UTooltip>
+          <UButton size="xs" color="neutral" variant="ghost" :label="t('patch.reject')" :loading="busy === 'reject'" :disabled="!!busy" @click="decide(false)" />
+          <UButton size="xs" icon="i-lucide-check" :label="patch.origin === 'worktree' ? t('patch.merge') : t('patch.approveApply')" :loading="busy === 'approve'" :disabled="!!busy" @click="decide(true)" />
+        </template>
+      </div>
     </div>
     <p v-if="big && patch.status === 'pending'" class="flex items-center gap-1.5 border-t border-(--ui-border) bg-(--ui-error)/10 px-3 py-1.5 text-xs font-medium text-(--ui-error)">
       <UIcon name="i-lucide-triangle-alert" class="size-4 shrink-0" />{{ t('patch.big', { n: patch.files.length, size: sizeLabel(patch.size ?? patch.diff.length) }) }}

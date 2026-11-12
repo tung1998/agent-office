@@ -104,8 +104,13 @@ async function remove() {
         </form>
       </template>
       <template #footer>
-        <UButton v-if="editing" color="error" variant="ghost" icon="i-lucide-trash-2" :label="t('links.delete')" @click="remove" />
-        <UButton type="submit" form="project-link" :label="t('common.save')" :loading="saving" class="ms-auto" />
+        <div class="flex w-full items-center gap-2">
+          <UButton v-if="editing" color="error" variant="ghost" icon="i-lucide-trash-2" :label="t('links.delete')" class="me-auto" @click="remove" />
+          <div class="ms-auto flex gap-2">
+            <UButton color="neutral" variant="ghost" :label="t('common.cancel')" @click="open = false" />
+            <UButton type="submit" form="project-link" :label="t('common.save')" :loading="saving" />
+          </div>
+        </div>
       </template>
     </UModal>
   </UCard>

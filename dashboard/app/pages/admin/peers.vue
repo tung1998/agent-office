@@ -138,7 +138,7 @@ const changed = (p: Peer) => JSON.stringify(shared[p.id] ?? []) !== JSON.stringi
   <PageShell :title="t('peers.title')">
     <template #actions>
       <InfoTip :text="t('peers.help')" icon-class="size-4 text-(--ui-text-dimmed)" />
-      <UButton color="neutral" variant="ghost" icon="i-lucide-log-in" :label="t('peers.join')" @click="openJoin" />
+      <UButton color="neutral" variant="outline" icon="i-lucide-log-in" :label="t('peers.join')" @click="openJoin" />
       <UButton color="neutral" variant="outline" icon="i-lucide-ticket" :label="t('peers.invite')" @click="openInvite" />
       <UButton icon="i-lucide-plug" :label="t('peers.connect')" @click="openConnect" />
     </template>

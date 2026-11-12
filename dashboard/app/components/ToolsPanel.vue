@@ -509,9 +509,9 @@ const summary = (tpl: MCPTemplate) => {
             <NuxtLink v-if="g.location.project_id && !scoped" :to="`/projects/${g.location.project_id}`" class="text-xs font-normal text-(--ui-primary)">{{ t('tools.openProject') }}</NuxtLink>
           </h3>
           <div class="divide-y divide-(--ui-border) rounded-lg border border-(--ui-border)">
-            <div v-for="i in g.items" :key="i.location.path + i.name" class="flex items-center gap-3 px-4 py-2.5">
+            <div v-for="i in g.items" :key="i.location.path + i.name" class="flex flex-wrap items-center gap-3 px-4 py-2.5">
               <UIcon :name="meta.icon" class="size-4 shrink-0 text-primary" :class="{ 'opacity-50': i.disabled }" />
-              <div class="min-w-0 flex-1" :class="{ 'opacity-50': i.disabled }">
+              <div class="min-w-0 flex-1 basis-40" :class="{ 'opacity-50': i.disabled }">
                 <p class="truncate font-mono text-sm font-medium">{{ i.name }}</p>
                 <p v-if="i.description" class="line-clamp-1 text-xs text-(--ui-text-muted)">{{ i.description }}</p>
                 <p v-else-if="i.meta?.url || i.meta?.command" class="truncate font-mono text-xs text-(--ui-text-muted)">
@@ -523,29 +523,31 @@ const summary = (tpl: MCPTemplate) => {
               <UTooltip v-else-if="mcp?.byName.value.get(i.name)" :text="mcpTip(mcp.byName.value.get(i.name)!)">
                 <UBadge :color="mcpBadge[mcp.byName.value.get(i.name)!.status].color" variant="subtle" size="sm" :icon="mcpBadge[mcp.byName.value.get(i.name)!.status].icon" :label="mcpBadge[mcp.byName.value.get(i.name)!.status].label" />
               </UTooltip>
-              <UTooltip v-if="!i.disabled && canLoginViaOffice(i)" :text="t('tools.mcpLoginViaOfficeInfo')">
-                <UButton size="xs" icon="i-lucide-log-in" :label="t('tools.mcpLoginViaOffice')" :loading="connecting['login|' + candKey(refOf(i))]" @click="loginViaOffice(i)" />
-              </UTooltip>
-              <template v-if="kind === 'mcp' && candOf(i)">
-                <UTooltip v-if="inOffice(candOf(i))" :text="t('tools.mcpInOfficeInfo', { name: candOf(i)!.moved_as || candOf(i)!.suggested })">
-                  <NuxtLink to="/mcp#office-mcp">
-                    <UBadge color="primary" variant="subtle" size="sm" icon="i-lucide-network" :label="t('tools.mcpInOffice')" />
-                  </NuxtLink>
+              <div class="ms-auto flex shrink-0 flex-wrap items-center justify-end gap-1">
+                <UTooltip v-if="!i.disabled && canLoginViaOffice(i)" :text="t('tools.mcpLoginViaOfficeInfo')">
+                  <UButton size="xs" icon="i-lucide-log-in" :label="t('tools.mcpLoginViaOffice')" :loading="connecting['login|' + candKey(refOf(i))]" @click="loginViaOffice(i)" />
                 </UTooltip>
-                <UTooltip v-else :text="addTip(candOf(i)!)">
-                  <span>
-                    <UButton size="xs" color="neutral" variant="outline" icon="i-lucide-arrow-right-to-line" :label="t('tools.mcpAddToOffice')"
-                             :disabled="!canAdd(candOf(i)!)" :loading="busy[candKey(candOf(i)!.ref)]" @click="addToOffice(i)" />
-                  </span>
+                <template v-if="kind === 'mcp' && candOf(i)">
+                  <UTooltip v-if="inOffice(candOf(i))" :text="t('tools.mcpInOfficeInfo', { name: candOf(i)!.moved_as || candOf(i)!.suggested })">
+                    <NuxtLink to="/mcp#office-mcp">
+                      <UBadge color="primary" variant="subtle" size="sm" icon="i-lucide-network" :label="t('tools.mcpInOffice')" />
+                    </NuxtLink>
+                  </UTooltip>
+                  <UTooltip v-else :text="addTip(candOf(i)!)">
+                    <span>
+                      <UButton size="xs" color="neutral" variant="outline" icon="i-lucide-arrow-right-to-line" :label="t('tools.mcpAddToOffice')"
+                               :disabled="!canAdd(candOf(i)!)" :loading="busy[candKey(candOf(i)!.ref)]" @click="addToOffice(i)" />
+                    </span>
+                  </UTooltip>
+                </template>
+                <UTooltip v-if="canToggle(i)" :text="i.disabled ? t('tools.mcpOffInfo') : t('tools.mcpOnInfo')">
+                  <USwitch :model-value="!i.disabled" size="sm" :loading="busy['on|' + candKey(refOf(i))]" :aria-label="t('tools.mcpSwitch')"
+                           @update:model-value="(v: boolean) => setEnabled(i, v)" />
                 </UTooltip>
-              </template>
-              <UTooltip v-if="canToggle(i)" :text="i.disabled ? t('tools.mcpOffInfo') : t('tools.mcpOnInfo')">
-                <USwitch :model-value="!i.disabled" size="sm" :loading="busy['on|' + candKey(refOf(i))]" :aria-label="t('tools.mcpSwitch')"
-                         @update:model-value="(v: boolean) => setEnabled(i, v)" />
-              </UTooltip>
-              <UDropdownMenu :items="itemMenu(i)" :content="{ align: 'end' }">
-                <UButton color="neutral" variant="ghost" icon="i-lucide-ellipsis" :aria-label="t('common.actions')" />
-              </UDropdownMenu>
+                <UDropdownMenu :items="itemMenu(i)" :content="{ align: 'end' }">
+                  <UButton size="xs" color="neutral" variant="ghost" icon="i-lucide-ellipsis" :aria-label="t('common.actions')" />
+                </UDropdownMenu>
+              </div>
             </div>
           </div>
         </section>

@@ -104,7 +104,7 @@ async function act(p: { pid: number, name: string }, force: boolean) {
                 :to="`/projects/${g.project_id}?tab=chat&c=${g.conversation_id}`"
               />
               <UButton size="xs" color="neutral" variant="outline" :label="t('sys.stop')" :title="t('sys.stopTip')" :loading="acting.has(`${g.pid}false`)" @click="act({ pid: g.pid, name: g.label }, false)" />
-              <UButton size="xs" color="error" variant="soft" :label="t('sys.kill')" :title="t('sys.killTip')" :loading="acting.has(`${g.pid}true`)" @click="act({ pid: g.pid, name: g.label }, true)" />
+              <UButton size="xs" color="error" variant="outline" :label="t('sys.kill')" :title="t('sys.killTip')" :loading="acting.has(`${g.pid}true`)" @click="act({ pid: g.pid, name: g.label }, true)" />
             </div>
           </div>
           <div v-if="open[g.pid]" class="bg-(--ui-bg-muted)/40 pb-1">

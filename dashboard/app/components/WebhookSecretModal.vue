@@ -36,7 +36,9 @@ async function copy(text: string) {
       </div>
     </template>
     <template #footer>
-      <UButton :label="t('auto.savedIt')" @click="emit('close')" />
+      <div class="flex w-full justify-end gap-2">
+        <UButton :label="t('auto.savedIt')" @click="emit('close')" />
+      </div>
     </template>
   </UModal>
 </template>

@@ -369,32 +369,34 @@ const mem = (b: number) => b >= 1 << 30 ? `${(b / (1 << 30)).toFixed(1)} GB` : `
               <span>RAM {{ mem(p.state.mem_bytes) }}</span>
               <a v-if="p.state.port" :href="`http://localhost:${p.state.port}`" target="_blank" rel="noopener" class="text-(--ui-primary)" @click.stop>:{{ p.state.port }} ↗</a>
             </div>
-            <div class="mt-2 flex items-center gap-1" @click.stop>
-              <template v-if="isAdmin">
-                <UButton
-                  v-if="p.state.status !== 'running' && p.state.status !== 'stopping'" size="xs" icon="i-lucide-play" :label="t('ops.start')"
-                  :loading="busy === p.id + 'start'" @click="act(p, 'start')"
-                />
-                <template v-else>
-                  <UButton size="xs" color="neutral" variant="outline" icon="i-lucide-square" :label="t('ops.stop')" :loading="busy === p.id + 'stop' || p.state.status === 'stopping'" @click="act(p, 'stop')" />
-                  <UButton size="xs" color="neutral" variant="ghost" icon="i-lucide-rotate-cw" :aria-label="t('ops.restart')" :loading="busy === p.id + 'restart'" @click="act(p, 'restart')" />
-                </template>
-              </template>
-              <UBadge v-if="p.autorestart" color="neutral" variant="outline" size="sm" :label="t('ops.autorestartBadge')" class="ms-1" />
+            <div class="mt-2 flex flex-wrap items-center gap-1" @click.stop>
+              <UBadge v-if="p.autorestart" color="neutral" variant="outline" size="sm" :label="t('ops.autorestartBadge')" />
               <UBadge v-if="p.autostart" color="neutral" variant="outline" size="sm" :label="t('ops.autostartBadge')" />
               <!-- a job ends on its own: only a service is worth watching -->
               <MonitorChip v-if="monData && (p.kind === 'service' || monitorOf(p))" :project-id="projectId" type="process" :target="p.id" :monitor="monitorOf(p)" @changed="refreshMon()" />
-              <UButton
-                v-if="p.state.status === 'crashed'" size="xs" color="error" variant="soft" icon="i-lucide-wrench" :label="t('ops.fix')" class="ms-auto"
-                @click="askAgent(p, true)"
-              />
-              <UDropdownMenu
-                v-if="isAdmin"
-                :items="[[{ label: t('ops.menu.askAgent'), icon: 'i-lucide-bot', onSelect: () => askAgent(p) }, { label: t('ops.menu.edit'), icon: 'i-lucide-pencil', onSelect: () => openForm(p) }, { label: p.autostart ? t('ops.menu.autostartOff') : t('ops.menu.autostartOn'), icon: p.autostart ? 'i-lucide-power-off' : 'i-lucide-power', onSelect: () => toggleAutostart(p) }], [{ label: t('ops.menu.delete'), icon: 'i-lucide-trash-2', color: 'error', onSelect: () => remove(p) }]]"
-                :content="{ align: 'end' }"
-              >
-                <UButton size="xs" color="neutral" variant="ghost" icon="i-lucide-ellipsis" :aria-label="t('ops.actionsLabel')" :loading="busy === p.id + 'delete'" :disabled="busy === p.id + 'delete'" :class="p.state.status === 'crashed' ? '' : 'ms-auto'" />
-              </UDropdownMenu>
+              <div class="ms-auto flex shrink-0 flex-wrap items-center justify-end gap-1">
+                <template v-if="isAdmin">
+                  <UButton
+                    v-if="p.state.status !== 'running' && p.state.status !== 'stopping'" size="xs" icon="i-lucide-play" :label="t('ops.start')"
+                    :loading="busy === p.id + 'start'" @click="act(p, 'start')"
+                  />
+                  <template v-else>
+                    <UButton size="xs" color="neutral" variant="outline" icon="i-lucide-square" :label="t('ops.stop')" :loading="busy === p.id + 'stop' || p.state.status === 'stopping'" @click="act(p, 'stop')" />
+                    <UButton size="xs" color="neutral" variant="ghost" icon="i-lucide-rotate-cw" :aria-label="t('ops.restart')" :loading="busy === p.id + 'restart'" @click="act(p, 'restart')" />
+                  </template>
+                </template>
+                <UButton
+                  v-if="p.state.status === 'crashed'" size="xs" color="error" variant="soft" icon="i-lucide-wrench" :label="t('ops.fix')"
+                  @click="askAgent(p, true)"
+                />
+                <UDropdownMenu
+                  v-if="isAdmin"
+                  :items="[[{ label: t('ops.menu.askAgent'), icon: 'i-lucide-bot', onSelect: () => askAgent(p) }, { label: t('ops.menu.edit'), icon: 'i-lucide-pencil', onSelect: () => openForm(p) }, { label: p.autostart ? t('ops.menu.autostartOff') : t('ops.menu.autostartOn'), icon: p.autostart ? 'i-lucide-power-off' : 'i-lucide-power', onSelect: () => toggleAutostart(p) }], [{ label: t('ops.menu.delete'), icon: 'i-lucide-trash-2', color: 'error', onSelect: () => remove(p) }]]"
+                  :content="{ align: 'end' }"
+                >
+                  <UButton size="xs" color="neutral" variant="ghost" icon="i-lucide-ellipsis" :aria-label="t('ops.actionsLabel')" :loading="busy === p.id + 'delete'" :disabled="busy === p.id + 'delete'" />
+                </UDropdownMenu>
+              </div>
             </div>
           </div>
           <UButton

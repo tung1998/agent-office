@@ -192,10 +192,10 @@ async function restore(e: Entry) {
 <template>
   <PageShell :title="agent?.name ?? ''">
     <template #actions>
-      <UButton v-if="agent" icon="i-lucide-messages-square" size="sm" :label="t('agentPage.chat')" @click="chat()" />
-      <UButton v-if="isAdmin && agent && data?.is_default === false" icon="i-lucide-star" size="sm" color="neutral" variant="outline" :label="t('team.makeDefault')" @click="makeDefault" />
+      <UButton v-if="agent" icon="i-lucide-messages-square" :label="t('agentPage.chat')" @click="chat()" />
+      <UButton v-if="isAdmin && agent && data?.is_default === false" icon="i-lucide-star" color="neutral" variant="outline" :label="t('team.makeDefault')" @click="makeDefault" />
       <UDropdownMenu v-if="isAdmin && agent" :content="{ align: 'end' }" :items="[[{ label: t('org.form.delete'), icon: 'i-lucide-trash', color: 'error', onSelect: remove }]]">
-        <UButton icon="i-lucide-ellipsis" color="neutral" variant="ghost" :aria-label="t('project.actionsAria')" />
+        <UButton icon="i-lucide-ellipsis" color="neutral" variant="outline" :aria-label="t('project.actionsAria')" />
       </UDropdownMenu>
     </template>
 
@@ -319,15 +319,13 @@ async function restore(e: Entry) {
           <div class="flex items-center gap-3">
             <AgentAvatar :agent="{ ...agent, avatar: form.avatar }" size="md" />
             <p class="flex-1 text-sm font-medium">{{ t('avatar.title') }}</p>
-            <template v-if="isAdmin">
-              <template v-if="avatarEditing">
-                <UButton size="xs" color="neutral" variant="ghost" :label="t('common.cancel')" @click="form.avatar = agent?.avatar ?? {}; avatarEditing = false" />
-                <UButton size="xs" icon="i-lucide-save" :label="t('common.save')" :loading="saving === 'avatar'" :disabled="!!saving" @click="save('avatar').then(() => { avatarEditing = false })" />
-              </template>
-              <UButton v-else size="xs" color="neutral" variant="outline" icon="i-lucide-pencil" :label="t('avatar.edit')" @click="avatarEditing = true" />
-            </template>
+            <UButton v-if="isAdmin && !avatarEditing" size="xs" color="neutral" variant="outline" icon="i-lucide-pencil" :label="t('avatar.edit')" @click="avatarEditing = true" />
           </div>
           <AvatarPicker v-if="agent && avatarEditing" v-model="form.avatar" :agent="agent" />
+          <div v-if="isAdmin && avatarEditing" class="flex flex-wrap gap-2">
+            <UButton size="sm" icon="i-lucide-save" :label="t('org.form.save')" :loading="saving === 'avatar'" :disabled="!!saving" @click="save('avatar').then(() => { avatarEditing = false })" />
+            <UButton size="sm" color="neutral" variant="ghost" :label="t('common.cancel')" @click="form.avatar = agent?.avatar ?? {}; avatarEditing = false" />
+          </div>
         </UCard>
         <UCard :ui="{ body: 'space-y-3 sm:p-4' }">
           <p class="text-sm font-medium">{{ t('agentPage.cardRole') }}</p>

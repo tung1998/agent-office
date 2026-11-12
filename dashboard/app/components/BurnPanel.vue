@@ -304,8 +304,8 @@ const builderDone = computed(() => builderFeatures.value.filter(f => f.passes).l
         <!-- on is on: it runs by the saved plan, nothing more is asked -->
         <USwitch v-else :model-value="on" color="warning" :loading="acting === 'start' || acting === 'drain'" :disabled="loading || !!offAgent || !!acting" :aria-label="t('burn.toggle')" :title="t('burn.confirmDesc')" class="mx-1.5" @update:model-value="toggle" />
         <span class="mx-0.5 h-5 w-px bg-(--ui-border)" />
-        <UButton v-if="runChat" size="sm" color="neutral" variant="ghost" icon="i-lucide-messages-square" :title="runs.includes(run) ? t('burn.openRunChat', { run: runLabel(run) }) : t('burn.openChat')" :aria-label="t('burn.openChat')" :to="`/projects/${projectId}?tab=chat&c=${runChat}`" />
-        <UButton size="sm" color="neutral" variant="ghost" icon="i-lucide-settings-2" :title="t('burn.settings')" :aria-label="t('burn.settings')" :disabled="loading" @click="openSettings()" />
+        <UButton v-if="runChat" size="xs" color="neutral" variant="ghost" icon="i-lucide-messages-square" :title="runs.includes(run) ? t('burn.openRunChat', { run: runLabel(run) }) : t('burn.openChat')" :aria-label="t('burn.openChat')" :to="`/projects/${projectId}?tab=chat&c=${runChat}`" />
+        <UButton size="xs" color="neutral" variant="ghost" icon="i-lucide-settings-2" :title="t('burn.settings')" :aria-label="t('burn.settings')" :disabled="loading" @click="openSettings()" />
       </div>
       <div class="ms-auto flex items-center gap-2">
         <USelect v-model="run" :items="runItems" size="sm" class="w-44 max-w-full" :aria-label="t('burn.run.pick')" />
@@ -352,9 +352,9 @@ const builderDone = computed(() => builderFeatures.value.filter(f => f.passes).l
           </div>
           <div v-if="hasReviews(it) || ['found', 'skipped', 'failed', 'queued', 'paused', 'review'].includes(it.status) || (it.worktree && ['done', 'failed', 'skipped'].includes(it.status))" class="flex flex-wrap items-center gap-1 border-t border-(--ui-border)/60 pt-2">
             <UButton v-if="hasReviews(it)" size="xs" color="neutral" variant="ghost" icon="i-lucide-scan-eye" :label="t('burn.review.view')" @click="openReviews(it)" />
-            <UButton v-if="['found', 'skipped', 'failed'].includes(it.status)" size="xs" color="neutral" variant="outline" icon="i-lucide-arrow-up-to-line" :label="t('burn.first')" :loading="itemActing[it.id] === 'first'" :disabled="!!itemActing[it.id] && itemActing[it.id] !== 'first'" @click="itemAction(it, 'first')" />
+            <UButton v-if="['found', 'skipped', 'failed'].includes(it.status)" size="xs" color="neutral" variant="ghost" icon="i-lucide-arrow-up-to-line" :label="t('burn.first')" :loading="itemActing[it.id] === 'first'" :disabled="!!itemActing[it.id] && itemActing[it.id] !== 'first'" @click="itemAction(it, 'first')" />
             <UButton v-if="['found', 'queued', 'paused', 'review'].includes(it.status)" size="xs" color="neutral" variant="ghost" :label="t('burn.skip')" :loading="itemActing[it.id] === 'skip'" :disabled="!!itemActing[it.id] && itemActing[it.id] !== 'skip'" @click="itemAction(it, 'skip')" />
-            <UButton v-if="it.worktree && ['done', 'failed', 'skipped'].includes(it.status)" size="xs" color="error" variant="ghost" icon="i-lucide-trash-2" :label="t('burn.dropWorktree')" class="ms-auto" :loading="itemActing[it.id] === 'drop-worktree'" :disabled="!!itemActing[it.id] && itemActing[it.id] !== 'drop-worktree'" @click="itemAction(it, 'drop-worktree')" />
+            <UButton v-if="it.worktree && ['done', 'failed', 'skipped'].includes(it.status)" size="xs" color="error" variant="ghost" icon="i-lucide-trash-2" :label="t('burn.dropWorktree')" :loading="itemActing[it.id] === 'drop-worktree'" :disabled="!!itemActing[it.id] && itemActing[it.id] !== 'drop-worktree'" @click="itemAction(it, 'drop-worktree')" />
           </div>
         </div>
         <UButton v-if="col.all.length > col.items.length" size="xs" color="neutral" variant="ghost" block :label="t('burn.showMore', { n: col.all.length - col.items.length })" @click="expand(col.key)" />

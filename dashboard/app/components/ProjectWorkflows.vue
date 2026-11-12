@@ -133,15 +133,17 @@ const runsOf = (w: ProjectWorkflow) => router.replace({ query: { ...route.query,
                   <span class="font-mono text-xs text-(--ui-text-muted)">/{{ w.key }}</span>
                   <UBadge v-if="w.callable" color="neutral" variant="outline" size="sm" :label="t(`wf.callable.${w.callable}` as MessageKey)" :title="t('wf.callableInfo')" />
                   <UBadge v-if="w.error" color="error" variant="subtle" size="sm" icon="i-lucide-circle-alert" :label="t('wf.invalid')" :title="w.error" />
-                  <UButton v-if="w.has_update && isAdmin" size="xs" color="primary" variant="soft" icon="i-lucide-download" :label="t('wf.fromLibrary')" :loading="busy === w.id" @click="fromLibrary(w)" />
                 </p>
                 <p v-if="w.description" class="line-clamp-2 text-sm text-(--ui-text-muted)">{{ w.description }}</p>
                 <p v-if="w.error" class="mt-1 text-xs text-(--ui-error)">{{ w.error }}</p>
               </div>
-              <USwitch :model-value="w.enabled" :disabled="!isAdmin || busy === w.id" :aria-label="t('wf.enabled')" :title="t('wf.enabled')" @update:model-value="(v: boolean) => patch(w, { enabled: v })" />
-              <UDropdownMenu v-if="isAdmin" :items="menu(w)" :content="{ align: 'end' }">
-                <UButton size="sm" color="neutral" variant="ghost" icon="i-lucide-ellipsis-vertical" :aria-label="t('chat.more')" />
-              </UDropdownMenu>
+              <div class="ms-auto flex shrink-0 flex-wrap items-center justify-end gap-1">
+                <UButton v-if="w.has_update && isAdmin" size="xs" color="primary" variant="soft" icon="i-lucide-download" :label="t('wf.fromLibrary')" :loading="busy === w.id" @click="fromLibrary(w)" />
+                <USwitch :model-value="w.enabled" :disabled="!isAdmin || busy === w.id" :aria-label="t('wf.enabled')" :title="t('wf.enabled')" @update:model-value="(v: boolean) => patch(w, { enabled: v })" />
+                <UDropdownMenu v-if="isAdmin" :items="menu(w)" :content="{ align: 'end' }">
+                  <UButton size="sm" color="neutral" variant="ghost" icon="i-lucide-ellipsis-vertical" :aria-label="t('chat.more')" />
+                </UDropdownMenu>
+              </div>
             </div>
 
             <div v-if="w.roles.length" class="grid gap-2 sm:grid-cols-2 lg:grid-cols-1 2xl:grid-cols-2">

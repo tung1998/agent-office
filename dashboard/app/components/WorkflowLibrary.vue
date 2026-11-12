@@ -76,7 +76,7 @@ async function remove(w: LibraryWorkflow) {
       </div>
       <UInput v-model="search" icon="i-lucide-search" :placeholder="t('wf.search')" class="w-full sm:w-60" />
       <USelect v-model="category" :items="categoryItems" class="w-full sm:w-44" :aria-label="t('wf.allCategories')" />
-      <UButton class="sm:ms-auto" size="sm" icon="i-lucide-plus" :label="t('wf.new')" :to="editTo()" />
+      <UButton class="sm:ms-auto" icon="i-lucide-plus" :label="t('wf.new')" :to="editTo()" />
     </div>
     <LoadingRows v-if="pending && !data" />
     <div v-else-if="!list.length" class="rounded-lg border border-dashed border-(--ui-border) p-10 text-center">
@@ -108,8 +108,8 @@ async function remove(w: LibraryWorkflow) {
           </span>
         </div>
         <div class="mt-4 flex flex-wrap items-center gap-2 border-t border-(--ui-border) pt-3">
+          <UButton v-if="isAdmin" size="sm" icon="i-lucide-plus" :label="t('wf.addToProject')" :disabled="!!w.error" @click="chooseProject(w)" />
           <UButton v-if="!w.builtin" size="sm" color="neutral" variant="outline" icon="i-lucide-pencil" :label="t('wf.edit')" :to="editTo(w.def.key)" />
-          <UButton v-if="isAdmin" size="sm" color="primary" variant="soft" icon="i-lucide-plus" :label="t('wf.addToProject')" :disabled="!!w.error" @click="chooseProject(w)" />
           <UButton v-if="isAdmin && !w.builtin" size="sm" color="error" variant="ghost" icon="i-lucide-trash-2" :aria-label="t('wf.delete')" :title="t('wf.delete')" @click="remove(w)" />
         </div>
       </div>
@@ -123,8 +123,10 @@ async function remove(w: LibraryWorkflow) {
       <p v-if="!projects.length" class="mt-3 text-sm text-(--ui-text-muted)">{{ t('wf.noProjects') }}</p>
     </template>
     <template #footer>
-      <UButton color="neutral" variant="ghost" :label="t('common.cancel')" @click="installOpen = false" />
-      <UButton color="primary" :label="t('wf.addToProjectAction')" :loading="installing" :disabled="!installProject" @click="install" />
+      <div class="flex w-full justify-end gap-2">
+        <UButton color="neutral" variant="ghost" :label="t('common.cancel')" @click="installOpen = false" />
+        <UButton color="primary" :label="t('wf.addToProjectAction')" :loading="installing" :disabled="!installProject" @click="install" />
+      </div>
     </template>
   </UModal>
 </template>

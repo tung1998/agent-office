@@ -286,7 +286,7 @@ const onErrorItems = computed(() => [{ label: t('wf.step.onErrorStop'), value: '
               multiple :model-value="link(`case:${i}`)" :items="targetItems" size="sm" class="min-w-0 flex-1" :color="missing.includes(`case:${i}`) ? 'error' : undefined" :placeholder="t('wf.step.none')"
               @update:model-value="v => setLink(`case:${i}`, v)"
             />
-            <UButton size="sm" color="neutral" variant="ghost" icon="i-lucide-x" :aria-label="t('wf.delete')" @click="setCases(cases.filter((_, j) => j !== i))" />
+            <UButton size="xs" color="neutral" variant="ghost" icon="i-lucide-x" :aria-label="t('wf.delete')" @click="setCases(cases.filter((_, j) => j !== i))" />
           </div>
           <UButton size="xs" color="neutral" variant="outline" icon="i-lucide-plus" :label="t('wf.step.addCase')" @click="setCases([...cases, { when: '', next: [] }])" />
         </div>

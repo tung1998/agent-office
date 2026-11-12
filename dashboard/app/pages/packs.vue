@@ -20,7 +20,7 @@ function use(p: ProjectPack) {
       <p class="text-sm text-(--ui-text-muted)">{{ t('packs.desc') }}</p>
       <LoadingRows v-if="!data && !error" :n="3" />
       <UAlert v-else-if="error" color="error" variant="subtle" :description="apiError(error)">
-        <template #actions><UButton size="xs" :label="t('common.refresh')" @click="refresh()" /></template>
+        <template #actions><UButton size="xs" color="neutral" variant="outline" :label="t('common.refresh')" @click="refresh()" /></template>
       </UAlert>
       <section v-for="b in bundles" :key="b.name" class="space-y-3">
         <div>

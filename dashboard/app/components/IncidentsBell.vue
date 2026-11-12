@@ -26,6 +26,9 @@ async function act(x: Incident, what: IncidentAct) {
     busy.delete(x.key)
   }
 }
+// the main act (approve, continue, retry now) solid and last, at the right; the rest ghost
+const mainAct = (a: IncidentAct) => a === 'approve' || a === 'continue' || a === 'retryNow'
+const acts = (x: Incident) => [...incidentActs(x)].reverse()
 // every chat answered since the person looked, not only the ones shown
 const unread = computed(() => (data.value?.incidents ?? []).filter(x => x.kind === 'unread'))
 const clearing = ref(false)
@@ -70,12 +73,12 @@ function go(link: string) {
                 <p class="truncate text-xs text-(--ui-text-muted)">{{ [x.project_name, x.detail].filter(Boolean).join(' · ') }}</p>
               </button>
             </UTooltip>
-            <div class="flex flex-wrap gap-1.5">
-              <UButton
-                v-for="(a, i) in incidentActs(x)" :key="a" size="xs" :color="i ? 'neutral' : 'primary'" :variant="i ? 'outline' : 'solid'"
-                :icon="a === 'approve' ? 'i-lucide-check' : undefined" :label="t(`bell.act.${a}`)" :loading="busy.has(x.key) && !i" :disabled="busy.has(x.key)" @click="act(x, a)"
-              />
+            <div class="flex flex-wrap items-center justify-end gap-1">
               <UButton size="xs" color="neutral" variant="ghost" :label="t('bell.act.open')" @click="go(x.link)" />
+              <UButton
+                v-for="a in acts(x)" :key="a" size="xs" :color="mainAct(a) ? 'primary' : 'neutral'" :variant="mainAct(a) ? 'solid' : 'ghost'"
+                :icon="a === 'approve' ? 'i-lucide-check' : undefined" :label="t(`bell.act.${a}`)" :loading="busy.has(x.key) && a === incidentActs(x)[0]" :disabled="busy.has(x.key)" @click="act(x, a)"
+              />
             </div>
           </div>
         </div>

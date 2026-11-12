@@ -154,7 +154,10 @@ async function copy(text: string) {
         </form>
       </template>
       <template #footer>
-        <UButton type="submit" form="sup-hook" :label="t('common.save')" />
+        <div class="flex w-full justify-end gap-2">
+          <UButton color="neutral" variant="ghost" :label="t('common.cancel')" @click="hookOpen = false" />
+          <UButton type="submit" form="sup-hook" :label="t('common.save')" />
+        </div>
       </template>
     </UModal>
 
@@ -166,7 +169,9 @@ async function copy(text: string) {
         </div>
       </template>
       <template #footer>
-        <UButton :label="t('auto.savedIt')" @click="hookSecret = ''" />
+        <div class="flex w-full justify-end gap-2">
+          <UButton :label="t('auto.savedIt')" @click="hookSecret = ''" />
+        </div>
       </template>
     </UModal>
   </div>

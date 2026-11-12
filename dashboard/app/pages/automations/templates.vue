@@ -107,7 +107,7 @@ async function startTemplate() {
         </div>
         <UInput v-model="search" icon="i-lucide-search" :placeholder="t('auto.templateSearch')" class="w-52" />
         <USelect v-model="category" :items="categories.map(x => ({ label: x === 'all' ? t('auto.templateAllCategories') : x, value: x }))" class="w-40" />
-        <UButton v-if="isAdmin" class="sm:ms-auto" size="sm" icon="i-lucide-plus" :label="t('auto.templateAdd')" @click="addTemplate" />
+        <UButton v-if="isAdmin" class="sm:ms-auto" icon="i-lucide-plus" :label="t('auto.templateAdd')" @click="addTemplate" />
       </div>
 
       <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -143,8 +143,10 @@ async function startTemplate() {
       <p v-if="!projects.length" class="mt-3 text-sm text-(--ui-text-muted)">{{ t('auto.chooseProjectEmpty') }}</p>
     </template>
     <template #footer>
-      <UButton color="neutral" variant="ghost" :label="t('common.cancel')" @click="projectModalOpen = false" />
-      <UButton color="primary" :label="t('auto.startFromTemplate')" @click="startTemplate" />
+      <div class="flex w-full justify-end gap-2">
+        <UButton color="neutral" variant="ghost" :label="t('common.cancel')" @click="projectModalOpen = false" />
+        <UButton color="primary" :label="t('auto.startFromTemplate')" @click="startTemplate" />
+      </div>
     </template>
   </UModal>
   <UModal v-model:open="templateModalOpen" :title="t(editingTemplate ? 'auto.templateEditTitle' : 'auto.templateAddTitle')" :ui="{ content: 'max-w-2xl' }">
@@ -168,8 +170,10 @@ async function startTemplate() {
       </div>
     </template>
     <template #footer>
-      <UButton color="neutral" variant="ghost" :label="t('common.cancel')" @click="templateModalOpen = false" />
-      <UButton color="primary" icon="i-lucide-save" :label="t('auto.save')" :loading="templateSaving" @click="saveTemplate" />
+      <div class="flex w-full justify-end gap-2">
+        <UButton color="neutral" variant="ghost" :label="t('common.cancel')" @click="templateModalOpen = false" />
+        <UButton color="primary" icon="i-lucide-save" :label="t('auto.save')" :loading="templateSaving" @click="saveTemplate" />
+      </div>
     </template>
   </UModal>
 </template>

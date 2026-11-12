@@ -136,8 +136,13 @@ const long = (f: CollectionField) => f.type === 'text' && ['content', 'notes', '
         </form>
       </template>
       <template v-if="isAdmin" #footer>
-        <UButton v-if="editing" color="error" variant="ghost" icon="i-lucide-trash-2" :label="t('coll.delete')" @click="remove" />
-        <UButton type="submit" form="coll-record" :label="t('common.save')" :loading="saving" class="ms-auto" />
+        <div class="flex w-full items-center gap-2">
+          <UButton v-if="editing" color="error" variant="ghost" icon="i-lucide-trash-2" :label="t('coll.delete')" class="me-auto" @click="remove" />
+          <div class="ms-auto flex gap-2">
+            <UButton color="neutral" variant="ghost" :label="t('common.cancel')" @click="open = false" />
+            <UButton type="submit" form="coll-record" :label="t('common.save')" :loading="saving" />
+          </div>
+        </div>
       </template>
     </UModal>
   </div>
