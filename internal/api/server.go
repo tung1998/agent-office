@@ -233,6 +233,7 @@ func New(cfg Config) http.Handler {
 	}
 	if cfg.Team != nil {
 		s.triggerRoutes(mux)
+		s.composioRoutes(mux) // ADR-282
 	}
 	if cfg.Store != nil {
 		s.workflowRoutes(mux)

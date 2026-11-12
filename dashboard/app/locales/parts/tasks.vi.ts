@@ -98,6 +98,8 @@ export default {
   'chat.retryPlanned': 'Lỗi API tạm thời: tự chạy tiếp lúc {at} (lần {n}/{max})',
   'chat.cmdBtw': 'Hỏi chen khi agent đang làm: trả lời riêng, không dừng việc',
   'chat.cmdGoal': 'Làm tới khi đạt mục tiêu (status, clear; --check "lệnh" chỉ admin)',
+  'chat.cmdSkillify': 'Biến việc chat này đã làm thành skill (thêm ghi chú: tên, phạm vi)',
+  'chat.skillify': 'Lưu thành skill',
   'chat.btwAsked': 'Đang hỏi riêng: câu trả lời hiện ở chat khi xong',
   'chat.btwBadge': 'Hỏi chen',
   'chat.goalBar': 'Mục tiêu: {text}',

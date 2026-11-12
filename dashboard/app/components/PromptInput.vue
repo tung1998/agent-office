@@ -71,7 +71,7 @@ const sourceLabel = computed(() => ({ project: t('prompt.sourceProject'), user: 
 // whose folder a skill is in, when not Claude Code's: "Codex · máy"
 const toolName: Record<string, string> = { codex: 'Codex', gemini: 'Gemini', antigravity: 'Antigravity' }
 const badge = (s: Skill) => [toolName[s.tool ?? ''], sourceLabel.value[s.source]].filter(Boolean).join(' · ')
-const skillIcon = (s: Skill) => s.source === 'workflow' ? 'i-lucide-workflow' : s.source === 'office' ? (s.name === 'goal' ? 'i-lucide-target' : 'i-lucide-message-circle-question') : s.kind === 'command' ? 'i-lucide-square-terminal' : 'i-lucide-sparkles'
+const skillIcon = (s: Skill) => s.source === 'workflow' ? 'i-lucide-workflow' : s.source === 'office' ? (s.name === 'goal' ? 'i-lucide-target' : s.name === 'skillify' ? 'i-lucide-wand-sparkles' : 'i-lucide-message-circle-question') : s.kind === 'command' ? 'i-lucide-square-terminal' : 'i-lucide-sparkles'
 
 // The menu is teleported to <body> with fixed position so no scrolling or
 // overflow-hidden parent can clip it; it opens upward unless there is no room.

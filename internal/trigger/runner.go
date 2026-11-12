@@ -67,9 +67,10 @@ type Runner struct {
 	onProgress OnProgress
 	onNotify   OnNotify
 	onDone     []OnDone
-	quests     GiveQuests  // a script's @@quest lines to the Burn (ADR-132); nil = none
-	hold       func() bool // true: start no unattended job now (an update waits for office to be idle, ADR-255)
-	quotaStop  QuotaStop   // every AI connection of an agent is out of quota, until when (ADR-268); nil = never
+	quests     GiveQuests                                            // a script's @@quest lines to the Burn (ADR-132); nil = none
+	hold       func() bool                                           // true: start no unattended job now (an update waits for office to be idle, ADR-255)
+	quotaStop  QuotaStop                                             // every AI connection of an agent is out of quota, until when (ADR-268); nil = never
+	appSecret  func(ctx context.Context, automationID string) string // the Composio secret signing deliveries to this webhook (ADR-282); nil or "" = none
 }
 
 // QuotaStop says every AI connection agent may run on is out of its quota
@@ -79,6 +80,12 @@ type QuotaStop func(ctx context.Context, agent storage.Agent) (until time.Time, 
 // SetQuotaStop sets what tells an agent's connections are all out of quota:
 // a scheduled run is then skipped, not run to fail (ADR-268).
 func (r *Runner) SetQuotaStop(fn QuotaStop) { r.quotaStop = fn }
+
+// SetAppSecret gives the secret Composio signs the app events it sends to a
+// webhook with (ADR-282): a delivery there must then carry a good signature.
+func (r *Runner) SetAppSecret(fn func(ctx context.Context, automationID string) string) {
+	r.appSecret = fn
+}
 
 // QuotaCode is the error code of a run skipped because the agent's AI
 // connections were all out of quota (ADR-268).

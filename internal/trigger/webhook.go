@@ -31,7 +31,7 @@ func hashSecret(s string) string {
 }
 
 // deliveryHeaders carry a sender's id for one delivery, used to drop repeats.
-var deliveryHeaders = []string{"Idempotency-Key", "X-Request-Id", "X-GitHub-Delivery", "X-Request-UUID", "X-Atlassian-Webhook-Identifier"}
+var deliveryHeaders = []string{"Idempotency-Key", "X-Request-Id", "X-GitHub-Delivery", "X-Request-UUID", "X-Atlassian-Webhook-Identifier", "webhook-id"}
 
 // Webhook serves POST /hooks/{id} (start a run) and GET /hooks/{id}/jobs/{job}
 // (its state), both with the automation's token. A missing automation, one
@@ -92,6 +92,12 @@ func (r *Runner) receive(w http.ResponseWriter, req *http.Request, a storage.Aut
 		hookJSON(w, http.StatusBadRequest, map[string]any{"error": "không đọc được payload"})
 		return
 	}
+	if !a.Config.PullRequest {
+		if ev, ok := ParseAppEvent(req.Header, body); ok { // an app event through Composio (ADR-281)
+			r.receiveApp(w, req, a, ev, body)
+			return
+		}
+	}
 	dedupe := ""
 	if a.Config.PullRequest {
 		pr, ok, why := ParsePR(req.Header, body)
@@ -112,20 +118,9 @@ func (r *Runner) receive(w http.ResponseWriter, req *http.Request, a storage.Aut
 		}
 	}
 	if dedupe == "" { // no header, no PR key: hash the body (stable even when empty, so repeats dedupe too)
-		sum := sha256.Sum256(body)
-		dedupe = "body:" + hex.EncodeToString(sum[:])[:16]
+		dedupe = bodyKey(body)
 	}
-	debounce := ""
-	if a.Limits.DebounceSeconds > 0 {
-		var payload any
-		if json.Unmarshal(body, &payload) == nil && a.Limits.DebounceKey != "" {
-			debounce = lookup(payload, strings.Split(a.Limits.DebounceKey, "."))
-		}
-		if debounce == "" {
-			debounce = "*" // no key: every delivery folds into one run
-		}
-	}
-	j, status, err := r.Enqueue(req.Context(), a, "webhook", string(body), dedupe, debounce)
+	j, status, err := r.Enqueue(req.Context(), a, "webhook", string(body), dedupe, debounceKey(a, body))
 	if err != nil {
 		hookJSON(w, http.StatusServiceUnavailable, map[string]any{"error": "chưa nhận được, thử lại sau"})
 		return
@@ -138,6 +133,26 @@ func (r *Runner) receive(w http.ResponseWriter, req *http.Request, a storage.Aut
 		r.StartReady(context.WithoutCancel(req.Context()), time.Now().UTC())
 	}
 	hookJSON(w, code, map[string]any{"status": status, "job_id": j.ID})
+}
+
+// bodyKey dedupes a delivery with no id by its body.
+func bodyKey(body []byte) string {
+	sum := sha256.Sum256(body)
+	return "body:" + hex.EncodeToString(sum[:])[:16]
+}
+
+// debounceKey folds deliveries of a debounced webhook by its key ("" = not debounced).
+func debounceKey(a storage.Automation, body []byte) string {
+	if a.Limits.DebounceSeconds <= 0 {
+		return ""
+	}
+	var payload any
+	if json.Unmarshal(body, &payload) == nil && a.Limits.DebounceKey != "" {
+		if k := lookup(payload, strings.Split(a.Limits.DebounceKey, ".")); k != "" {
+			return k
+		}
+	}
+	return "*" // no key: every delivery folds into one run
 }
 
 func hookJSON(w http.ResponseWriter, code int, v any) {

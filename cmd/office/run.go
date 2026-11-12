@@ -15,6 +15,7 @@ import (
 	"github.com/tung1998/agent-office/internal/busywork"
 	"github.com/tung1998/agent-office/internal/channels"
 	"github.com/tung1998/agent-office/internal/cleanup"
+	"github.com/tung1998/agent-office/internal/composio"
 	"github.com/tung1998/agent-office/internal/deciding"
 	"github.com/tung1998/agent-office/internal/events"
 	"github.com/tung1998/agent-office/internal/heartbeat"
@@ -261,7 +262,14 @@ func serveCmd() *cobra.Command {
 			monitors := monitor.New(a.store, procs, chatEngine)
 			// schedules and webhooks start chats as jobs (ADR-040)
 			runner := trigger.New(a.store, officeExecutor{chat: chatEngine})
-			runner.SetQuotaStop(chatEngine.QuotaStop) // a schedule waits out a quota, not fail each hour (ADR-268)
+			runner.SetQuotaStop(chatEngine.QuotaStop)                                   // a schedule waits out a quota, not fail each hour (ADR-268)
+			runner.SetAppSecret(func(ctx context.Context, automationID string) string { // Composio signs the webhook it delivers to (ADR-282)
+				c, err := composio.Load(ctx, a.store, a.providers.Box())
+				if err != nil || c.AutomationID != automationID {
+					return ""
+				}
+				return c.WebhookSecret
+			})
 			go runner.Run(ctx)
 			// stuck work (cards no one decides, loops, the same failure): the
 			// coordinator looks into it while it happens (ADR-230)

@@ -965,6 +965,12 @@ func (e *Engine) SendWithContext(ctx context.Context, conversationID, text, page
 	prompt := text
 	if isWorkflow {
 		prompt = wfPrompt
+	} else if note, ok := e.skillify(ctx, conv, project.Path, text); ok { // ADR-281
+		msgs, lerr := e.store.Chat().ListMessages(ctx, conv.ID)
+		if lerr != nil {
+			return nil, storage.Message{}, lerr
+		}
+		prompt = skillifyPrompt(msgs, note)
 	} else if name, _, isCall := automation.ParseSkillCall(text); !isCall || conv.Purpose != "channel" || name == skillOf(ctx) {
 		// a bot's conversation (outsiders write it) expands only the skill its command names
 		var skill *automation.SkillRef

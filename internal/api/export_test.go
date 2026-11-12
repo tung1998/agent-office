@@ -9,3 +9,10 @@ func SetGitWait(d time.Duration) func() {
 	gitWait = d
 	return func() { gitWait = old }
 }
+
+// SetComposioBase points office's Composio client at a fake (ADR-282).
+func SetComposioBase(u string) func() {
+	old := composioBase
+	composioBase = u
+	return func() { composioBase = old }
+}

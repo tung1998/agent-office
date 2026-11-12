@@ -328,6 +328,12 @@ type AutomationConfig struct {
 	// PullRequest: a webhook of GitHub/Bitbucket pull requests; office runs
 	// it on a PR opened or updated only, with the PR's diff ({{diff}}).
 	PullRequest bool `json:"pull_request,omitempty"`
+	// AppEvents: a webhook run by app events through Composio (ADR-281): the
+	// trigger slugs it handles (GMAIL_NEW_GMAIL_MESSAGE…, any case; "*" or
+	// none = every event that reaches its own URL). An app event reaching any
+	// webhook of the project goes to each webhook of it listing that slug, so
+	// one URL set in Composio serves them all.
+	AppEvents []string `json:"app_events,omitempty"`
 	// Notify: what a run answers is sent to this bot's chat too ("" = kept in office).
 	NotifyChannelID string `json:"notify_channel_id,omitempty"`
 	NotifyChatID    string `json:"notify_chat_id,omitempty"`

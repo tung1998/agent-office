@@ -90,7 +90,7 @@ type automationDTO struct {
 func (s *server) toAutomationDTO(r *http.Request, a storage.Automation) automationDTO {
 	c := a.Config
 	cfg := map[string]any{"every_minutes": c.EveryMinutes, "cron": c.Cron, "timezone": c.Timezone, "auth": c.Auth, "auth_name": c.AuthName,
-		"pull_request": c.PullRequest, "notify_channel_id": c.NotifyChannelID, "notify_chat_id": c.NotifyChatID, "ends_at": c.EndsAt, "stop_when": c.StopWhen, "goal": c.Goal,
+		"pull_request": c.PullRequest, "app_events": c.AppEvents, "notify_channel_id": c.NotifyChannelID, "notify_chat_id": c.NotifyChatID, "ends_at": c.EndsAt, "stop_when": c.StopWhen, "goal": c.Goal,
 		"only_if": c.OnlyIf, "on_restart": c.OnRestart} // read back as it is saved: an edit that sends the config back keeps it (ADR-219)
 	if a.Source == "event" { // its event too: a switch on the list sends the config back (ADR-243)
 		cfg["event"], cfg["event_from"], cfg["event_same_chat"] = c.Event, c.EventFrom, c.EventSameChat
@@ -319,6 +319,9 @@ func (s *server) applyAutomation(r *http.Request, in automationInput, a *storage
 			cfg.Auth = "bearer"
 		}
 		cfg.PullRequest = in.Config.PullRequest // a GitHub/Bitbucket PR webhook
+		if !cfg.PullRequest {                   // app events through Composio (ADR-281)
+			cfg.AppEvents = trigger.CleanAppEvents(in.Config.AppEvents)
+		}
 	}
 	if in.Source == "schedule" || in.Source == "event" {
 		if in.Config.EndsAt != nil { // its stop time, as a Burn's

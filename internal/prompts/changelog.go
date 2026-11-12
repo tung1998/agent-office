@@ -99,7 +99,7 @@ var changelog = map[string][]ChangeEntry{
 	"chat/team":                   {{Hash: "e21c2a1c4ddc", Date: "2026-11-07", Note: "khởi tạo: ghi mã phiên bản ban đầu"}},
 	"chat/workflows":              {{Hash: "350ee98b97cb", Date: "2026-11-07", Note: "khởi tạo: ghi mã phiên bản ban đầu"}},
 	"chat/worktree":               {{Hash: "6e8f4350f5d6", Date: "2026-11-07", Note: "khởi tạo: ghi mã phiên bản ban đầu"}},
-	"guide/automation":            {{Hash: "19e5c53a589c", Date: "2026-11-07", Note: "khởi tạo: ghi mã phiên bản ban đầu"}},
+	"guide/automation":            {{Hash: "19e5c53a589c", Date: "2026-11-07", Note: "khởi tạo: ghi mã phiên bản ban đầu"}, {Hash: "1e8f4ee93f2d", Date: "2026-11-12", Note: "thêm sự kiện app qua Composio: config.app_events (ADR-281)"}},
 	"guide/skill":                 {{Hash: "05d484ddf150", Date: "2026-11-07", Note: "khởi tạo: ghi mã phiên bản ban đầu"}},
 	"guide/skill-handoff":         {{Hash: "6ad0b72d2fb5", Date: "2026-11-07", Note: "khởi tạo: ghi mã phiên bản ban đầu"}},
 	"guide/workflow":              {{Hash: "1ecbdc67a3d9", Date: "2026-11-07", Note: "khởi tạo: ghi mã phiên bản ban đầu"}},
@@ -151,4 +151,5 @@ var changelog = map[string][]ChangeEntry{
 	"workflow/step-quota-wait":    {{Hash: "4b2599c83036", Date: "2026-11-08", Note: "mới: hết quota thì chờ reset rồi tự chạy tiếp (ADR-269)"}},
 	"chat/btw":                    {{Hash: "946847d46ee2", Date: "2026-11-11", Note: "mới: /btw hỏi chen, trả lời riêng chỉ đọc (ADR-273)"}},
 	"chat/goal-start":             {{Hash: "6fc53a1c56b5", Date: "2026-11-11", Note: "mới: /goal trong chat, làm tới khi đạt (ADR-273)"}},
+	"chat/skillify":               {{Hash: "3a612091eadc", Date: "2026-11-12", Note: "mới: /skillify biến việc chat đã làm thành skill (ADR-281)"}},
 }

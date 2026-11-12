@@ -4,7 +4,7 @@
 // agent just changed; "Chạy thử" runs the script now without saving.
 // command: a bot's command (its trigger is set on the bot's page): only what
 // it does, what it sends and its limits
-const props = defineProps<{ projectId: string, form: AutomationDraft, highlight?: string[], command?: boolean }>()
+const props = defineProps<{ projectId: string, form: AutomationDraft, highlight?: string[], command?: boolean, automationId?: string }>()
 const emit = defineEmits<{ tested: [{ output: string, exit_code: number, timed_out: boolean }] }>()
 const toast = useToast()
 const { isAdmin } = useAuth()
@@ -20,11 +20,14 @@ const fromChannel = computed(() => isChannelSource(form.source))
 const sourceCards = computed(() => [
   { value: 'schedule', icon: 'i-lucide-alarm-clock', title: t('auto.sourceSchedule'), desc: t('auto.sourceScheduleDesc'), active: !botsOpen.value && form.source === 'schedule',
     pick: () => { botsOpen.value = false; form.source = 'schedule' } },
-  { value: 'webhook', icon: 'i-lucide-webhook', title: t('auto.sourceWebhook'), desc: t('auto.sourceWebhookDesc'), active: !botsOpen.value && form.source === 'webhook' && !form.config.pull_request,
-    pick: () => { botsOpen.value = false; form.source = 'webhook'; form.config.pull_request = false } },
+  { value: 'webhook', icon: 'i-lucide-webhook', title: t('auto.sourceWebhook'), desc: t('auto.sourceWebhookDesc'), active: !botsOpen.value && form.source === 'webhook' && !form.config.pull_request && !appMode.value,
+    pick: () => { botsOpen.value = false; form.source = 'webhook'; form.config.pull_request = false; form.config.app_events = [] } },
+  // an app's events (Gmail, Slack, GitHub…) through Composio: one URL there serves every such webhook (ADR-281)
+  { value: 'app', icon: 'i-lucide-plug-zap', title: t('auto.sourceApp'), desc: t('auto.sourceAppDesc'), active: !botsOpen.value && form.source === 'webhook' && appMode.value,
+    pick: () => { botsOpen.value = false; form.source = 'webhook'; form.config.pull_request = false; form.config.app_events = form.config.app_events?.length ? form.config.app_events : ['*']; form.config.auth = 'query'; form.config.auth_name = 'token' } },
   // a GitHub/Bitbucket pull request: a webhook whose token is in its URL (they send no header)
   { value: 'pr', icon: 'i-lucide-git-pull-request', title: t('auto.sourcePR'), desc: t('auto.sourcePRDesc'), active: !botsOpen.value && form.source === 'webhook' && !!form.config.pull_request,
-    pick: () => { botsOpen.value = false; form.source = 'webhook'; form.config.pull_request = true; form.config.auth = 'query'; form.config.auth_name = 'token' } },
+    pick: () => { botsOpen.value = false; form.source = 'webhook'; form.config.pull_request = true; form.config.app_events = []; form.config.auth = 'query'; form.config.auth_name = 'token' } },
   // something in the project ended: the next piece of work goes on its own (ADR-243)
   { value: 'event', icon: 'i-lucide-git-commit-horizontal', title: t('auto.sourceEvent'), desc: t('auto.sourceEventDesc'), active: !botsOpen.value && form.source === 'event',
     pick: () => { botsOpen.value = false; form.source = 'event'; form.config.event ||= 'turn.done' } },
@@ -33,6 +36,12 @@ const sourceCards = computed(() => [
     pick: () => { botsOpen.value = true } }
 ])
 const botsOpen = ref(false)
+const appMode = computed(() => !form.config.pull_request && (form.config.app_events?.length ?? 0) > 0)
+// the slugs as typed: commas or spaces between them
+const appEventsText = computed({
+  get: () => (form.config.app_events ?? []).join(', '),
+  set: (v: string) => { form.config.app_events = v.split(/[\s,]+/).map(x => x.trim().toUpperCase()).filter(Boolean) }
+})
 const { data: projBots } = useLiveFetch<{ channels: Channel[] }>(() => `/api/projects/${props.projectId}/channels`, { lazy: true, immediate: isAdmin.value })
 // a Select item cannot have "" as its value: "the lead" is a sentinel
 const LEAD = '__lead'
@@ -160,6 +169,8 @@ const placeholders = computed(() => fromChannel.value
   ? ['{{message}}', '{{user}}', '{{now}}', '{{today}}', '{{automation}}']
   : form.source === 'event'
     ? ['{{payload.text}}', '{{payload.status}}', '{{payload.from_name}}', '{{payload.error}}', '{{payload.conversation_id}}', '{{automation}}']
+    : appMode.value
+    ? ['{{payload.event}}', '{{payload.data}}', '{{payload.account}}', '{{payload.trigger}}', '{{now}}', '{{automation}}']
     : form.config.pull_request
     ? ['{{diff}}', '{{payload.number}}', '{{payload.title}}', '{{payload.author}}', '{{payload.url}}', '{{payload.source}}', '{{payload.target}}']
     : ['{{payload}}', '{{payload.x}}', '{{now}}', '{{today}}', '{{yesterday}}', '{{source}}', '{{automation}}'])
@@ -283,6 +294,13 @@ async function testRun() {
         </div>
         <USwitch v-if="eventKind === 'turn'" v-model="form.config.event_same_chat" :label="t('auto.eventSameChat')" :description="t('auto.eventSameChatHint')" />
         <p class="text-xs text-(--ui-text-muted)">{{ t('auto.eventHint') }}</p>
+      </template>
+      <template v-else-if="appMode">
+        <UFormField :label="t('auto.appEvents')" :hint="t('auto.appEventsHint')">
+          <UInput v-model.lazy="appEventsText" class="w-full font-mono" placeholder="GMAIL_NEW_GMAIL_MESSAGE, SLACK_RECEIVE_MESSAGE" />
+        </UFormField>
+        <p class="text-xs text-(--ui-text-muted)">{{ t('auto.appWhere') }}</p>
+        <ComposioConnect v-if="isAdmin" v-model="form.config.app_events" :automation-id="automationId" />
       </template>
       <p v-else-if="form.config.pull_request" class="flex items-start gap-1.5 text-sm text-(--ui-text-muted)">
         {{ t('auto.prShort') }}

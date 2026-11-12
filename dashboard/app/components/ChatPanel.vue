@@ -504,7 +504,8 @@ async function cancelGoal() {
 // office's own commands the "/" menu offers first
 const officeCommands = computed(() => [
   { name: 'btw', description: t('chat.cmdBtw'), source: 'office' as const },
-  { name: 'goal', description: t('chat.cmdGoal'), source: 'office' as const }
+  { name: 'goal', description: t('chat.cmdGoal'), source: 'office' as const },
+  { name: 'skillify', description: t('chat.cmdSkillify'), source: 'office' as const }
 ])
 const retryActing = ref<'' | 'now' | 'cancel'>('')
 const retryAt = computed(() => {
@@ -627,6 +628,8 @@ function threadMenu(c: Conversation) {
   // a Discord/Telegram chat: where it is there (its thread, once it has one)
   items.push({ label: t('chatTag.edit'), icon: 'i-lucide-tag', onSelect: () => { tagEdit.value = c } })
   if (!c.purpose && (!c.source || c.source === 'web')) items.push({ label: t('handoff.menu'), icon: 'i-lucide-user-round-check', onSelect: () => { handoff.value = c } })
+  // the steps this chat took, as a skill (ADR-281): the agent drafts it, the editor opens it
+  if (!c.purpose && c.id === current.value?.id) items.push({ label: t('chat.skillify'), icon: 'i-lucide-sparkles', onSelect: () => post('/skillify', []) })
   if (c.external_url) items.unshift({ label: c.source === 'telegram' ? t('chat.openInTelegram') : t('chat.openInDiscord'), icon: 'i-lucide-external-link', onSelect: () => { window.open(c.external_url, '_blank', 'noopener') } })
   return [items, [{ label: t('chat.delete'), icon: 'i-lucide-trash-2', color: 'error' as const, onSelect: () => remove(c) }]]
 }

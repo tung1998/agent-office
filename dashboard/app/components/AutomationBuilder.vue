@@ -70,7 +70,7 @@ function secretClosed() {
   <div class="grid gap-4 lg:h-[calc(100vh-9rem)] lg:min-h-[36rem] lg:grid-cols-2">
     <div class="flex flex-col lg:min-h-0">
       <div class="lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:pe-1">
-        <AutomationForm :project-id="projectId" :form="form" :highlight="highlight" @tested="(r) => { lastTest = r }" />
+        <AutomationForm :project-id="projectId" :form="form" :highlight="highlight" :automation-id="automation?.id" @tested="(r) => { lastTest = r }" />
       </div>
       <div v-if="isAdmin" class="flex justify-end gap-2 border-t border-(--ui-border) pt-3">
         <UButton color="neutral" variant="ghost" :label="t('org.form.close')" :to="automation ? `/projects/${projectId}/automations/${automation.id}` : { path: `/projects/${projectId}`, query: { tab: 'automations' } }" />
