@@ -8,6 +8,7 @@ import (
 // ADR-172: a project defines a collection and keeps records in it; a record
 // matching a unique field is patched; filters and history.
 func TestCollectionsAPI(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	admin := e.client(t)
 	login(t, e, admin, "admin@x.io", "admin-password")

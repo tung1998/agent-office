@@ -11,6 +11,7 @@ import (
 // then, not for the 5 minutes of a report without a time (ADR-269). Codex's
 // dated form ("try again at Nov 13th, 2026 10:18 AM") is read too.
 func TestLimitResetsOnAWeekday(t *testing.T) {
+	t.Parallel()
 	loc := time.FixedZone("ICT", 7*3600)
 	now := time.Date(2026, 11, 8, 10, 0, 0, 0, loc) // a Sunday
 	cases := []struct {

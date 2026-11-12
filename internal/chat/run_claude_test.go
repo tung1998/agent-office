@@ -19,6 +19,7 @@ import (
 // The user's own MCP servers (their Claude Code setup) are allowed only when
 // the agent has the capability: a PreToolUse hook allows mcp__* under dontAsk.
 func TestClaudeArgsUserMCP(t *testing.T) {
+	t.Parallel()
 	var r claudeRunner
 	off := r.args(RunRequest{}, false)
 	if slices.Contains(off, "--settings") {
@@ -52,6 +53,7 @@ func TestClaudeArgsUserMCP(t *testing.T) {
 // Claude Code reports the subscription's usage windows and each call's
 // context; office keeps the latest (shown next to the chat and in the sidebar).
 func TestClaudeReportsLimitsAndContext(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	lines := []string{
 		`{"type":"system","subtype":"init","session_id":"s1"}`,
@@ -83,6 +85,7 @@ func TestClaudeReportsLimitsAndContext(t *testing.T) {
 
 // Full access (the office assistant as administrator): every tool, no asking.
 func TestClaudeArgsFullAccess(t *testing.T) {
+	t.Parallel()
 	var r claudeRunner
 	a := r.args(RunRequest{FullAccess: true}, false)
 	i := slices.Index(a, "--permission-mode")
@@ -100,6 +103,7 @@ func TestClaudeArgsFullAccess(t *testing.T) {
 // to the settings source (the working directory), not the filesystem root
 // (https://code.claude.com/docs/en/permissions).
 func TestClaudeArgsExtraDirsDeniesWriteWithoutFullAccess(t *testing.T) {
+	t.Parallel()
 	var r claudeRunner
 	extra := "/tmp/an-extra-dir"
 	a := r.args(RunRequest{Write: true, ExtraDirs: []string{extra}}, false)
@@ -121,6 +125,7 @@ func TestClaudeArgsExtraDirsDeniesWriteWithoutFullAccess(t *testing.T) {
 // A JSON line over the scanner's 16MB cap must fail the run instead of
 // silently returning an empty "success" (the "result" event never gets read).
 func TestClaudeFailsOnOversizedLine(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	bin := filepath.Join(dir, "claude")
 	// nothing is written after the oversized line: once the scanner gives up
@@ -144,6 +149,7 @@ python3 -c 'print("{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\
 
 // A subagent Claude Code starts on its own (Task): its steps show under it.
 func TestClaudeShowsItsSubagents(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	lines := []string{
 		`{"type":"assistant","message":{"content":[{"type":"tool_use","id":"tk1","name":"Task","input":{"description":"tìm chỗ gọi API","subagent_type":"Explore"}}]}}`,
@@ -168,6 +174,7 @@ func TestClaudeShowsItsSubagents(t *testing.T) {
 // The hook runs through sh: a quote in its text breaks the command, sh exits
 // 2, and Claude Code then blocks every MCP tool call.
 func TestUserMCPSettingsHookRuns(t *testing.T) {
+	t.Parallel()
 	var s struct {
 		Hooks struct {
 			PreToolUse []struct {
@@ -194,6 +201,7 @@ func TestUserMCPSettingsHookRuns(t *testing.T) {
 // Office's MCP servers are allowed in the whole-name form Claude Code 2.1.299
 // matches: mcp__<server>__*, one rule per server.
 func TestOfficeAllow(t *testing.T) {
+	t.Parallel()
 	got := officeAllow(&OfficeAccess{Gateway: []string{"github", "my-db"}})
 	if got != " mcp__office__* mcp__github__* mcp__my-db__*" {
 		t.Fatalf("allow rules: %q", got)
@@ -202,6 +210,7 @@ func TestOfficeAllow(t *testing.T) {
 
 // Haiku before 5 holds 200K; Haiku 5.5 goes by what its last run said.
 func TestWindowOfHaiku(t *testing.T) {
+	t.Parallel()
 	if w := windowOf("claude-haiku-4-5", 0); w != 200_000 {
 		t.Fatalf("haiku 4.5: %d", w)
 	}
@@ -238,6 +247,7 @@ echo '{"type":"result","subtype":"success","result":"'"$CLAUDE_CONFIG_DIR"'","se
 
 // ADR-192: web search and fetch only for an agent that picked tools.web.
 func TestClaudeArgsWeb(t *testing.T) {
+	t.Parallel()
 	var r claudeRunner
 	toolsOf := func(a []string) string { return a[slices.Index(a, "--tools")+1] }
 	if off := r.args(RunRequest{}, false); strings.Contains(toolsOf(off), "Web") {
@@ -277,6 +287,7 @@ func TestClaudeEnv(t *testing.T) {
 // The CLI's stderr is read while it still writes to it (a result with
 // is_error): run with -race, a plain bytes.Buffer is a data race (ADR-258).
 func TestClaudeStderrNoRace(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	bin := filepath.Join(dir, "claude")
 	script := `#!/bin/sh
@@ -298,6 +309,7 @@ wait
 // A CLI that exits 1 with no result and nothing on stderr: what it printed on
 // stdout is the reason, not a bare "exit status 1" (ADR-258).
 func TestClaudeExitKeepsStdoutTail(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	bin := filepath.Join(dir, "claude")
 	script := `#!/bin/sh
@@ -319,6 +331,7 @@ exit 1
 // last retried on and the step it was at are the reason, not a bare "exit
 // status 1" (the daily upgrade of 2026-11-06 died so, 17 minutes in).
 func TestClaudeExitSaysWhatItWasDoing(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	bin := filepath.Join(dir, "claude")
 	script := `#!/bin/sh
@@ -353,6 +366,7 @@ exit 1
 }
 
 func TestLineTailKeepsTheLast(t *testing.T) {
+	t.Parallel()
 	var tl lineTail
 	for i := range 30 {
 		tl.add(strings.Repeat("x", i%2) + " line " + string(rune('a'+i%26)))
@@ -369,6 +383,7 @@ func TestLineTailKeepsTheLast(t *testing.T) {
 // and the error was raw JSON (16 failures of 2026-11-07/08). The message's
 // own words are the reason.
 func TestClaudeSyntheticMessageReadsItsText(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	bin := filepath.Join(dir, "claude")
 	script := `#!/bin/sh
@@ -407,6 +422,7 @@ exit 1
 // 13, 10:30am (Asia/Saigon)"): the connection is held until then, not for the
 // 5 minutes of a report without a time.
 func TestClaudeSyntheticLimitSetsLimits(t *testing.T) {
+	t.Parallel()
 	loc := time.FixedZone("ICT", 7*3600)
 	now := time.Date(2026, 11, 8, 10, 0, 0, 0, loc)
 	cases := []struct {
@@ -432,6 +448,7 @@ func TestClaudeSyntheticLimitSetsLimits(t *testing.T) {
 // A compaction whose CLI exits 1 with nothing on stderr: what it printed
 // (plain or its own synthetic message) is the reason, not "exit status 1".
 func TestCompactClaudeKeepsStdoutReason(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	bin := filepath.Join(dir, "claude")
 	fakebin.Write(bin, []byte(`#!/bin/sh

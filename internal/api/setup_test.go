@@ -25,6 +25,7 @@ func fakeClaude(t *testing.T, answer string) *httptest.Server {
 }
 
 func TestSetupFlowAPI(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	admin := e.client(t)
 	login(t, e, admin, "admin@x.io", "admin-password")
@@ -128,6 +129,7 @@ func TestSetupFlowAPI(t *testing.T) {
 }
 
 func TestUsageAPIAndBudget(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	admin := e.client(t)
 	login(t, e, admin, "admin@x.io", "admin-password")

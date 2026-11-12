@@ -10,6 +10,7 @@ import (
 
 // Each run gets the Burn chat made in its own window; the current run its saved one.
 func TestRunChats(t *testing.T) {
+	t.Parallel()
 	t0 := time.Date(2026, 11, 1, 9, 0, 0, 0, time.UTC)
 	runs := map[string]time.Time{"burn/a": t0, "burn/b": t0.Add(24 * time.Hour), "burn/c": t0.Add(48 * time.Hour)}
 	chat := func(id string, at time.Time, purpose string) storage.Conversation {

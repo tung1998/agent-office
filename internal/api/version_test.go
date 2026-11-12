@@ -10,6 +10,7 @@ import (
 // between answers 409 (nothing overwritten); a run of the automation (its
 // last run, failures) is not someone else's change.
 func TestSaveConflicts(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	admin := e.client(t)
 	login(t, e, admin, "admin@x.io", "admin-password")

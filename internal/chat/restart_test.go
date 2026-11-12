@@ -19,6 +19,7 @@ import (
 // Office going down cuts an answer off without ending its job; the next
 // office goes on with it in the agent's session.
 func TestRestartGoesOn(t *testing.T) {
+	t.Parallel()
 	tmp := t.TempDir()
 	bin, argsLog := filepath.Join(tmp, "claude"), filepath.Join(tmp, "args")
 	fakebin.Write(bin, []byte(`#!/bin/sh
@@ -89,6 +90,7 @@ esac
 // brings office down) is not gone on with again: the chat is told, and the
 // person sends a message to go on (ADR-257). One cut fewer times goes on.
 func TestRestartGivesUpAfterCutsInARow(t *testing.T) {
+	t.Parallel()
 	tmp := t.TempDir()
 	bin := filepath.Join(tmp, "claude")
 	fakebin.Write(bin, []byte(`#!/bin/sh

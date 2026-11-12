@@ -114,6 +114,7 @@ echo '{"type":"result","status":"success"}'
 }
 
 func TestGatewayBriefAndFallbackScope(t *testing.T) {
+	t.Parallel()
 	box := officetools.New(nil, nil, nil)
 	box.SetMCPTools(discoveryTools{})
 	server := mcpserver.New(box, "test")
@@ -147,6 +148,7 @@ func TestGatewayBriefAndFallbackScope(t *testing.T) {
 // A server left out as broken (ADR-250) is named in the brief, whatever the
 // runner, and is never in the run's MCP config.
 func TestGatewayBriefBroken(t *testing.T) {
+	t.Parallel()
 	box := officetools.New(nil, nil, nil)
 	box.SetMCPTools(discoveryTools{})
 	broken := []string{"fetch (máy chưa có lệnh uvx)"}
@@ -183,6 +185,7 @@ func (discoveryTools) Call(context.Context, officetools.Scope, string, json.RawM
 }
 
 func TestCLIUsesDiscoveryWithoutConnectingEveryGateway(t *testing.T) {
+	t.Parallel()
 	box := officetools.New(nil, nil, nil)
 	box.SetMCPTools(discoveryTools{})
 	o := &OfficeAccess{MCPURL: "http://127.0.0.1:1/mcp", Gateway: []string{"figma", "context7"}, Tools: box}
@@ -214,6 +217,7 @@ func TestCLIUsesDiscoveryWithoutConnectingEveryGateway(t *testing.T) {
 // in argv (ADR-093), their tools approved: `codex exec` asks nobody and
 // refuses a write tool (propose_action) Codex would ask about.
 func TestCodexMCPArgs(t *testing.T) {
+	t.Parallel()
 	o := &OfficeAccess{MCPURL: "http://127.0.0.1:1/mcp", Token: "secret-tok", Gateway: []string{"context7"}}
 	args := strings.Join(codexMCPArgs(RunRequest{Office: o}), " ")
 	for _, want := range []string{`mcp_servers.office.url="http://127.0.0.1:1/mcp"`, `mcp_servers.context7.url="http://127.0.0.1:1/mcp/s/context7"`,
@@ -243,6 +247,7 @@ func (f *fakeGW) Call(_ context.Context, name string, _ json.RawMessage) (string
 
 // An API run reaches gateway tools through dispatchTool.
 func TestDispatchGatewayTool(t *testing.T) {
+	t.Parallel()
 	gw := &fakeGW{}
 	req := RunRequest{Office: &OfficeAccess{GatewayTools: gw}}
 	if len(gatewayTools(context.Background(), req)) != 1 {

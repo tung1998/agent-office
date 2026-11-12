@@ -13,6 +13,7 @@ import (
 // thing must be added to one or the other, or a manager would reach another
 // project's.
 func TestRoutesClassified(t *testing.T) {
+	t.Parallel()
 	project := map[string]bool{ // routeProject's cases
 		"projects": true, "agents": true, "conversations": true, "chat/turns": true, "patches": true, "automations": true,
 		"workflows": true, "workflow-runs": true, "jobs": true, "processes": true, "monitors": true, "actions": true,

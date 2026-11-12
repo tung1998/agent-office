@@ -26,6 +26,7 @@ func anthropicProvider(t *testing.T) func(provs *provider.Service) storage.Provi
 }
 
 func TestChatTurnIsAJob(t *testing.T) {
+	t.Parallel()
 	f := setup(t, anthropicProvider(t))
 	ctx := actor.With(context.Background(), "human:a@b.c")
 	conv, _ := f.engine.StartConversation(ctx, f.project.ID, "")

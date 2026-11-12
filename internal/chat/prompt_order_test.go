@@ -11,6 +11,7 @@ import (
 // What every chat of a project shares opens the system prompt; the chat's
 // own folder comes after it, so a prompt cache keeps the shared start.
 func TestSystemPromptSharedPartFirst(t *testing.T) {
+	t.Parallel()
 	project := storage.Repo{Name: "p", Path: "/p", Description: "d"}
 	agent := storage.Agent{Name: "a", Role: "r", Instructions: "do x"}
 	acc := perm.Access{Level: perm.Operate}

@@ -15,6 +15,7 @@ import (
 // of its own (ADR-158): a process's lines come in order, another page's
 // stream is refused, and asking from a seen line goes on after it.
 func TestEventsFollowLog(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	admin := e.client(t)
 	login(t, e, admin, "admin@x.io", "admin-password")

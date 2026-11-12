@@ -14,6 +14,7 @@ import (
 // reset: out until then; a reset passed or no report: free; a rejected
 // report with no window: out for the cooldown (ADR-268).
 func TestQuotaStop(t *testing.T) {
+	t.Parallel()
 	var prov storage.Provider
 	f := setup(t, func(provs *provider.Service) storage.Provider {
 		p, err := provs.Create(context.Background(), provider.Input{Name: "Codex", Kind: storage.ProviderClaudeCLI, BaseURL: "/nonexistent/claude"})

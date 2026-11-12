@@ -9,6 +9,7 @@ import (
 )
 
 func TestAuditRecordsBeforeAfter(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	admin := e.client(t)
 	login(t, e, admin, "admin@x.io", "admin-password")
@@ -39,6 +40,7 @@ func TestAuditRecordsBeforeAfter(t *testing.T) {
 }
 
 func TestAuditRedactsProviderKey(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	admin := e.client(t)
 	login(t, e, admin, "admin@x.io", "admin-password")
@@ -68,6 +70,7 @@ func TestAuditRedactsProviderKey(t *testing.T) {
 // An agent's proposal that is approved but fails still leaves a row naming
 // the agent, the approver and the job (ADR-043).
 func TestAuditApprovedProposalThatFails(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	admin := e.client(t)
 	login(t, e, admin, "admin@x.io", "admin-password")
@@ -98,6 +101,7 @@ func TestAuditApprovedProposalThatFails(t *testing.T) {
 }
 
 func TestAuditListAndStats(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	admin := e.client(t)
 	login(t, e, admin, "admin@x.io", "admin-password")
@@ -139,6 +143,7 @@ func TestAuditListAndStats(t *testing.T) {
 
 // Rows of a project's actions carry the project, so its Nhật ký tab shows them.
 func TestAuditRowsCarryProject(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	admin := e.client(t)
 	login(t, e, admin, "admin@x.io", "admin-password")
@@ -171,6 +176,7 @@ func TestAuditRowsCarryProject(t *testing.T) {
 // Review I7: in a group chat an approved diff is logged as the agent that
 // wrote it, not the chat's default agent.
 func TestAuditPatchAuthorInGroupChat(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	admin := e.client(t)
 	login(t, e, admin, "admin@x.io", "admin-password")

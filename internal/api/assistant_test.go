@@ -11,6 +11,7 @@ import (
 // ADR-046: the office assistant's project is hidden from the projects, has
 // its own endpoint, and each person sees only their own assistant chats.
 func TestAssistantProject(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	admin := e.client(t)
 	login(t, e, admin, "admin@x.io", "admin-password")
@@ -40,6 +41,7 @@ func TestAssistantProject(t *testing.T) {
 
 // Review I1: another person's assistant chat cannot be opened, written or deleted.
 func TestAssistantChatsArePrivate(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	admin := e.client(t)
 	login(t, e, admin, "admin@x.io", "admin-password")
@@ -65,6 +67,7 @@ func TestAssistantChatsArePrivate(t *testing.T) {
 // chats, or a page full of another person's chats starves "load more" even
 // though the asking person still has older chats of their own.
 func TestAssistantChatsPaginateOwnOnly(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	admin := e.client(t)
 	login(t, e, admin, "admin@x.io", "admin-password")
@@ -121,6 +124,7 @@ func TestAssistantChatsPaginateOwnOnly(t *testing.T) {
 // ADR-240: a member (and a manager) has the assistant too: its own chats
 // there, never another's, and none of the assistant's settings or notes.
 func TestAssistantForEveryone(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	ctx := context.Background()
 	id, _ := assistant.Ensure(ctx, e.st, t.TempDir())

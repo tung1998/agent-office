@@ -14,6 +14,7 @@ import (
 )
 
 func TestChatAPIWithSSE(t *testing.T) {
+	t.Parallel()
 	if _, err := exec.LookPath("git"); err != nil {
 		t.Skip("git not installed")
 	}
@@ -111,6 +112,7 @@ func TestChatAPIWithSSE(t *testing.T) {
 
 // "New chat" clicked again while the last one is still empty brings that one back.
 func TestNewChatReusesEmpty(t *testing.T) {
+	t.Parallel()
 	if _, err := exec.LookPath("git"); err != nil {
 		t.Skip("git not installed")
 	}

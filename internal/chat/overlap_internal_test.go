@@ -16,6 +16,7 @@ import (
 // ADR-277: a turn hears which files the project's other chats are changing,
 // those it changed too first; its own worktrees and other projects' are left out.
 func TestOverlapsListsOtherChats(t *testing.T) {
+	t.Parallel()
 	if _, err := exec.LookPath("git"); err != nil {
 		t.Skip("git not installed")
 	}
@@ -103,6 +104,7 @@ func gitIn(t *testing.T, dir string, args ...string) {
 }
 
 func TestSiblingOf(t *testing.T) {
+	t.Parallel()
 	for in, want := range map[string]string{"chat-c1": "c1", "chat-c1--agt": "c1", "task-1": "", "burn-x": ""} {
 		if got := siblingOf(in); got != want {
 			t.Errorf("siblingOf(%q) = %q, want %q", in, got, want)

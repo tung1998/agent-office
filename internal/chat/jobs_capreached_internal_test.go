@@ -37,6 +37,7 @@ func (r erroringCostJobRepo) CostSince(ctx context.Context, origin, originID str
 }
 
 func TestCapReachedBlocksOnCostSinceError(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	tmp := t.TempDir()
 	st, err := sqlite.Open(filepath.Join(tmp, "o.db"))
@@ -76,6 +77,7 @@ func TestCapReachedBlocksOnCostSinceError(t *testing.T) {
 }
 
 func TestCapReachedAllowsWhenUnderCap(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	tmp := t.TempDir()
 	st, err := sqlite.Open(filepath.Join(tmp, "o.db"))

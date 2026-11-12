@@ -11,6 +11,7 @@ import (
 )
 
 func TestVerdict(t *testing.T) {
+	t.Parallel()
 	for text, want := range map[string]string{
 		"KẾT LUẬN: ĐỒNG Ý\nổn":            "yes",
 		"**KẾT LUẬN: KHÔNG ĐỒNG Ý**\nsai": "no",
@@ -37,6 +38,7 @@ func TestVerdict(t *testing.T) {
 
 // A run's summary: what this run did, what is left (ADR-120).
 func TestSummary(t *testing.T) {
+	t.Parallel()
 	start := time.Now().Add(-90 * time.Minute)
 	b := storage.BurnSession{StartedAt: &start, ResultMode: "branch", RunBranch: "burn/a"}
 	items := []storage.BurnItem{
@@ -60,6 +62,7 @@ func TestSummary(t *testing.T) {
 // A result agreed with an acceptance line still open is not agreed: the
 // evidence wins over the verdict (ADR-223). Other stages read the verdict.
 func TestAcceptedNeedsEveryCriterion(t *testing.T) {
+	t.Parallel()
 	done := "VERDICT: AGREE\n- [x] nút lưu — app/save.vue:12\nFollow-up: đổi tên biến"
 	open := "VERDICT: AGREE\n- [x] nút lưu — app/save.vue:12\n- [ ] test — chưa có"
 	if !accepted("result", done) || accepted("result", open) || !accepted("plan", open) || accepted("result", "VERDICT: DISAGREE\n- [x] a") {
@@ -70,6 +73,7 @@ func TestAcceptedNeedsEveryCriterion(t *testing.T) {
 // The result review is told which checks already passed, and asks for the
 // acceptance with evidence.
 func TestResultReviewPromptChecks(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module x\n"), 0o644)
 	p := reviewPrompt(storage.BurnSession{}, storage.BurnItem{Worktree: dir, Title: "x"}, "result", "")

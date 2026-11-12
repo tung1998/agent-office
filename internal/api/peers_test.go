@@ -20,6 +20,7 @@ import (
 // one project, A joins with the code; A then reaches only that project, and
 // the peer endpoints refuse a call without its key.
 func TestPeerPairing(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	a, b := setup(t), setup(t)
 	shop, _ := b.st.Repos().Create(ctx, storage.Repo{Name: "shop", GitRemote: "https://bot:ghp_x@git.example/acme/shop.git", Path: t.TempDir()})

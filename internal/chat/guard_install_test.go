@@ -14,6 +14,7 @@ import (
 // deps_install. Other commands, and installs where the folder is the
 // worktree's own or in the project, go through.
 func TestInstallInLinkedTreeRefused(t *testing.T) {
+	t.Parallel()
 	linked := map[string]bool{"/w|node_modules": true, "/w/web|node_modules": true, "/w|.venv": true, "/w/ml|.venv": true}
 	isLinked := func(dir, folder string) bool { return linked[dir+"|"+folder] }
 	refused := []string{
@@ -71,6 +72,7 @@ func TestInstallInLinkedTreeRefused(t *testing.T) {
 // pnpm's -w (--workspace-root) takes no value: the verb after it is still
 // read. npm's -w <workspace> does take one.
 func TestPnpmWorkspaceRootInstallRefused(t *testing.T) {
+	t.Parallel()
 	isLinked := func(dir, folder string) bool { return dir == "/w" }
 	for _, c := range []string{"pnpm -w add lodash", "pnpm --workspace-root add x", "yarn -W add x", "npm -w web install x", "npm --workspace web i"} {
 		if why := installInLinkedTree(c, "/w", isLinked); why == "" {
@@ -86,6 +88,7 @@ func TestPnpmWorkspaceRootInstallRefused(t *testing.T) {
 // A global install writes the tool's own folder, never the worktree's
 // node_modules: allowed.
 func TestGlobalInstallAllowed(t *testing.T) {
+	t.Parallel()
 	isLinked := func(dir, folder string) bool { return dir == "/w" }
 	for _, c := range []string{"npm i -g typescript", "npm install --global pnpm", "npm install --location=global x", "pnpm add -g x", "pnpm add --global x", "bun add -g x", "yarn global add x"} {
 		if why := installInLinkedTree(c, "/w", isLinked); why != "" {
@@ -96,6 +99,7 @@ func TestGlobalInstallAllowed(t *testing.T) {
 
 // An install behind a shell, corepack, npx or env is still an install.
 func TestWrappedInstallRefused(t *testing.T) {
+	t.Parallel()
 	linked := map[string]bool{"/w|node_modules": true, "/w/web|node_modules": true, "/w|.venv": true}
 	isLinked := func(dir, folder string) bool { return linked[dir+"|"+folder] }
 	refused := []string{
@@ -141,6 +145,7 @@ func TestWrappedInstallRefused(t *testing.T) {
 // node_modules is its own, `bash -c "cd web && pnpm i"` installs into web's
 // link; a cd before the shell counts too.
 func TestShellScriptCdFollowedInstallRefused(t *testing.T) {
+	t.Parallel()
 	isLinked := func(dir, folder string) bool { return dir == "/x/web" }
 	for _, c := range []string{`bash -c "cd web && pnpm i"`, `sh -c 'cd web; npm ci'`, `cd web && bash -c "pnpm add x"`} {
 		if why := installInLinkedTree(c, "/x", isLinked); why == "" {
@@ -155,6 +160,7 @@ func TestShellScriptCdFollowedInstallRefused(t *testing.T) {
 // The hook itself, on a real worktree: node_modules linked from the project
 // refuses a pnpm install, the project's own goes through.
 func TestForegroundDeniesInstallInLinkedWorktree(t *testing.T) {
+	t.Parallel()
 	if _, err := exec.LookPath("git"); err != nil {
 		t.Skip("git missing")
 	}

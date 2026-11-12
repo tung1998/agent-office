@@ -10,6 +10,7 @@ Kiến trúc đã có trong `docs/ARCHITECTURE.md`, `docs/CLI.md`, `docs/DATA_MO
 - Test 1 hàm: `go test ./internal/<pkg>/... -run TestTenHam`
 - Race + lặp (việc liên quan khoá/CAS): `go test ./internal/<pkg>/... -race -count=3`
 - Format: `gofmt -l .` (danh sách trống nghĩa là sạch)
+- Test mới: mặc định `t.Parallel()`; khi nào không được, xem `docs/TESTING.md`
 - Dashboard (Nuxt): xem `dashboard/CLAUDE.md`
 
 ## Conventions

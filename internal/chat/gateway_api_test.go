@@ -38,6 +38,7 @@ func (deferredGateway) Call(context.Context, string, json.RawMessage) (string, b
 }
 
 func TestAPIToolboxPayloadAndDispatch(t *testing.T) {
+	t.Parallel()
 	for _, kind := range []storage.ProviderKind{storage.ProviderAnthropic, storage.ProviderOpenAI, storage.ProviderOpenAICompatible} {
 		t.Run(string(kind), func(t *testing.T) {
 			calls := 0

@@ -34,6 +34,7 @@ func goModule(t *testing.T) string {
 // A Go file badly formatted, with a syntax error or a vet finding is sent
 // back to the agent as a block; a good one passes.
 func TestQuickCheckGo(t *testing.T) {
+	t.Parallel()
 	dir := goModule(t)
 	write := func(name, src string) { os.WriteFile(filepath.Join(dir, name), []byte(src), 0o644) }
 
@@ -65,6 +66,7 @@ func TestQuickCheckGo(t *testing.T) {
 }
 
 func TestQuickCheckDataFiles(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	write := func(name, src string) { os.WriteFile(filepath.Join(dir, name), []byte(src), 0o644) }
 	write("ok.json", `{"a": [1, 2]}`)
@@ -88,6 +90,7 @@ func TestQuickCheckDataFiles(t *testing.T) {
 // ADR-135: the project's own checks run by file ending, after the built-in
 // ones, carried to the hook on its command line.
 func TestQuickCheckOwn(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	os.WriteFile(filepath.Join(dir, "a b.ts"), []byte("let x = 1\n"), 0o644)
 	os.WriteFile(filepath.Join(dir, "ok.md"), []byte("x\n"), 0o644)

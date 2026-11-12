@@ -18,6 +18,7 @@ import (
 // answer (ADR-264) — the integration the mcpgateway package cannot cover on
 // its own, since asking in a chat is the chat package's job.
 func TestAskElicit(t *testing.T) {
+	t.Parallel()
 	f := setup(t, func(provs *provider.Service) storage.Provider { return storage.Provider{} })
 	ctx := actor.With(context.Background(), "human:a@x")
 	conv, err := f.engine.StartConversation(ctx, f.project.ID, "")
@@ -80,6 +81,7 @@ func TestAskElicit(t *testing.T) {
 
 // No reply before ctx ends: AskElicit declines rather than waiting forever.
 func TestAskElicitTimeout(t *testing.T) {
+	t.Parallel()
 	f := setup(t, func(provs *provider.Service) storage.Provider { return storage.Provider{} })
 	ctx := actor.With(context.Background(), "human:a@x")
 	conv, err := f.engine.StartConversation(ctx, f.project.ID, "")

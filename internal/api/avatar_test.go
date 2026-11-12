@@ -7,6 +7,7 @@ import (
 
 // An agent's avatar: a color and an icon, or a small uploaded image.
 func TestAgentAvatar(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	admin := e.client(t)
 	login(t, e, admin, "admin@x.io", "admin-password")

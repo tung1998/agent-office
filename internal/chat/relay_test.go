@@ -17,6 +17,7 @@ import (
 // send_to_chat: the message goes into the other chat as its person wrote it,
 // marked as relayed (so what it starts does not relay on by itself).
 func TestRelayToAnotherChat(t *testing.T) {
+	t.Parallel()
 	bin, _ := fakeClaude(t, "B", true)
 	f := setup(t, func(provs *provider.Service) storage.Provider {
 		p, _ := provs.Create(context.Background(), provider.Input{Name: "CC", Kind: storage.ProviderClaudeCLI, BaseURL: bin})
@@ -63,6 +64,7 @@ func TestRelayToAnotherChat(t *testing.T) {
 // send_to_chat with a linked project and no chat: a new chat opens there in
 // the person's name, its agent answers, and where it went comes back.
 func TestRelayNewChatInLinkedProject(t *testing.T) {
+	t.Parallel()
 	bin, _ := fakeClaude(t, "B", true)
 	f := setup(t, func(provs *provider.Service) storage.Provider {
 		p, _ := provs.Create(context.Background(), provider.Input{Name: "CC", Kind: storage.ProviderClaudeCLI, BaseURL: bin})
@@ -130,6 +132,7 @@ func TestRelayNewChatInLinkedProject(t *testing.T) {
 // What a linked chat this one handed work to waits on shows here; its own
 // project's chats and decided cards do not.
 func TestLinkedPending(t *testing.T) {
+	t.Parallel()
 	f := setup(t, func(provs *provider.Service) storage.Provider { return storage.Provider{} })
 	ctx := context.Background()
 	admin, _ := f.st.Repos().Create(ctx, storage.Repo{Name: "admin v3", Path: t.TempDir()})
@@ -161,6 +164,7 @@ func TestLinkedPending(t *testing.T) {
 // A message relayed before its project was kept still shows where it came
 // from: office looks up the chat it names.
 func TestHistoryFillsOlderRelay(t *testing.T) {
+	t.Parallel()
 	f := setup(t, func(provs *provider.Service) storage.Provider { return storage.Provider{} })
 	ctx := context.Background()
 	src, _ := f.st.Chat().CreateConversation(ctx, storage.Conversation{ProjectID: f.project.ID, Title: "Trang mockup"})

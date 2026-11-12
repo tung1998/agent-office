@@ -13,6 +13,7 @@ import (
 // limit could silently drop real children. The parent here is the oldest
 // run in the conversation, so a recency-capped scan pushes its child out.
 func TestWorkflowRunChildrenNotLostToListLimit(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	ctx := context.Background()
 	c := e.client(t)

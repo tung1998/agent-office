@@ -119,6 +119,7 @@ func TestConfigChangeProposeApprove(t *testing.T) {
 // approve, with no office account) is carried out on the office's behalf; the
 // log names who approved it in the chat.
 func TestConfigChangeApprovedFromChat(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	admin := e.client(t)
 	login(t, e, admin, "admin@x.io", "admin-password")
@@ -166,6 +167,7 @@ func mustPropose(t *testing.T, e *env, pid, aid string) string {
 // the admin it acts for, so it can make another agent administrator too;
 // without that admin the change is refused.
 func TestAdminRunGrantsAdministrator(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	admin := e.client(t)
 	login(t, e, admin, "admin@x.io", "admin-password")
@@ -197,6 +199,7 @@ func TestAdminRunGrantsAdministrator(t *testing.T) {
 // self.manage) runs as administrator too, in the same admin's name; one
 // only given more work does not.
 func TestAdminRunLeadIsAdministrator(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	admin := e.client(t)
 	login(t, e, admin, "admin@x.io", "admin-password")
@@ -228,6 +231,7 @@ func TestAdminRunLeadIsAdministrator(t *testing.T) {
 // A chat agent reads the agent library through list/get, to start a new
 // agent from it instead of writing one from scratch.
 func TestAgentLibraryReadable(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	admin := e.client(t)
 	login(t, e, admin, "admin@x.io", "admin-password")
@@ -260,6 +264,7 @@ func TestAgentLibraryReadable(t *testing.T) {
 // ADR-196: an agent steers the work board's Burn through propose_change
 // resource burn: its focus, template and run on / off / finish.
 func TestConfigChangeBurn(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	admin := e.client(t)
 	login(t, e, admin, "admin@x.io", "admin-password")

@@ -311,6 +311,7 @@ func TestExportImportWholeOffice(t *testing.T) {
 
 // ModeMove keeps bots, automations and peers as they were.
 func TestImportMoveKeepsBots(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	eo, _ := oldOffice(t)
 	eo.Projects = nil // the database and files are enough here
@@ -329,12 +330,14 @@ func TestImportMoveKeepsBots(t *testing.T) {
 }
 
 func TestExportNeedsLongPassphrase(t *testing.T) {
+	t.Parallel()
 	if _, err := Export(context.Background(), &bytes.Buffer{}, ExportOptions{Passphrase: "short", Snapshot: func(string) error { return nil }}); err == nil {
 		t.Fatal("a short passphrase was taken")
 	}
 }
 
 func TestSafeJoin(t *testing.T) {
+	t.Parallel()
 	// whatever the name, the entry lands inside the folder (.. is clamped)
 	for name, want := range map[string]string{"a/b": "/d/a/b", "../x": "/d/x", "/etc/passwd": "/d/etc/passwd", "a/../../x": "/d/x", "": "", "..": ""} {
 		if got := safeJoin("/d", name); got != want {
@@ -345,6 +348,7 @@ func TestSafeJoin(t *testing.T) {
 
 // Defer: a running office keeps its database until ApplyPending at its next start.
 func TestImportDeferredUntilRestart(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	eo, _ := oldOffice(t)
 	eo.Projects = nil

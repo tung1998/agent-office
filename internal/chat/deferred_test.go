@@ -87,6 +87,7 @@ func heldCommit(t *testing.T, f fixture, conv storage.Conversation, msgID, statu
 // pending one no longer blocks the chat's later cards (nor a step waiting
 // for the merge), a queued one is not run to fail with nothing to commit.
 func TestRejectedDiffDropsItsHeldCommit(t *testing.T) {
+	t.Parallel()
 	f, conv, say := deferredFixture(t)
 	ctx := actor.With(context.Background(), "human:a@b.c")
 	first := say("đổi lời chào")
@@ -113,6 +114,7 @@ func TestRejectedDiffDropsItsHeldCommit(t *testing.T) {
 // ADR-189: a diff approved but failing to merge fails the commit held for
 // it with the diff's reason, instead of running it to a "nothing to commit".
 func TestFailedDiffFailsItsQueuedCommit(t *testing.T) {
+	t.Parallel()
 	f, conv, say := deferredFixture(t)
 	ctx := actor.With(context.Background(), "human:a@b.c")
 	first := say("đổi lời chào")
@@ -170,6 +172,7 @@ func TestDrainWaitsWhileTheDiffIsReplaced(t *testing.T) {
 // carried onto the new diff (after it, with its files), not left before it
 // where it would block the new diff, then run first and fail (or never run).
 func TestDeferredCommitFollowsTheDiffThatReplacedIt(t *testing.T) {
+	t.Parallel()
 	f, conv, say := deferredFixture(t)
 	ctx := actor.With(context.Background(), "human:a@b.c")
 	first := say("đổi lời chào")

@@ -5,6 +5,7 @@ import "testing"
 // A project turns the develop pack's features off: its payload says which are
 // on (the dashboard hides the rest; agents and the API are not limited).
 func TestProjectFeatures(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	admin := e.client(t)
 	login(t, e, admin, "admin@x.io", "admin-password")

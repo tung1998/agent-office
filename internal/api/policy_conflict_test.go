@@ -9,6 +9,7 @@ import "testing"
 // silently overwriting it (the bug: putPolicy's version check was only
 // advisory, and the storage write below it was an unconditional overwrite).
 func TestPutPolicyConflict(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	admin := e.client(t)
 	login(t, e, admin, "admin@x.io", "admin-password")

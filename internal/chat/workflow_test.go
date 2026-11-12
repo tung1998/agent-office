@@ -124,6 +124,7 @@ func (g wfGroup) run(t *testing.T) storage.WorkflowRun {
 }
 
 func TestWorkflowCommitteeRunsInParallelAndCallsBack(t *testing.T) {
+	t.Parallel()
 	g := newWFGroup(t)
 	g.install(t, "council", map[string]string{"a": g.dev.ID, "b": g.qa.ID})
 	os.WriteFile(filepath.Join(g.dir, "sleep-lead"), []byte("1"), 0o644)
@@ -228,6 +229,7 @@ func TestWorkflowCommitteeRunsInParallelAndCallsBack(t *testing.T) {
 }
 
 func TestWorkflowEnforcesItsRules(t *testing.T) {
+	t.Parallel()
 	g := newWFGroup(t)
 	g.install(t, "feature", map[string]string{"ke-hoach": g.dev.ID, "phan-bien": g.qa.ID, "thuc-thi": g.dev.ID, "review": g.qa.ID})
 	os.WriteFile(filepath.Join(g.dir, "sleep-lead"), []byte("2"), 0o644)
@@ -285,6 +287,7 @@ func TestWorkflowEnforcesItsRules(t *testing.T) {
 }
 
 func TestWorkflowVoteTallies(t *testing.T) {
+	t.Parallel()
 	g := newWFGroup(t)
 	// the 3-party council: the coordinator is the lead, its three roles Dev, QA and a third agent
 	aud, _ := g.f.st.Agents().Create(g.context, storage.Agent{ProjectID: g.f.project.ID, Key: "aud", Name: "Aud", ModelTier: "fast"})
@@ -315,6 +318,7 @@ func TestWorkflowVoteTallies(t *testing.T) {
 // a role filled by another workflow: it runs in a chat of its own, its
 // output is the role's answer in the run that called it (ADR-102)
 func TestWorkflowCallsASubWorkflow(t *testing.T) {
+	t.Parallel()
 	g := newWFGroup(t)
 	g.install(t, "advisor", map[string]string{"co-van": g.dev.ID})
 	parent := "---\nkey: cha\nname: Cha\ndescription: gọi con\nroles:\n  - key: con\n    name: Con\n    workflow: advisor\nlimits:\n  depth: 1\n---\nGiao vai con rồi tổng kết.\n"
@@ -377,6 +381,7 @@ func TestWorkflowCallsASubWorkflow(t *testing.T) {
 
 // declared inputs and outputs, and a workflow only other workflows call (ADR-103)
 func TestSubWorkflowInputsOutputs(t *testing.T) {
+	t.Parallel()
 	g := newWFGroup(t)
 	child := "---\nkey: con-ra\nname: Con\ncallable: sub\ninputs:\n  - key: cau-hoi\n    required: true\noutputs:\n  - key: ket-luan\n    required: true\nroles:\n  - key: x\n---\nTrả lời câu hỏi.\n"
 	parent := "---\nkey: cha2\nname: Cha\nroles:\n  - key: con\n    workflow: con-ra\n---\nGiao vai con.\n"
@@ -669,6 +674,7 @@ steps:
 // a coordinate step (ADR-111): an agent decides inside the step, in a run
 // of its own; its workflow_done is the step's output for the steps after it
 func TestWorkflowCoordinateStep(t *testing.T) {
+	t.Parallel()
 	g := newWFGroup(t)
 	src := `---
 key: dp
@@ -739,6 +745,7 @@ steps:
 // "#key" in a Burn piece's review chat (ADR-113, ADR-114) runs the workflow, as in
 // a team chat, and its answer is the workflow's output: not a plain message.
 func TestWorkflowRunsFromABurnChat(t *testing.T) {
+	t.Parallel()
 	g := newWFGroup(t)
 	src := `---
 key: review-burn
@@ -781,6 +788,7 @@ steps:
 // An agent runs a workflow itself (run_workflow): "#key input" waits in its
 // chat as the person and goes when the answer ends, then runs as if typed.
 func TestAgentStartsWorkflowItself(t *testing.T) {
+	t.Parallel()
 	g := newWFGroup(t)
 	g.install(t, "council", map[string]string{"a": g.dev.ID, "b": g.qa.ID})
 	os.WriteFile(filepath.Join(g.dir, "sleep-lead"), []byte("1"), 0o644)
@@ -814,6 +822,7 @@ func TestAgentStartsWorkflowItself(t *testing.T) {
 
 // A run that ends while a role still answers leaves no role "working".
 func TestWorkflowEndsItsWorkingRoles(t *testing.T) {
+	t.Parallel()
 	g := newWFGroup(t)
 	g.install(t, "feature", map[string]string{"ke-hoach": g.dev.ID, "phan-bien": g.qa.ID, "thuc-thi": g.dev.ID, "review": g.qa.ID})
 	os.WriteFile(filepath.Join(g.dir, "sleep-lead"), []byte("2"), 0o644)

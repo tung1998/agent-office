@@ -10,6 +10,7 @@ import (
 // "Luôn cho phép": the card shows the pattern and its pack; a wrapper (sudo,
 // bash…) has none, and approving it "always" is refused (it stays pending).
 func TestApproveAlwaysAPI(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	admin := e.client(t)
 	login(t, e, admin, "admin@x.io", "admin-password")

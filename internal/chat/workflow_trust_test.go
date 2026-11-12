@@ -19,6 +19,7 @@ import (
 // stopped on approval cards for every command outside the list. A job that
 // did not get full access (a webhook) gives its steps none (ADR-074).
 func TestWorkflowStepsKeepTrustedAutomationAccess(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		name    string
 		jobFull bool

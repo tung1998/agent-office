@@ -13,6 +13,7 @@ import (
 // ADR-224: a manager sees and manages the projects it made or was given;
 // the whole office's settings stay the admin's.
 func TestProjectScope(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	admin := e.client(t)
 	login(t, e, admin, "admin@x.io", "admin-password")
@@ -121,6 +122,7 @@ func TestProjectScope(t *testing.T) {
 // ADR-239: a manager runs the member accounts, giving them only what it has:
 // its projects, and the other offices (whole or some projects) an admin gave it.
 func TestManagerRunsMembers(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	a, b := setup(t), setup(t)
 	shop, _ := b.st.Repos().Create(ctx, storage.Repo{Name: "shop", Path: t.TempDir()})

@@ -13,6 +13,7 @@ import (
 // uploaded and typed by its bytes, served by its version, refused when it is
 // not an image or video, and gone once removed.
 func TestBackgroundPerAccount(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	admin := e.client(t)
 	login(t, e, admin, "admin@x.io", "admin-password")

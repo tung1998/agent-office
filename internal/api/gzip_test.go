@@ -11,6 +11,7 @@ import (
 // JSON goes gzip'd to a client that takes it (a phone over a VPN downloads a
 // fraction); what is streamed (SSE) is never held back in a buffer.
 func TestAPIGzip(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	admin := e.client(t)
 	login(t, e, admin, "admin@x.io", "admin-password")

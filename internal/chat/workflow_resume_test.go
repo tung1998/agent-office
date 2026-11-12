@@ -167,6 +167,7 @@ steps:
 // An agent's step cut by the restart runs again in the next office, told
 // it was cut (its session keeps what it did); it counts toward the cap.
 func TestResumeAgentStepTold(t *testing.T) {
+	t.Parallel()
 	g := newWFGroup(t)
 	os.WriteFile(filepath.Join(g.dir, "sleep-dev"), []byte("3"), 0o644)
 	src := `---
@@ -216,6 +217,7 @@ steps:
 // An approval waiting on a person goes on with the same card: the next
 // office waits on it, no second card; deciding it then goes on.
 func TestResumeApproveReusesCard(t *testing.T) {
+	t.Parallel()
 	g := newWFGroup(t)
 	acts := actions.New(g.f.st, nil)
 	g.engine.SetActions(acts)
@@ -275,6 +277,7 @@ steps:
 // A run cut in the middle MaxResumes times, a coordinator's run (no
 // checkpoint) and a run whose workflow changed end at the restart.
 func TestResumeCappedAndCoordinatorEnded(t *testing.T) {
+	t.Parallel()
 	g := newWFGroup(t)
 	src := `---
 key: ngan
@@ -398,6 +401,7 @@ func TestSweepOrphansFindsOldRunningRunPastListCap(t *testing.T) {
 // The dashboard's "Chạy tiếp từ bước dở": a run the restart ended that kept
 // where it was goes on; another run does not.
 func TestResumeRunByHand(t *testing.T) {
+	t.Parallel()
 	g := newWFGroup(t)
 	src := `---
 key: tay

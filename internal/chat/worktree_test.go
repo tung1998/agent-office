@@ -63,6 +63,7 @@ func fakeAnthropic(t *testing.T, wantSystem string, tools []map[string]any) *htt
 }
 
 func TestWorktreeChatEditsThenMerge(t *testing.T) {
+	t.Parallel()
 	if _, err := exec.LookPath("git"); err != nil {
 		t.Skip("git not installed")
 	}
@@ -133,6 +134,7 @@ func TestWorktreeChatEditsThenMerge(t *testing.T) {
 }
 
 func TestDirectModeEditsProject(t *testing.T) {
+	t.Parallel()
 	srv := fakeAnthropic(t, "in the person's project folder", []map[string]any{{"name": "edit_file", "input": map[string]any{"path": "hello.txt", "old": "hello", "new": "chào"}}})
 	defer srv.Close()
 	f := setup(t, func(provs *provider.Service) storage.Provider {
@@ -163,6 +165,7 @@ func TestDirectModeEditsProject(t *testing.T) {
 // each diff is accepted in its own tree, and one agent's diff never replaces
 // or reverts the other's.
 func TestTwoAgentsEditInTheirOwnTrees(t *testing.T) {
+	t.Parallel()
 	if _, err := exec.LookPath("git"); err != nil {
 		t.Skip("git not installed")
 	}
@@ -245,6 +248,7 @@ func mustAgents(t *testing.T, f fixture) []storage.Agent {
 // ADR-046: the assistant's chat runs in office scope (its tools span projects);
 // a project's chat does not.
 func TestAssistantChatGetsOfficeScope(t *testing.T) {
+	t.Parallel()
 	var names []string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var body struct {
@@ -287,6 +291,7 @@ func TestAssistantChatGetsOfficeScope(t *testing.T) {
 // The project moved on after the chat's worktree was made: merging refreshes
 // the worktree onto it first; a clash is left in the worktree for the agent.
 func TestMergeAfterProjectMoved(t *testing.T) {
+	t.Parallel()
 	if _, err := exec.LookPath("git"); err != nil {
 		t.Skip("git not installed")
 	}
@@ -356,6 +361,7 @@ func TestMergeAfterProjectMoved(t *testing.T) {
 // roles there too, not in the project: the reviewers read the piece's code
 // where it is, instead of each searching for it.
 func TestWorkflowRolesRunInCallersTree(t *testing.T) {
+	t.Parallel()
 	if _, err := exec.LookPath("git"); err != nil {
 		t.Skip("git not installed")
 	}

@@ -11,6 +11,7 @@ import (
 // Tags on chats: set (cleaned, "Bug" = "bug"), offered back by the project,
 // and the list keeps the chats that have every tag asked for.
 func TestChatTags(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	admin := e.client(t)
 	login(t, e, admin, "admin@x.io", "admin-password")

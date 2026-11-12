@@ -16,6 +16,7 @@ import (
 // ADR-254: a turn has no time limit, so the office token a run gets must
 // not die after 30 minutes (a daily-upgrade run lost its commit to that).
 func TestOfficeTokenOutlivesHalfAnHour(t *testing.T) {
+	t.Parallel()
 	st, err := sqlite.Open(filepath.Join(t.TempDir(), "o.db"))
 	if err != nil {
 		t.Fatal(err)

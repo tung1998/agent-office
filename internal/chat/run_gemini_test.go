@@ -95,6 +95,7 @@ echo '{"type":"result","status":"success","stats":{"input_tokens":12,"output_tok
 // A JSON line over the scanner's 16MB cap must fail the run instead of
 // silently returning an empty "success" (the "result" event never gets read).
 func TestGeminiFailsOnOversizedLine(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	bin := filepath.Join(dir, "gemini")
 	script := `#!/bin/sh
@@ -113,6 +114,7 @@ python3 -c 'print("{\"type\":\"message\",\"role\":\"assistant\",\"content\":\"" 
 }
 
 func TestGeminiRunnerError(t *testing.T) {
+	t.Parallel()
 	tmp := t.TempDir()
 	bin := filepath.Join(tmp, "gemini")
 	fakebin.Write(bin, []byte(`#!/bin/sh

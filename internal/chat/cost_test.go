@@ -10,6 +10,7 @@ import (
 // Claude Code reports a session's total so far: a resumed turn costs what it
 // added, not the whole session again (ADR-125).
 func TestTurnCostIsWhatTheTurnAdded(t *testing.T) {
+	t.Parallel()
 	e := limitsEngine(t)
 	ctx := context.Background()
 	cli := storage.ProviderClaudeCLI

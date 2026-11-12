@@ -12,6 +12,7 @@ import (
 // elsewhere) is not in "Cần xử lý": nobody is asked to approve it again.
 // Approving it meanwhile answers 409 saying who is deciding it.
 func TestDecidingNotAsked(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	admin := e.client(t)
 	login(t, e, admin, "admin@x.io", "admin-password")

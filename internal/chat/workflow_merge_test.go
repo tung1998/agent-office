@@ -209,6 +209,7 @@ func (s cancelStore) Chat() storage.ChatRepo { return cancelChat{s.Store.Chat(),
 // were merged: the store's error (the deadline's) read as "unknown, run as
 // before" (TestWaitMergedDepsOnlyShortCap failed so under load, ADR-254).
 func TestWaitMergedStoppedWhileReading(t *testing.T) {
+	t.Parallel()
 	st, _, own := mergeStore(t)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()

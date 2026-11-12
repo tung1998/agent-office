@@ -11,6 +11,7 @@ import (
 
 // The latest usage windows of each connection, for the sidebar and chat.
 func TestProviderLimits(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	admin := e.client(t)
 	login(t, e, admin, "admin@x.io", "admin-password")
@@ -38,6 +39,7 @@ func TestProviderLimits(t *testing.T) {
 
 // A chat lists its members (ADR-044): each agent with its rights and context.
 func TestConversationMembers(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	admin := e.client(t)
 	login(t, e, admin, "admin@x.io", "admin-password")

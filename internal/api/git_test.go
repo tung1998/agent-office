@@ -13,6 +13,7 @@ import (
 
 // Fetch refreshes the remote so the bar under the title shows "behind".
 func TestGitFetch(t *testing.T) {
+	t.Parallel()
 	if _, err := exec.LookPath("git"); err != nil {
 		t.Skip("git missing")
 	}

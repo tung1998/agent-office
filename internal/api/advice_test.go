@@ -11,6 +11,7 @@ import (
 // What advisors told a chat's stuck agents: its own list, on the answer it
 // went to, summed on the overview; the setting is checked (ADR-262).
 func TestAdviceAPI(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	admin := e.client(t)
 	login(t, e, admin, "admin@x.io", "admin-password")

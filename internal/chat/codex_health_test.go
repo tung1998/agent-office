@@ -22,6 +22,7 @@ import (
 const codexQuota = "codex: You’ve hit your usage limit. Upgrade to Pro (https://chatgpt.com/explore/pro), visit https://chatgpt.com/settings/usage to purchase more credits or try again at 9:18 PM."
 
 func TestCodexHealthClockReset(t *testing.T) {
+	t.Parallel()
 	zone := time.FixedZone("ICT", 7*3600)
 	now := time.Date(2026, 11, 5, 10, 23, 0, 0, zone)
 	l := limitsFromError(nil, errors.New(codexQuota), now)
@@ -228,6 +229,7 @@ func TestStartErrorMissingDirIsNotBroken(t *testing.T) {
 // Gemini's npm wrapper ran and its native part did not: the error was a
 // plain one, so the connection was never marked broken.
 func TestGeminiHealthBrokenInstall(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	bin := filepath.Join(dir, "gemini")
 	fakebin.Write(bin, []byte(`#!/bin/sh
@@ -255,6 +257,7 @@ exit 1
 // A connection marked broken goes behind its fallbacks, so no run on it
 // would ever clear the mark: it is checked again in the background.
 func TestCodexHealthBrokenConnectionRechecked(t *testing.T) {
+	t.Parallel()
 	e := limitsEngine(t)
 	ctx := context.Background()
 	codex, err := e.providers.Create(ctx, provider.Input{Name: "Codex", Kind: storage.ProviderCodexCLI})

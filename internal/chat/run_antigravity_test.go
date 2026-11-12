@@ -12,6 +12,7 @@ import (
 )
 
 func TestAntigravityRunner(t *testing.T) {
+	t.Parallel()
 	tmp := t.TempDir()
 	bin, log := filepath.Join(tmp, "agy"), filepath.Join(tmp, "log")
 	fakebin.Write(bin, []byte(`#!/bin/sh
@@ -78,6 +79,7 @@ echo '{"event":"result","result":{"conversation_id":"c1","status":"SUCCESS","res
 }
 
 func TestAntigravityRunnerSignedOut(t *testing.T) {
+	t.Parallel()
 	tmp := t.TempDir()
 	bin := filepath.Join(tmp, "agy")
 	fakebin.Write(bin, []byte(`#!/bin/sh
@@ -95,6 +97,7 @@ echo '{"event":"result","result":{"conversation_id":"","status":"ERROR","respons
 // answer: the model was told there is no shell, the retry says so again, and
 // the error names the command and why instead of a bare "tool lỗi".
 func TestAntigravityDeniedCommand(t *testing.T) {
+	t.Parallel()
 	tmp := t.TempDir()
 	bin, log := filepath.Join(tmp, "agy"), filepath.Join(tmp, "log")
 	fakebin.Write(bin, []byte(`#!/bin/sh
@@ -115,6 +118,7 @@ echo '{"event":"result","result":{"conversation_id":"c1","status":"SUCCESS","res
 // A JSON line over the scanner's 16MB cap must fail the run instead of
 // silently returning an empty "success" (the "result" event never gets read).
 func TestAntigravityFailsOnOversizedLine(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	bin := filepath.Join(dir, "agy")
 	script := `#!/bin/sh
@@ -138,6 +142,7 @@ python3 -c 'print("{\"event\":\"step_update\",\"step_update\":{\"conversation_id
 // .git/worktrees/burn-…/HEAD"), ending its turn with no answer. An agent
 // that may write is not given .git (its hooks run code) (ADR-270).
 func TestAgyAddsGitCommonDir(t *testing.T) {
+	t.Parallel()
 	tmp := t.TempDir()
 	repo, wt := filepath.Join(tmp, "repo"), filepath.Join(tmp, "wt")
 	git := func(dir string, args ...string) {

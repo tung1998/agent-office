@@ -45,6 +45,7 @@ func newIncidentTestServer(t *testing.T, n ChannelReloader) (*server, storage.St
 // GET/PUT /api/incident-alert: saved settings round-trip, an unknown bot is
 // rejected, min_severity always normalizes to "error" or "warning".
 func TestIncidentAlertAPI(t *testing.T) {
+	t.Parallel()
 	s, st, p := newIncidentTestServer(t, &fakeNotifier{})
 	ch, err := st.Channels().Create(context.Background(), storage.Channel{ProjectID: p.ID, Kind: "discord", Name: "Dev", TokenEnc: "x"})
 	if err != nil {
@@ -82,6 +83,7 @@ func TestIncidentAlertAPI(t *testing.T) {
 // it; it goes down a second time (a fresh LastChangeAt) and tells again. The
 // text carries the project name, the detail and a tappable absolute link.
 func TestPollIncidentAlertsDedupAndResend(t *testing.T) {
+	t.Parallel()
 	n := &fakeNotifier{}
 	s, st, p := newIncidentTestServer(t, n)
 	ctx := context.Background()
@@ -122,6 +124,7 @@ func TestPollIncidentAlertsDedupAndResend(t *testing.T) {
 // automation (Severity "warning") is system-wide, with no signed-in user, so
 // PollIncidentAlerts must find it even though it never calls incidentsFor.
 func TestPollIncidentAlertsWarningSeverityIncludesAutomation(t *testing.T) {
+	t.Parallel()
 	n := &fakeNotifier{}
 	s, st, p := newIncidentTestServer(t, n)
 	ctx := context.Background()

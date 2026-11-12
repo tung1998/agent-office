@@ -12,6 +12,7 @@ import (
 // office's own daily budget (a cap the person set) is never waited out, nor
 // a turn that failed for another reason (ADR-269).
 func TestBudgetNotRetried(t *testing.T) {
+	t.Parallel()
 	e := limitsEngine(t)
 	ctx := context.Background()
 	p, err := e.store.Repos().Create(ctx, storage.Repo{Name: "p", Path: t.TempDir()})

@@ -112,6 +112,7 @@ func TestScoresAPI(t *testing.T) {
 
 // Another project's member cannot read a project's model statistics.
 func TestModelStatsOtherProjectForbidden(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	admin := e.client(t)
 	login(t, e, admin, "admin@x.io", "admin-password")

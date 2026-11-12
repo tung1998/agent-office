@@ -17,6 +17,7 @@ import (
 // A page open on the dashboard hears what changed, whoever changed it (here
 // a message written straight to the store, as a bot or an agent does).
 func TestEventsStream(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	admin := e.client(t)
 	login(t, e, admin, "admin@x.io", "admin-password")
@@ -47,6 +48,7 @@ func TestEventsStream(t *testing.T) {
 // An admin's page is sent the machine's figures without asking; turning the
 // "machine" topic on brings the whole picture (processes) to that page.
 func TestEventsPushStats(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	admin := e.client(t)
 	login(t, e, admin, "admin@x.io", "admin-password")
@@ -101,6 +103,7 @@ func atoi(s string) int {
 // A message written (by a bot, an agent) is pushed with its data, and the
 // chat's row with it; a page also gets "Cần xử lý" without asking.
 func TestEventsPushChat(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	admin := e.client(t)
 	login(t, e, admin, "admin@x.io", "admin-password")
@@ -144,6 +147,7 @@ func TestEventsPushChat(t *testing.T) {
 // An answer being written is followed on the page's one stream ("turn"
 // events), not a stream of its own: its events come in order up to done.
 func TestEventsFollowTurn(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	admin := e.client(t)
 	login(t, e, admin, "admin@x.io", "admin-password")

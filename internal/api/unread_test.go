@@ -13,6 +13,7 @@ import (
 // A chat the person wrote in, answered since they looked, is in "Cần xử lý"
 // (theirs alone); looking takes it off; marking it unread brings it back.
 func TestUnreadIncident(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	admin := e.client(t)
 	login(t, e, admin, "admin@x.io", "admin-password")
@@ -49,6 +50,7 @@ func TestUnreadIncident(t *testing.T) {
 // ADR-085: a project's chats come 20 at a time, the next page from the last
 // one's time.
 func TestConversationPages(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	admin := e.client(t)
 	login(t, e, admin, "admin@x.io", "admin-password")

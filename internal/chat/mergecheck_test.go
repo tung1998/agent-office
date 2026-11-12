@@ -20,6 +20,7 @@ import (
 // it waits and its agent gets a turn to fix it; passing, it is merged and
 // says what it passed.
 func TestMergeCheckHoldsThenFixTurnMerges(t *testing.T) {
+	t.Parallel()
 	if _, err := exec.LookPath("git"); err != nil {
 		t.Skip("git not installed")
 	}

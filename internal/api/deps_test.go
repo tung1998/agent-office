@@ -14,6 +14,7 @@ import (
 // dependencies (ADR-251): a card for each package; a diff not merged, or of
 // code only, is refused (409).
 func TestInstallPatchDepsAPI(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	admin := e.client(t)
 	login(t, e, admin, "admin@x.io", "admin-password")

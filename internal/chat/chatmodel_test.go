@@ -49,6 +49,7 @@ func (g group) callsOf(t *testing.T) map[string]string {
 // A chat's own model for one agent is what that agent runs on there; the
 // other agents of the chat keep theirs, and the run records the effort.
 func TestMemberModelOverride(t *testing.T) {
+	t.Parallel()
 	g := newGroup(t)
 	g.withModels(t, "m-chat", "m-other")
 	if err := g.engine.SetMemberModel(g.context, g.conv.ID, g.lead, "m-chat"); err != nil {
@@ -76,6 +77,7 @@ func TestMemberModelOverride(t *testing.T) {
 
 // Work handed over runs on the agent's own model, not the chat's choice.
 func TestMemberModelIgnoredWhenDelegated(t *testing.T) {
+	t.Parallel()
 	g := newGroup(t)
 	g.withModels(t, "m-chat")
 	if err := g.engine.SetMemberModel(g.context, g.conv.ID, g.dev.ID, "m-chat"); err != nil {
@@ -95,6 +97,7 @@ func TestMemberModelIgnoredWhenDelegated(t *testing.T) {
 
 // A choice the connection no longer has falls back to the agent's model.
 func TestMemberModelStaleFallsBack(t *testing.T) {
+	t.Parallel()
 	g := newGroup(t)
 	g.withModels(t, "m-chat")
 	if err := g.engine.SetMemberModel(g.context, g.conv.ID, g.lead, "m-chat"); err != nil {
@@ -111,6 +114,7 @@ func TestMemberModelStaleFallsBack(t *testing.T) {
 }
 
 func TestSetMemberModelChecks(t *testing.T) {
+	t.Parallel()
 	g := newGroup(t)
 	g.withModels(t, "m-chat")
 	if err := g.engine.SetMemberModel(g.context, g.conv.ID, g.lead, "not-there"); !errors.Is(err, chat.ErrUnknownModel) {
@@ -128,6 +132,7 @@ func TestSetMemberModelChecks(t *testing.T) {
 // A person's turn is scored when it ends; their next message correcting it
 // lowers its score (ADR-267).
 func TestTurnIsScored(t *testing.T) {
+	t.Parallel()
 	g := newGroup(t)
 	if a := g.sendAll(t, "@"+g.leadNm+" sửa lỗi đăng nhập"); len(a) == 0 {
 		t.Fatal("no answer")

@@ -52,6 +52,7 @@ func upstreamMCP(t *testing.T) *httptest.Server {
 // ADR-091: the office's MCP servers are managed by admins; their secrets
 // never come back; a run's (or a person's) token reaches them at /mcp/s/<name>.
 func TestMCPServersAPI(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	admin := e.client(t)
 	login(t, e, admin, "admin@x.io", "admin-password")
@@ -177,6 +178,7 @@ func TestMCPServersAPI(t *testing.T) {
 // ADR-092: stdio servers (env sealed like headers) and an OAuth client typed
 // on the form; the login's callback refuses a state it did not give out.
 func TestMCPServersStdioOAuthAPI(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	admin := e.client(t)
 	login(t, e, admin, "admin@x.io", "admin-password")
@@ -258,6 +260,7 @@ func TestMCPServersStdioOAuthAPI(t *testing.T) {
 // CAS on updated_at makes whichever Update runs second answer 409 instead of
 // dropping the first's change.
 func TestUpdateMCPServerConflict(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	admin := e.client(t)
 	login(t, e, admin, "admin@x.io", "admin-password")

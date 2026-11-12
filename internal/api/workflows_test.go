@@ -6,6 +6,7 @@ import (
 )
 
 func TestBuiltinWorkflowTemplateIsImmutableAndProjectCopyIsIndependent(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	admin := e.client(t)
 	login(t, e, admin, "admin@x.io", "admin-password")
@@ -55,6 +56,7 @@ func TestBuiltinWorkflowTemplateIsImmutableAndProjectCopyIsIndependent(t *testin
 // ADR-072: a workflow's PATCH checks the version it was read with so two
 // tabs editing the same project workflow don't silently overwrite each other.
 func TestWorkflowUpdateConflict(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	admin := e.client(t)
 	login(t, e, admin, "admin@x.io", "admin-password")
@@ -123,6 +125,7 @@ func TestWorkflowUpdateConflict(t *testing.T) {
 // a workflow created with enabled:false is written disabled in one go (no
 // Install/Create-then-Update), so an Update failure can't orphan it enabled.
 func TestWorkflowCreateDisabled(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	admin := e.client(t)
 	login(t, e, admin, "admin@x.io", "admin-password")
@@ -156,6 +159,7 @@ func TestWorkflowCreateDisabled(t *testing.T) {
 // A create with both a key and a source (propose_change sends the key next
 // to the file) takes the source, not the library workflow of that key.
 func TestWorkflowCreateSourceWinsOverKey(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	admin := e.client(t)
 	login(t, e, admin, "admin@x.io", "admin-password")

@@ -3,6 +3,7 @@ package api
 import "testing"
 
 func TestSourceBase(t *testing.T) {
+	t.Parallel()
 	for in, want := range map[string]string{
 		"git@github.com:tung1998/ai-manager-agents.git": "https://github.com/tung1998/ai-manager-agents/blob/HEAD/",
 		"https://bitbucket.org/acme/shop.git":           "https://bitbucket.org/acme/shop/src/HEAD/",

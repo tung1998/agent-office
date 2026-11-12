@@ -70,6 +70,7 @@ func hasMessage(f fixture, convID, part string) bool {
 }
 
 func TestParseSlash(t *testing.T) {
+	t.Parallel()
 	cases := []struct {
 		in     string
 		ok     bool
@@ -101,6 +102,7 @@ func TestParseSlash(t *testing.T) {
 }
 
 func TestGoalReachedWhenJudgeAgrees(t *testing.T) {
+	t.Parallel()
 	var mu sync.Mutex
 	sawGoalMode := false
 	f := scripted(t, func(system, last string) string {
@@ -131,6 +133,7 @@ func TestGoalReachedWhenJudgeAgrees(t *testing.T) {
 }
 
 func TestGoalStopsWhenRoundsRunOut(t *testing.T) {
+	t.Parallel()
 	f := scripted(t, func(_, last string) string {
 		if strings.Contains(last, "independent judge") {
 			return "VERDICT: DISAGREE\nCòn thiếu phần cài đặt."
@@ -154,6 +157,7 @@ func TestGoalStopsWhenRoundsRunOut(t *testing.T) {
 }
 
 func TestGoalCheckCommand(t *testing.T) {
+	t.Parallel()
 	var dir string
 	f := scripted(t, func(_, last string) string {
 		if strings.Contains(last, "independent judge") {
@@ -184,6 +188,7 @@ func TestGoalCheckCommand(t *testing.T) {
 }
 
 func TestGoalClearedWhenChatStops(t *testing.T) {
+	t.Parallel()
 	f := scripted(t, func(_, _ string) string { return "ok" })
 	ctx := actor.With(context.Background(), "human:a@b.c")
 	conv, _ := f.engine.StartConversation(ctx, f.project.ID, "")
@@ -203,6 +208,7 @@ func TestGoalClearedWhenChatStops(t *testing.T) {
 }
 
 func TestBtwAnswersApart(t *testing.T) {
+	t.Parallel()
 	f := scripted(t, func(_, last string) string {
 		if strings.Contains(last, "Side question") {
 			if !strings.Contains(last, "Lần trước hỏi gì") {

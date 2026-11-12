@@ -8,6 +8,7 @@ import (
 // check): if autostart changed underneath a form opened before that, saving
 // the form answers 409 and does not revert the toggle.
 func TestUpdateProcessVersionConflict(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	admin := e.client(t)
 	login(t, e, admin, "admin@x.io", "admin-password")
@@ -62,6 +63,7 @@ func TestUpdateProcessVersionConflict(t *testing.T) {
 // still runs; a rename to a name already used in the project is a plain
 // conflict, kept distinct from the version/CAS conflict above.
 func TestUpdateProcessNameConflict(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	admin := e.client(t)
 	login(t, e, admin, "admin@x.io", "admin-password")

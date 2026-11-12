@@ -14,6 +14,7 @@ import (
 // stuck in "running" forever (sweepOrphans skips a run still held in
 // e.wf.byConv): it must fail with a visible error instead.
 func TestWfCallBackFailsRunPastRetryCap(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	st, err := sqlite.Open(filepath.Join(t.TempDir(), "o.db"))
 	if err != nil {

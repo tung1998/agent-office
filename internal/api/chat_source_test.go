@@ -11,6 +11,7 @@ import (
 // The chat list says where each chat started (web, a bot, an automation) and
 // filters by it: a Discord chat opened from a job is in the list too.
 func TestChatListBySource(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	admin := e.client(t)
 	login(t, e, admin, "admin@x.io", "admin-password")
@@ -54,6 +55,7 @@ func TestChatListBySource(t *testing.T) {
 // purpose, not in the project's chat list; the editor finds it again by its
 // subject (given when made, or once a new skill is saved).
 func TestSkillChatPurpose(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	admin := e.client(t)
 	login(t, e, admin, "admin@x.io", "admin-password")
@@ -90,6 +92,7 @@ func TestSkillChatPurpose(t *testing.T) {
 
 // The Jobs page filters by where a job came from and finds them by title.
 func TestJobsBySourceAndTitle(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	admin := e.client(t)
 	login(t, e, admin, "admin@x.io", "admin-password")
@@ -120,6 +123,7 @@ func TestJobsBySourceAndTitle(t *testing.T) {
 
 // A chat opens on its last messages; older ones come a page at a time.
 func TestConversationMessagesPaged(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	admin := e.client(t)
 	login(t, e, admin, "admin@x.io", "admin-password")
@@ -158,6 +162,7 @@ func TestConversationMessagesPaged(t *testing.T) {
 // A chat of the skill editor stays with its editor: not in the list, and its
 // job opens the editor again, not a lost thread.
 func TestSkillChatNotListed(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	admin := e.client(t)
 	login(t, e, admin, "admin@x.io", "admin-password")
@@ -192,6 +197,7 @@ func TestSkillChatNotListed(t *testing.T) {
 // A library workflow is written with the office assistant: its chat is not
 // listed and its job opens the workflow editor again; the draft is checked before saving.
 func TestWorkflowChat(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	admin := e.client(t)
 	login(t, e, admin, "admin@x.io", "admin-password")
@@ -224,6 +230,7 @@ func TestWorkflowChat(t *testing.T) {
 
 // A Discord chat links to where it is there (its thread, or its first message).
 func TestChannelChatLink(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	admin := e.client(t)
 	login(t, e, admin, "admin@x.io", "admin-password")

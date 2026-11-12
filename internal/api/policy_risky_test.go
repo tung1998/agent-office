@@ -7,6 +7,7 @@ import (
 // putPolicy saves a custom pack command that deletes or publishes: commands
 // follow the permissions the person sets, risky or not.
 func TestPutPolicyRiskyCommands(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	admin := e.client(t)
 	login(t, e, admin, "admin@x.io", "admin-password")

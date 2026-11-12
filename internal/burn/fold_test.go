@@ -14,6 +14,7 @@ import (
 // Findings of one kind on the same files, or named into a waiting piece, go
 // into that one piece: a worker fixes them together, not a piece each.
 func TestBurnAddFoldsSameKindIntoOnePiece(t *testing.T) {
+	t.Parallel()
 	f := setup(t)
 	ctx := context.Background()
 	ends := time.Now().Add(time.Hour)

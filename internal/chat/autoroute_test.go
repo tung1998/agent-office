@@ -11,6 +11,7 @@ import (
 // ADR-277: with AutoRoute on, the person's untagged message goes to the
 // agent whose role fits it; off (the default), the chat's agent answers.
 func TestAutoRouteUntaggedMessage(t *testing.T) {
+	t.Parallel()
 	g := newGroup(t)
 	ui, err := g.f.st.Agents().Create(g.context, storage.Agent{ProjectID: g.f.project.ID, Key: "ui", Name: "Thiết kế",
 		Role: "Thiết kế giao diện", Description: "Vue, CSS, bố cục trang dashboard", ModelTier: "fast"})

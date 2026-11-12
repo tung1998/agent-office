@@ -15,6 +15,7 @@ import (
 // The file editor: ignored/secret files hidden until asked, a save based on
 // a stale sha is refused, secrets need a confirm, nothing escapes the folder.
 func TestFileEditor(t *testing.T) {
+	t.Parallel()
 	if _, err := exec.LookPath("git"); err != nil {
 		t.Skip("git missing")
 	}
@@ -123,6 +124,7 @@ func TestFileEditor(t *testing.T) {
 }
 
 func TestFilePreview(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	image := []byte("\x89PNG\r\n\x1a\npreview")
 	if err := os.WriteFile(filepath.Join(dir, "icon48.png"), image, 0o644); err != nil {

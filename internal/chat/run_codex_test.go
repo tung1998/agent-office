@@ -63,6 +63,7 @@ echo '{"type":"item.completed","item":{"type":"agent_message","text":"ok"}}'
 // A JSON line over the scanner's 16MB cap must fail the run instead of
 // silently returning an empty "success" (the thread never finishes reading).
 func TestCodexFailsOnOversizedLine(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	bin := filepath.Join(dir, "codex")
 	script := `#!/bin/sh
@@ -81,6 +82,7 @@ python3 -c 'print("{\"type\":\"item.completed\",\"item\":{\"type\":\"agent_messa
 }
 
 func TestCodexLimitsFromRollout(t *testing.T) {
+	t.Parallel()
 	home := t.TempDir()
 	day := filepath.Join(home, "sessions", "2026", "10", "12")
 	os.MkdirAll(day, 0o755)
@@ -109,6 +111,7 @@ func TestCodexLimitsFromRollout(t *testing.T) {
 
 // A session the server rejects (turn.failed 401) is a sign-in, not a reply.
 func TestCodexRejectedSessionNeedsLogin(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	bin := filepath.Join(dir, "codex")
 	script := `#!/bin/sh

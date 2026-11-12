@@ -13,6 +13,7 @@ import (
 // with a note in it; only someone who sees the project can take it, and only
 // its owner or a manager hands it over.
 func TestHandoffConversation(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	ctx := context.Background()
 	p, _ := e.st.Repos().Create(ctx, storage.Repo{Name: "p", Path: t.TempDir()})

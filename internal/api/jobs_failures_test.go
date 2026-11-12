@@ -34,6 +34,7 @@ func failJob(t *testing.T, e *env, j storage.Job, msg string) storage.Job {
 // (ADR-253), within the projects the person sees, filtered by agent and
 // category; another person's assistant-chat failures stay hidden (ADR-046).
 func TestJobFailuresAPI(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	admin := e.client(t)
 	login(t, e, admin, "admin@x.io", "admin-password")
@@ -139,6 +140,7 @@ func TestJobFailuresAPI(t *testing.T) {
 
 // The "failed in 24h" figure counted with a capped list: it never passed 200.
 func TestJobStatsCountsPast200(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	admin := e.client(t)
 	login(t, e, admin, "admin@x.io", "admin-password")

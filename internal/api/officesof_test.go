@@ -42,6 +42,7 @@ func (r failSettingsGetRepo) Get(ctx context.Context, key string, dst any) (bool
 // else to keep", so a manager's update silently wiped the member's existing
 // office grants from other managers/admins instead of failing closed.
 func TestUpdateUserFailsClosedWhenOfficeGrantsUnreadable(t *testing.T) {
+	t.Parallel()
 	var armed atomic.Bool
 	failKey := new(string)
 	e := setupWithStore(t, nil, func(st storage.Store) storage.Store {

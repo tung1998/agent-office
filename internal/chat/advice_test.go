@@ -87,6 +87,7 @@ func (f advisorFixture) scope(job string) officetools.Scope {
 // The second same failure asks the advisor of another vendor, once: what it
 // says goes back with the failure, and is kept for the chat (ADR-262).
 func TestAdviceAppendedToFailure(t *testing.T) {
+	t.Parallel()
 	f := setupAdvisor(t, "The path is wrong: run it from internal/chat.", true)
 	ctx := context.Background()
 	sc := f.scope("job_1")
@@ -117,6 +118,7 @@ func TestAdviceAppendedToFailure(t *testing.T) {
 // Only an agent of another vendor advises: one of the same vendor is not
 // asked, and the stuck agent is told why there was no second opinion.
 func TestAdvisorDiffersFromVendor(t *testing.T) {
+	t.Parallel()
 	f := setupAdvisor(t, "x", false)
 	ctx := context.Background()
 	// a second agent on the same connection as the stuck one
@@ -145,6 +147,7 @@ func TestAdvisorDiffersFromVendor(t *testing.T) {
 
 // A run asks for at most two advices; past them it is left to stop and ask.
 func TestAdviceCapPerRun(t *testing.T) {
+	t.Parallel()
 	f := setupAdvisor(t, "advice", true)
 	ctx := context.Background()
 	sc := f.scope("job_4")
@@ -168,6 +171,7 @@ func TestAdviceCapPerRun(t *testing.T) {
 // No advisor without one: none named, says why; off in the settings: not
 // even counted.
 func TestNoAdvisorAvailableSaysWhy(t *testing.T) {
+	t.Parallel()
 	f := setupAdvisor(t, "x", false)
 	ctx := context.Background()
 	sc := f.scope("job_6")
@@ -194,6 +198,7 @@ func TestNoAdvisorAvailableSaysWhy(t *testing.T) {
 
 // Past the day's budget of the advisors no advisor is asked.
 func TestBudgetStopsAdvice(t *testing.T) {
+	t.Parallel()
 	f := setupAdvisor(t, "advice", true)
 	ctx := context.Background()
 	u := usage.New(f.st, time.UTC)
@@ -215,6 +220,7 @@ func TestBudgetStopsAdvice(t *testing.T) {
 // A run that repeated a failure ends: under repeat_done the advisor reads
 // its answer first; an objection adds a warning, an OK leaves it.
 func TestDoneReviewedAfterRepeat(t *testing.T) {
+	t.Parallel()
 	f := setupAdvisor(t, "OBJECT\nThe test it says passes was never run again.", true)
 	ctx := context.Background()
 	conv := storage.Conversation{ID: "cnv_x", ProjectID: f.project.ID}
@@ -251,6 +257,7 @@ func TestDoneReviewedAfterRepeat(t *testing.T) {
 // not shown, the advisor is asked in the background, and its answer comes
 // with the run's next office tool call.
 func TestNativeToolFailureAdvisedLater(t *testing.T) {
+	t.Parallel()
 	f := setupAdvisor(t, "Read the lockfile first.", true)
 	ctx := context.Background()
 	conv := storage.Conversation{ID: "cnv_x", ProjectID: f.project.ID}

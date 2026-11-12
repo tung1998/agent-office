@@ -8,6 +8,7 @@ import (
 
 // env replaces the whole set; a name a shell would not take is refused.
 func TestProcessInputEnv(t *testing.T) {
+	t.Parallel()
 	p := storage.Process{Name: "dev", Command: "pnpm dev", Kind: "service", Env: map[string]string{"OLD": "1"}}
 	env := map[string]string{" PORT ": "3001", "VITE_HOST": "0.0.0.0"}
 	if err := (processInput{Env: &env}).apply(&p); err != nil {

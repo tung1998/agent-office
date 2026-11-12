@@ -43,6 +43,7 @@ func capturing(t *testing.T, last *struct {
 }
 
 func TestFileOnlyMessageIsKeptAndAnswered(t *testing.T) {
+	t.Parallel()
 	var last struct {
 		sync.Mutex
 		system, prompt string
@@ -87,6 +88,7 @@ func TestFileOnlyMessageIsKeptAndAnswered(t *testing.T) {
 }
 
 func TestImageOnlyMessageGetsAnAnswer(t *testing.T) {
+	t.Parallel()
 	var last struct {
 		sync.Mutex
 		system, prompt string
@@ -117,6 +119,7 @@ func TestImageOnlyMessageGetsAnAnswer(t *testing.T) {
 }
 
 func TestPageContextAndAutomationChat(t *testing.T) { // ADR-042
+	t.Parallel()
 	var last struct {
 		sync.Mutex
 		system, prompt string

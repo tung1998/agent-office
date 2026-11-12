@@ -3,6 +3,7 @@ package api_test
 import "testing"
 
 func TestAdminViewsAsMember(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	member := e.client(t)
 	login(t, e, member, "member@x.io", "member-password")

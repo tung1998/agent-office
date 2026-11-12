@@ -37,6 +37,7 @@ func (c failBriefOnceChat) CreateConversation(ctx context.Context, conv storage.
 // is told so in a chat of its own, to bring its notes and schedules up to
 // date; an edit that changes nothing of its job tells it nothing.
 func TestRoleChangeBriefsTheAgent(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	admin := e.client(t)
 	login(t, e, admin, "admin@x.io", "admin-password")
@@ -90,6 +91,7 @@ func TestRoleChangeBriefsTheAgent(t *testing.T) {
 // next real change to the same agent should still brief it, instead of being
 // folded into the failed attempt for the next briefGap.
 func TestRoleChangeBriefRetriesAfterTransientFailure(t *testing.T) {
+	t.Parallel()
 	var wrapped *failBriefOnce
 	e := setupWithStore(t, nil, func(st storage.Store) storage.Store {
 		wrapped = &failBriefOnce{Store: st}
@@ -183,6 +185,7 @@ func (c blockingBriefChatRepo) CreateConversation(ctx context.Context, conv stor
 // runs, not only after it succeeds, or both edits race past the check and
 // each sends its own "your job changed" brief.
 func TestRoleChangeBriefDoesNotRaceOnConcurrentEdits(t *testing.T) {
+	t.Parallel()
 	var wrapped *blockingBrief
 	e := setupWithStore(t, nil, func(st storage.Store) storage.Store {
 		wrapped = &blockingBrief{Store: st, release: make(chan struct{})}

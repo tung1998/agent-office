@@ -12,6 +12,7 @@ import (
 // Bot settings, a model, a skill and a note: a save from what is no longer
 // there answers 409, nothing overwritten.
 func TestMoreSaveConflicts(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	admin := e.client(t)
 	login(t, e, admin, "admin@x.io", "admin-password")

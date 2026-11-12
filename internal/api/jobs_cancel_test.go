@@ -13,6 +13,7 @@ import (
 // finished, or lost on a restart) must still end up cancelled in storage,
 // not reported as cancelled while staying "running" forever.
 func TestCancelJobRunningWithoutTurn(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	admin := e.client(t)
 	login(t, e, admin, "admin@x.io", "admin-password")
@@ -45,6 +46,7 @@ func TestCancelJobRunningWithoutTurn(t *testing.T) {
 
 // Cancelling a job that already finished must not look like a success.
 func TestCancelJobAlreadyDone(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	admin := e.client(t)
 	login(t, e, admin, "admin@x.io", "admin-password")
@@ -75,6 +77,7 @@ func TestCancelJobAlreadyDone(t *testing.T) {
 // (ErrConflict) once the job has moved past "running", so a cancel racing
 // the job's own completion cannot overwrite the real outcome.
 func TestFinishIfRunningConflict(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	admin := e.client(t)
 	login(t, e, admin, "admin@x.io", "admin-password")
@@ -103,6 +106,7 @@ func TestFinishIfRunningConflict(t *testing.T) {
 // (ErrConflict) instead of overwriting it with "cancelled" while the run
 // keeps executing for real.
 func TestFinishIfPendingConflict(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	admin := e.client(t)
 	login(t, e, admin, "admin@x.io", "admin-password")

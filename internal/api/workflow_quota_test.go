@@ -13,6 +13,7 @@ import (
 // own), and Chạy ngay on a run with no step waiting for quota says so
 // instead of doing nothing (ADR-270).
 func TestSkipStepQuotaWait(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	ctx := context.Background()
 	c := e.client(t)

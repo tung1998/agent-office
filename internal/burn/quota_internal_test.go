@@ -21,6 +21,7 @@ import (
 // first of them resets. It used to read the agent's own connection alone, so
 // its Claude out of quota paused it though a fallback Codex was free.
 func TestBurnLimitHitReadsTheWholeChain(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	tmp := t.TempDir()
 	st, err := sqlite.Open(filepath.Join(tmp, "o.db"))

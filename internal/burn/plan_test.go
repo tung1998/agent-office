@@ -11,6 +11,7 @@ import (
 
 // Only the Burns set to turn on by themselves are looked at.
 func TestScheduledSessions(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	st, err := sqlite.Open(filepath.Join(t.TempDir(), "o.db"))
 	if err != nil {

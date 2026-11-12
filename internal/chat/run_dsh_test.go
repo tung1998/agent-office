@@ -52,6 +52,7 @@ done
 }
 
 func TestDSHRunner(t *testing.T) {
+	t.Parallel()
 	bin, log := fakeDSH(t)
 	hist := []HistoryItem{{Role: "user", Content: "câu cũ"}, {Role: "assistant", Content: "trả lời cũ"}}
 	req := RunRequest{Bin: bin, APIKey: "sk-test", Model: "glm-4.6", Effort: "max", System: "HƯỚNG DẪN", History: hist, Prompt: "mới",
@@ -126,6 +127,7 @@ func TestDSHRunner(t *testing.T) {
 }
 
 func TestDSHRunnerNeedsKeyAndModel(t *testing.T) {
+	t.Parallel()
 	req := RunRequest{Bin: "/nonexistent/dsh", Provider: storage.Provider{Kind: storage.ProviderDSH, BaseURL: "https://openrouter.ai/api/v1"}}
 	if _, err := (dshRunner{}).Run(context.Background(), req, func(Event) {}); err != llm.ErrNoAPIKey {
 		t.Fatalf("no key: %v", err)
@@ -142,6 +144,7 @@ func TestDSHRunnerNeedsKeyAndModel(t *testing.T) {
 }
 
 func TestHarnessAPI(t *testing.T) {
+	t.Parallel()
 	for in, want := range map[string][2]string{
 		"":                               {llm.HarnessOpenAI, llm.DeepSeekAPI},
 		"https://openrouter.ai/api/v1/":  {llm.HarnessOpenAI, "https://openrouter.ai/api/v1"},
@@ -156,6 +159,7 @@ func TestHarnessAPI(t *testing.T) {
 }
 
 func TestDSHPatchNoTools(t *testing.T) {
+	t.Parallel()
 	raw, err := dshPatch(RunRequest{NoTools: true, Provider: storage.Provider{Kind: storage.ProviderDSH}}, "m")
 	if err != nil {
 		t.Fatal(err)

@@ -55,6 +55,7 @@ func (f *fakePeers) AnswerConsult(ctx context.Context, id string, a peer.Consult
 // the pairing person's name, its agent answers, and the answer goes back to
 // the office's chat it came from. What is not shared stays out of reach.
 func TestReceiveFromPeer(t *testing.T) {
+	t.Parallel()
 	var last struct {
 		sync.Mutex
 		system, prompt string
@@ -127,6 +128,7 @@ func TestReceiveFromPeer(t *testing.T) {
 // workflow's result): each answer still goes back to its chat, with no cap
 // on the hops; a report back never does.
 func TestPeerReportAfterPersonGoesOn(t *testing.T) {
+	t.Parallel()
 	var last struct {
 		sync.Mutex
 		system, prompt string
@@ -176,6 +178,7 @@ func TestPeerReportAfterPersonGoesOn(t *testing.T) {
 // assistant, which runs it with the machine whatever assistant.mode is; with
 // it off, the assistant is out of its reach.
 func TestPeerAdminRunsAssistant(t *testing.T) {
+	t.Parallel()
 	bin, argsLog := fullAccessFakeBin(t, t.TempDir())
 	f := setup(t, func(provs *provider.Service) storage.Provider {
 		p, _ := provs.Create(context.Background(), provider.Input{Name: "CC", Kind: storage.ProviderClaudeCLI, BaseURL: bin})
@@ -227,6 +230,7 @@ func TestPeerAdminRunsAssistant(t *testing.T) {
 // handed it: its report runs the assistant at most as manage, never with the
 // machine, even in admin mode and in the pairing admin's name (ADR-176).
 func TestPeerReportNeverAdminAssistant(t *testing.T) {
+	t.Parallel()
 	bin, argsLog := fullAccessFakeBin(t, t.TempDir())
 	f := setup(t, func(provs *provider.Service) storage.Provider {
 		p, _ := provs.Create(context.Background(), provider.Input{Name: "CC", Kind: storage.ProviderClaudeCLI, BaseURL: bin})

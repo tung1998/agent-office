@@ -14,6 +14,7 @@ import (
 // "Bỏ qua" a diff: rejected, and its agent is not run again about it (a
 // plain reject is: the control).
 func TestSkipPatchDoesNotResume(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	admin := e.client(t)
 	login(t, e, admin, "admin@x.io", "admin-password")
@@ -57,6 +58,7 @@ func TestSkipPatchDoesNotResume(t *testing.T) {
 // "Bỏ qua tất cả": every action and diff waiting is rejected, counted, no
 // agent run again; only an admin may.
 func TestSkipAllProposals(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	admin := e.client(t)
 	login(t, e, admin, "admin@x.io", "admin-password")
@@ -105,6 +107,7 @@ func TestSkipAllProposals(t *testing.T) {
 // A card approved while an earlier one waits is queued (not refused) and runs
 // once that is decided; its agent goes on once, with both results.
 func TestApprovedOutOfOrderIsQueued(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	admin := e.client(t)
 	login(t, e, admin, "admin@x.io", "admin-password")
@@ -154,6 +157,7 @@ func TestApprovedOutOfOrderIsQueued(t *testing.T) {
 // "Cần xử lý" lists a chat's cards in the order they are decided, each with
 // its #number: going down the list approves them in turn.
 func TestIncidentsListCardsInOrder(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	admin := e.client(t)
 	login(t, e, admin, "admin@x.io", "admin-password")

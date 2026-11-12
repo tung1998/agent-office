@@ -18,6 +18,7 @@ import (
 // and must actually carry the prompt's own version, so a later behavior
 // change in a run's retro can be traced to a specific edit of retro.md.
 func TestRetroPromptCarriesOwnVersion(t *testing.T) {
+	t.Parallel()
 	b := storage.BurnSession{ProjectID: "p1", RunBranch: "burn/test"}
 	items := []storage.BurnItem{}
 	out := retroPrompt(b, items, time.Now())
@@ -31,6 +32,7 @@ func TestRetroPromptCarriesOwnVersion(t *testing.T) {
 // worker that picks it up next sees why it failed last time (Reflexion),
 // separate from the run's general Lessons.
 func TestRecordCarriesOwnFailReasonIntoBrief(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	tmp := t.TempDir()
 	st, err := sqlite.Open(filepath.Join(tmp, "o.db"))

@@ -212,6 +212,7 @@ func login(t *testing.T, e *env, c *http.Client, email, pw string) {
 }
 
 func TestHealthz(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	for _, p := range []string{"/healthz", "/api/health"} {
 		resp, _ := do(t, e.client(t), "GET", e.srv.URL+p, nil, nil)
@@ -222,6 +223,7 @@ func TestHealthz(t *testing.T) {
 }
 
 func TestLoginFlow(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	c := e.client(t)
 
@@ -268,6 +270,7 @@ func TestLoginFlow(t *testing.T) {
 }
 
 func TestCSRFGuards(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	c := e.client(t)
 	// form-encoded POST (what a cross-site <form> can send) is rejected
@@ -294,6 +297,7 @@ func TestCSRFGuards(t *testing.T) {
 }
 
 func TestAdminUserManagement(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	member := e.client(t)
 	login(t, e, member, "member@x.io", "member-password")
@@ -346,6 +350,7 @@ func TestAdminUserManagement(t *testing.T) {
 }
 
 func TestChangeOwnPassword(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	c := e.client(t)
 	login(t, e, c, "member@x.io", "member-password")
@@ -364,6 +369,7 @@ func TestChangeOwnPassword(t *testing.T) {
 }
 
 func TestForwardedHostFromTrustedProxy(t *testing.T) {
+	t.Parallel()
 	body := map[string]string{"email": "admin@x.io", "password": "admin-password"}
 	hdr := map[string]string{"Origin": "https://office.example.com", "X-Forwarded-Host": "office.example.com"}
 

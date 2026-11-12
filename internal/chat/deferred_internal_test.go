@@ -14,6 +14,7 @@ import (
 // commit, the commit held for the old diff is dropped (one commit, not a
 // second failing "nothing to commit"); a commit of another answer stays.
 func TestCarryDeferredNewerCommitWins(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	st, err := sqlite.Open(filepath.Join(t.TempDir(), "o.db"))
 	if err != nil {

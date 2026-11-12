@@ -14,6 +14,7 @@ import (
 )
 
 func TestAutomationTemplateLibrary(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	admin := e.client(t)
 	member := e.client(t)
@@ -50,6 +51,7 @@ func TestAutomationTemplateLibrary(t *testing.T) {
 // ADR-074 security fix: only a scheduled automation may override to full
 // (administrator) access — a webhook's caller is whoever has the URL.
 func TestOverrideFullAccessRejectedUnlessScheduled(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	admin := e.client(t)
 	login(t, e, admin, "admin@x.io", "admin-password")
@@ -77,6 +79,7 @@ func TestOverrideFullAccessRejectedUnlessScheduled(t *testing.T) {
 // (even when the underlying agent itself has FullAccess=true), so it never
 // needs the cost-cap/auto-disable guardrail that only a full-access run needs.
 func TestOverrideWithoutFullAccessNotRequiredToSetBudget(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	admin := e.client(t)
 	login(t, e, admin, "admin@x.io", "admin-password")
@@ -131,6 +134,7 @@ func TestOverrideExtraDirsRejectsSensitiveDir(t *testing.T) {
 }
 
 func TestAutomationsAPI(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	admin := e.client(t)
 	login(t, e, admin, "admin@x.io", "admin-password")
@@ -226,6 +230,7 @@ func TestAutomationsAPI(t *testing.T) {
 }
 
 func TestScriptAutomationAPI(t *testing.T) { // ADR-041
+	t.Parallel()
 	e := setup(t)
 	admin := e.client(t)
 	login(t, e, admin, "admin@x.io", "admin-password")
@@ -264,6 +269,7 @@ func TestScriptAutomationAPI(t *testing.T) { // ADR-041
 }
 
 func TestAutomationPermissionAPI(t *testing.T) { // ADR-074
+	t.Parallel()
 	e := setup(t)
 	admin := e.client(t)
 	login(t, e, admin, "admin@x.io", "admin-password")
@@ -321,6 +327,7 @@ func TestAutomationPermissionAPI(t *testing.T) { // ADR-074
 }
 
 func TestAutomationBuilderAPI(t *testing.T) { // ADR-042
+	t.Parallel()
 	e := setup(t)
 	admin := e.client(t)
 	login(t, e, admin, "admin@x.io", "admin-password")
@@ -361,6 +368,7 @@ func TestAutomationBuilderAPI(t *testing.T) { // ADR-042
 // included: saving must work (2026-10-01: every save was 400 "invalid JSON
 // body"), and the field is never taken from the client.
 func TestAutomationSaveIgnoresOverrideAdminBy(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	admin := e.client(t)
 	login(t, e, admin, "admin@x.io", "admin-password")
@@ -399,6 +407,7 @@ func (failChannelUpdate) Update(ctx context.Context, c storage.Channel) error {
 
 // The library list pages with ?q=&offset=&limit=, the office's own skills first.
 func TestLibrarySkillPages(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	admin := e.client(t)
 	login(t, e, admin, "admin@x.io", "admin-password")
@@ -460,6 +469,7 @@ func TestLibrarySkillPages(t *testing.T) {
 // own, a job says how often it was put back, and a bot command bearing a
 // name the bot keeps for its own is flagged (ADR-257, ADR-258).
 func TestAutomationOnRestartAPI(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	admin := e.client(t)
 	login(t, e, admin, "admin@x.io", "admin-password")
@@ -501,6 +511,7 @@ func TestAutomationOnRestartAPI(t *testing.T) {
 // steps its runs started counted; a step's job is named after it and listed
 // among its runs, not as a person's work (ADR-263).
 func TestAutomationShowsTreeCost(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	admin := e.client(t)
 	login(t, e, admin, "admin@x.io", "admin-password")

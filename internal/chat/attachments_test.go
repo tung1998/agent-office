@@ -8,6 +8,7 @@ import (
 )
 
 func TestAttachmentsPerRuntime(t *testing.T) {
+	t.Parallel()
 	s := attach.Store{Dir: t.TempDir()}
 	png := []byte("\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x02")
 	img, _ := s.Save("p", "u", "shot.png", png)

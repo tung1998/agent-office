@@ -19,6 +19,7 @@ func addDefaultAdmin(t *testing.T, e *env) {
 }
 
 func TestDefaultAdminSetsUpBeforeAnythingElse(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	addDefaultAdmin(t, e)
 	c := e.client(t)

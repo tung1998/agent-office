@@ -13,6 +13,7 @@ import (
 // A read-only turn that read files then ended with no answer is asked again
 // on the next connection; one that may change things is not repeated.
 func TestTryNextReadOnlyEmptyAnswer(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	err := errors.New("agy kết thúc lượt mà không trả lời: tool lỗi")
 	read := RunResult{Tools: []storage.ToolCall{{Name: "view_file"}}, Usage: llm.Result{OutputTokens: 40}}

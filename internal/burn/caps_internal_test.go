@@ -15,6 +15,7 @@ import (
 // projects' runs that happen to start the same second must not share caps
 // state.
 func TestStopAfterReachedIsolatedAcrossProjects(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	tmp := t.TempDir()
 	st, err := sqlite.Open(filepath.Join(tmp, "o.db"))

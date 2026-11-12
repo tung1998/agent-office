@@ -8,6 +8,7 @@ import (
 // them); compacted and restored; the project decides whether agents' own
 // notes wait for approval.
 func TestMemoryAPI(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	admin := e.client(t)
 	login(t, e, admin, "admin@x.io", "admin-password")

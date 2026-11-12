@@ -5,6 +5,7 @@ import "testing"
 // A dashboard setting is kept per account: another account never sees it,
 // and only known settings are accepted.
 func TestPrefsPerAccount(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	admin := e.client(t)
 	login(t, e, admin, "admin@x.io", "admin-password")

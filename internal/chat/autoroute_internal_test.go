@@ -7,6 +7,7 @@ import (
 )
 
 func TestPickAgent(t *testing.T) {
+	t.Parallel()
 	lead := routeProfile{agent: storage.Agent{ID: "lead", Name: "Lead"}, text: "Lead\nTrưởng nhóm\nĐiều phối công việc, chia việc cho mọi người"}
 	fe := routeProfile{agent: storage.Agent{ID: "fe", Name: "Frontend"}, text: "Frontend\nLập trình giao diện\nVue, Nuxt, CSS, trang dashboard"}
 	be := routeProfile{agent: storage.Agent{ID: "be", Name: "Backend"}, text: "Backend\nLập trình server\nGo, API, database SQLite"}
@@ -42,6 +43,7 @@ func TestPickAgent(t *testing.T) {
 }
 
 func TestRouteWords(t *testing.T) {
+	t.Parallel()
 	got := routeWords("Sửa giúp mình giao diện, giao diện ko đẹp!")
 	want := []string{"giao", "dien", "dep"}
 	if len(got) != len(want) {

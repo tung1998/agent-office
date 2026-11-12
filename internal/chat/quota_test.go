@@ -9,6 +9,7 @@ import (
 // An out-of-quota error from a connection that reports no usage itself is
 // kept as a "rejected" report, until the reset it names.
 func TestLimitsFromError(t *testing.T) {
+	t.Parallel()
 	now := time.Date(2026, 10, 8, 12, 0, 0, 0, time.UTC)
 	l := limitsFromError(nil, errors.New("agy: Individual quota reached. Please upgrade your subscription to increase your limits. Resets in 9m51s."), now)
 	if l == nil || l.Status != "rejected" || !l.Windows["quota"].ResetsAt.Equal(now.Add(9*time.Minute+51*time.Second)) {

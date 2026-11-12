@@ -14,6 +14,7 @@ import (
 // folder; a card on that message shows the output. A shell line or a message
 // of another chat is refused.
 func TestRunChatCommand(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	admin := e.client(t)
 	login(t, e, admin, "admin@x.io", "admin-password")

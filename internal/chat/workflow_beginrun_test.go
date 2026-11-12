@@ -44,6 +44,7 @@ func (r failingRunRepo) Create(ctx context.Context, rec storage.WorkflowRun) (st
 // instead of swallowing it, and the job it started must end up failed, not
 // stuck running.
 func TestWorkflowBeginRunFailsCleanlyWhenCreateErrors(t *testing.T) {
+	t.Parallel()
 	bin, dir := fakeGroupClaude(t)
 	ctx := context.Background()
 	tmp := t.TempDir()

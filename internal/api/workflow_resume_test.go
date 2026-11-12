@@ -13,6 +13,7 @@ import (
 // "Chạy tiếp từ bước dở" goes on with it and it ends done; a run that
 // cannot go on is refused (ADR-256).
 func TestWorkflowRunResume(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	ctx := context.Background()
 	c := e.client(t)

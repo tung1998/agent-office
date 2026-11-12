@@ -16,6 +16,7 @@ import (
 // see the same per-project busy flag run() sets and refuse, instead of
 // running `git apply` on the folder while the other turn is still using it.
 func TestDecidePatchBusyWhileDirectEditRunning(t *testing.T) {
+	t.Parallel()
 	if _, err := exec.LookPath("git"); err != nil {
 		t.Skip("git missing")
 	}

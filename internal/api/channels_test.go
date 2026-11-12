@@ -10,6 +10,7 @@ import (
 
 // ADR-048: channels are set up per project; the bot token is written, never read back.
 func TestChannelsAPI(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	admin := e.client(t)
 	login(t, e, admin, "admin@x.io", "admin-password")
@@ -63,6 +64,7 @@ func TestChannelsAPI(t *testing.T) {
 // ADR-049: a channel's messages are handled by automations whose source is
 // the channel; each names the channel, keywords and a scope.
 func TestChannelAutomationAPI(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	admin := e.client(t)
 	login(t, e, admin, "admin@x.io", "admin-password")
@@ -96,6 +98,7 @@ func TestChannelAutomationAPI(t *testing.T) {
 // A bot is the trigger's own settings: saved with the automation, shared by
 // the automations that name it, gone with the last of them.
 func TestAutomationCarriesItsBot(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	admin := e.client(t)
 	login(t, e, admin, "admin@x.io", "admin-password")
@@ -167,6 +170,7 @@ func TestAutomationCarriesItsBot(t *testing.T) {
 
 // A bot's automation runs on a message: "run now" has nothing to run.
 func TestChannelAutomationDoesNotRunByHand(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	admin := e.client(t)
 	login(t, e, admin, "admin@x.io", "admin-password")
@@ -183,6 +187,7 @@ func TestChannelAutomationDoesNotRunByHand(t *testing.T) {
 // A custom command is an automation of the bot: its name made safe for the
 // "/" menus, unique on the bot, not one of the bot's own.
 func TestChannelCustomCommandAPI(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	admin := e.client(t)
 	login(t, e, admin, "admin@x.io", "admin-password")
@@ -215,6 +220,7 @@ func TestChannelCustomCommandAPI(t *testing.T) {
 
 // Review I5: a refused automation change changes nothing of its bot either.
 func TestRefusedAutomationLeavesItsBot(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	admin := e.client(t)
 	login(t, e, admin, "admin@x.io", "admin-password")
@@ -237,6 +243,7 @@ func TestRefusedAutomationLeavesItsBot(t *testing.T) {
 
 // The line on top of a bot's answers is set with the bot and read back.
 func TestChannelHeaderAPI(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	admin := e.client(t)
 	login(t, e, admin, "admin@x.io", "admin-password")
@@ -262,6 +269,7 @@ func TestChannelHeaderAPI(t *testing.T) {
 // CAS on updated_at makes whichever Update runs second answer 409 instead of
 // dropping the first's change.
 func TestUpdateChannelConflict(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	admin := e.client(t)
 	login(t, e, admin, "admin@x.io", "admin-password")
@@ -307,6 +315,7 @@ func TestUpdateChannelConflict(t *testing.T) {
 // A bot's reply mode and its commands' default setup are set with the bot and
 // read back; a bad one is refused.
 func TestChannelDefaultsAPI(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	admin := e.client(t)
 	login(t, e, admin, "admin@x.io", "admin-password")

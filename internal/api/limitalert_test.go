@@ -13,6 +13,7 @@ import (
 // Where the limit alerts go is set on the AI connections page; a window past
 // the threshold is in "Cần xử lý" too.
 func TestLimitAlertAPI(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	admin := e.client(t)
 	login(t, e, admin, "admin@x.io", "admin-password")
@@ -54,6 +55,7 @@ func TestLimitAlertAPI(t *testing.T) {
 
 // A PR review automation keeps its PR switch and where its answers go.
 func TestPRAutomationConfig(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	admin := e.client(t)
 	login(t, e, admin, "admin@x.io", "admin-password")

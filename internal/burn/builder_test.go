@@ -10,6 +10,7 @@ import (
 // Features, read for the project page's progress block (ADR-139): none
 // before features.json exists, either JSON shape once it does.
 func TestFeaturesForDisplay(t *testing.T) {
+	t.Parallel()
 	if got := Features(""); got != nil {
 		t.Fatalf("no dir: %v", got)
 	}
@@ -34,6 +35,7 @@ func TestFeaturesForDisplay(t *testing.T) {
 // (ADR-139). A passing feature whose acceptance now fails must still send
 // the piece back, not merge it as if nothing broke.
 func TestCheckedFailsOnMalformedFeaturesJSON(t *testing.T) {
+	t.Parallel()
 	s, b, repo := mergeTest(t)
 	b.Template = "builder"
 	ctx := context.Background()

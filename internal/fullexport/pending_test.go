@@ -10,6 +10,7 @@ import (
 )
 
 func TestClassifyCloneError(t *testing.T) {
+	t.Parallel()
 	for out, want := range map[string]string{
 		"git@github.com: Permission denied (publickey).\nfatal: Could not read from remote repository.": ReasonAuth,
 		"remote: Repository not found.\nfatal: repository 'https://github.com/x/y.git/' not found":      ReasonAuth,
@@ -29,6 +30,7 @@ func TestClassifyCloneError(t *testing.T) {
 // unpushed commits and uncommitted changes kept, until a retry (here with
 // the repo's new place) or a folder cloned by hand takes them.
 func TestCodeWaitsForAccess(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	root := t.TempDir()
 	origin := filepath.Join(root, "origin.git")
@@ -100,6 +102,7 @@ func TestCodeWaitsForAccess(t *testing.T) {
 // A folder the person cloned by hand takes what was kept, without touching
 // their own files; a folder of another repo is refused.
 func TestAttachClonedFolder(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	root := t.TempDir()
 	origin := filepath.Join(root, "origin.git")
@@ -151,6 +154,7 @@ func TestAttachClonedFolder(t *testing.T) {
 // Once the repo is reachable again, the waiting project gets its code with
 // nobody pressing a button; a project deleted meanwhile stops waiting.
 func TestRetryReachable(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	root := t.TempDir()
 	origin := filepath.Join(root, "origin.git")
@@ -194,6 +198,7 @@ func TestRetryReachable(t *testing.T) {
 // unpushed commits come as office-export/* branches, its uncommitted change
 // is applied only when clean (else kept as a patch), the work here untouched.
 func TestMergeIntoExistingClone(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	root := t.TempDir()
 	origin := filepath.Join(root, "origin.git")

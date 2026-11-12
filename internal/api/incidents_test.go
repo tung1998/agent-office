@@ -12,6 +12,7 @@ import (
 
 // "Sự cố": what needs a person across projects, each with where to fix it.
 func TestIncidents(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	admin := e.client(t)
 	login(t, e, admin, "admin@x.io", "admin-password")
@@ -49,6 +50,7 @@ func TestIncidents(t *testing.T) {
 // An incident can be let go (it comes back only when it happens again) and a
 // turned-off automation turned back on from the list.
 func TestIncidentActions(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	admin := e.client(t)
 	login(t, e, admin, "admin@x.io", "admin-password")
@@ -101,6 +103,7 @@ func TestIncidentActions(t *testing.T) {
 // even as later runs keep bumping UpdatedAt — but reappears once the window
 // itself resets (a new ResetsAt, so a new key).
 func TestLimitIncidentDismissHoldsUntilWindowResets(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	admin := e.client(t)
 	login(t, e, admin, "admin@x.io", "admin-password")
@@ -155,6 +158,7 @@ func TestLimitIncidentDismissHoldsUntilWindowResets(t *testing.T) {
 // Retrying a disabled automation must not overwrite an edit made meanwhile
 // (incidents.go retryIncident, case "automation" — only turns it back on).
 func TestIncidentRetryAutomationKeepsConcurrentEdit(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	admin := e.client(t)
 	login(t, e, admin, "admin@x.io", "admin-password")
@@ -190,6 +194,7 @@ func TestIncidentRetryAutomationKeepsConcurrentEdit(t *testing.T) {
 
 // The overview's recent chats: across projects, the latest first, bots' too.
 func TestRecentConversations(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	admin := e.client(t)
 	login(t, e, admin, "admin@x.io", "admin-password")
@@ -212,6 +217,7 @@ func TestRecentConversations(t *testing.T) {
 
 // The Job page: one row per piece of work, named after it.
 func TestJobGroupsAPI(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	admin := e.client(t)
 	login(t, e, admin, "admin@x.io", "admin-password")
@@ -235,6 +241,7 @@ func TestJobGroupsAPI(t *testing.T) {
 
 // A job group opens where its chat lives: the assistant's page, an automation builder's automation.
 func TestJobGroupLinks(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	admin := e.client(t)
 	login(t, e, admin, "admin@x.io", "admin-password")
@@ -259,6 +266,7 @@ func TestJobGroupLinks(t *testing.T) {
 
 // A chat's diff waiting for a person is in "Cần xử lý", next to the commands.
 func TestPendingPatchIncident(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	admin := e.client(t)
 	login(t, e, admin, "admin@x.io", "admin-password")
@@ -285,6 +293,7 @@ func TestPendingPatchIncident(t *testing.T) {
 
 // The assistant's rights are set by an admin and read back with it.
 func TestAssistantMode(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	admin := e.client(t)
 	login(t, e, admin, "admin@x.io", "admin-password")
@@ -298,6 +307,7 @@ func TestAssistantMode(t *testing.T) {
 
 // A project's daily budget is set on the project; the other settings stay.
 func TestProjectBudget(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	admin := e.client(t)
 	login(t, e, admin, "admin@x.io", "admin-password")

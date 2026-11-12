@@ -8,6 +8,7 @@ import (
 // ADR-272: an account sees where it is signed in and signs a device out; the
 // device's next request is 401, and another account's session is out of reach.
 func TestSessionsListAndRevoke(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	laptop, phone, member := e.client(t), e.client(t), e.client(t)
 	login(t, e, laptop, "admin@x.io", "admin-password")

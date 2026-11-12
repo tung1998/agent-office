@@ -147,6 +147,7 @@ func TestWaitMergedDepsOnlyShortCap(t *testing.T) {
 // gone from the project) was only logged: the chat said nothing, the project
 // kept its old libraries, and "Cài lại" answered "no dependency changed".
 func TestProposeDepsFailureTold(t *testing.T) {
+	t.Parallel()
 	e, st, p, own, pat := depsChat(t)
 	ctx := context.Background()
 	pat.Files = []string{"web/pnpm-lock.yaml", "gone/pnpm-lock.yaml"}
@@ -174,6 +175,7 @@ func TestProposeDepsFailureTold(t *testing.T) {
 // A merged diff that only changes a package.json's scripts installs
 // nothing: no card on the diff, no install card, nothing for a check to wait on.
 func TestProposeDepsSkipsScriptsOnlyDiff(t *testing.T) {
+	t.Parallel()
 	if _, err := exec.LookPath("git"); err != nil {
 		t.Skip("git missing")
 	}
@@ -208,6 +210,7 @@ func TestProposeDepsSkipsScriptsOnlyDiff(t *testing.T) {
 // no dependency change (the diff alone cannot tell its top level), wherever
 // the card is read (the chat's history, the card, the full diff, a link).
 func TestPatchCardDepsUsesProjectFile(t *testing.T) {
+	t.Parallel()
 	st, p, own := mergeStore(t)
 	ctx := context.Background()
 	os.MkdirAll(filepath.Join(p.Path, "web"), 0o755)
@@ -254,6 +257,7 @@ func TestPatchCardDepsUsesProjectFile(t *testing.T) {
 // viện" card next to it for that package; it is shown after the diff and
 // holds nothing of the chat back. A diff of code only leaves none.
 func TestAppliedDepDiffProposesInstall(t *testing.T) {
+	t.Parallel()
 	if _, err := exec.LookPath("git"); err != nil {
 		t.Skip("git missing")
 	}

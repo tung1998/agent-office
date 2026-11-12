@@ -84,6 +84,7 @@ func collect(t *testing.T, turn *chat.Turn) []chat.Event {
 }
 
 func TestAnthropicToolLoopAndPatch(t *testing.T) {
+	t.Parallel()
 	calls := 0
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		calls++
@@ -200,6 +201,7 @@ func TestAnthropicToolLoopAndPatch(t *testing.T) {
 }
 
 func TestClaudeCLIRunnerStreams(t *testing.T) {
+	t.Parallel()
 	tmp := t.TempDir()
 	bin, argsLog := filepath.Join(tmp, "claude"), filepath.Join(tmp, "args")
 	fakebin.Write(bin, []byte(`#!/bin/sh
@@ -259,6 +261,7 @@ echo '{"type":"result","subtype":"success","is_error":false,"result":"Xin chào"
 // After an answer, the conversation knows how full its context is and the
 // provider's latest usage windows are kept (shown in chat and the sidebar).
 func TestClaudeCLIKeepsContextAndLimits(t *testing.T) {
+	t.Parallel()
 	tmp := t.TempDir()
 	bin := filepath.Join(tmp, "claude")
 	fakebin.Write(bin, []byte(`#!/bin/sh
@@ -306,6 +309,7 @@ echo '{"type":"result","subtype":"success","is_error":false,"result":"ok","sessi
 
 // The person picks who answers in a chat (each agent has its own rights).
 func TestSwitchConversationAgent(t *testing.T) {
+	t.Parallel()
 	f := setup(t, func(provs *provider.Service) storage.Provider {
 		p, _ := provs.Create(context.Background(), provider.Input{Name: "CC", Kind: storage.ProviderClaudeCLI, BaseURL: "/bin/false"})
 		return p
@@ -418,6 +422,7 @@ func (g group) sendAll(t *testing.T, text string) (authors []string) {
 }
 
 func TestMentionPullsAgentIn(t *testing.T) { // ADR-044
+	t.Parallel()
 	g := newGroup(t)
 	if got := g.sendAll(t, "chào"); len(got) != 1 || got[0] != g.leadNm {
 		t.Fatalf("authors = %v", got)
@@ -436,6 +441,7 @@ func TestMentionPullsAgentIn(t *testing.T) { // ADR-044
 
 // The first message of a chat tagging an agent makes it the chat's agent.
 func TestFirstTagPicksChatAgent(t *testing.T) {
+	t.Parallel()
 	g := newGroup(t)
 	if got := g.sendAll(t, "@Dev xem lỗi này"); len(got) != 1 || got[0] != "Dev" {
 		t.Fatalf("authors = %v", got)
@@ -497,6 +503,7 @@ func (g group) delegateDuring(t *testing.T, agent, task, effort string) {
 // Work handed to an agent runs at the effort its delegator asked for, else
 // at the agent's own, never at the chat's.
 func TestDelegateEffort(t *testing.T) {
+	t.Parallel()
 	g := newGroup(t)
 	if err := g.engine.SetEffort(g.context, g.conv.ID, "max"); err != nil {
 		t.Fatal(err)
@@ -536,6 +543,7 @@ func TestDelegateEffort(t *testing.T) {
 }
 
 func TestDelegateChecks(t *testing.T) {
+	t.Parallel()
 	g := newGroup(t)
 	sc := officetools.Scope{ProjectID: g.f.project.ID, ConversationID: g.conv.ID, RunRef: "nope", Agent: g.leadNm}
 	if _, err := g.engine.Delegate(g.context, sc, "Nobody", "x", ""); err == nil {
@@ -550,6 +558,7 @@ func TestDelegateChecks(t *testing.T) {
 }
 
 func TestStopDropsTheQueue(t *testing.T) {
+	t.Parallel()
 	g := newGroup(t)
 	os.WriteFile(filepath.Join(g.dir, "sleep-lead"), []byte("2"), 0o644)
 	turn, _, err := g.engine.Send(g.context, g.conv.ID, "@"+g.leadNm+" @Dev xem", nil)
@@ -570,6 +579,7 @@ func TestStopDropsTheQueue(t *testing.T) {
 
 // A bot's chat (Discord/Telegram) gives work to the team as a web chat does.
 func TestDelegateInChannelChat(t *testing.T) {
+	t.Parallel()
 	g := newGroup(t)
 	conv, err := g.engine.StartConversationPurpose(g.context, g.f.project.ID, "", "channel")
 	if err != nil {
@@ -587,6 +597,7 @@ func TestDelegateInChannelChat(t *testing.T) {
 
 // In a bot's chat (Discord/Telegram) @tags pull agents in as on the web.
 func TestMentionInChannelChat(t *testing.T) {
+	t.Parallel()
 	g := newGroup(t)
 	conv, err := g.engine.StartConversationPurpose(g.context, g.f.project.ID, "", "channel")
 	if err != nil {
@@ -600,6 +611,7 @@ func TestMentionInChannelChat(t *testing.T) {
 
 // A bot's chat in administrator mode runs the turn with the machine.
 func TestFullAccessTurn(t *testing.T) {
+	t.Parallel()
 	tmp := t.TempDir()
 	bin, argsLog := filepath.Join(tmp, "claude"), filepath.Join(tmp, "args")
 	fakebin.Write(bin, []byte(`#!/bin/sh
@@ -640,6 +652,7 @@ echo '{"type":"result","subtype":"success","is_error":false,"result":"ok","sessi
 // An agent an admin configured with "Chạy như administrator" (ADR-074) runs
 // with the machine, once the chat/task is at Vận hành (Operate).
 func TestAgentFullAccessPermission(t *testing.T) {
+	t.Parallel()
 	bin, argsLog := fullAccessFakeBin(t, t.TempDir())
 	f := setup(t, func(provs *provider.Service) storage.Provider {
 		p, _ := provs.Create(context.Background(), provider.Input{Name: "CC", Kind: storage.ProviderClaudeCLI, BaseURL: bin})
@@ -672,6 +685,7 @@ func TestAgentFullAccessPermission(t *testing.T) {
 
 // A chat left at Chỉ đọc never escalates, even when its agent has FullAccess.
 func TestAgentFullAccessDoesNotEscalatePastReadMode(t *testing.T) {
+	t.Parallel()
 	bin, argsLog := fullAccessFakeBin(t, t.TempDir())
 	f := setup(t, func(provs *provider.Service) storage.Provider {
 		p, _ := provs.Create(context.Background(), provider.Input{Name: "CC", Kind: storage.ProviderClaudeCLI, BaseURL: bin})
@@ -698,6 +712,7 @@ func TestAgentFullAccessDoesNotEscalatePastReadMode(t *testing.T) {
 // If whoever turned FullAccess on is no longer an admin, the agent falls
 // back to its normal level (ADR-074).
 func TestAgentFullAccessRevokedWhenEnablerNotAdmin(t *testing.T) {
+	t.Parallel()
 	bin, argsLog := fullAccessFakeBin(t, t.TempDir())
 	f := setup(t, func(provs *provider.Service) storage.Provider {
 		p, _ := provs.Create(context.Background(), provider.Input{Name: "CC", Kind: storage.ProviderClaudeCLI, BaseURL: bin})
@@ -725,6 +740,7 @@ func TestAgentFullAccessRevokedWhenEnablerNotAdmin(t *testing.T) {
 // or the one a paired office or a linked project speaks for) runs an agent an
 // admin made administrator as administrator; what is not a person never does.
 func TestAgentFullAccessFollowsTheAgent(t *testing.T) {
+	t.Parallel()
 	for _, tc := range []struct {
 		who  string
 		full bool
@@ -759,6 +775,7 @@ func TestAgentFullAccessFollowsTheAgent(t *testing.T) {
 // The office assistant limited to "answer only" (ADR-059) never escalates to
 // full access either, even when its own agent has FullAccess (ADR-074 security fix).
 func TestAgentFullAccessDoesNotEscalateUnderAnswerOnlyAssistant(t *testing.T) {
+	t.Parallel()
 	bin, argsLog := fullAccessFakeBin(t, t.TempDir())
 	f := setup(t, func(provs *provider.Service) storage.Provider {
 		p, _ := provs.Create(context.Background(), provider.Input{Name: "CC", Kind: storage.ProviderClaudeCLI, BaseURL: bin})
@@ -787,6 +804,7 @@ func TestAgentFullAccessDoesNotEscalateUnderAnswerOnlyAssistant(t *testing.T) {
 // ADR-081: a turn capped at proposing (a bot's message from Người dùng) runs
 // at most there, whatever the chat's mode; its hand-offs keep the cap.
 func TestCeilingCapsTheTurn(t *testing.T) {
+	t.Parallel()
 	g := newGroup(t)
 	g.engine.SetMode(g.context, g.conv.ID, perm.Operate)
 	turn, _, err := g.engine.Send(chat.WithCeiling(g.context, perm.Propose), g.conv.ID, "chạy lệnh giúp", nil)
@@ -803,6 +821,7 @@ func TestCeilingCapsTheTurn(t *testing.T) {
 // ADR-084: proposals decided on the dashboard a moment apart send the chat's
 // agent one message with both results, and it goes on.
 func TestDecidedGoesOn(t *testing.T) {
+	t.Parallel()
 	g := newGroup(t)
 	g.sendAll(t, "chuẩn bị deploy")
 	g.engine.SetDecidedWait(150 * time.Millisecond)
@@ -825,6 +844,7 @@ func TestDecidedGoesOn(t *testing.T) {
 // A bot chat's decisions go to its bot (its answer goes back to the chat), not
 // to a turn on the dashboard.
 func TestDecidedInBotChatGoesToTheBot(t *testing.T) {
+	t.Parallel()
 	g := newGroup(t)
 	ctx := context.Background()
 	conv, _ := g.f.st.Chat().CreateConversation(ctx, storage.Conversation{ProjectID: g.f.project.ID, AgentID: g.lead, Purpose: "channel"})
@@ -850,6 +870,7 @@ func TestDecidedInBotChatGoesToTheBot(t *testing.T) {
 // ADR-210: a hand-off tied to a task of the work board tells the board hook
 // when it starts and when it is done, with its answer.
 func TestBoardHook(t *testing.T) {
+	t.Parallel()
 	g := newGroup(t)
 	var mu sync.Mutex
 	var evs []chat.BoardEvent
@@ -893,6 +914,7 @@ func TestBoardHook(t *testing.T) {
 // ADR-221: an agent whose turn ends with tasks of the work board waiting for
 // it takes the next one on at once; sent once on a board as it stands.
 func TestNextWorkGoesOn(t *testing.T) {
+	t.Parallel()
 	g := newGroup(t)
 	var mu sync.Mutex
 	sig := "a"
@@ -924,6 +946,7 @@ func TestNextWorkGoesOn(t *testing.T) {
 // ADR-221: a hand-off given to an agent still busy with an earlier one in the
 // chat waits for it and starts once it is done, instead of being dropped.
 func TestHandoffWaitsForBusyAgent(t *testing.T) {
+	t.Parallel()
 	g := newGroup(t)
 	os.WriteFile(filepath.Join(g.dir, "sleep-lead"), []byte("0.5"), 0o644)
 	os.WriteFile(filepath.Join(g.dir, "sleep-dev"), []byte("2"), 0o644)
@@ -978,6 +1001,7 @@ func TestHandoffWaitsForBusyAgent(t *testing.T) {
 // Stopped mid-answer (Stop, or a message sent now), what the agent wrote so
 // far stays as its answer, cut short, not an error that drops it.
 func TestStopKeepsThePartialAnswer(t *testing.T) {
+	t.Parallel()
 	bin := filepath.Join(t.TempDir(), "claude")
 	fakebin.Write(bin, []byte(`#!/bin/sh
 cat >/dev/null

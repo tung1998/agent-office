@@ -9,6 +9,7 @@ import (
 // The CLIs' own tools that fail are told (event tool_failed, with what the
 // tool said) so a run stuck on one can get an advisor (ADR-262).
 func TestRunnersTellToolFailures(t *testing.T) {
+	t.Parallel()
 	claude := fakeCLI(t, "claude", `cat >/dev/null
 echo '{"type":"assistant","message":{"content":[{"type":"tool_use","id":"t1","name":"Bash","input":{"command":"go test ./x"}}]}}'
 echo '{"type":"user","message":{"content":[{"type":"tool_result","tool_use_id":"t1","is_error":true,"content":"--- FAIL: TestA FAIL"}]}}'

@@ -11,6 +11,7 @@ import (
 // A chat stopped because the AI ran out of tokens is its own item in "Cần xử
 // lý" (not one of the failed jobs), with what Tiếp tục sends, until it goes on.
 func TestStalledChatIncident(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	admin := e.client(t)
 	login(t, e, admin, "admin@x.io", "admin-password")

@@ -13,6 +13,7 @@ import (
 // assistant-chat jobs (ADR-046), matching what the job groups endpoint
 // already hides.
 func TestJobStatsHidesOthersAssistantChatJobs(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	admin := e.client(t)
 	login(t, e, admin, "admin@x.io", "admin-password")

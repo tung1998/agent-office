@@ -13,6 +13,7 @@ import (
 // The overview reads the machine and what office runs (an agent's process
 // named for its agent); kill ends it; a process office did not start is refused.
 func TestSystemStats(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	admin := e.client(t)
 	login(t, e, admin, "admin@x.io", "admin-password")

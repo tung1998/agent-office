@@ -16,6 +16,7 @@ import (
 )
 
 func TestProvidersAPI(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	member := e.client(t)
 	login(t, e, member, "member@x.io", "member-password")
@@ -49,6 +50,7 @@ func TestProvidersAPI(t *testing.T) {
 }
 
 func TestReposAgentsAPI(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	admin := e.client(t)
 	login(t, e, admin, "admin@x.io", "admin-password")
@@ -124,6 +126,7 @@ func TestReposAgentsAPI(t *testing.T) {
 // second's save (still carrying the pre-change version) must be rejected
 // instead of silently overwriting the first admin's change.
 func TestUpdateRepoStaleVersionConflict(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	admin := e.client(t)
 	login(t, e, admin, "admin@x.io", "admin-password")
@@ -184,6 +187,7 @@ func (r failRepoUpdateOnceRepos) UpdateInfoRemote(ctx context.Context, id, name,
 // the handler must map the resulting storage.ErrStale to 409, not a generic
 // 500 or a silent success.
 func TestUpdateRepoStorageCASConflictAnswers409(t *testing.T) {
+	t.Parallel()
 	e := setupWithStore(t, nil, func(st storage.Store) storage.Store { return &failRepoUpdateOnce{Store: st} })
 	admin := e.client(t)
 	login(t, e, admin, "admin@x.io", "admin-password")
@@ -206,6 +210,7 @@ func TestUpdateRepoStorageCASConflictAnswers409(t *testing.T) {
 
 // save keeps them as they were. ExtraDirs must be absolute, existing paths.
 func TestAgentFullAccessPermissionAPI(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	admin := e.client(t)
 	login(t, e, admin, "admin@x.io", "admin-password")
@@ -289,6 +294,7 @@ func stripID(a map[string]any) map[string]any {
 }
 
 func TestFolderBrowserAPI(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	root := t.TempDir()
 	os.MkdirAll(filepath.Join(root, "shop", ".git"), 0o755)
@@ -324,6 +330,7 @@ func TestFolderBrowserAPI(t *testing.T) {
 }
 
 func TestCloneProjectAPI(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	member := e.client(t)
 	login(t, e, member, "member@x.io", "member-password")
@@ -351,6 +358,7 @@ func TestCloneProjectAPI(t *testing.T) {
 }
 
 func TestNewProjectAPI(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	member := e.client(t)
 	login(t, e, member, "member@x.io", "member-password")
@@ -389,6 +397,7 @@ func TestNewProjectAPI(t *testing.T) {
 // holds the template, committed; its pack made the project (the CEO alone,
 // ADR-204); the goal given is its first goal.
 func TestNewCompanyAPI(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	admin := e.client(t)
 	login(t, e, admin, "admin@x.io", "admin-password")
@@ -470,6 +479,7 @@ func TestNewCompanyAPI(t *testing.T) {
 }
 
 func TestMachineWideProject(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	admin := e.client(t)
 	login(t, e, admin, "admin@x.io", "admin-password")
@@ -490,6 +500,7 @@ func TestMachineWideProject(t *testing.T) {
 }
 
 func TestRevisionsAPI(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	admin := e.client(t)
 	login(t, e, admin, "admin@x.io", "admin-password")
@@ -526,6 +537,7 @@ func TestRevisionsAPI(t *testing.T) {
 }
 
 func TestTransferAPI(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	admin := e.client(t)
 	login(t, e, admin, "admin@x.io", "admin-password")

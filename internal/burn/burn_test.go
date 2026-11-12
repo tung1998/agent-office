@@ -123,6 +123,7 @@ func waitDelivered(t *testing.T, st storage.Store, id string) storage.BurnItem {
 // committed to the run's one burn/ branch (ADR-123), the next piece's too
 // (nothing pushed, nothing on main).
 func TestBurnDoesAPieceOnItsBranch(t *testing.T) {
+	t.Parallel()
 	f := setup(t)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -216,6 +217,7 @@ echo '{"type":"result","subtype":"success","is_error":false,"result":"xong l∆∞·ª
 // Stopped mid-piece, the piece waits (its worktree kept); started again it
 // goes on first.
 func TestBurnStopPausesAndGoesOn(t *testing.T) {
+	t.Parallel()
 	f := setup(t)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -250,6 +252,7 @@ func TestBurnStopPausesAndGoesOn(t *testing.T) {
 // still runs with full access, so it writes. It must write in its own
 // worktree, never in the project's folder.
 func TestBurnReadOnlyAgentStillWorksInItsWorktree(t *testing.T) {
+	t.Parallel()
 	f := setup(t)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -284,6 +287,7 @@ func TestBurnReadOnlyAgentStillWorksInItsWorktree(t *testing.T) {
 // Office starting sweeps worktrees whose chat is gone: a Burn piece's own is
 // not one of those (its work waits there while paused).
 func TestSweepKeepsBurnWorktrees(t *testing.T) {
+	t.Parallel()
 	f := setup(t)
 	ctx := context.Background()
 	b, _ := f.st.Burn().SaveSession(ctx, storage.BurnSession{ProjectID: f.project.ID, ResultMode: "branch", State: "stopped"})
@@ -307,6 +311,7 @@ func TestSweepKeepsBurnWorktrees(t *testing.T) {
 // piece that is over, a scan of a session that is gone, an old run, an
 // orphan go.
 func TestSweepOldKeepsWorkInProgress(t *testing.T) {
+	t.Parallel()
 	f := setup(t)
 	ctx := context.Background()
 	b, _ := f.st.Burn().SaveSession(ctx, storage.BurnSession{ProjectID: f.project.ID, ResultMode: "branch", State: "running", RunBranch: "burn/2026-10-12-0800"})
@@ -396,6 +401,7 @@ func TestSweepChatWorktreePinsActiveWork(t *testing.T) {
 // Without git there is no worktree: Burn would edit the project's own folder,
 // so it does not start.
 func TestBurnNeedsGit(t *testing.T) {
+	t.Parallel()
 	f := setup(t)
 	ctx := context.Background()
 	plain, _ := f.st.Repos().Create(ctx, storage.Repo{Name: "plain", Path: t.TempDir()})
@@ -437,6 +443,7 @@ func (f fx) profile(t *testing.T, stages ...string) string {
 // AI call) must win: finish() must not overwrite the skip with "done" once
 // the review comes back, and must not merge the item's diff into the run.
 func TestBurnFinishDoesNotOverwriteASkipRacingTheReview(t *testing.T) {
+	t.Parallel()
 	f := setup(t)
 	tmp := t.TempDir()
 	started := filepath.Join(tmp, "started") // set once finish()'s review call actually starts
@@ -502,6 +509,7 @@ echo '{"type":"result","subtype":"success","is_error":false,"result":"'"$r"'","s
 // are still running must win: work() must not overwrite the skip once the
 // checks come back, and must not merge or deliver the item.
 func TestBurnWorkDoesNotOverwriteASkipRacingTheChecks(t *testing.T) {
+	t.Parallel()
 	f := setup(t)
 	fakebin.Write(f.bin, []byte(strings.Replace(reviewer, "sleep 1", "sleep 0.2", 1)))
 	tmp := t.TempDir()
@@ -560,6 +568,7 @@ func TestBurnWorkDoesNotOverwriteASkipRacingTheChecks(t *testing.T) {
 
 // burn_list gives what the coordination prompt leaves out (ADR-121).
 func TestBurnListTool(t *testing.T) {
+	t.Parallel()
 	f := setup(t)
 	ctx := context.Background()
 	f.st.Burn().SaveSession(ctx, storage.BurnSession{ProjectID: f.project.ID, ModelTier: "fast", ResultMode: "branch", State: "stopped"})
@@ -633,6 +642,7 @@ func waitWorker(t *testing.T, st storage.Store, sessionID string, seen map[strin
 // branch; the code map and the areas looked at are kept. Three scans in a
 // row that record nothing, all done: the Burn finishes.
 func TestBurnScanRecordsThenWorkersDo(t *testing.T) {
+	t.Parallel()
 	f := setup(t)
 	f.svc.SetFindWork(true)
 	fakebin.Write(f.bin, []byte(`#!/bin/sh
@@ -733,6 +743,7 @@ echo '{"type":"result","subtype":"success","is_error":false,"result":"xong l∆∞·ª
 // running Burn takes it at once, even with no worker looking for work, and
 // it lands in the run it was done in.
 func TestBurnDoesAQuest(t *testing.T) {
+	t.Parallel()
 	f := setup(t)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -760,6 +771,7 @@ func TestBurnDoesAQuest(t *testing.T) {
 // At its time a scheduled Burn turns on by itself, stopping by its plan;
 // turned off by hand, the same slot does not turn it on again.
 func TestBurnTurnsOnBySchedule(t *testing.T) {
+	t.Parallel()
 	f := setup(t)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -786,6 +798,7 @@ func TestBurnTurnsOnBySchedule(t *testing.T) {
 // While an update waits for office to be idle (ADR-255), a Burn takes no new
 // piece; once the hold lets go it does.
 func TestBurnHoldTakesNoNewPiece(t *testing.T) {
+	t.Parallel()
 	f := setup(t)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()

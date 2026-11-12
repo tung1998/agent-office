@@ -9,6 +9,7 @@ import (
 // the Burn waiting, like any service down (ADR-152, ADR-260): the daily
 // upgrade's runs died on "claude: exit status 1 · lỗi API cuối: 500 …".
 func TestTransientIsTechnical(t *testing.T) {
+	t.Parallel()
 	for _, msg := range []string{
 		"claude: exit status 1 · lỗi API cuối: 500 api_error, lần 10/10 · sau 3m",
 		"claude: exit status 1 · lỗi API cuối: 529 overloaded_error, lần 10/10",

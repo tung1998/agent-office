@@ -4,6 +4,7 @@ import "testing"
 
 // Monitors watch processes and containers only, one per process/service.
 func TestMonitorTypesAndOnePerTarget(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	admin := e.client(t)
 	login(t, e, admin, "admin@x.io", "admin-password")

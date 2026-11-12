@@ -10,6 +10,7 @@ import (
 // The switch on the agent list: admin only, logged, and the agent's DTO says
 // enabled; an open edit form (its version) stays valid across it.
 func TestAgentEnabledSwitch(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	admin := e.client(t)
 	login(t, e, admin, "admin@x.io", "admin-password")

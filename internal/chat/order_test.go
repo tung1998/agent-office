@@ -20,6 +20,7 @@ import (
 // A chat's proposals are approved in the order its agent made them: a later
 // one waits for the earlier ones; rejecting never waits.
 func TestCheckOrder(t *testing.T) {
+	t.Parallel()
 	g := newGroup(t)
 	ctx := g.context
 	first, _ := g.f.st.Actions().Create(ctx, storage.Action{ProjectID: g.f.project.ID, ConversationID: g.conv.ID, Kind: "run_command", Target: "git add -A"})
@@ -51,6 +52,7 @@ func TestCheckOrder(t *testing.T) {
 // A diff the agent may apply on its own (CapApply) is queued while an
 // earlier proposal of the chat still waits, not applied before it.
 func TestAutoApplyWaitsForEarlierProposals(t *testing.T) {
+	t.Parallel()
 	if _, err := exec.LookPath("git"); err != nil {
 		t.Skip("git not installed")
 	}
@@ -95,6 +97,7 @@ func TestAutoApplyWaitsForEarlierProposals(t *testing.T) {
 // numbers' even when an answer's proposal was made before an earlier answer
 // ended (two agents at once).
 func TestOrderFollowsTheChat(t *testing.T) {
+	t.Parallel()
 	g := newGroup(t)
 	ctx := g.context
 	g.sendAll(t, "một")
@@ -135,6 +138,7 @@ func TestOrderFollowsTheChat(t *testing.T) {
 // Cards approved while an earlier one waits are queued, and run in order once
 // it is decided (Drain); one waiting for a person stops the queue.
 func TestDrainRunsQueuedInOrder(t *testing.T) {
+	t.Parallel()
 	g := newGroup(t)
 	ctx := g.context
 	g.sendAll(t, "một")

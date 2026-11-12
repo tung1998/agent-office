@@ -17,6 +17,7 @@ const agentsMD = "# App\n\nStack: Go.\n\n## Checks\n\nRun these:\n\n```sh\n# bui
 // AGENTS.md's "## Checks" and "## Run" are read as commands (ADR-266): the
 // section's first fenced block, else its `code` list items; nothing else.
 func TestAgentsCommands(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	if got := agentsCommands(dir, checksHeads...); got != nil {
 		t.Fatalf("no file: %v", got)
@@ -44,6 +45,7 @@ func TestAgentsCommands(t *testing.T) {
 
 // The Burn's own checks win; without them AGENTS.md's, before a guess.
 func TestVerifyCommandsFromAgents(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module x\n"), 0o644)
 	os.WriteFile(filepath.Join(dir, agentsFile), []byte("## Checks\n```\nmake check\n```\n"), 0o644)
@@ -62,6 +64,7 @@ func TestVerifyCommandsFromAgents(t *testing.T) {
 // A builder piece merged starts the preview with AGENTS.md's run command;
 // another template, or no command yet, starts nothing.
 func TestPreviewRun(t *testing.T) {
+	t.Parallel()
 	trees := worktree.New(t.TempDir())
 	s := &Service{trees: trees}
 	b := storage.BurnSession{ProjectID: "p1", RunBranch: "burn/2026-11-07-100000", Template: "builder"}

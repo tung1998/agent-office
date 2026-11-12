@@ -14,6 +14,7 @@ import (
 // itself later is its own item ("retrying", not a failed job), its plan is in
 // the chat's data, and Thôi calls it off (ADR-260).
 func TestRetryingChat(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	admin := e.client(t)
 	login(t, e, admin, "admin@x.io", "admin-password")
@@ -67,6 +68,7 @@ func TestRetryingChat(t *testing.T) {
 // A chat out of quota that waits for its reset is a "quota_wait" item, not a
 // stalled one asking for Tiếp tục: it goes on by itself (ADR-269).
 func TestQuotaWaitingChat(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	admin := e.client(t)
 	login(t, e, admin, "admin@x.io", "admin-password")

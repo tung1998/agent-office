@@ -21,6 +21,7 @@ func guardSays(t *testing.T, ev map[string]any, userMCP bool) string {
 // Edits stay in the working folder, .claude/skills included; MCP is office's own
 // unless the agent may use the person's servers.
 func TestGuard(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	os.MkdirAll(filepath.Join(dir, "src"), 0o755)
 	in := func(p string) map[string]any {
@@ -92,6 +93,7 @@ func TestClaudeArgsGuard(t *testing.T) {
 // servers, git hooks) is never written; a link out, even to nothing yet, is
 // refused; an unclear request is refused.
 func TestGuardProtected(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	in := func(p string) map[string]any {
 		return map[string]any{"cwd": dir, "tool_name": "Write", "tool_input": map[string]any{"file_path": p}}
@@ -149,6 +151,7 @@ func TestForeground(t *testing.T) {
 }
 
 func TestPushesProtected(t *testing.T) {
+	t.Parallel()
 	on := func(branch, up string) func(string) (string, string) {
 		return func(string) (string, string) { return branch, up }
 	}

@@ -9,6 +9,7 @@ import (
 // ADR-250: "Kiểm tất cả" checks every office MCP server; one that is broken
 // shows in an admin's "Cần xử lý" once per break, can be let go and retried.
 func TestMCPHealthAPI(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	admin := e.client(t)
 	login(t, e, admin, "admin@x.io", "admin-password")

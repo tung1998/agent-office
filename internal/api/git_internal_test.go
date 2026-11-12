@@ -12,6 +12,7 @@ import (
 // check before either stores, so both would acquire. Run many goroutines at
 // once (under -race) to catch that.
 func TestGitLockExclusive(t *testing.T) {
+	t.Parallel()
 	const n = 64
 	var wg sync.WaitGroup
 	var acquired int32

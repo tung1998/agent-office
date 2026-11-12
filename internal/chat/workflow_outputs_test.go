@@ -9,6 +9,7 @@ import (
 // A "summary" output that is the run's result is not posted a second time
 // under "Đầu ra"; other outputs still are.
 func TestOutputsTextSkipsWhatTheResultHolds(t *testing.T) {
+	t.Parallel()
 	result := "# Bản tin\n\n## 1. Tin mới\n- a\n"
 	got := outputsText(storage.WorkflowRun{Result: result, Outputs: map[string]string{"summary": result}})
 	if got != "" {

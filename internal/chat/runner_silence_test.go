@@ -23,6 +23,7 @@ func fakeCLI(t *testing.T, name, script string) string {
 // Claude Code signed out elsewhere still says it is signed in locally: the
 // service's 401 reads as needing a login.
 func TestClaudeRejectedSessionNeedsLogin(t *testing.T) {
+	t.Parallel()
 	bin := fakeCLI(t, "claude", `if [ "$1" = auth ]; then echo '{"loggedIn":true}'; exit 0; fi
 cat >/dev/null
 echo '{"type":"result","subtype":"success","is_error":true,"result":"Failed to authenticate. API Error: 401 OAuth access token has been revoked"}'

@@ -15,6 +15,7 @@ import (
 // the defaults; a title an open piece has (case and spaces aside) is not
 // given twice, one done is; without start the Burn stays stopped.
 func TestAddQuestsDedupes(t *testing.T) {
+	t.Parallel()
 	f := setup(t)
 	ctx := context.Background()
 	added, started, err := f.svc.AddQuests(ctx, f.project.ID, []burn.Quest{{Title: "Sửa lỗi đăng nhập", Detail: "trang /login"}, {Title: "Thêm test"}}, false, "auto:x")
@@ -45,6 +46,7 @@ func TestAddQuestsDedupes(t *testing.T) {
 // With start, a stopped Burn starts on its settings once a quest was added,
 // with the suggested stop time when it had none.
 func TestAddQuestsStartsTheBurn(t *testing.T) {
+	t.Parallel()
 	f := setup(t)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -69,6 +71,7 @@ func TestAddQuestsStartsTheBurn(t *testing.T) {
 
 // burn_quest from any chat of the project: added, and read back with burn_quests.
 func TestQuestTools(t *testing.T) {
+	t.Parallel()
 	f := setup(t)
 	ctx := context.Background()
 	sc := actions.Scope{ProjectID: f.project.ID, Agent: "Thực thi"}
@@ -92,6 +95,7 @@ func TestQuestTools(t *testing.T) {
 // or one named; burn_quests filters by it; burn_assign hands one quest, or
 // every open quest of an agent, to another.
 func TestQuestOwners(t *testing.T) {
+	t.Parallel()
 	f := setup(t)
 	ctx := context.Background()
 	for _, a := range []storage.Agent{{ProjectID: f.project.ID, Key: "ceo", Name: "Tổng giám đốc", ModelTier: storage.TierStrong}, {ProjectID: f.project.ID, Key: "cto", Name: "Giám đốc kỹ thuật", ModelTier: storage.TierStrong}} {
@@ -125,6 +129,7 @@ func TestQuestOwners(t *testing.T) {
 // plan replaced): it is skipped, its reason the summary; one already closed,
 // or no reason, is refused.
 func TestQuestDrop(t *testing.T) {
+	t.Parallel()
 	f := setup(t)
 	ctx := context.Background()
 	sc := actions.Scope{ProjectID: f.project.ID, Agent: "Lead"}

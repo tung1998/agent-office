@@ -11,6 +11,7 @@ import (
 )
 
 func TestSkillifyPromptRecordsStepsAndAsks(t *testing.T) {
+	t.Parallel()
 	msgs := []storage.Message{
 		{Role: "user", Content: "Deploy bản mới lên staging\nchi tiết thêm"},
 		{Role: "assistant", Tools: []storage.ToolCall{
@@ -38,6 +39,7 @@ func TestSkillifyPromptRecordsStepsAndAsks(t *testing.T) {
 }
 
 func TestSkillifyPromptKeepsLatestSteps(t *testing.T) {
+	t.Parallel()
 	var tools []storage.ToolCall
 	for i := 0; i < skillifyMaxSteps+5; i++ {
 		tools = append(tools, storage.ToolCall{Name: "Read", Summary: strings.Repeat("x", i+1)})
@@ -52,6 +54,7 @@ func TestSkillifyPromptKeepsLatestSteps(t *testing.T) {
 }
 
 func TestSkillifyOnlyInPersonChatsWithoutSuchSkill(t *testing.T) {
+	t.Parallel()
 	e := &Engine{}
 	dir := t.TempDir()
 	if note, ok := e.skillify(context.Background(), storage.Conversation{}, dir, "/skillify  tra đơn "); !ok || note != "tra đơn" {

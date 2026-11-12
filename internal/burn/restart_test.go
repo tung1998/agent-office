@@ -13,6 +13,7 @@ import (
 // failing then still gets a second one. One cut too many times in a row
 // counts (it may be what brings office down).
 func TestRestartIsNotATry(t *testing.T) {
+	t.Parallel()
 	f := setup(t)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -33,6 +34,7 @@ func TestRestartIsNotATry(t *testing.T) {
 // gets its second try (before ADR-257 the restart was its first, and it
 // failed); its turn having run, its restarts in a row are over.
 func TestCutPieceKeepsItsSecondTry(t *testing.T) {
+	t.Parallel()
 	f := setup(t)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()

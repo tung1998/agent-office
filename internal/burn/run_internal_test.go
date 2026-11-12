@@ -73,6 +73,7 @@ func runFile(t *testing.T, s *Service, b storage.BurnSession, repo string) strin
 // (one in the other's context): the second merges too (3-way), not "a
 // conflict, do it again".
 func TestIntegrateMergesDifferentLines(t *testing.T) {
+	t.Parallel()
 	s, b, repo := mergeTest(t)
 	ctx := context.Background()
 	one := piece(t, s, b, repo, "one", func(x string) string { return strings.Replace(x, "3\n", "three\n", 1) })
@@ -91,6 +92,7 @@ func TestIntegrateMergesDifferentLines(t *testing.T) {
 // The same lines: the run stays clean, and replay puts the piece on the
 // run's latest code with conflict markers for its worker, keeping its work.
 func TestReplayKeepsTheWorkOnAClash(t *testing.T) {
+	t.Parallel()
 	s, b, repo := mergeTest(t)
 	ctx := context.Background()
 	one := piece(t, s, b, repo, "one", func(x string) string { return strings.Replace(x, "4\n", "four\n", 1) })
@@ -125,6 +127,7 @@ func TestReplayKeepsTheWorkOnAClash(t *testing.T) {
 // A piece whose last hunk ends on a blank context line still applies: the
 // patch is kept as git wrote it (trimmed, it was "corrupt" on every try).
 func TestDiffEndingOnBlankLineApplies(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	src, dst := t.TempDir(), t.TempDir()
 	body := "a\nb\nc\n\nd\ne\nf\ng\nh\n"

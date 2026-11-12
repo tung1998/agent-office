@@ -12,6 +12,7 @@ import (
 // A big diff comes with the chat cut short (whole lines, counts of the whole);
 // GET /api/patches/{id} gives all of it.
 func TestBigPatchCutInHistory(t *testing.T) {
+	t.Parallel()
 	e := setup(t)
 	admin := e.client(t)
 	login(t, e, admin, "admin@x.io", "admin-password")

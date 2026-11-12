@@ -40,6 +40,7 @@ func (g group) pause(t *testing.T, id string) {
 }
 
 func TestTagPausedAgentGetsNotice(t *testing.T) {
+	t.Parallel()
 	g := newGroup(t)
 	g.pause(t, g.dev.ID)
 	jobs := g.jobs(t)
@@ -74,6 +75,7 @@ func TestTagPausedAgentGetsNotice(t *testing.T) {
 // the answer (the executor sends it back to the bot), no AI runs; no other
 // agent takes it over (the rule chose the agent and its rights).
 func TestChannelChatOfPausedAgent(t *testing.T) {
+	t.Parallel()
 	g := newGroup(t)
 	conv, err := g.engine.StartConversationPurpose(g.context, g.f.project.ID, g.dev.ID, "channel")
 	if err != nil {

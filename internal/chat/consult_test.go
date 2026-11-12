@@ -72,6 +72,7 @@ func waitFor(t *testing.T, what string, cond func() bool) {
 // in a hidden, read-only chat of its own project, its answer comes into the
 // asking chat as its message, and the asking agent is called again.
 func TestAskExpertLocal(t *testing.T) {
+	t.Parallel()
 	var last struct {
 		sync.Mutex
 		system, prompt string
@@ -126,6 +127,7 @@ func TestAskExpertLocal(t *testing.T) {
 // Who may be asked, and how often: an expert of another office (its answer
 // comes back over the pairing), the caps, a project lending no one.
 func TestAskExpertPeerAndLimits(t *testing.T) {
+	t.Parallel()
 	var last struct {
 		sync.Mutex
 		system, prompt string
@@ -181,6 +183,7 @@ func TestAskExpertPeerAndLimits(t *testing.T) {
 
 // An expert whose agent runs as administrator elsewhere still only reads.
 func TestAskExpertNeverFullAccess(t *testing.T) {
+	t.Parallel()
 	bin, argsLog := fullAccessFakeBin(t, t.TempDir())
 	c := newConsult(t, setup(t, func(provs *provider.Service) storage.Provider {
 		p, _ := provs.Create(context.Background(), provider.Input{Name: "CC", Kind: storage.ProviderClaudeCLI, BaseURL: bin})
@@ -208,6 +211,7 @@ func TestAskExpertNeverFullAccess(t *testing.T) {
 // never to the office assistant (not even with Administrator), once each;
 // an answer only to a question asked of that office.
 func TestReceiveConsult(t *testing.T) {
+	t.Parallel()
 	var last struct {
 		sync.Mutex
 		system, prompt string

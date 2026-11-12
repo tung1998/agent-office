@@ -15,6 +15,7 @@ import (
 // progress outside the Burn, then done with the agent's answer; a task of
 // another project's board, or one the Burn is doing, is left as it is.
 func TestBoardHandoff(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	st, _ := sqlite.Open(filepath.Join(t.TempDir(), "o.db"))
 	defer st.Close()
@@ -61,6 +62,7 @@ func TestBoardHandoff(t *testing.T) {
 // ADR-221: an agent's next task is the oldest quest waiting for it (its own,
 // or one with no owner for the default agent); none while the Burn runs.
 func TestBoardNext(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	st, _ := sqlite.Open(filepath.Join(t.TempDir(), "o.db"))
 	defer st.Close()

@@ -10,6 +10,7 @@ import (
 )
 
 func TestWorkspace(t *testing.T) {
+	t.Parallel()
 	root := t.TempDir()
 	os.MkdirAll(filepath.Join(root, "src"), 0o755)
 	os.MkdirAll(filepath.Join(root, "node_modules", "x"), 0o755)
@@ -46,6 +47,7 @@ func TestWorkspace(t *testing.T) {
 }
 
 func TestPatches(t *testing.T) {
+	t.Parallel()
 	root := t.TempDir()
 	os.WriteFile(filepath.Join(root, "a.txt"), []byte("one\ntwo\nthree\n"), 0o644)
 	answer := "Sửa như sau:\n```diff\n--- a/a.txt\n+++ b/a.txt\n@@ -1,3 +1,3 @@\n one\n-two\n+TWO\n three\n```\nXong."

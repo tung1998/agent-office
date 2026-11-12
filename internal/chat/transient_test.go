@@ -19,6 +19,7 @@ func init() { TransientRetryDelay = 20 * time.Millisecond } // every test of the
 
 // The errors runs died on (run.log, failure_digest): which pass by waiting.
 func TestTransient(t *testing.T) {
+	t.Parallel()
 	for _, c := range []struct {
 		err  error
 		want bool
@@ -50,6 +51,7 @@ func TestTransient(t *testing.T) {
 // A CLI that gave up on an overloaded API mid-turn goes on in its session a
 // while later, told so; the turn ends as one answer (ADR-260).
 func TestClaudeGoesOnAfterTransientExit(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	bin, calls := filepath.Join(dir, "claude"), filepath.Join(dir, "calls")
 	fakebin.Write(bin, []byte(`#!/bin/sh
@@ -82,6 +84,7 @@ esac
 // Only once: still failing, the turn fails as transient (to be put back
 // later); a CLI out of quota or with no session is never run again.
 func TestClaudeGoesOnOnlyOnce(t *testing.T) {
+	t.Parallel()
 	dir := t.TempDir()
 	bin, calls := filepath.Join(dir, "claude"), filepath.Join(dir, "calls")
 	write := func(body string) {

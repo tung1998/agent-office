@@ -71,6 +71,7 @@ func newCappedAutomation(t *testing.T, g wfGroup, cap float64) storage.Automatio
 // They used to be new jobs of nobody's ("user", "ui"), so a workflow
 // automation spent $300 a day under a $15 cap (ADR-263).
 func TestWorkflowRunJobsKeepAutomationOrigin(t *testing.T) {
+	t.Parallel()
 	g := newWFGroup(t)
 	a := newCappedAutomation(t, g, 0)
 	job, r := callFromAutomation(t, g, a)
@@ -103,6 +104,7 @@ func TestWorkflowRunJobsKeepAutomationOrigin(t *testing.T) {
 // further step: the run ends with the cap said, not after spending on
 // (ADR-263).
 func TestDailyCapStopsRunMidway(t *testing.T) {
+	t.Parallel()
 	g := newWFGroup(t)
 	a := newCappedAutomation(t, g, 1)
 	os.WriteFile(filepath.Join(g.dir, "sleep-qa"), []byte("1"), 0o644)
