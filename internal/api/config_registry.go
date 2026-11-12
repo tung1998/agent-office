@@ -33,13 +33,16 @@ import (
 type cfgKind struct {
 	name, title string
 	office      bool // not tied to a project (providers, budget)
-	input       any  // the handler's input: the fields a patch may set
-	merge       bool // the handler replaces the whole input: send the current one with the patch on top
-	get         func(s *server, ctx context.Context, id, projectID string) (obj any, project string, err error)
-	list        func(s *server, ctx context.Context, projectID string) ([]map[string]any, error)
-	create      *cfgRoute
-	update      *cfgRoute
-	del         *cfgRoute
+	// admins: office-wide, yet an administrator's project run (ADR-074) may
+	// change it too, not only the office assistant: it acts as an office admin.
+	admins bool
+	input  any  // the handler's input: the fields a patch may set
+	merge  bool // the handler replaces the whole input: send the current one with the patch on top
+	get    func(s *server, ctx context.Context, id, projectID string) (obj any, project string, err error)
+	list   func(s *server, ctx context.Context, projectID string) ([]map[string]any, error)
+	create *cfgRoute
+	update *cfgRoute
+	del    *cfgRoute
 }
 
 // cfgRoute is the dashboard handler for an op, and the {id} it is called with.
@@ -208,6 +211,7 @@ func cfgKinds() []cfgKind {
 				return st, "", err
 			},
 			update: &cfgRoute{"PUT", func(s *server) http.HandlerFunc { return s.usageSettings }, byID}},
+		mcpServerConfigKind(),
 		{name: "provider", title: "Kết nối AI", office: true, input: providerInput{}, merge: true,
 			get: func(s *server, ctx context.Context, id, _ string) (any, string, error) {
 				p, err := s.cfg.Store.Providers().Get(ctx, id)
@@ -291,12 +295,12 @@ func stateHash(st map[string]any) string {
 
 // CheckChange validates a proposal made in projectID and keeps the setting
 // as it is now in c.Before.
-func (s *server) CheckChange(ctx context.Context, projectID string, office bool, c *storage.ConfigChange) (string, error) {
+func (s *server) CheckChange(ctx context.Context, projectID string, office, admin bool, c *storage.ConfigChange) (string, error) {
 	k, err := s.cfgKind(c.Resource)
 	if err != nil {
 		return "", err
 	}
-	if k.office && !office {
+	if k.office && !office && !(k.admins && admin) {
 		return "", fmt.Errorf("%s là cài đặt chung của office: nhờ trợ lý office đề xuất", k.title)
 	}
 	if k.route(c.Op) == nil {
@@ -315,6 +319,9 @@ func (s *server) CheckChange(ctx context.Context, projectID string, office bool,
 		}
 		if bot, ok := patch["bot"].(map[string]any); ok && f == "bot" && bot["token"] != nil {
 			return "", errors.New("không đưa token của bot qua đề xuất; người dùng tự dán token trong form tự động hóa")
+		}
+		if k.name == "mcp_server" && slices.Contains(mcpSecretFields, f) {
+			return "", fmt.Errorf("không đưa %s của MCP qua đề xuất (có thể là khoá): người dùng tự nhập ở trang MCP servers", f)
 		}
 		if !slices.Contains(fields, f) {
 			return "", fmt.Errorf("trường %q không sửa được (%s có: %s)", f, k.title, strings.Join(fields, ", "))
@@ -473,6 +480,9 @@ func (s *server) DescribeConfig(kind string) (string, error) {
 	}
 	if k.name == "provider" {
 		b.WriteString(" API key không đưa qua patch: người dùng tự dán trên thẻ duyệt.")
+	}
+	if k.name == "mcp_server" {
+		b.WriteString(" env, headers, oauth_client_secret không đưa qua patch (giá trị đã lưu được giữ nguyên): người dùng tự nhập ở trang MCP servers. Đổi command/args/url thì office tự kiểm lại; get để xem last_check_status, last_check_error.")
 	}
 	return b.String(), nil
 }

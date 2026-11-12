@@ -56,8 +56,8 @@ func (r channelRepo) Create(ctx context.Context, c storage.Channel) (storage.Cha
 // a few human-edited fields, not the fields SetStatus/SetThread/Prune touch).
 func (r channelRepo) Update(ctx context.Context, c storage.Channel) error {
 	normChannel(&c)
-	res, err := r.db.ExecContext(ctx, `UPDATE channels SET name=?, token_enc=?, agent_id=?, mode=?, enabled=?, allow=?, scope=?, filter_enabled=?, refusal=?, approvers=?, approval=?, header=?, reply_mode=?, defaults=?, updated_at=? WHERE id=? AND updated_at=?`,
-		c.Name, c.TokenEnc, c.AgentID, c.Mode, c.Enabled, toJSON(c.Allow), c.Scope, c.FilterEnabled, c.Refusal, toJSON(c.Approvers), c.Approval, c.Header, c.ReplyMode, c.Defaults, fmtTime(time.Now()), c.ID, fmtTime(c.UpdatedAt))
+	res, err := r.db.ExecContext(ctx, `UPDATE channels SET name=?, token_enc=?, agent_id=?, mode=?, enabled=?, allow=?, scope=?, filter_enabled=?, refusal=?, approvers=?, approval=?, header=?, reply_mode=?, defaults=?, updated_at=? WHERE id=? AND `+sameTime,
+		append([]any{c.Name, c.TokenEnc, c.AgentID, c.Mode, c.Enabled, toJSON(c.Allow), c.Scope, c.FilterEnabled, c.Refusal, toJSON(c.Approvers), c.Approval, c.Header, c.ReplyMode, c.Defaults, fmtTime(time.Now()), c.ID}, sameTimeArgs(c.UpdatedAt)...)...)
 	if err != nil {
 		return err
 	}

@@ -250,7 +250,7 @@ func (officeSender) Relayed(context.Context, string) bool { return false }
 
 type officeApplier struct{}
 
-func (officeApplier) CheckChange(context.Context, string, bool, *storage.ConfigChange) (string, error) {
+func (officeApplier) CheckChange(context.Context, string, bool, bool, *storage.ConfigChange) (string, error) {
 	return "agent", nil
 }
 func (officeApplier) ApplyChange(context.Context, storage.Action) (string, error) { return "", nil }

@@ -351,8 +351,8 @@ func (r repoRepo) UpdateInfo(ctx context.Context, id, name, description string) 
 }
 
 func (r repoRepo) UpdateInfoRemote(ctx context.Context, id, name, description, gitRemote string, prevUpdatedAt time.Time) error {
-	res, err := r.db.ExecContext(ctx, `UPDATE repos SET name=?, description=?, git_remote=?, updated_at=? WHERE id=? AND updated_at=?`,
-		name, description, gitRemote, fmtTime(time.Now()), id, fmtTime(prevUpdatedAt))
+	res, err := r.db.ExecContext(ctx, `UPDATE repos SET name=?, description=?, git_remote=?, updated_at=? WHERE id=? AND `+sameTime,
+		append([]any{name, description, gitRemote, fmtTime(time.Now()), id}, sameTimeArgs(prevUpdatedAt)...)...)
 	if err != nil {
 		return err
 	}

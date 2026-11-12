@@ -2,10 +2,13 @@ package sqlite_test
 
 import (
 	"context"
+	"database/sql"
 	"errors"
+	"path/filepath"
 	"testing"
 
 	"github.com/tung1998/agent-office/internal/storage"
+	"github.com/tung1998/agent-office/internal/storage/sqlite"
 )
 
 // Two Get-mutate-Update calls starting from the same row must not let the
@@ -75,5 +78,59 @@ func TestMCPServerSetResources(t *testing.T) {
 	}
 	if len(got.LastResources) != 0 {
 		t.Fatalf("LastResources after clearing = %+v, want empty", got.LastResources)
+	}
+}
+
+// A row whose updated_at was written in another layout (JavaScript's
+// toISOString in an imported bundle, or RFC3339Nano from older office) must
+// still update: the CAS once compared only office's 9-digit layout, so such
+// a row answered ErrConflict to every save, forever.
+func TestMCPServerUpdateOtherTimeLayouts(t *testing.T) {
+	t.Parallel()
+	for name, stored := range map[string]string{
+		"js millis":   "2026-10-29T02:42:42.480Z",
+		"rfc3339nano": "2026-10-29T02:42:42.48Z",
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			ctx := context.Background()
+			path := filepath.Join(t.TempDir(), "o.db")
+			st, err := sqlite.Open(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() { st.Close() })
+			if err := st.Migrate(ctx); err != nil {
+				t.Fatal(err)
+			}
+			m, err := st.MCPServers().Create(ctx, storage.MCPServer{Name: "figma", Kind: "stdio", Command: "ssh", Enabled: true})
+			if err != nil {
+				t.Fatal(err)
+			}
+			raw, err := sql.Open("sqlite", path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer raw.Close()
+			if _, err := raw.ExecContext(ctx, `UPDATE mcp_servers SET updated_at=? WHERE id=?`, stored, m.ID); err != nil {
+				t.Fatal(err)
+			}
+
+			got, err := st.MCPServers().Get(ctx, m.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			got.Command = "npx"
+			if err := st.MCPServers().Update(ctx, got); err != nil {
+				t.Fatalf("update of a row stored as %q: %v", stored, err)
+			}
+			if again, _ := st.MCPServers().Get(ctx, m.ID); again.Command != "npx" {
+				t.Fatalf("command = %q, want npx", again.Command)
+			}
+			// still a CAS: the stale copy loses
+			if err := st.MCPServers().Update(ctx, got); !errors.Is(err, storage.ErrConflict) {
+				t.Fatalf("stale update: got %v, want ErrConflict", err)
+			}
+		})
 	}
 }

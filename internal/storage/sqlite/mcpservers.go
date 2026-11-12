@@ -91,9 +91,9 @@ func (r mcpServerRepo) Create(ctx context.Context, m storage.MCPServer) (storage
 func (r mcpServerRepo) Update(ctx context.Context, m storage.MCPServer) error {
 	normMCPServer(&m)
 	res, err := r.db.ExecContext(ctx, `UPDATE mcp_servers SET name=?, kind=?, url=?, command=?, args=?, env_enc=?, headers_enc=?, scope=?, origin=?, enabled=?,
-		agents=?, trusted_tools=?, origin_ref=?, updated_at=? WHERE id=? AND updated_at=?`,
-		m.Name, m.Kind, m.URL, m.Command, toJSON(m.Args), m.EnvEnc, m.HeadersEnc, m.Scope, m.Origin, m.Enabled,
-		toJSON(m.Agents), toJSON(m.TrustedTools), m.OriginRef, fmtTime(time.Now()), m.ID, fmtTime(m.UpdatedAt))
+		agents=?, trusted_tools=?, origin_ref=?, updated_at=? WHERE id=? AND `+sameTime,
+		append([]any{m.Name, m.Kind, m.URL, m.Command, toJSON(m.Args), m.EnvEnc, m.HeadersEnc, m.Scope, m.Origin, m.Enabled,
+			toJSON(m.Agents), toJSON(m.TrustedTools), m.OriginRef, fmtTime(time.Now()), m.ID}, sameTimeArgs(m.UpdatedAt)...)...)
 	if isUnique(err) {
 		return storage.ErrConflict
 	}

@@ -146,6 +146,17 @@ func fmtTime(t time.Time) string { return t.UTC().Format(timeWriteLayout) }
 
 func parseTime(s string) (time.Time, error) { return time.Parse(timeLayout, s) }
 
+// sameTime matches a stored updated_at against t in each layout a row may
+// hold: office's own (9 digits), RFC3339Nano (older rows) and JavaScript's
+// toISOString (3 digits, rows imported from a bundle). An exact compare on
+// fmtTime alone never matched those rows, so their CAS failed for good.
+const sameTime = "updated_at IN (?,?,?)"
+
+func sameTimeArgs(t time.Time) []any {
+	t = t.UTC()
+	return []any{t.Format(timeWriteLayout), t.Format(time.RFC3339Nano), t.Format("2006-01-02T15:04:05.000Z07:00")}
+}
+
 func isUnique(err error) bool {
 	return err != nil && strings.Contains(err.Error(), "UNIQUE constraint failed")
 }

@@ -629,3 +629,35 @@ func (s *server) sendMCPStatus(d mcpServerDTO) {
 		s.cfg.Events.Send(events.Event{Name: "mcp.gateway.status", Data: d}, admins)
 	}
 }
+
+// mcpSecretFields may hold keys: never through a proposal (an agent's text
+// lands in chats and logs); the person types them on the MCP page.
+var mcpSecretFields = []string{"env", "headers", "oauth_client_secret"}
+
+// mcpServerConfigKind lets an administrator's run or the office assistant
+// fix the office's MCP servers (a command moved, a path from another
+// machine) through propose_change, the dashboard's own handlers doing the
+// work. Not merged: the handler takes partial input, and merging the masked
+// env/headers of get would write the masks back as values.
+func mcpServerConfigKind() cfgKind {
+	return cfgKind{name: "mcp_server", title: "MCP server", office: true, admins: true, input: mcpServerInput{},
+		get: func(s *server, ctx context.Context, id, _ string) (any, string, error) {
+			m, err := s.cfg.Store.MCPServers().Get(ctx, id)
+			if err != nil {
+				return nil, "", err
+			}
+			return s.mcpServerDTO(m), "", nil
+		},
+		list: func(s *server, ctx context.Context, _ string) ([]map[string]any, error) {
+			list, err := s.cfg.Store.MCPServers().List(ctx)
+			out := []map[string]any{}
+			for _, m := range list {
+				out = append(out, map[string]any{"id": m.ID, "name": m.Name, "kind": m.Kind, "enabled": m.Enabled,
+					"command": m.Command, "args": m.Args, "url": m.URL, "status": m.LastCheckStatus, "error": m.LastCheckError})
+			}
+			return out, err
+		},
+		create: &cfgRoute{"POST", func(s *server) http.HandlerFunc { return s.createMCPServer }, byID},
+		update: &cfgRoute{"PATCH", func(s *server) http.HandlerFunc { return s.updateMCPServer }, byID},
+		del:    &cfgRoute{"DELETE", func(s *server) http.HandlerFunc { return s.deleteMCPServer }, byID}}
+}

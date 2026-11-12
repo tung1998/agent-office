@@ -181,8 +181,8 @@ func (r collectionRepo) Insert(ctx context.Context, x storage.Record) (storage.R
 // instead of silently overwriting (mirrors processRepo.Update).
 func (r collectionRepo) Save(ctx context.Context, x storage.Record) error {
 	now := time.Now().UTC()
-	res, err := r.db.ExecContext(ctx, `UPDATE records SET data=?, text=?, updated_by=?, updated_at=? WHERE id=? AND collection_id=? AND updated_at=?`,
-		toJSON(x.Data), x.Text, x.UpdatedBy, fmtTime(now), x.ID, x.CollectionID, fmtTime(x.UpdatedAt))
+	res, err := r.db.ExecContext(ctx, `UPDATE records SET data=?, text=?, updated_by=?, updated_at=? WHERE id=? AND collection_id=? AND `+sameTime,
+		append([]any{toJSON(x.Data), x.Text, x.UpdatedBy, fmtTime(now), x.ID, x.CollectionID}, sameTimeArgs(x.UpdatedAt)...)...)
 	if isUnique(err) {
 		return storage.ErrConflict
 	}

@@ -61,8 +61,8 @@ func (r memoryRepo) Create(ctx context.Context, m storage.Memory) (storage.Memor
 // landing between the handler's Get and Update loses instead of silently
 // overwriting (mirrors channelRepo.Update).
 func (r memoryRepo) Update(ctx context.Context, m storage.Memory) error {
-	res, err := r.db.ExecContext(ctx, `UPDATE agent_memories SET text=?, topic=?, summary=?, updated_at=? WHERE id=? AND updated_at=?`,
-		m.Text, m.Topic, m.Summary, fmtTime(time.Now()), m.ID, fmtTime(m.UpdatedAt))
+	res, err := r.db.ExecContext(ctx, `UPDATE agent_memories SET text=?, topic=?, summary=?, updated_at=? WHERE id=? AND `+sameTime,
+		append([]any{m.Text, m.Topic, m.Summary, fmtTime(time.Now()), m.ID}, sameTimeArgs(m.UpdatedAt)...)...)
 	if err != nil {
 		return err
 	}

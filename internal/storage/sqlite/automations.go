@@ -88,10 +88,10 @@ func (r automationRepo) Get(ctx context.Context, id string) (storage.Automation,
 func (r automationRepo) Update(ctx context.Context, a storage.Automation) error {
 	res, err := r.db.ExecContext(ctx, `UPDATE automations SET name=?, enabled=?, source=?, config=?, action=?, agent_id=?, prompt=?, edit_mode=?,
 		keep_context=?, limits=?, failures=?, disabled_code=?, disabled_reason=?, last_run_at=?, next_run_at=?, updated_at=?, script=?, escalate=?, model_tier=?,
-		permission_mode=?, override_full_access=?, override_admin_by=?, override_extra_dirs=? WHERE id=? AND updated_at=?`,
-		a.Name, a.Enabled, a.Source, toJSON(a.Config), a.Action, a.AgentID, a.Prompt, a.EditMode, a.KeepContext, toJSON(a.Limits),
-		a.Failures, a.DisabledCode, a.DisabledReason, optTime(a.LastRunAt), optTime(a.NextRunAt), fmtTime(time.Now()), toJSON(a.Script), toJSON(a.Escalate), a.ModelTier,
-		a.PermissionMode, a.OverrideFullAccess, a.OverrideAdminBy, toJSON(a.OverrideExtraDirs), a.ID, fmtTime(a.UpdatedAt))
+		permission_mode=?, override_full_access=?, override_admin_by=?, override_extra_dirs=? WHERE id=? AND `+sameTime,
+		append([]any{a.Name, a.Enabled, a.Source, toJSON(a.Config), a.Action, a.AgentID, a.Prompt, a.EditMode, a.KeepContext, toJSON(a.Limits),
+			a.Failures, a.DisabledCode, a.DisabledReason, optTime(a.LastRunAt), optTime(a.NextRunAt), fmtTime(time.Now()), toJSON(a.Script), toJSON(a.Escalate), a.ModelTier,
+			a.PermissionMode, a.OverrideFullAccess, a.OverrideAdminBy, toJSON(a.OverrideExtraDirs), a.ID}, sameTimeArgs(a.UpdatedAt)...)...)
 	if err != nil {
 		return err
 	}
