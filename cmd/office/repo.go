@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"text/tabwriter"
@@ -174,8 +175,93 @@ Thêm một thư mục, hoặc clone một repo, có file này làm project (off
 	}
 	pack.Flags().StringVar(&out, "out", "", "file đích (mặc định <thư mục project>/"+transfer.RepoPackFile+")")
 	pack.Flags().StringSliceVar(&include, "include", []string{transfer.IncludeConfig, transfer.IncludeMemory}, "phần mang theo: config, memory, chats")
-	cmd.AddCommand(add, list, rm, pack)
+	var force bool
+	move := &cobra.Command{
+		Use:   "move <đường-dẫn|tên> <thư-mục-mới>",
+		Short: "Chuyển project sang thư mục khác (giữ agent, chat, lịch sử)",
+		Long: `Đổi thư mục của project, vd. khi có hai bản clone của cùng repo trên máy.
+Agent, chat, quy trình, ghi nhớ vẫn giữ. Thư mục mới phải cùng git remote với project (--force để bỏ qua).
+Worktree của chat tạo từ thư mục cũ vẫn trỏ về bản cũ: xoá chúng (khi không còn việc dở) để lượt sau tạo lại từ thư mục mới.`,
+		Example: `  office project move agent-office ~/Desktop/ai-manager-agents`,
+		Args:    cobra.ExactArgs(2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			info, err := repos.Detect(args[1])
+			if err != nil {
+				return fmt.Errorf("thư mục mới: %w", err)
+			}
+			return withApp(cmd.Context(), func(a *app) error {
+				r, err := findProject(cmd, a, args[0])
+				if err != nil {
+					return err
+				}
+				if r.Path == info.Path {
+					fmt.Printf("Project %s đã ở %s\n", r.Name, info.Path)
+					return nil
+				}
+				if err := sameRemote(r.GitRemote, info.GitRemote); err != nil && !force {
+					return err
+				}
+				remote := info.GitRemote
+				if remote == "" {
+					remote = r.GitRemote
+				}
+				if err := a.store.Repos().SetPath(cmd.Context(), r.ID, info.Path, remote); err != nil {
+					if errors.Is(err, storage.ErrConflict) {
+						return fmt.Errorf("thư mục %s đã là của project khác", info.Path)
+					}
+					return err
+				}
+				fmt.Printf("✓ Đã chuyển %s: %s → %s\n", r.Name, projectScope(r), info.Path)
+				if wts := oldWorktrees(r.Path); len(wts) > 0 {
+					fmt.Printf("! %d worktree chat còn gắn với thư mục cũ (xoá khi không còn việc dở để tạo lại từ thư mục mới):\n", len(wts))
+					for _, w := range wts {
+						fmt.Println("  " + w)
+					}
+				}
+				return nil
+			})
+		},
+	}
+	move.Flags().BoolVar(&force, "force", false, "cho chuyển dù git remote khác nhau")
+	cmd.AddCommand(add, list, rm, pack, move)
 	return cmd
+}
+
+// sameRemote refuses moving a project onto a clone of a different repo; a
+// side with no remote is not a mismatch.
+func sameRemote(old, new string) error {
+	norm := func(s string) string {
+		s = strings.TrimSuffix(strings.TrimSuffix(strings.TrimSpace(s), "/"), ".git")
+		if i := strings.Index(s, "://"); i >= 0 {
+			s = s[i+3:]
+		}
+		if i := strings.LastIndex(s, "@"); i >= 0 {
+			s = s[i+1:]
+		}
+		return strings.ToLower(strings.Replace(s, ":", "/", 1))
+	}
+	if old == "" || new == "" || norm(old) == norm(new) {
+		return nil
+	}
+	return fmt.Errorf("git remote khác nhau (project: %s, thư mục mới: %s); dùng --force nếu chắc chắn", old, new)
+}
+
+// oldWorktrees lists the linked worktrees of dir (not dir itself).
+func oldWorktrees(dir string) []string {
+	if dir == "" {
+		return nil
+	}
+	out, err := exec.Command("git", "-C", dir, "worktree", "list", "--porcelain").Output()
+	if err != nil {
+		return nil
+	}
+	var wts []string
+	for _, line := range strings.Split(string(out), "\n") {
+		if p, ok := strings.CutPrefix(line, "worktree "); ok && filepath.Clean(p) != filepath.Clean(dir) {
+			wts = append(wts, p)
+		}
+	}
+	return wts
 }
 
 // findProject matches a folder path first, then an exact project name.
