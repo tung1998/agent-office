@@ -50,7 +50,7 @@ const en: Record<MessageKey, string> = {
   'nav.admin': 'Administration',
   'nav.users': 'Accounts',
   'nav.audit': 'Audit log',
-  'nav.transfer': 'Backup & sync',
+  'nav.transfer': 'Move & back up',
   'nav.data': 'Data management',
 'nav.peers': 'Other offices',
   'nav.update': 'Update office',

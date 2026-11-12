@@ -49,7 +49,7 @@ const vi = {
   'nav.admin': 'Quản trị',
   'nav.users': 'Tài khoản',
   'nav.audit': 'Audit log',
-  'nav.transfer': 'Sao lưu & đồng bộ',
+  'nav.transfer': 'Chuyển & sao lưu',
   'nav.data': 'Quản lý dữ liệu',
 'nav.peers': 'Office khác',
   'nav.update': 'Cập nhật office',

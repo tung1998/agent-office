@@ -4,6 +4,7 @@ interface Change { kind: 'provider' | 'template' | 'project', name: string, op: 
 definePageMeta({ admin: true })
 const toast = useToast()
 const { t } = useLang()
+const advanced = ref(false) // backups and config-only JSON: rarely needed, out of the way
 
 // ---- import ----
 const fileInput = ref<HTMLInputElement | null>(null)
@@ -81,57 +82,78 @@ const kindLabelOf = computed<Record<string, string>>(() => ({ provider: t('admin
 
 <template>
   <PageShell :title="t('admin.transferTitle')">
-    <div class="max-w-4xl space-y-6">
-      <FullOfficeTransfer />
-      <ProjectsTransfer />
-      <UCard>
-        <template #header>
-          <p class="font-medium"><InfoLabel :label="t('admin.exportTitle')" :info="t('admin.exportDesc')" /></p>
-        </template>
-        <div class="space-y-3">
-          <UButton icon="i-lucide-download" :label="t('admin.downloadConfig')" to="/api/transfer/export" external target="_blank" />
-          <p class="text-sm text-(--ui-text-muted)">{{ t('admin.exportCliHint') }}</p>
-          <pre class="overflow-x-auto rounded-md bg-(--ui-bg-muted) p-3 text-xs">office export ./office-config --commit</pre>
+    <div class="max-w-4xl space-y-10">
+      <section class="space-y-3">
+        <div>
+          <h2 class="text-base font-semibold">{{ t('transfer.office.title') }}</h2>
+          <p class="text-sm text-(--ui-text-muted)">{{ t('transfer.office.lead') }}</p>
         </div>
-      </UCard>
+        <FullOfficeTransfer />
+      </section>
 
-      <UCard>
-        <template #header>
-          <p class="font-medium"><InfoLabel :label="t('admin.importTitle')" :info="t('admin.importDesc')" /></p>
-        </template>
-        <div class="space-y-4">
-          <input ref="fileInput" type="file" accept="application/json,.json" class="hidden" @change="onFile">
-          <UButton icon="i-lucide-upload" :label="t('admin.chooseFile')" color="neutral" variant="outline" @click="fileInput?.click()" />
-          <template v-if="plan">
-            <p class="text-sm">{{ t('admin.importPreviewPrefix') }} <code>{{ fileName }}</code>: {{ t('admin.importPreviewSuffix', { n: pending }) }}</p>
-            <div class="divide-y divide-(--ui-border) rounded-lg border border-(--ui-border)">
-              <div v-for="(c, i) in plan" :key="i" class="flex flex-wrap items-center gap-3 px-3 py-2 text-sm">
-                <UBadge :label="opMeta[c.op]!.label" :color="opMeta[c.op]!.color" variant="subtle" class="w-24 justify-center" />
-                <span class="w-28 text-(--ui-text-muted)">{{ kindLabelOf[c.kind] }}</span>
-                <span class="font-medium">{{ c.name }}</span>
-                <span v-if="c.detail" class="text-xs text-(--ui-text-muted)">{{ c.detail }}</span>
-              </div>
-            </div>
-            <div class="flex justify-end gap-2">
-              <UButton color="neutral" variant="ghost" :label="t('common.cancel')" @click="plan = null; bundle = null" />
-              <UButton icon="i-lucide-check" :label="t('admin.applyChanges', { n: pending })" :disabled="!pending" :loading="importing" @click="applyImport" />
-            </div>
-          </template>
+      <section class="space-y-3">
+        <div>
+          <h2 class="text-base font-semibold">{{ t('transfer.projects.title') }}</h2>
+          <p class="text-sm text-(--ui-text-muted)">{{ t('transfer.projects.lead') }}</p>
         </div>
-      </UCard>
+        <ProjectsTransfer />
+      </section>
 
-      <UCard>
-        <template #header>
-          <p class="font-medium"><InfoLabel :label="t('admin.backupTitle')" :info="t('admin.backupDesc')" /></p>
-        </template>
-        <div class="space-y-3">
-          <UButton icon="i-lucide-archive" :label="t('admin.createBackup')" :loading="backingUp" @click="backup" />
-          <UAlert v-if="backupPath" color="success" variant="subtle" icon="i-lucide-circle-check" :title="t('admin.backupDone')">
-            <template #description><code class="text-xs">{{ backupPath }}</code></template>
-          </UAlert>
-          <pre class="overflow-x-auto rounded-md bg-(--ui-bg-muted) p-3 text-xs">office backup --out ~/office-backups/$(date +%F)</pre>
+      <section class="space-y-3">
+        <UButton color="neutral" variant="link" class="px-0" :icon="advanced ? 'i-lucide-chevron-down' : 'i-lucide-chevron-right'"
+                 :label="t('transfer.advanced')" :aria-expanded="advanced" @click="advanced = !advanced" />
+        <p v-if="!advanced" class="text-sm text-(--ui-text-muted)">{{ t('transfer.advancedLead') }}</p>
+        <div v-else class="space-y-6">
+          <UCard>
+            <template #header>
+              <p class="font-medium"><InfoLabel :label="t('admin.exportTitle')" :info="t('admin.exportDesc')" /></p>
+            </template>
+            <div class="space-y-3">
+              <UButton icon="i-lucide-download" :label="t('admin.downloadConfig')" to="/api/transfer/export" external target="_blank" />
+              <p class="text-sm text-(--ui-text-muted)">{{ t('admin.exportCliHint') }}</p>
+              <pre class="overflow-x-auto rounded-md bg-(--ui-bg-muted) p-3 text-xs">office export ./office-config --commit</pre>
+            </div>
+          </UCard>
+
+          <UCard>
+            <template #header>
+              <p class="font-medium"><InfoLabel :label="t('admin.importTitle')" :info="t('admin.importDesc')" /></p>
+            </template>
+            <div class="space-y-4">
+              <input ref="fileInput" type="file" accept="application/json,.json" class="hidden" @change="onFile">
+              <UButton icon="i-lucide-upload" :label="t('admin.chooseFile')" color="neutral" variant="outline" @click="fileInput?.click()" />
+              <template v-if="plan">
+                <p class="text-sm">{{ t('admin.importPreviewPrefix') }} <code>{{ fileName }}</code>: {{ t('admin.importPreviewSuffix', { n: pending }) }}</p>
+                <div class="divide-y divide-(--ui-border) rounded-lg border border-(--ui-border)">
+                  <div v-for="(c, i) in plan" :key="i" class="flex flex-wrap items-center gap-3 px-3 py-2 text-sm">
+                    <UBadge :label="opMeta[c.op]!.label" :color="opMeta[c.op]!.color" variant="subtle" class="w-24 justify-center" />
+                    <span class="w-28 text-(--ui-text-muted)">{{ kindLabelOf[c.kind] }}</span>
+                    <span class="font-medium">{{ c.name }}</span>
+                    <span v-if="c.detail" class="text-xs text-(--ui-text-muted)">{{ c.detail }}</span>
+                  </div>
+                </div>
+                <div class="flex justify-end gap-2">
+                  <UButton color="neutral" variant="ghost" :label="t('common.cancel')" @click="plan = null; bundle = null" />
+                  <UButton icon="i-lucide-check" :label="t('admin.applyChanges', { n: pending })" :disabled="!pending" :loading="importing" @click="applyImport" />
+                </div>
+              </template>
+            </div>
+          </UCard>
+
+          <UCard>
+            <template #header>
+              <p class="font-medium"><InfoLabel :label="t('admin.backupTitle')" :info="t('admin.backupDesc')" /></p>
+            </template>
+            <div class="space-y-3">
+              <UButton icon="i-lucide-archive" :label="t('admin.createBackup')" :loading="backingUp" @click="backup" />
+              <UAlert v-if="backupPath" color="success" variant="subtle" icon="i-lucide-circle-check" :title="t('admin.backupDone')">
+                <template #description><code class="text-xs">{{ backupPath }}</code></template>
+              </UAlert>
+              <pre class="overflow-x-auto rounded-md bg-(--ui-bg-muted) p-3 text-xs">office backup --out ~/office-backups/$(date +%F)</pre>
+            </div>
+          </UCard>
         </div>
-      </UCard>
+      </section>
     </div>
   </PageShell>
 </template>
