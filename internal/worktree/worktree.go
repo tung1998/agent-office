@@ -527,3 +527,40 @@ func copyFile(src, dst string) error {
 	}
 	return out.Close()
 }
+
+// Names lists the worktrees a project has now (folder names, as Path takes
+// them), leaving out an install's saved copies.
+func (m *Manager) Names(projectID string) []string {
+	entries, err := os.ReadDir(m.projectDir(projectID))
+	if err != nil {
+		return nil
+	}
+	var out []string
+	for _, e := range entries {
+		if e.IsDir() && !strings.HasPrefix(e.Name(), keepPrefix) {
+			out = append(out, e.Name())
+		}
+	}
+	return out
+}
+
+// Touched lists the files changed on top of the accepted point, like
+// Changed, but only reads: it stages nothing, so it is safe to look at a
+// worktree another run is editing right now (ADR-277).
+func Touched(ctx context.Context, dir string) ([]string, error) {
+	tracked, err := git(ctx, dir, "diff", "--name-only", "--no-renames", "HEAD")
+	if err != nil {
+		return nil, err
+	}
+	untracked, err := git(ctx, dir, "ls-files", "--others", "--exclude-standard")
+	if err != nil {
+		return nil, err
+	}
+	var files []string
+	for _, f := range strings.Split(tracked+"\n"+untracked, "\n") {
+		if f = strings.TrimSpace(f); f != "" && !slices.Contains(files, f) {
+			files = append(files, f)
+		}
+	}
+	return files, nil
+}

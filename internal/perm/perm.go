@@ -120,6 +120,11 @@ type Policy struct {
 	// (package.json, lockfiles, uv.lock, requirements) installs them in the
 	// project at once instead of leaving a "Cài lại thư viện" card (ADR-251).
 	AutoDeps bool `json:"auto_deps"`
+	// AutoRoute: a person's message in a project chat that tags no agent
+	// goes to the project's agent whose name/role/description fits it
+	// clearly better than the chat's own agent (ADR-277); off = the chat's
+	// agent, as before.
+	AutoRoute bool `json:"auto_route"`
 	// LinkedProjects: ids of the projects this project's agents may open a
 	// chat in, send to and read (send_to_chat, read_link, search_history).
 	// One way: the other project links back on its own.

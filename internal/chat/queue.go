@@ -106,6 +106,9 @@ func (e *Engine) SendQueued(conversationID string) {
 	ctx = actor.With(ctx, list[0].Author)
 	err = e.applyQueued(ctx, conversationID, opts)
 	if err == nil {
+		if opts.AgentID == "" { // the person's own messages, no agent picked: may be auto-routed (ADR-277)
+			ctx = WithAutoRoute(ctx)
+		}
 		_, _, err = e.SendWithContext(ctx, conversationID, text, list[len(list)-1].Context, files)
 	}
 	var off *OffError

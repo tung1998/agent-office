@@ -99,7 +99,7 @@ func (s *server) putPolicy(w http.ResponseWriter, r *http.Request) {
 	old, raw := perm.LoadPolicyRaw(r.Context(), s.cfg.Store, r.PathValue("id"))
 	// (a copy: decoding reuses the slice, and old is read after)
 	body.QuickCheck, body.QuickChecks, body.MergeChecks, body.LinkedProjects, body.Experts = old.QuickCheck, old.QuickChecks, old.MergeChecks, slices.Clone(old.LinkedProjects), old.Experts
-	body.AutoDeps = old.AutoDeps
+	body.AutoDeps, body.AutoRoute = old.AutoDeps, old.AutoRoute
 	if !decode(w, r, &body) {
 		return
 	}

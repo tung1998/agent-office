@@ -89,6 +89,8 @@ type Toolbox struct {
 	assistant func(ctx context.Context) string
 	// wf runs the workflow_* tools (the chat engine)
 	wf Workflows
+	// inProgress: the project's chats' unmerged edits (ADR-277), set by the chat engine
+	inProgress func(ctx context.Context, projectID, conversationID string) string
 	// peers: linked projects in other offices (ADR-167; nil = none)
 	peers *peer.Service
 	// transfer and home: create, export and import projects (ADR-170; nil = none)
@@ -431,8 +433,9 @@ func (t *Toolbox) Tools() []Tool {
 				}, "resource", "op", "reason")},
 		)
 	}
-	list = append(list, staffLoadTool()) // ADR-197
-	list = append(list, nextRunTool())   // ADR-202
+	list = append(list, staffLoadTool())  // ADR-197
+	list = append(list, inProgressTool()) // ADR-277
+	list = append(list, nextRunTool())    // ADR-202
 	list = append(list, Tool{Name: "search_history", Description: "Search chat history (web, Discord, Telegram, automations) by keyword, ignoring accents. When the person refers to earlier work, search first, don't guess; read a result in full with read_link.",
 		Schema: obj(map[string]any{
 			"query":   map[string]any{"type": "string", "description": "Keywords, a few words are enough"},
@@ -912,6 +915,8 @@ func (t *Toolbox) call(ctx context.Context, sc Scope, name string, raw json.RawM
 			return "Bạn không có quyền đổi lịch chạy (gói hiện tại: " + perm.Label(sc.Level) + ")", true
 		}
 		out, err = t.scheduleNextRun(ctx, sc, raw, time.Now())
+	case "work_in_progress":
+		out, err = t.workInProgress(ctx, sc)
 	case "staff_load":
 		var d struct{ Days int }
 		_ = json.Unmarshal(raw, &d)

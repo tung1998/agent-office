@@ -642,6 +642,14 @@ func (r chatRepo) SetConversationContext(ctx context.Context, id string, tokens,
 	return execOne(ctx, r.db, `UPDATE conversations SET context_tokens=?, context_window=? WHERE id=?`, tokens, window, id)
 }
 
+func (r chatRepo) SetConversationOwner(ctx context.Context, id, createdBy string) error {
+	err := execOne(ctx, r.db, `UPDATE conversations SET created_by=? WHERE id=?`, createdBy, id)
+	if err == nil {
+		r.tell(storage.Change{Kind: "conversation", ConversationID: id})
+	}
+	return err
+}
+
 func (r chatRepo) MarkSeen(ctx context.Context, userID, conversationID string, seen bool) error {
 	if !seen {
 		_, err := r.db.ExecContext(ctx, `DELETE FROM conversation_reads WHERE user_id=? AND conversation_id=?`, userID, conversationID)

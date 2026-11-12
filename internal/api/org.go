@@ -148,6 +148,8 @@ func (s *server) orgRoutes(mux *http.ServeMux) {
 		mux.Handle("GET /api/chat/turns/{id}/stream", auth(s.ownTurn(s.streamTurn)))
 		mux.Handle("POST /api/chat/turns/{id}/cancel", auth(s.ownTurn(s.cancelTurn)))
 		mux.Handle("POST /api/conversations/{id}/seen", auth(s.ownChat(s.markSeen)))
+		mux.Handle("GET /api/conversations/{id}/handoff", auth(s.ownChat(s.handoffCandidates)))    // ADR-277
+		mux.Handle("POST /api/conversations/{id}/handoff", auth(s.ownChat(s.handoffConversation))) // ADR-277
 		mux.Handle("POST /api/conversations/seen", auth(s.markAllSeen))
 		mux.Handle("PUT /api/conversations/{id}/tags", auth(s.ownChat(s.setTags)))
 		mux.Handle("PUT /api/conversations/{id}/subject", auth(s.ownChat(s.setSubject)))

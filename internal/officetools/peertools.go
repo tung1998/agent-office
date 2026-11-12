@@ -10,7 +10,7 @@ import (
 // peerReadTools: what an office a project is shared with may read there
 // through other_office call (ADR-212): its settings, board, data and report,
 // as a pack of its config would show.
-var peerReadTools = []string{"describe", "list", "get", "project_report", "failure_digest", "burn_quests", "data_collections", "data_query", "recall"}
+var peerReadTools = []string{"describe", "list", "get", "project_report", "failure_digest", "burn_quests", "data_collections", "data_query", "recall", "work_in_progress"}
 
 // peerAdminTools: what an office made administrator here may also read and
 // change, at once and in the name of the admin who paired (it may already

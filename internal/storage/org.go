@@ -667,6 +667,9 @@ type ChatRepo interface {
 	// SetConversationContext writes only the context columns (turns running at
 	// once must not write back an older copy of the rest).
 	SetConversationContext(ctx context.Context, id string, tokens, window int) error
+	// SetConversationOwner writes only who the chat belongs to (handed over
+	// to a teammate, ADR-277).
+	SetConversationOwner(ctx context.Context, id, createdBy string) error
 	// UpsertMember adds an agent to a chat or updates its session/context (joined_at kept).
 	UpsertMember(ctx context.Context, m ChatMember) error
 	// Members lists a chat's agents in the order they joined.

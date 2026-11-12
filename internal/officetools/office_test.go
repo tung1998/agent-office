@@ -97,7 +97,7 @@ func TestToolsReadOnly(t *testing.T) {
 		"ops_overview": true, "process_logs": true, "container_logs": true, "monitor_detail": true,
 		"git_status": true, "git_diff": true, "git_log": true,
 		"describe": true, "list": true, "get": true,
-		"search_history": true, "read_link": true, "burn_list": true, "burn_quests": true, "recall": true, "use_skill": true, "staff_load": true,
+		"search_history": true, "read_link": true, "burn_list": true, "burn_quests": true, "recall": true, "use_skill": true, "staff_load": true, "work_in_progress": true,
 		"pending_requests": true,
 	}
 	writes := []string{"run_command", "propose_action", "propose_automation", "propose_change", "remember", "my_skills",

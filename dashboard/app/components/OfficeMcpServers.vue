@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import type { MessageKey } from '~/locales/vi'
+import { MCP_PRESETS, type McpPreset } from '~/utils/mcpPresets'
 // The MCP servers office manages (ADR-091, ADR-092): agent runs reach them
 // through the office gateway /mcp/s/<name>, with office's own token. HTTP
 // servers may log in with OAuth (office keeps and refreshes the token);
@@ -182,7 +184,7 @@ async function logout(s: GwServer) {
 }
 
 // ---- form ----
-interface Row { key: string, value: string, saved?: string }
+interface Row { key: string, value: string, saved?: string, placeholder?: string }
 const formOpen = ref(false)
 const editing = ref<GwServer | null>(null)
 const blank = () => ({ name: '', kind: 'http' as string, url: '', rows: [] as Row[], command: '', args: '', env: [] as Row[], clientOpen: false, clientId: '', clientSecret: '', hasSecret: false })
@@ -193,12 +195,20 @@ const kinds = computed(() => [{ label: 'HTTP', value: 'http' }, { label: t('tool
 const rowsOf = (m: Record<string, string>) => Object.entries(m).map(([key, saved]) => ({ key, value: '', saved }))
 function openForm(s?: GwServer) {
   editing.value = s ?? null
+  preset.value = null
   formError.value = ''
   form.value = s
     ? { ...blank(), name: s.name, kind: s.kind, url: s.url, rows: rowsOf(s.headers), command: s.command, args: s.args.join('\n'), env: rowsOf(s.env),
         clientOpen: !!s.oauth?.client_manual, clientId: s.oauth?.client_id ?? '', hasSecret: !!s.oauth?.has_secret }
     : { ...blank(), rows: [{ key: 'Authorization', value: '' }] }
   formOpen.value = true
+}
+// ready servers (ADR-277): fill the form, the person pastes the secret
+const preset = ref<McpPreset | null>(null)
+function usePreset(p: McpPreset) {
+  preset.value = p
+  formError.value = ''
+  form.value = { ...blank(), name: p.id, kind: p.kind, url: p.url, rows: p.headers.map(h => ({ key: h.key, value: '', placeholder: h.placeholder })) }
 }
 const sealed = (rows: Row[]) => {
   const out: Record<string, string> = {}
@@ -343,6 +353,23 @@ async function save() {
     <UModal v-model:open="formOpen" :title="editing ? t('tools.editTitle', { name: editing.name }) : t('tools.gwAddTitle')">
       <template #body>
         <form id="gw-form" class="space-y-4" @submit.prevent="save">
+          <UFormField v-if="!editing" :label="t('tools.gwPresets')">
+            <template #hint>
+              <InfoTip :text="t('tools.gwPresetsInfo')" icon-class="text-(--ui-text-dimmed)" />
+            </template>
+            <div class="flex flex-wrap gap-1.5">
+              <UTooltip v-for="p in MCP_PRESETS" :key="p.id" :text="t(`tools.gwPreset.${p.id}` as MessageKey)">
+                <UButton size="xs" :color="preset?.id === p.id ? 'primary' : 'neutral'" :variant="preset?.id === p.id ? 'subtle' : 'outline'"
+                         :label="p.label" @click="usePreset(p)" />
+              </UTooltip>
+            </div>
+            <p v-if="preset" class="mt-1.5 flex items-start gap-1 text-xs text-(--ui-text-muted)">
+              <span class="min-w-0 flex-1">{{ t(`tools.gwPreset.${preset.id}` as MessageKey) }}</span>
+              <ULink :to="preset.docs" target="_blank" class="inline-flex shrink-0 items-center gap-1 text-primary">
+                {{ t('tools.gwPresetDocs') }}<UIcon name="i-lucide-external-link" class="size-3" />
+              </ULink>
+            </p>
+          </UFormField>
           <UFormField v-if="!editing" :label="t('tools.gwKind')">
             <URadioGroup v-model="form.kind" :items="kinds" orientation="horizontal" />
           </UFormField>
@@ -389,7 +416,7 @@ async function save() {
               <div class="space-y-2">
                 <div v-for="(r, i) in form.rows" :key="i" class="flex gap-2">
                   <UInput v-model="r.key" placeholder="Authorization" class="w-40 font-mono" />
-                  <UInput v-model="r.value" type="password" autocomplete="off" :placeholder="r.saved ? t('tools.gwKeepSaved', { hint: r.saved }) : 'Bearer …'" class="flex-1 font-mono" />
+                  <UInput v-model="r.value" type="password" autocomplete="off" :placeholder="r.saved ? t('tools.gwKeepSaved', { hint: r.saved }) : (r.placeholder ?? 'Bearer …')" class="flex-1 font-mono" />
                   <UButton color="neutral" variant="ghost" icon="i-lucide-x" :aria-label="t('common.delete')" @click="form.rows.splice(i, 1)" />
                 </div>
                 <UButton size="xs" color="neutral" variant="outline" icon="i-lucide-plus" :label="t('tools.gwAddHeader')" @click="form.rows.push({ key: '', value: '' })" />

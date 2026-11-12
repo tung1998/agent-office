@@ -141,6 +141,7 @@ async function saveTags(c: Conversation, mutate: (tags: string[]) => string[]) {
 }
 // "Gắn tag" from a chat's menu in the list
 const tagEdit = ref<Conversation | null>(null)
+const handoff = ref<Conversation | null>(null) // ADR-277
 const messages = ref<Message[]>([])
 const draft = ref('')
 const draftFiles = ref<Attachment[]>([])
@@ -625,6 +626,7 @@ function threadMenu(c: Conversation) {
   ]
   // a Discord/Telegram chat: where it is there (its thread, once it has one)
   items.push({ label: t('chatTag.edit'), icon: 'i-lucide-tag', onSelect: () => { tagEdit.value = c } })
+  if (!c.purpose && (!c.source || c.source === 'web')) items.push({ label: t('handoff.menu'), icon: 'i-lucide-user-round-check', onSelect: () => { handoff.value = c } })
   if (c.external_url) items.unshift({ label: c.source === 'telegram' ? t('chat.openInTelegram') : t('chat.openInDiscord'), icon: 'i-lucide-external-link', onSelect: () => { window.open(c.external_url, '_blank', 'noopener') } })
   return [items, [{ label: t('chat.delete'), icon: 'i-lucide-trash-2', color: 'error' as const, onSelect: () => remove(c) }]]
 }
@@ -1472,6 +1474,7 @@ onBeforeUnmount(() => {
       />
     </section>
     <!-- "Gắn tag" from a chat's menu in the list -->
+    <ChatHandoffModal :conversation="handoff" @close="handoff = null" @done="handoff = null" />
     <UModal :open="!!tagEdit" :title="t('chatTag.title')" :description="tagEdit?.title || t('chat.newThreadTitle')" @update:open="(o) => { if (!o) tagEdit = null }">
       <template #body>
         <TagPicker v-if="tagEdit" :model-value="tagEdit.tags ?? []" :suggestions="projectTags" @update:model-value="(v) => { const c = tagEdit!; const before = c.tags ?? []; saveTags(c, (base) => applyTagDiff(base, before, v)) }" />

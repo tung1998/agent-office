@@ -364,7 +364,11 @@ func (s *server) sendMessage(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	turn, msg, err := s.cfg.Chat.SendWithContext(r.Context(), r.PathValue("id"), in.Text, in.Context, in.Attachments)
+	sendCtx := r.Context()
+	if in.AgentID == "" { // the person picked no agent: an untagged message may be auto-routed (ADR-277)
+		sendCtx = chat.WithAutoRoute(sendCtx)
+	}
+	turn, msg, err := s.cfg.Chat.SendWithContext(sendCtx, r.PathValue("id"), in.Text, in.Context, in.Attachments)
 	if errors.Is(err, chat.ErrBusy) { // an answer started just now: it waits
 		s.queueMessage(w, r, in.Text, in.Context, in.Attachments, storage.QueuedOptions{})
 		return

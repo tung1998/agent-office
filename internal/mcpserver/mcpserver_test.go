@@ -58,7 +58,7 @@ func TestMCP(t *testing.T) {
 		t.Fatalf("notification: %d", code)
 	}
 	_, list := call(tok, `{"jsonrpc":"2.0","id":2,"method":"tools/list"}`)
-	if n := len(list["result"].(map[string]any)["tools"].([]any)); n != 10 { // + read_link, search_history, staff_load
+	if n := len(list["result"].(map[string]any)["tools"].([]any)); n != 11 { // + read_link, search_history, staff_load, work_in_progress
 		t.Fatalf("tools: %d", n)
 	}
 	_, ov := call(tok, `{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"ops_overview","arguments":{}}}`)
@@ -95,7 +95,7 @@ func TestReadOnlyHint(t *testing.T) {
 		"ops_overview": true, "process_logs": true, "container_logs": true, "monitor_detail": true,
 		"git_status": true, "git_diff": true, "git_log": true,
 		"describe": true, "list": true, "get": true,
-		"search_history": true, "read_link": true, "burn_list": true, "staff_load": true,
+		"search_history": true, "read_link": true, "burn_list": true, "staff_load": true, "work_in_progress": true,
 	}
 
 	tb := officetools.New(st, nil, nil)
