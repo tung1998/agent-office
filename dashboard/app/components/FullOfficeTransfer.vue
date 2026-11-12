@@ -69,6 +69,31 @@ const sourceName = computed(() => source.value === 'file' ? file.value?.name : p
 const confirming = ref(false)
 const result = ref<ImportResult | null>(null)
 
+// the imported database waits for the next start: start it from here, then
+// wait for the office to answer again and reload
+const restarting = ref(false)
+async function restart(force = false) {
+  restarting.value = true
+  try {
+    await $fetch('/api/system/restart', { method: 'POST', body: { force } })
+  } catch (e) {
+    restarting.value = false
+    const msg = apiError(e)
+    if (!force && confirm(t('transfer.office.restartBusy', { what: msg }))) return restart(true)
+    if (force) toast.add({ title: msg, color: 'error' })
+    return
+  }
+  for (let i = 0; i < 90; i++) {
+    await new Promise(r => setTimeout(r, 2000))
+    if (await fetch('/healthz').then(r => r.ok).catch(() => false) && i > 1) {
+      window.location.reload()
+      return
+    }
+  }
+  restarting.value = false
+  toast.add({ title: t('transfer.office.restartSlow'), color: 'warning' })
+}
+
 async function receive() {
   confirming.value = false
   busy.value = 'import'
@@ -153,7 +178,11 @@ async function receive() {
             </li>
             <li v-for="w in result.warnings" :key="w" class="text-(--ui-text-muted)">{{ w }}</li>
           </ul>
-          <p v-if="result.pending" class="mt-3 text-sm font-medium">{{ t('transfer.office.restart') }}</p>
+          <div v-if="result.pending" class="mt-3 flex flex-wrap items-center gap-3">
+            <p class="text-sm font-medium">{{ t('transfer.office.restart') }}</p>
+            <UButton size="sm" color="warning" icon="i-lucide-power" :label="restarting ? t('transfer.office.restarting') : t('transfer.office.restartBtn')"
+                     :loading="restarting" :disabled="restarting" @click="restart()" />
+          </div>
         </template>
       </UAlert>
     </div>

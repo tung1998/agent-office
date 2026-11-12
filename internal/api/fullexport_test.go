@@ -76,3 +76,17 @@ func TestFullExportImportFromDashboard(t *testing.T) {
 		t.Fatalf("peer fetch without a key = %d", resp.StatusCode)
 	}
 }
+
+// ADR-279: restarting the office is the admin's, and says why it cannot.
+func TestRestartOffice(t *testing.T) {
+	e := setup(t)
+	admin, member := e.client(t), e.client(t)
+	login(t, e, admin, "admin@x.io", "admin-password")
+	login(t, e, member, "member@x.io", "member-password")
+	if resp, _ := do(t, member, "POST", e.srv.URL+"/api/system/restart", map[string]any{}, nil); resp.StatusCode != http.StatusForbidden {
+		t.Fatalf("member restart = %d", resp.StatusCode)
+	}
+	if resp, body := do(t, admin, "POST", e.srv.URL+"/api/system/restart", map[string]any{}, nil); resp.StatusCode != http.StatusConflict || body["error"] == nil {
+		t.Fatalf("restart without a supervisor = %d %v", resp.StatusCode, body)
+	}
+}

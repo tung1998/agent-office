@@ -98,6 +98,9 @@ type Config struct {
 	// it lets the whole office be exported and imported (ADR-275). nil: off.
 	Snapshot func(ctx context.Context, dest string) error
 	KeyPath  string
+	// Restart stops the server for the supervisor to start it again as it is
+	// (nil or an error: it cannot, ADR-279).
+	Restart  func(ctx context.Context, force bool) error
 	System   SystemInfo
 	Office   *officetools.Toolbox // agents' tools: describe/list/get/propose_change use the config registry
 	Channels ChannelReloader      // restarts a Telegram/Discord bot after its settings change (nil = off)

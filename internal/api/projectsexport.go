@@ -297,6 +297,9 @@ func (s *server) applyStaged(r *http.Request, st fullexport.Staged, decisions ma
 			}
 			res.OK, res.ID, res.Path = true, target.ID, target.Path
 			res.Note = "đã thay agent, workflow, tự động hóa; thêm chat và ghi chú; code ở " + target.Path + " giữ nguyên"
+			if merged := st.MergeInto(ctx, p, target.Path); merged != "" { // ADR-279: what the other machine had not pushed
+				res.Note += "; " + merged
+			}
 		case action == "new":
 			res.ID, res.Path, res.OK, res.Note = s.importNewProject(r, st, p, pack, pv.NewName, projectsDir)
 		default:

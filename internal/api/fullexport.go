@@ -25,6 +25,7 @@ func (s *server) fullExportRoutes(mux *http.ServeMux, admin func(http.HandlerFun
 	mux.Handle("POST /api/transfer/full-export", admin(s.fullExport))
 	mux.Handle("GET /api/transfer/full-export/{name}", admin(s.fullExportFile))
 	mux.Handle("POST /api/transfer/full-import", admin(s.fullImport))
+	mux.Handle("POST /api/system/restart", admin(s.restartOffice))                   // ADR-279
 	mux.Handle("POST /api/transfer/projects-export", admin(s.projectsExport))        // ADR-276
 	mux.Handle("POST /api/transfer/projects-import", admin(s.projectsImportPreview)) // raw body
 	mux.Handle("POST /api/transfer/projects-import/apply", admin(s.projectsImportApply))
@@ -274,4 +275,24 @@ func (s *server) fullPull(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	s.runFullImport(w, r, func(ctx context.Context) (readCloser, error) { return s.cfg.Peers.FetchFull(ctx, id) },
 		in.Passphrase, in.Mode, in.ProjectsDir, id)
+}
+
+// restartOffice starts the server again as it is (an imported database waits
+// for that start). What runs is cut off: refused while something runs,
+// unless force.
+func (s *server) restartOffice(w http.ResponseWriter, r *http.Request) {
+	var in struct {
+		Force bool `json:"force"`
+	}
+	_ = json.NewDecoder(r.Body).Decode(&in)
+	if s.cfg.Restart == nil {
+		writeError(w, http.StatusConflict, "office này không tự khởi động lại được")
+		return
+	}
+	if err := s.cfg.Restart(r.Context(), in.Force); err != nil {
+		writeError(w, http.StatusConflict, err.Error())
+		return
+	}
+	s.audit(r, audit.Change{Action: "office.restart", Resource: "office", Detail: map[string]any{"force": in.Force}})
+	writeJSON(w, http.StatusAccepted, map[string]any{"restarting": true})
 }

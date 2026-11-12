@@ -372,6 +372,8 @@ func serveCmd() *cobra.Command {
 				go exitWithParent(ctx)
 			}
 			restart := make(chan struct{})
+			plainRestart := make(chan struct{}) // the dashboard's "restart office" (ADR-279)
+			var plainOnce sync.Once
 			var updater *selfupdate.Updater
 			if supervised {
 				if exe, err := os.Executable(); err == nil {
@@ -456,7 +458,18 @@ func serveCmd() *cobra.Command {
 				},
 				Snapshot: snapshotOf(a), // ADR-275
 				KeyPath:  h.SecretKey(),
-				System:   api.SystemInfo{Mode: string(h.Mode), HomeDir: h.Dir, ProjectRoot: h.ProjectRoot},
+				Restart: func(ctx context.Context, force bool) error {
+					if !supervised {
+						return errors.New("office không chạy dưới `office run` nên không tự khởi động lại được: tắt rồi bật lại bằng tay")
+					}
+					// a restart cuts off what runs: say so unless the person insists
+					if busy := (busywork.Counter{Store: a.store, Chat: chatEngine}).Count(ctx).Summary(); busy != "" && !force {
+						return fmt.Errorf("đang chạy: %s", busy)
+					}
+					plainOnce.Do(func() { close(plainRestart) })
+					return nil
+				},
+				System: api.SystemInfo{Mode: string(h.Mode), HomeDir: h.Dir, ProjectRoot: h.ProjectRoot},
 			})
 
 			// a first run gets admin / admin, to replace with a real email and password on first sign-in
@@ -508,16 +521,11 @@ func serveCmd() *cobra.Command {
 				fmt.Fprintf(cmd.ErrOrStderr(), "office: %d quy trình chạy tiếp từ chỗ đã dừng (khởi động lại)\n", n)
 			}
 			go chatEngine.WatchOrphans(ctx, 5*time.Minute) // runs left running that nobody runs (ADR-256)
+			go watchPendingCode(ctx, a.store, h.Dir)       // imported projects waiting for a repo this machine may clone now (ADR-279)
 			chatEngine.SendAllQueued(ctx)                  // messages that waited in chats when office stopped
 			fmt.Fprintf(os.Stderr, "office %s · chế độ %s · dữ liệu %s · api http://%s\n", version, h.Mode, h.Dir, addr)
 
-			select {
-			case err := <-errCh:
-				if !errors.Is(err, http.ErrServerClosed) {
-					return err
-				}
-			case <-restart:
-				// swapped in a new build: stop cleanly and let the supervisor restart us
+			stopForRestart := func() {
 				chatEngine.Shutdown(turnStopWait) // before the server: a turn must not see its tools fail
 				shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 				_ = srv.Shutdown(shutdownCtx)
@@ -525,7 +533,21 @@ func serveCmd() *cobra.Command {
 				gateway.Close()
 				procs.Detach()
 				a.Close()
+			}
+			select {
+			case err := <-errCh:
+				if !errors.Is(err, http.ErrServerClosed) {
+					return err
+				}
+			case <-restart:
+				// swapped in a new build: stop cleanly and let the supervisor restart us
+				stopForRestart()
 				os.Exit(selfupdate.RestartCode)
+			case <-plainRestart:
+				// the same build again (an imported database waits for this start)
+				selfupdate.SaveRestart(h.Dir, selfupdate.Restart{Reason: "khởi động lại từ dashboard", At: time.Now().UTC()})
+				stopForRestart()
+				os.Exit(plainRestartCode)
 			case <-ctx.Done():
 				selfupdate.SaveRestart(h.Dir, selfupdate.Restart{Reason: "office được tắt (office stop, tắt dịch vụ hoặc tắt máy)", At: time.Now().UTC()})
 				chatEngine.Shutdown(turnStopWait)

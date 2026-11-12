@@ -84,6 +84,7 @@ async function drop() {
         <p>{{ reasonText }}</p>
         <p v-if="data.message" class="text-xs opacity-80"><code class="break-all">{{ data.message }}</code></p>
         <p v-if="keptText" class="text-xs">{{ keptText }}</p>
+        <p class="text-xs">{{ t('pendingCode.auto') }}</p>
 
         <div v-if="isAdmin" class="flex flex-wrap gap-2">
           <UButton size="sm" icon="i-lucide-refresh-cw" :label="t('pendingCode.retry')" :loading="busy === 'retry'" :disabled="!!busy" @click="retry()" />
@@ -99,8 +100,12 @@ async function drop() {
           </UFormField>
           <UButton type="submit" size="sm" :label="t('pendingCode.clone')" :loading="busy === 'url'" :disabled="!url.trim() || !!busy" />
         </form>
-        <form v-if="mode === 'dir'" class="flex flex-wrap items-end gap-2" @submit.prevent="attach">
-          <UFormField :label="t('pendingCode.dirLabel')" :hint="t('pendingCode.dirHint')" class="min-w-0 flex-1">
+        <form v-if="mode === 'dir'" class="space-y-2" @submit.prevent="attach">
+          <p class="text-xs">{{ t('pendingCode.dirHint') }}</p>
+          <div class="max-h-72 overflow-y-auto rounded-md border border-(--ui-border) bg-(--ui-bg)">
+            <FolderTree v-model="dir" />
+          </div>
+          <UFormField :label="t('pendingCode.dirLabel')" class="min-w-0">
             <UInput v-model="dir" class="w-full" placeholder="/Users/ban/code/repo" />
           </UFormField>
           <UButton type="submit" size="sm" :label="t('pendingCode.attach')" :loading="busy === 'dir'" :disabled="!dir.trim() || !!busy" />

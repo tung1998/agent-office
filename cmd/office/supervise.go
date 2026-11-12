@@ -290,6 +290,15 @@ func supervise(args []string) error {
 				ui.stop()
 				return nil
 			}
+			if code == plainRestartCode { // asked from the dashboard: same build, at once (ADR-279)
+				fmt.Fprintln(os.Stderr, "office: khởi động lại theo yêu cầu…")
+				if err := startAPI(); err != nil {
+					return err
+				}
+				savePIDs(api, ui)
+				lastStart = time.Now()
+				continue
+			}
 			// crashed: back off, and after repeated quick crashes give up
 			if time.Since(lastStart) > time.Minute {
 				crashes = 0
@@ -306,6 +315,11 @@ func supervise(args []string) error {
 		}
 	}
 }
+
+// plainRestartCode is the exit code with which the server asks the
+// supervisor to start it again as it is: no new build, no health check and
+// no rollback (an imported database waiting for the next start, ADR-275).
+const plainRestartCode = 76
 
 // healthy polls /healthz until it answers 200, the timeout passes, or the
 // server exits (a build that crashes at start fails fast).

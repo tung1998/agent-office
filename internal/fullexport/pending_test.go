@@ -147,3 +147,93 @@ func TestAttachClonedFolder(t *testing.T) {
 		t.Error("an untracked file of the person was overwritten")
 	}
 }
+
+// Once the repo is reachable again, the waiting project gets its code with
+// nobody pressing a button; a project deleted meanwhile stops waiting.
+func TestRetryReachable(t *testing.T) {
+	ctx := context.Background()
+	root := t.TempDir()
+	origin := filepath.Join(root, "origin.git")
+	run(t, root, "init", "-q", "--bare", origin)
+	src := filepath.Join(root, "src")
+	run(t, root, "clone", "-q", origin, src)
+	write(t, filepath.Join(src, "a.txt"), "v1\n")
+	run(t, src, "add", ".")
+	run(t, src, "commit", "-qm", "base")
+	run(t, src, "push", "-q", "origin", "HEAD:main")
+	home := filepath.Join(root, ".office")
+	p := Project{ID: "r", Name: "R", Kind: KindRemote, Remote: origin, Branch: "main", Head: strings.TrimSpace(run(t, src, "rev-parse", "HEAD"))}
+	_ = KeepPending(home, "waits", p, filepath.Join(root, "nothing"), restored{NoCode: true, Reason: ReasonAuth})
+	_ = KeepPending(home, "deleted", p, filepath.Join(root, "nothing"), restored{NoCode: true, Reason: ReasonAuth})
+	to := filepath.Join(root, "new")
+	_ = os.MkdirAll(to, 0o755)
+	moved := origin + ".away"
+	_ = os.Rename(origin, moved)
+	pathOf := func(id string) (string, error) {
+		if id == "deleted" {
+			return "", nil
+		}
+		return to, nil
+	}
+	if done := RetryReachable(ctx, home, pathOf); len(done) != 0 {
+		t.Fatalf("cloned an unreachable repo: %v", done)
+	}
+	if _, ok, _ := LoadPending(home, "deleted"); ok {
+		t.Error("a deleted project still waits")
+	}
+	_ = os.Rename(moved, origin) // access is back
+	if done := RetryReachable(ctx, home, pathOf); len(done) != 1 || done[0] != "waits" {
+		t.Fatalf("done = %v", done)
+	}
+	if read(t, filepath.Join(to, "a.txt")) != "v1\n" {
+		t.Error("code not cloned")
+	}
+}
+
+// A sync over a project that has its code here: the other machine's
+// unpushed commits come as office-export/* branches, its uncommitted change
+// is applied only when clean (else kept as a patch), the work here untouched.
+func TestMergeIntoExistingClone(t *testing.T) {
+	ctx := context.Background()
+	root := t.TempDir()
+	origin := filepath.Join(root, "origin.git")
+	run(t, root, "init", "-q", "--bare", origin)
+	src := filepath.Join(root, "src")
+	run(t, root, "clone", "-q", origin, src)
+	write(t, filepath.Join(src, "a.txt"), "v1\n")
+	write(t, filepath.Join(src, "b.txt"), "b1\n")
+	run(t, src, "add", ".")
+	run(t, src, "commit", "-qm", "base")
+	run(t, src, "push", "-q", "origin", "HEAD:main")
+	here := filepath.Join(root, "here")
+	run(t, root, "clone", "-q", origin, here)
+	write(t, filepath.Join(here, "mine.txt"), "work here\n")
+
+	write(t, filepath.Join(src, "a.txt"), "v2\n")
+	run(t, src, "commit", "-qam", "unpushed there")
+	write(t, filepath.Join(src, "b.txt"), "b2 dirty\n")
+	var buf bytes.Buffer
+	if _, err := ExportProjects(ctx, &buf, ProjectsExportOptions{Projects: []ProjectRef{{ID: "r", Name: "R", Path: src}}, Passphrase: pass,
+		Pack: func(string) ([]byte, error) { return []byte(`{"version":1}`), nil }}); err != nil {
+		t.Fatal(err)
+	}
+	st, err := StageProjects(ctx, &buf, pass, filepath.Join(root, "stage"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	note := st.MergeInto(ctx, st.Manifest.Projects[0], here)
+	if !strings.Contains(run(t, here, "log", "--format=%s", "office-export/main"), "unpushed there") {
+		t.Fatalf("unpushed commit not brought as a branch (%s)", note)
+	}
+	if read(t, filepath.Join(here, "b.txt")) != "b2 dirty\n" {
+		t.Errorf("the clean uncommitted change was not applied: %s", note)
+	}
+	if read(t, filepath.Join(here, "mine.txt")) != "work here\n" || read(t, filepath.Join(here, "a.txt")) != "v1\n" {
+		t.Error("the work here was touched")
+	}
+	other := filepath.Join(root, "other")
+	run(t, root, "init", "-q", other)
+	if n := st.MergeInto(ctx, st.Manifest.Projects[0], other); !strings.Contains(n, "khác repo") {
+		t.Errorf("merge into another repo: %q", n)
+	}
+}

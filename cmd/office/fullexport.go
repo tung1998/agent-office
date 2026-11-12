@@ -12,6 +12,7 @@ import (
 	"golang.org/x/term"
 
 	"github.com/tung1998/agent-office/internal/fullexport"
+	"github.com/tung1998/agent-office/internal/storage"
 )
 
 // EnvExportPassphrase gives the passphrase without a prompt (scripts); never a flag:
@@ -199,4 +200,29 @@ func snapshotOf(a *app) func(ctx context.Context, dest string) error {
 		return nil
 	}
 	return b.Backup
+}
+
+// watchPendingCode clones, every 10 minutes, the repos of projects waiting
+// for their code that this machine may read now (ADR-279).
+func watchPendingCode(ctx context.Context, st storage.Store, home string) {
+	t := time.NewTimer(2 * time.Minute)
+	defer t.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+		}
+		done := fullexport.RetryReachable(ctx, home, func(id string) (string, error) {
+			r, err := st.Repos().Get(ctx, id)
+			if errors.Is(err, storage.ErrNotFound) {
+				return "", nil
+			}
+			return r.Path, err
+		})
+		for _, id := range done {
+			fmt.Fprintf(os.Stderr, "office: project %s đã có code (máy này vừa clone được repo)\n", id)
+		}
+		t.Reset(10 * time.Minute)
+	}
 }
