@@ -101,7 +101,7 @@ const en: Record<keyof typeof vi, string> = {
   'chat.cmdGoal': 'Work until the goal is reached (status, clear; --check "cmd" admins only)',
   'chat.cmdSkillify': 'Turn what this chat did into a skill (add a note: name, scope)',
   'chat.skillify': 'Save as skill',
-  'chat.btwAsked': 'Asked aside: the answer shows in the chat when ready',
+  'chat.btwAsked': 'Answering aside, the running work goes on…',
   'chat.btwBadge': 'Aside',
   'chat.goalBar': 'Goal: {text}',
   'chat.goalRound': 'round {n}/{max}',

@@ -342,8 +342,16 @@ function toEnd() {
   scrollDown(true)
 }
 const held: Message[] = [] // an agent's answer that came while one streams: the stream's own end brings it
+// /btw questions asked here whose answer has not come yet: a box in the chat until it does (ADR-273)
+const btwPending = ref<{ id: number, convId: string, question: string }[]>([])
+const btwHere = computed(() => btwPending.value.filter(b => b.convId === current.value?.id))
 function place(m: Message) {
   if (messages.value.some(x => x.id === m.id)) return
+  if (m.btw || (m.role === 'error' && m.content.startsWith('/btw: '))) { // answered, or failed (the error says so)
+    const here = btwPending.value.filter(b => b.convId === current.value?.id)
+    const done = here.find(b => b.question === m.btw) ?? here[0]
+    if (done) btwPending.value = btwPending.value.filter(b => b !== done)
+  }
   if (m.role === 'user') dropShown(m.content) // shown already, before office had it
   messages.value.push(m)
   scrollDown()
@@ -769,7 +777,10 @@ async function post(text: string, files: Attachment[]) {
     const res = await $fetch<{ turn_id: string, message: Message, notice?: Message, queued?: Queued, btw?: string, text?: string, cleared?: boolean, goal?: ChatGoal | null }>(`/api/conversations/${id}/messages`, { method: 'POST', body: { text, attachments: files.map(a => a.id), mode: 'operate', edit_mode: editMode.value, effort: effort.value, context: props.pageContext?.() ?? '' } })
     if (current.value?.id !== id) return // switched chats while this was in flight: the reply belongs to the old one
     // office's own commands (ADR-273): /btw answered apart, /goal status or clear
-    if (res.btw) return void toast.add({ title: t('chat.btwAsked'), icon: 'i-lucide-message-circle-question' })
+    if (res.btw) {
+      btwPending.value.push({ id: ++shownSeq, convId: id, question: text.replace(/^\/btw\s+/i, '').trim() })
+      return void scrollDown(true)
+    }
     if (res.text !== undefined) {
       goal.value = res.goal ?? null
       return void toast.add({ title: res.goal ? t('chat.goalBar', { text: res.goal.text }) : t('chat.goalNone'), description: res.goal ? res.text : undefined, icon: 'i-lucide-target' })
@@ -1342,9 +1353,14 @@ onBeforeUnmount(() => {
               </ul>
             </details>
             <AdviceCard v-for="a in m.advice ?? []" :key="a.id" :advice="a" :project-id="projectId" />
-            <p v-if="m.btw" class="border-s-2 border-(--ui-border-accented) ps-2 text-xs text-(--ui-text-muted)">/btw {{ m.btw }}</p>
-            <!-- eslint-disable-next-line vue/no-v-html -->
-            <div class="markdown min-w-0 text-sm @max-[420px]/chat:text-xs" :class="[purpose && `md-apply-${purpose}`, isAdmin && current?.id && 'md-runnable']" @click="onMarkdownClick($event, m)" v-html="renderMarkdown(m.content, true, projectId)" />
+            <!-- a /btw answer: a box of its own colour, apart from the chat's answers (ADR-273) -->
+            <div :class="m.btw && 'space-y-1.5 rounded-lg border border-(--ui-info)/40 bg-(--ui-info)/5 px-3 py-2'">
+              <p v-if="m.btw" class="flex items-start gap-1.5 text-xs text-(--ui-info)">
+                <UIcon name="i-lucide-message-circle-question" class="mt-px size-3.5 shrink-0" /><span class="min-w-0 break-words">/btw {{ m.btw }}</span>
+              </p>
+              <!-- eslint-disable-next-line vue/no-v-html -->
+              <div class="markdown min-w-0 text-sm @max-[420px]/chat:text-xs" :class="[purpose && `md-apply-${purpose}`, isAdmin && current?.id && 'md-runnable']" @click="onMarkdownClick($event, m)" v-html="renderMarkdown(m.content, true, projectId)" />
+            </div>
             <UButton
               v-for="(d, i) in (purpose || current?.purpose === 'skill' || current?.purpose === 'workflow' ? [] : skillDrafts(m.content))" :key="`sk${i}`"
               icon="i-lucide-sparkles" size="sm" color="neutral" variant="outline" :label="t('chat.openSkillEditor', { name: String(d.name) })"
@@ -1363,6 +1379,15 @@ onBeforeUnmount(() => {
           </div>
         </template>
         <WorkflowRunCard v-for="r in runsAt.after" :key="r.id" :run="r" @updated="onRunUpdated" />
+        <!-- /btw asked, its answer on the way: it shows above as its own box -->
+        <div v-for="b in btwHere" :key="b.id" class="space-y-1 rounded-lg border border-dashed border-(--ui-info)/50 bg-(--ui-info)/5 px-3 py-2 text-xs">
+          <p class="flex items-start gap-1.5 text-(--ui-info)">
+            <UIcon name="i-lucide-message-circle-question" class="mt-px size-3.5 shrink-0" /><span class="min-w-0 break-words">/btw {{ b.question }}</span>
+          </p>
+          <p class="flex items-center gap-1.5 text-(--ui-text-muted)">
+            <UIcon name="i-lucide-loader-circle" class="size-3.5 shrink-0 animate-spin" />{{ t('chat.btwAsked') }}
+          </p>
+        </div>
         <!-- the chat's goal: office goes on round after round until it is reached (ADR-273) -->
         <div v-if="goal" class="flex flex-wrap items-center gap-2 rounded-lg border border-(--ui-primary)/40 bg-(--ui-primary)/5 px-3 py-2 text-xs">
           <UIcon name="i-lucide-target" class="size-4 shrink-0 text-(--ui-primary)" />

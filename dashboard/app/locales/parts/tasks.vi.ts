@@ -100,7 +100,7 @@ export default {
   'chat.cmdGoal': 'Làm tới khi đạt mục tiêu (status, clear; --check "lệnh" chỉ admin)',
   'chat.cmdSkillify': 'Biến việc chat này đã làm thành skill (thêm ghi chú: tên, phạm vi)',
   'chat.skillify': 'Lưu thành skill',
-  'chat.btwAsked': 'Đang hỏi riêng: câu trả lời hiện ở chat khi xong',
+  'chat.btwAsked': 'Đang trả lời riêng, việc đang chạy vẫn tiếp tục…',
   'chat.btwBadge': 'Hỏi chen',
   'chat.goalBar': 'Mục tiêu: {text}',
   'chat.goalRound': 'vòng {n}/{max}',
